@@ -1,0 +1,20 @@
+[project]
+name = "scriptordb"
+version = "0.1.0"
+description = "LLM-powered database operator"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic-ai>=1.106",
+    "typer>=0.25",
+    "keyring>=25.0",
+    "rich>=15.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0",
+    "pytest-asyncio>=1.4",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
