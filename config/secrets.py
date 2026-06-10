@@ -23,4 +23,5 @@ SUPPORTED_PROVIDERS: dict[str, str] = {
     "google": "google:gemini-2.5-flash",
     "groq": "groq:llama-4-scout-17b-16e-instruct",
     "mistral": "mistral:mistral-large-latest",
+    "nvidia": "nvidia:meta/llama-3.1-70b-instruct",
 }
