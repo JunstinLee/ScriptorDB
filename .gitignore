@@ -219,6 +219,10 @@ __marimo__/
 .DS_Store
 /api
 
+# Skills workspace
+.opencode/
+skills-lock.json
+
 node_modules/
 frontend/README.md
 frontend/src/assets/vite.svg
