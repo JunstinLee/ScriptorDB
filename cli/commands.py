@@ -149,5 +149,12 @@ def interactive(
 
 
 @app.command()
-def serve():
-    typer.echo("MCP server not yet implemented.")
+def serve(
+    host: Annotated[str, typer.Option("--host", "-h")] = "0.0.0.0",
+    port: Annotated[int, typer.Option("--port", "-p")] = 8000,
+    reload: Annotated[bool, typer.Option("--reload/--no-reload")] = True,
+):
+    import uvicorn
+
+    typer.echo(f"Starting ScriptorDB API server at http://{host}:{port}")
+    uvicorn.run("server.app:app", host=host, port=port, reload=reload)

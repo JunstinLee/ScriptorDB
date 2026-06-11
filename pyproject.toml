@@ -8,6 +8,8 @@ dependencies = [
     "typer>=0.25",
     "keyring>=25.0",
     "rich>=15.0",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
 ]
 
 [dependency-groups]
