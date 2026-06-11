@@ -45,3 +45,7 @@ class HealthResponse(BaseModel):
 
 class ModelsResponse(BaseModel):
     models: list[str]
+
+
+class DefaultModelResponse(BaseModel):
+    model: str | None

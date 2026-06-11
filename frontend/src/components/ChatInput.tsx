@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Input, Label, TextField } from "@heroui/react";
 import { ArrowUp } from "lucide-react";
-import { fetchModels, fetchRecommendedModels } from "../api/client";
+import { fetchDefaultModel, fetchModels, fetchRecommendedModels } from "../api/client";
 
 interface ChatInputProps {
   onSend: (prompt: string, model?: string | null, provider?: string | null) => void;
@@ -49,16 +49,27 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         if (fetchedProvider.current !== provider) return;
         if (res.models.length > 0) {
           setModels(res.models);
-          setModel(res.models[0]);
-          return;
+          return fetchDefaultModel(provider).then((def) => {
+            if (fetchedProvider.current !== provider) return;
+            if (def.model && res.models.includes(def.model)) {
+              setModel(def.model);
+            } else {
+              setModel(res.models[0]);
+            }
+          });
         }
         return fetchModels(provider).then((full) => {
           if (fetchedProvider.current !== provider) return;
           setModels(full.models);
           setAllModels(full.models);
-          if (full.models.length > 0) {
-            setModel(full.models[0]);
-          }
+          return fetchDefaultModel(provider).then((def) => {
+            if (fetchedProvider.current !== provider) return;
+            if (def.model && full.models.includes(def.model)) {
+              setModel(def.model);
+            } else if (full.models.length > 0) {
+              setModel(full.models[0]);
+            }
+          });
         });
       })
       .catch(() => {

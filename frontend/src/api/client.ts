@@ -1,5 +1,6 @@
 import type {
   ChatRequest,
+  DefaultModelResponse,
   HealthResponse,
   ModelsResponse,
   SchemaResponse,
@@ -138,4 +139,8 @@ export function fetchModels(provider: string): Promise<ModelsResponse> {
 
 export function fetchRecommendedModels(provider: string): Promise<ModelsResponse> {
   return request<ModelsResponse>(`/models/recommended?provider=${encodeURIComponent(provider)}`);
+}
+
+export function fetchDefaultModel(provider: string): Promise<DefaultModelResponse> {
+  return request<DefaultModelResponse>(`/models/default?provider=${encodeURIComponent(provider)}`);
 }

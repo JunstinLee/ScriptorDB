@@ -39,6 +39,10 @@ export interface ModelsResponse {
   models: string[];
 }
 
+export interface DefaultModelResponse {
+  model: string | null;
+}
+
 export interface SSEEvent {
   type: "text" | "metadata" | "error" | "done";
   data: string;

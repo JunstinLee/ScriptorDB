@@ -11,6 +11,7 @@ from config.models import get_recommended_models, list_available_models
 from config.settings import settings
 from server.schemas import (
     ChatRequest,
+    DefaultModelResponse,
     HealthResponse,
     ModelsResponse,
     SchemaResponse,
@@ -156,3 +157,9 @@ async def get_models_recommended(provider: str = ""):
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return ModelsResponse(models=models)
+
+
+@app.get("/api/models/default", response_model=DefaultModelResponse)
+async def get_default_model(provider: str = ""):
+    p = provider.strip() or settings.llm_provider
+    return DefaultModelResponse(model=settings.get_default_model(p))

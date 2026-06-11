@@ -62,8 +62,8 @@ def setup():
         show_default=False,
     )
     if model_choice and 1 <= model_choice <= len(models):
-        settings.llm_model = models[model_choice - 1]
-        typer.echo(f"Default model set to: {settings.llm_model}")
+        settings.set_default_model(provider, models[model_choice - 1])
+        typer.echo(f"Default model set to: {models[model_choice - 1]}")
     else:
         typer.echo("Skipped. You can pass --model at query time.")
 
