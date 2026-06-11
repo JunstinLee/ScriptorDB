@@ -35,6 +35,10 @@ export interface HealthResponse {
   model: string;
 }
 
+export interface ModelsResponse {
+  models: string[];
+}
+
 export interface SSEEvent {
   type: "text" | "metadata" | "error" | "done";
   data: string;

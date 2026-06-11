@@ -7,10 +7,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
+from config.models import get_recommended_models, list_available_models
 from config.settings import settings
 from server.schemas import (
     ChatRequest,
     HealthResponse,
+    ModelsResponse,
     SchemaResponse,
     SchemaTable,
     SessionCreateResponse,
@@ -130,3 +132,27 @@ async def get_schema():
     finally:
         conn.close()
     return SchemaResponse(tables=tables)
+
+
+@app.get("/api/models", response_model=ModelsResponse)
+async def get_models(provider: str = ""):
+    p = provider.strip() or settings.llm_provider
+    try:
+        models = list_available_models(p)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return ModelsResponse(models=models)
+
+
+@app.get("/api/models/recommended", response_model=ModelsResponse)
+async def get_models_recommended(provider: str = ""):
+    p = provider.strip() or settings.llm_provider
+    try:
+        models = get_recommended_models(p)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return ModelsResponse(models=models)

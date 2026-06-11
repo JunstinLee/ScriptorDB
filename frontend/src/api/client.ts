@@ -1,6 +1,7 @@
 import type {
   ChatRequest,
   HealthResponse,
+  ModelsResponse,
   SchemaResponse,
   SessionCreateResponse,
   SessionInfo,
@@ -129,4 +130,12 @@ export function streamChat(
   })();
 
   return controller;
+}
+
+export function fetchModels(provider: string): Promise<ModelsResponse> {
+  return request<ModelsResponse>(`/models?provider=${encodeURIComponent(provider)}`);
+}
+
+export function fetchRecommendedModels(provider: string): Promise<ModelsResponse> {
+  return request<ModelsResponse>(`/models/recommended?provider=${encodeURIComponent(provider)}`);
 }

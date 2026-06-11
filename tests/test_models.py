@@ -66,3 +66,46 @@ def test_fuzzy_match_no_match(monkeypatch):
         models, "list_available_models", lambda provider, use_cache=True: ["gpt-4o", "gpt-4.1"]
     )
     assert models.fuzzy_match_model("openai", "claude") is None
+
+
+def test_filter_chat_models_excludes_keywords():
+    raw = [
+        "gpt-4o",
+        "text-embedding-3-large",
+        "tts-1",
+        "whisper-1",
+        "claude-sonnet-4",
+        "text-moderation-stable",
+        "rerank-english-v3",
+        "audio-transcriber",
+        "speech-to-text-v1",
+    ]
+    result = models.filter_chat_models(raw)
+    assert result == ["gpt-4o", "claude-sonnet-4"]
+
+
+def test_filter_chat_models_empty():
+    assert models.filter_chat_models([]) == []
+
+
+def test_get_recommended_models_finds_top(monkeypatch):
+    monkeypatch.setattr(
+        models,
+        "list_available_models",
+        lambda provider, use_cache=True: ["gpt-4o", "gpt-5", "claude-sonnet-4", "gemini-2.5-pro"],
+    )
+    result = models.get_recommended_models("openai")
+    assert "gpt-5" in result
+    assert "claude-sonnet-4" in result
+    assert "gemini-2.5-pro" in result
+
+
+def test_get_recommended_models_substring_fallback(monkeypatch):
+    monkeypatch.setattr(
+        models,
+        "list_available_models",
+        lambda provider, use_cache=True: ["openai/gpt-5-mini-2025", "claude-sonnet-4-20250514"],
+    )
+    result = models.get_recommended_models("openai")
+    assert "openai/gpt-5-mini-2025" in result
+    assert "claude-sonnet-4-20250514" in result

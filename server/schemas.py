@@ -41,3 +41,7 @@ class HealthResponse(BaseModel):
     status: str
     provider: str
     model: str
+
+
+class ModelsResponse(BaseModel):
+    models: list[str]

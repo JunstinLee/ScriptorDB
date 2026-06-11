@@ -10,6 +10,25 @@ from config.secrets import SUPPORTED_PROVIDERS, get_api_key
 
 CACHE_TTL_SECONDS = 3600
 
+EXCLUDE_KEYWORDS = [
+    "embedding",
+    "embed",
+    "tts",
+    "speech",
+    "whisper",
+    "audio",
+    "moderation",
+    "rerank",
+]
+
+TOP_MODELS: set[str] = {
+    "gpt-5",
+    "gpt-5-mini",
+    "claude-sonnet-4",
+    "gemini-2.5-pro",
+    "qwen3-coder",
+}
+
 
 def _cache_path(provider: str) -> Path:
     cache_dir = Path.home() / ".cache" / "scriptordb"
@@ -17,8 +36,17 @@ def _cache_path(provider: str) -> Path:
     return cache_dir / f"models_{provider}.json"
 
 
+def filter_chat_models(models: list[str]) -> list[str]:
+    result = []
+    for model in models:
+        name = model.lower()
+        if any(k in name for k in EXCLUDE_KEYWORDS):
+            continue
+        result.append(model)
+    return result
+
+
 def list_available_models(provider: str, *, use_cache: bool = True) -> list[str]:
-    """从提供商的 API 动态获取可用模型列表，结果带本地缓存。"""
     if provider not in SUPPORTED_PROVIDERS:
         raise ValueError(f"Unsupported provider: {provider}")
 
@@ -39,9 +67,27 @@ def list_available_models(provider: str, *, use_cache: bool = True) -> list[str]
     resp.raise_for_status()
     data = resp.json()
 
-    models = _parse_models(data)
+    raw = _parse_models(data)
+    models = filter_chat_models(raw)
     _save_cache(provider, models)
     return models
+
+
+def get_recommended_models(provider: str) -> list[str]:
+    models = list_available_models(provider)
+    models_lower = {m.lower(): m for m in models}
+    recommended = []
+    for top in TOP_MODELS:
+        match = models_lower.get(top.lower())
+        if match:
+            recommended.append(match)
+    for top in TOP_MODELS:
+        if top.lower() not in models_lower:
+            for model in models:
+                if top.lower() in model.lower():
+                    recommended.append(model)
+                    break
+    return recommended
 
 
 def _parse_models(data: dict) -> list[str]:
