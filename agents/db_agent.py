@@ -20,7 +20,7 @@ def get_agent(model: str | None = None, provider: str | None = None) -> Agent[Se
             resolve_model(active_provider, model) if model else Settings().resolved_model
         )
 
-        if active_provider == "nim":
+        if active_provider in ("nim", "together"):
             api_key = get_api_key(active_provider)
             config = SUPPORTED_PROVIDERS[active_provider]
             model_name = resolved_model.split(":", 1)[-1]

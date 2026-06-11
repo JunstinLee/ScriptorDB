@@ -62,4 +62,9 @@ SUPPORTED_PROVIDERS: dict[str, ProviderConfig] = {
         list_models_path="/models",
         model_prefix="openai:",
     ),
+    "together": ProviderConfig(
+        base_url="https://api.together.xyz/v1",
+        list_models_path="/models",
+        model_prefix="openai:",
+    ),
 }
