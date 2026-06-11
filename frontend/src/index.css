@@ -1,2 +1,10 @@
 @import "tailwindcss";
-@import "@heroui/react/styles";
+@import "@heroui/styles";
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}

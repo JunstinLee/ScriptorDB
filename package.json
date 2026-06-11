@@ -1,0 +1,12 @@
+{
+  "name": "scriptordb",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,green \"uv run python main.py serve --no-reload\" \"cd frontend && npm run dev\"",
+    "dev:api": "uv run python main.py serve",
+    "dev:web": "cd frontend && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

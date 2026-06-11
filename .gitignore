@@ -217,7 +217,7 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 .DS_Store
-api
+/api
 
 node_modules/
 frontend/README.md

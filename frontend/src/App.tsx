@@ -1,27 +1,112 @@
-// src/App.tsx 修改后的完整内容
-import { Button, Input } from "@heroui/react";
-import { Send, Sparkles } from "lucide-react";
+import { useCallback, useRef } from "react";
+import ChatHeader from "./components/ChatHeader";
+import ChatInput from "./components/ChatInput";
+import ChatMessages from "./components/ChatMessages";
+import Sidebar from "./components/Sidebar";
+import WelcomeScreen from "./components/WelcomeScreen";
+import { useSchema } from "./hooks/useSchema";
+import { useSessions } from "./hooks/useSessions";
+import { streamChat } from "./api/client";
 
 export default function App() {
+  const {
+    sessions,
+    activeSessionId,
+    messages,
+    isLoading,
+    createNewSession,
+    removeSession,
+    switchSession,
+    addUserMessage,
+    appendStreamingText,
+    finalizeAssistantMessage,
+    setLoading,
+  } = useSessions();
+
+  const { tables, loading: schemaLoading } = useSchema();
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleNewSession = useCallback(() => {
+    void createNewSession();
+  }, [createNewSession]);
+
+  const handleSend = useCallback(
+    (prompt: string, model?: string | null, provider?: string | null) => {
+      let sessionId = activeSessionId;
+
+      const sendToSession = (sid: string) => {
+        addUserMessage(prompt);
+        setLoading(true);
+
+        abortRef.current = streamChat(
+          sid,
+          { prompt, model, provider },
+          (delta) => {
+            appendStreamingText(delta);
+          },
+          (error) => {
+            appendStreamingText(`\n\nError: ${error}`);
+            setLoading(false);
+          },
+          (fullOutput) => {
+            finalizeAssistantMessage(fullOutput);
+            setLoading(false);
+          },
+        );
+      };
+
+      if (!sessionId) {
+        void (async () => {
+          const sid = await createNewSession();
+          if (sid) {
+            sendToSession(sid);
+          }
+        })();
+      } else {
+        sendToSession(sessionId);
+      }
+    },
+    [
+      activeSessionId,
+      addUserMessage,
+      appendStreamingText,
+      createNewSession,
+      finalizeAssistantMessage,
+      setLoading,
+    ],
+  );
+
+  const handleDeleteSession = useCallback(
+    (id: string) => {
+      void removeSession(id);
+    },
+    [removeSession],
+  );
+
   return (
-    <div className="flex h-screen flex-col items-center justify-center bg-slate-950 p-4 text-white">
-      <div className="w-full max-w-md space-y-4">
-        <div className="flex items-center gap-2 text-xl font-bold">
-          <Sparkles className="text-blue-500" />
-          <span>AI Agent 终端</span>
-        </div>
-        
-        <div className="flex gap-2">
-          <Input 
-            placeholder="向你的 Agent 发送指令..." 
-            className="dark"
-          />
-          
-          {/* ⚡️ 这里是修改后的 v3 规范按钮 */}
-          <Button variant="primary" isIconOnly>
-            <Send className="h-4 w-4" />
-          </Button>
-          
+    <div className="flex h-screen bg-background text-foreground">
+      <Sidebar
+        sessions={sessions}
+        activeSessionId={activeSessionId}
+        tables={tables}
+        schemaLoading={schemaLoading}
+        onNewSession={handleNewSession}
+        onSwitchSession={switchSession}
+        onDeleteSession={handleDeleteSession}
+      />
+
+      <div className="flex flex-1 flex-col min-w-0">
+        <ChatHeader activeSessionId={activeSessionId} />
+
+        <div className="flex flex-1 flex-col min-h-0">
+          {activeSessionId ? (
+            <>
+              <ChatMessages messages={messages} isLoading={isLoading} />
+              <ChatInput onSend={handleSend} disabled={isLoading} />
+            </>
+          ) : (
+            <WelcomeScreen onNewSession={handleNewSession} />
+          )}
         </div>
       </div>
     </div>
