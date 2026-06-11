@@ -57,4 +57,9 @@ SUPPORTED_PROVIDERS: dict[str, ProviderConfig] = {
         list_models_path="/models",
         model_prefix="openrouter:",
     ),
+    "nim": ProviderConfig(
+        base_url="https://integrate.api.nvidia.com/v1",
+        list_models_path="/models",
+        model_prefix="openai:",
+    ),
 }
