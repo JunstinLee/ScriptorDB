@@ -290,11 +290,16 @@ async def update_settings(req: SettingsUpdateRequest):
             )
         settings.set_provider(req.llm_provider)
     if req.default_model is not None:
-        provider = settings.llm_provider
+        provider = req.default_model_provider or settings.llm_provider
+        if provider not in SUPPORTED_PROVIDERS:
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported provider: {provider}"
+            )
         if not req.default_model:
             if provider in settings.default_models:
                 del settings.default_models[provider]
-            settings.llm_model = None
+            if provider == settings.llm_provider:
+                settings.llm_model = None
         else:
             settings.set_default_model(provider, req.default_model)
     if req.auto_restore_sessions is not None:

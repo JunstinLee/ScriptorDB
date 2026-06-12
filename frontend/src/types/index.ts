@@ -109,6 +109,7 @@ export interface SettingsResponse {
 export interface SettingsUpdateRequest {
   llm_provider?: string;
   default_model?: string | null;
+  default_model_provider?: string;
   auto_restore_sessions?: boolean;
 }
 

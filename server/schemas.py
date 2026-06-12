@@ -104,6 +104,7 @@ class SettingsResponse(BaseModel):
 class SettingsUpdateRequest(BaseModel):
     llm_provider: str | None = None
     default_model: str | None = None
+    default_model_provider: str | None = None
     auto_restore_sessions: bool | None = None
 
 

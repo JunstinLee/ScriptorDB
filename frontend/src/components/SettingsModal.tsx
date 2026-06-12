@@ -92,7 +92,7 @@ export default function SettingsModal({
                 <Tabs.ListContainer>
                   <Tabs.List
                     aria-label="Settings"
-                    className="*:data-[selected=true]:text-accent-foreground w-fit *:h-9 *:w-fit *:px-3 *:text-sm *:font-normal"
+                    className="w-fit *:h-9 *:w-fit *:px-3 *:text-sm *:font-normal"
                   >
                     <Tabs.Tab id="sessions">
                       <MessageSquare className="mr-1.5 inline size-4" />
@@ -484,6 +484,7 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
     settings.llm_provider,
   );
   const [models, setModels] = useState<string[]>([]);
+  const [pickedModel, setPickedModel] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -494,6 +495,7 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
   const loadModels = useCallback(async (provider: string) => {
     setLoading(true);
     setError(null);
+    setPickedModel(null);
     try {
       let resp = await fetchRecommendedModels(provider);
       let list = resp.models;
@@ -516,14 +518,13 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
 
   const handleSetDefault = useCallback(
     async (model: string) => {
-      if (selectedProvider !== settings.llm_provider) {
-        setError("Switch the active provider first to change its default model");
-        return;
-      }
       setSaving(true);
       setStatus(null);
       try {
-        const updated = await updateSettings({ default_model: model });
+        const updated = await updateSettings({
+          default_model: model,
+          default_model_provider: selectedProvider,
+        });
         onSettingsChange(updated);
         setStatus(`Default model set to ${model}`);
       } catch (e) {
@@ -532,7 +533,7 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
         setSaving(false);
       }
     },
-    [onSettingsChange, selectedProvider, settings.llm_provider],
+    [onSettingsChange, selectedProvider],
   );
 
   return (
@@ -584,6 +585,13 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
           <ListBox
             aria-label="Models"
             selectionMode="single"
+            selectedKeys={pickedModel ? [pickedModel] : []}
+            onSelectionChange={(keys) => {
+              const v = (keys as { values?: () => Iterable<string> }).values
+                ? [...((keys as { values: () => Iterable<string> }).values())][0]
+                : [...(keys as Set<string>)][0];
+              if (typeof v === "string") setPickedModel(v);
+            }}
             className="max-h-64 overflow-y-auto rounded-lg border"
           >
             {models.map((m) => (
@@ -622,9 +630,11 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
           variant="primary"
           isDisabled={loading || models.length === 0 || saving}
           onPress={async () => {
+            const defaultPick =
+              pickedModel ?? currentDefault ?? models[0] ?? "";
             const pick = window.prompt(
               `Enter a model ID for ${selectedProvider} (one of: ${models.slice(0, 5).join(", ")}${models.length > 5 ? "…" : ""})`,
-              currentDefault ?? models[0] ?? "",
+              defaultPick,
             );
             if (pick) await handleSetDefault(pick.trim());
           }}
