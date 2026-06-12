@@ -218,7 +218,7 @@ __marimo__/
 .streamlit/secrets.toml
 .DS_Store
 /api
-
+DOCS/
 # Skills workspace
 .opencode/
 skills-lock.json
