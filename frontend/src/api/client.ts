@@ -74,6 +74,28 @@ export function streamChat(
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let currentEvent = "message";
+      let metadataJson: string | null = null;
+
+      const processLines = (lines: string[]) => {
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (currentEvent === "message") {
+              if (data === "[DONE]") continue;
+              onText(data);
+            } else if (currentEvent === "metadata") {
+              metadataJson = data;
+            } else if (currentEvent === "error") {
+              onError(data);
+            }
+          } else if (line === "") {
+            currentEvent = "message";
+          }
+        }
+      };
 
       while (true) {
         const { done, value } = await reader.read();
@@ -82,45 +104,17 @@ export function streamChat(
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") continue;
-            onText(data);
-          } else if (line.startsWith("event: error")) {
-            continue;
-          } else if (line.startsWith("event: metadata")) {
-            continue;
-          }
-        }
+        processLines(lines);
       }
 
-      const remaining = decoder.decode();
-      buffer += remaining;
-      const lines = buffer.split("\n");
+      buffer += decoder.decode();
+      processLines(buffer.split("\n"));
 
-      for (const line of lines) {
-        if (line.startsWith("event: metadata")) {
-          continue;
-        }
-      }
-
-      const metadataLine = lines.find((l) =>
-        l.startsWith("event: metadata"),
-      );
-      if (metadataLine) {
-        const dataLine = lines.find((l) =>
-          l.startsWith("data: ")
-        );
-        if (dataLine) {
-          try {
-            const meta = JSON.parse(dataLine.slice(6));
-            onDone(meta.full_output ?? "");
-          } catch {
-            onDone("");
-          }
-        } else {
+      if (metadataJson) {
+        try {
+          const meta = JSON.parse(metadataJson);
+          onDone(meta.full_output ?? "");
+        } catch {
           onDone("");
         }
       } else {
