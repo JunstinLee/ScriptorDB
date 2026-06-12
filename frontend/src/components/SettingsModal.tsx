@@ -363,9 +363,9 @@ function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Label>Provider</Label>
         <Select
           className="w-full"
+          name="apikeys-provider"
           placeholder="Select provider"
           value={selectedProvider}
           onChange={(v) => {
@@ -373,6 +373,7 @@ function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabProps) {
             setStatus({ kind: "idle" });
           }}
         >
+          <Label>Provider</Label>
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator />
@@ -401,9 +402,11 @@ function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabProps) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label>API Key</Label>
+        <Label htmlFor="apikeys-api-key">API Key</Label>
         <div className="flex gap-2">
           <Input
+            id="apikeys-api-key"
+            name="api_key"
             className="flex-1"
             type={showKey ? "text" : "password"}
             value={apiKey}
@@ -539,9 +542,9 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
-        <Label>Provider</Label>
         <Select
           className="w-full"
+          name="defaults-provider"
           placeholder="Select provider"
           value={selectedProvider}
           onChange={(v) => {
@@ -550,6 +553,7 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
             setError(null);
           }}
         >
+          <Label>Provider</Label>
           <Select.Trigger>
             <Select.Value />
             <Select.Indicator />
@@ -574,7 +578,9 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label>Set default model for {selectedProvider}</Label>
+        <Label id="defaults-model-label">
+          Set default model for {selectedProvider}
+        </Label>
         {loading ? (
           <div className="py-3 text-sm text-muted">Loading models…</div>
         ) : models.length === 0 ? (
@@ -583,7 +589,7 @@ function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
           </div>
         ) : (
           <ListBox
-            aria-label="Models"
+            aria-labelledby="defaults-model-label"
             selectionMode="single"
             selectedKeys={pickedModel ? [pickedModel] : []}
             onSelectionChange={(keys) => {

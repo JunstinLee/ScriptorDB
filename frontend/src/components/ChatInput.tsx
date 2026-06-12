@@ -126,7 +126,9 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
             value={prompt}
             onChange={setPrompt}
             className="w-full"
+            name="prompt"
           >
+            <Label>Message</Label>
             <Input
               placeholder="Ask about your database..."
               disabled={disabled}
@@ -146,8 +148,12 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
       </div>
       <div className="mt-2 flex items-center gap-3">
         <div className="flex items-center gap-1.5">
-          <Label className="text-xs text-muted">Model:</Label>
+          <Label className="text-xs text-muted" htmlFor="chat-model">
+            Model:
+          </Label>
           <select
+            id="chat-model"
+            name="model"
             className="rounded-lg border bg-surface px-2 py-1 text-xs outline-none focus:border-accent max-w-[28rem]"
             value={model}
             onChange={(e) => setModel(e.target.value)}
@@ -167,8 +173,12 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <Label className="text-xs text-muted">Provider:</Label>
+          <Label className="text-xs text-muted" htmlFor="chat-provider">
+            Provider:
+          </Label>
           <select
+            id="chat-provider"
+            name="provider"
             className="rounded-lg border bg-surface px-2 py-1 text-xs outline-none focus:border-accent"
             value={provider}
             onChange={(e) => setProvider(e.target.value)}
