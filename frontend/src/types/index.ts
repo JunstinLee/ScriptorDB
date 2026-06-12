@@ -78,3 +78,46 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
 }
+
+export interface SessionListItem {
+  session_id: string;
+  created_at: string;
+  last_access: string;
+  message_count: number;
+  title: string | null;
+}
+
+export interface SessionListResponse {
+  sessions: SessionListItem[];
+}
+
+export interface ProviderInfo {
+  name: string;
+  base_url: string;
+}
+
+export interface SettingsResponse {
+  llm_provider: string;
+  db_url: string;
+  llm_model: string | null;
+  default_models: Record<string, string>;
+  auto_restore_sessions: boolean;
+  providers: ProviderInfo[];
+  providers_with_keys: string[];
+}
+
+export interface SettingsUpdateRequest {
+  llm_provider?: string;
+  default_model?: string | null;
+  auto_restore_sessions?: boolean;
+}
+
+export interface ApiKeyRequest {
+  provider: string;
+  api_key: string;
+}
+
+export interface ApiKeyTestResponse {
+  ok: boolean;
+  error: string | null;
+}

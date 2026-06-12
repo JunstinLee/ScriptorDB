@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { Switch } from "@heroui/react";
-import { Database, Moon, PanelLeftClose, PanelLeftOpen, Sun } from "lucide-react";
+import {
+  Database,
+  Moon,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Settings as SettingsIcon,
+  Sun,
+} from "lucide-react";
 import type { SchemaTable } from "../types";
 import SchemaViewer from "./SchemaViewer";
 import SessionList from "./SessionList";
@@ -19,6 +26,7 @@ interface SidebarProps {
   onNewSession: () => void;
   onSwitchSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
+  onOpenSettings: () => void;
 }
 
 export default function Sidebar({
@@ -29,6 +37,7 @@ export default function Sidebar({
   onNewSession,
   onSwitchSession,
   onDeleteSession,
+  onOpenSettings,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [isDark, setIsDark] = useState(false);
@@ -81,6 +90,13 @@ export default function Sidebar({
               <Moon className="h-4 w-4" />
             )}
           </button>
+          <button
+            className="rounded-lg p-1.5 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
+            onClick={onOpenSettings}
+            aria-label="Open settings"
+          >
+            <SettingsIcon className="h-4 w-4" />
+          </button>
         </div>
       </aside>
     );
@@ -93,13 +109,22 @@ export default function Sidebar({
           <Database className="h-5 w-5 text-accent" />
           <span className="font-semibold text-foreground">ScriptorDB</span>
         </div>
-        <button
-          className="rounded-lg p-1 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
-          onClick={toggleCollapse}
-          aria-label="Collapse sidebar"
-        >
-          <PanelLeftClose className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            className="rounded-lg p-1 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
+            onClick={onOpenSettings}
+            aria-label="Open settings"
+          >
+            <SettingsIcon className="h-4 w-4" />
+          </button>
+          <button
+            className="rounded-lg p-1 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
+            onClick={toggleCollapse}
+            aria-label="Collapse sidebar"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto py-2 space-y-4">

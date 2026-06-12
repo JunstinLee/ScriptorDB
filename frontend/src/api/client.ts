@@ -1,4 +1,6 @@
 import type {
+  ApiKeyRequest,
+  ApiKeyTestResponse,
   CanonicalModelsResponse,
   ChatRequest,
   DefaultModelResponse,
@@ -8,6 +10,9 @@ import type {
   SchemaResponse,
   SessionCreateResponse,
   SessionInfo,
+  SessionListResponse,
+  SettingsResponse,
+  SettingsUpdateRequest,
 } from "../types";
 
 export type { SessionInfo };
@@ -32,6 +37,10 @@ export function health(): Promise<HealthResponse> {
 
 export function createSession(): Promise<SessionCreateResponse> {
   return request<SessionCreateResponse>("/sessions", { method: "POST" });
+}
+
+export function listSessions(): Promise<SessionListResponse> {
+  return request<SessionListResponse>("/sessions");
 }
 
 export function getSession(sessionId: string): Promise<SessionInfo> {
@@ -154,4 +163,40 @@ export function fetchModelsWithCanonical(
   return request<ModelsWithCanonicalResponse>(
     `/models/with-canonical?provider=${encodeURIComponent(provider)}`,
   );
+}
+
+export function fetchSettings(): Promise<SettingsResponse> {
+  return request<SettingsResponse>("/settings");
+}
+
+export function updateSettings(
+  body: SettingsUpdateRequest,
+): Promise<SettingsResponse> {
+  return request<SettingsResponse>("/settings", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function saveApiKey(body: ApiKeyRequest): Promise<ApiKeyTestResponse> {
+  return request<ApiKeyTestResponse>("/settings/api-key", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function deleteApiKey(provider: string): Promise<ApiKeyTestResponse> {
+  return request<ApiKeyTestResponse>(
+    `/settings/api-key/${encodeURIComponent(provider)}`,
+    { method: "DELETE" },
+  );
+}
+
+export function testApiKey(
+  body: ApiKeyRequest,
+): Promise<ApiKeyTestResponse> {
+  return request<ApiKeyTestResponse>("/settings/api-key/test", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
 }

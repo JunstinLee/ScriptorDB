@@ -2,11 +2,13 @@ import { useCallback, useRef } from "react";
 import ChatHeader from "./components/ChatHeader";
 import ChatInput from "./components/ChatInput";
 import ChatMessages from "./components/ChatMessages";
+import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
 import { streamChat } from "./api/client";
+import { useOverlayState } from "@heroui/react";
 
 export default function App() {
   const {
@@ -22,10 +24,12 @@ export default function App() {
     finalizeAssistantMessage,
     setLoading,
     refreshSessionTitle,
+    refreshSessions,
   } = useSessions();
 
   const { tables, loading: schemaLoading } = useSchema();
   const abortRef = useRef<AbortController | null>(null);
+  const settingsModal = useOverlayState();
 
   const handleNewSession = useCallback(() => {
     void createNewSession();
@@ -33,7 +37,7 @@ export default function App() {
 
   const handleSend = useCallback(
     (prompt: string, model?: string | null, provider?: string | null) => {
-      let sessionId = activeSessionId;
+      const sessionId = activeSessionId;
 
       const sendToSession = (sid: string) => {
         addUserMessage(prompt);
@@ -74,6 +78,7 @@ export default function App() {
       appendStreamingText,
       createNewSession,
       finalizeAssistantMessage,
+      refreshSessionTitle,
       setLoading,
     ],
   );
@@ -85,6 +90,10 @@ export default function App() {
     [removeSession],
   );
 
+  const handleOpenSettings = useCallback(() => {
+    settingsModal.open();
+  }, [settingsModal]);
+
   return (
     <div className="flex h-screen bg-background text-foreground">
       <Sidebar
@@ -95,6 +104,7 @@ export default function App() {
         onNewSession={handleNewSession}
         onSwitchSession={switchSession}
         onDeleteSession={handleDeleteSession}
+        onOpenSettings={handleOpenSettings}
       />
 
       <div className="flex flex-1 flex-col min-w-0">
@@ -113,6 +123,15 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <SettingsModal
+        isOpen={settingsModal.isOpen}
+        onOpenChange={(open) => {
+          if (open) settingsModal.open();
+          else settingsModal.close();
+        }}
+        onSessionsChanged={() => void refreshSessions()}
+      />
     </div>
   );
 }
