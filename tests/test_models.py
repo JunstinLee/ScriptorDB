@@ -92,20 +92,20 @@ def test_get_recommended_models_finds_top(monkeypatch):
     monkeypatch.setattr(
         models,
         "list_available_models",
-        lambda provider, use_cache=True: ["gpt-4o", "gpt-5", "claude-sonnet-4", "gemini-2.5-pro"],
+        lambda provider, use_cache=True: ["gpt-5.5", "gpt-5.5-pro", "claude-opus-4-8", "gemini-3.5-flash"],
     )
     result = models.get_recommended_models("openai")
-    assert "gpt-5" in result
-    assert "gpt-4o" in result
-    assert "claude-sonnet-4" not in result
-    assert "gemini-2.5-pro" not in result
+    assert "gpt-5.5" in result
+    assert "gpt-5.5-pro" in result
+    assert "claude-opus-4-8" not in result
+    assert "gemini-3.5-flash" not in result
 
 
 def test_get_recommended_models_substring_fallback(monkeypatch):
     monkeypatch.setattr(
         models,
         "list_available_models",
-        lambda provider, use_cache=True: ["openai/gpt-5-mini-2025", "claude-sonnet-4-20250514"],
+        lambda provider, use_cache=True: ["openai/gpt-5.5-pro-2025", "anthropic/claude-opus-4-8"],
     )
     result = models.get_recommended_models("openai")
-    assert "openai/gpt-5-mini-2025" in result
+    assert "openai/gpt-5.5-pro-2025" in result

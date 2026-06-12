@@ -1,29 +1,3 @@
-"""Canonical Model Registry.
-
-为不同 Provider 的模型 ID 提供统一的语义层（Canonical Model）。
-推荐系统、收藏、评分等所有跨 Provider 逻辑都基于 `slug` 主键，
-展示时再根据当前 Provider 通过 `aliases` 映射到实际模型 ID。
-
-四类 Provider 的命名差异：
-
-1. 官方厂商（OpenAI / Anthropic / Google）：简洁原生 ID
-   - gpt-5, claude-opus-4, gemini-2.5-pro
-
-2. 推理平台（Together / Fireworks / NIM）：保留上游开源模型仓库名
-   - meta-llama/Llama-4-Scout-17B-16E-Instruct
-   - Qwen/Qwen3-235B-A22B
-   - deepseek-ai/DeepSeek-R1
-
-3. 聚合平台（OpenRouter）：自有的 canonical slug
-   - openai/gpt-5
-   - deepseek/deepseek-r1
-   - google/gemini-2.5-pro
-
-4. 本地平台（Ollama，暂未接入）：独立命名
-   - llama3.3
-   - deepseek-r1:32b
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -34,197 +8,245 @@ class CanonicalModel:
     """跨 Provider 统一的模型定义。
 
     Attributes:
-        slug: 全局唯一主键（如 "deepseek-r1"），推荐/收藏/排序都基于此。
-        family: 模型族（如 "DeepSeek R1"），用于按系列分组展示。
-        display_name: 用户面向的展示名（如 "DeepSeek R1"）。
-        description: 简短描述，可选。
+        slug: 全局唯一主键（如 "deepseek-v4-pro"），推荐/排序都基于此。
+        display_name: 用户面向的展示名（如 "DeepSeek V4 Pro"）。
         aliases: provider -> 该 provider 的实际模型 ID。
                  provider 名需与 config.secrets.SUPPORTED_PROVIDERS 一致。
-        tags: 标签列表（如 ["reasoning", "open-source"]），用于筛选。
     """
 
     slug: str
-    family: str
     display_name: str
     aliases: dict[str, str] = field(default_factory=dict)
-    description: str = ""
-    tags: tuple[str, ...] = ()
 
 
 CANONICAL_REGISTRY: tuple[CanonicalModel, ...] = (
-    # ========== OpenAI 官方 ==========
+    # ========== OpenAI ==========
     CanonicalModel(
-        slug="gpt-5",
-        family="GPT-5",
-        display_name="GPT-5",
-        description="OpenAI 旗舰通用模型",
+        slug="gpt-5.5",
+        display_name="GPT-5.5",
         aliases={
-            "openai": "gpt-5",
-            "openrouter": "openai/gpt-5",
+            "openai": "gpt-5.5",
+            "openrouter": "gpt-5.5",
+            "together": "gpt-5.5",
         },
-        tags=("flagship", "general"),
     ),
     CanonicalModel(
-        slug="gpt-5-mini",
-        family="GPT-5",
-        display_name="GPT-5 mini",
-        description="OpenAI 轻量高效模型",
+        slug="gpt-5.5-pro",
+        display_name="GPT-5.5 Pro",
         aliases={
-            "openai": "gpt-5-mini",
-            "openrouter": "openai/gpt-5-mini",
+            "openai": "gpt-5.5-pro",
+            "openrouter": "gpt-5.5-pro",
+            "together": "gpt-5.5-pro",
         },
-        tags=("efficient", "general"),
     ),
     CanonicalModel(
-        slug="gpt-4o",
-        family="GPT-4o",
-        display_name="GPT-4o",
-        description="OpenAI 多模态通用模型",
+        slug="gpt-5.5-thinking",
+        display_name="GPT-5.5 Thinking",
         aliases={
-            "openai": "gpt-4o",
-            "openrouter": "openai/gpt-4o",
-            "together": "gpt-4o",
+            "openai": "gpt-5.5-thinking",
+            "openrouter": "gpt-5.5-thinking",
+            "together": "gpt-5.5-thinking",
         },
-        tags=("multimodal", "general"),
-    ),
-    # ========== Anthropic 官方 ==========
-    CanonicalModel(
-        slug="claude-opus-4",
-        family="Claude 4",
-        display_name="Claude Opus 4",
-        description="Anthropic 顶级推理模型",
-        aliases={
-            "anthropic": "claude-opus-4-0",
-            "openrouter": "anthropic/claude-opus-4",
-        },
-        tags=("flagship", "reasoning"),
     ),
     CanonicalModel(
-        slug="claude-sonnet-4",
-        family="Claude 4",
-        display_name="Claude Sonnet 4",
-        description="Anthropic 均衡模型",
+        slug="gpt-5.5-instant",
+        display_name="GPT-5.5 Instant",
         aliases={
-            "anthropic": "claude-sonnet-4-0",
-            "openrouter": "anthropic/claude-sonnet-4",
+            "openai": "gpt-5.5-instant",
+            "openrouter": "gpt-5.5-instant",
+            "together": "gpt-5.5-instant",
         },
-        tags=("balanced", "general"),
+    ),
+    # ========== Anthropic ==========
+    CanonicalModel(
+        slug="claude-opus-4-8",
+        display_name="Claude Opus 4-8",
+        aliases={
+            "anthropic": "claude-opus-4-8",
+            "openrouter": "claude-opus-4-8",
+            "together": "claude-opus-4-8",
+        },
     ),
     CanonicalModel(
-        slug="claude-haiku-4",
-        family="Claude 4",
-        display_name="Claude Haiku 4",
-        description="Anthropic 轻量模型",
+        slug="claude-opus-4-7",
+        display_name="Claude Opus 4-7",
         aliases={
-            "anthropic": "claude-haiku-4-0",
-            "openrouter": "anthropic/claude-haiku-4",
+            "anthropic": "claude-opus-4-7",
+            "openrouter": "claude-opus-4-7",
+            "together": "claude-opus-4-7",
         },
-        tags=("efficient", "general"),
-    ),
-    # ========== Google 官方 ==========
-    CanonicalModel(
-        slug="gemini-2.5-pro",
-        family="Gemini 2.5",
-        display_name="Gemini 2.5 Pro",
-        description="Google 顶级推理模型",
-        aliases={
-            "google": "gemini-2.5-pro",
-            "openrouter": "google/gemini-2.5-pro",
-        },
-        tags=("flagship", "reasoning", "multimodal"),
     ),
     CanonicalModel(
-        slug="gemini-2.5-flash",
-        family="Gemini 2.5",
-        display_name="Gemini 2.5 Flash",
-        description="Google 高效模型",
+        slug="claude-sonnet-4-6",
+        display_name="Claude Sonnet 4-6",
         aliases={
-            "google": "gemini-2.5-flash",
-            "openrouter": "google/gemini-2.5-flash",
+            "anthropic": "claude-sonnet-4-6",
+            "openrouter": "claude-sonnet-4-6",
+            "together": "claude-sonnet-4-6",
         },
-        tags=("efficient", "multimodal"),
-    ),
-    # ========== DeepSeek ==========
-    CanonicalModel(
-        slug="deepseek-r1",
-        family="DeepSeek R1",
-        display_name="DeepSeek R1",
-        description="DeepSeek 推理模型，开源高性价比",
-        aliases={
-            "openrouter": "deepseek/deepseek-r1",
-            "together": "deepseek-ai/DeepSeek-R1",
-            "nim": "deepseek-ai/deepseek-r1",
-        },
-        tags=("reasoning", "open-source", "cost-effective"),
     ),
     CanonicalModel(
-        slug="deepseek-v3",
-        family="DeepSeek V3",
-        display_name="DeepSeek V3",
-        description="DeepSeek 通用对话模型",
+        slug="claude-haiku-4-5",
+        display_name="Claude Haiku 4-5",
         aliases={
-            "openrouter": "deepseek/deepseek-chat",
-            "together": "deepseek-ai/DeepSeek-V3",
+            "anthropic": "claude-haiku-4-5",
+            "openrouter": "claude-haiku-4-5",
+            "together": "claude-haiku-4-5",
         },
-        tags=("general", "open-source", "cost-effective"),
     ),
-    # ========== Meta Llama ==========
+    # ========== Google ==========
     CanonicalModel(
-        slug="llama-4-maverick",
-        family="Llama 4",
-        display_name="Llama 4 Maverick",
-        description="Meta Llama 4 旗舰 MoE 模型",
+        slug="gemini-3.5-flash",
+        display_name="Gemini 3.5 Flash",
         aliases={
-            "together": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-            "openrouter": "meta-llama/llama-4-maverick",
+            "google": "gemini-3.5-flash",
+            "openrouter": "gemini-3.5-flash",
+            "together": "gemini-3.5-flash",
         },
-        tags=("open-source", "multimodal", "moe"),
     ),
     CanonicalModel(
-        slug="llama-4-scout",
-        family="Llama 4",
-        display_name="Llama 4 Scout",
-        description="Meta Llama 4 轻量 MoE 模型",
+        slug="gemini-3.1-pro",
+        display_name="Gemini 3.1 Pro",
         aliases={
-            "together": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-            "openrouter": "meta-llama/llama-4-scout",
+            "google": "gemini-3.1-pro",
+            "openrouter": "gemini-3.1-pro",
+            "together": "gemini-3.1-pro",
         },
-        tags=("open-source", "multimodal", "moe"),
-    ),
-    # ========== Qwen ==========
-    CanonicalModel(
-        slug="qwen3-235b",
-        family="Qwen 3",
-        display_name="Qwen3 235B",
-        description="阿里 Qwen3 MoE 旗舰模型",
-        aliases={
-            "together": "Qwen/Qwen3-235B-A22B-Instruct-2507",
-            "openrouter": "qwen/qwen3-235b-a22b",
-        },
-        tags=("open-source", "moe", "multilingual"),
-    ),
-    # ========== 预留 Ollama 别名（暂未接入）==========
-    CanonicalModel(
-        slug="llama3.3-70b",
-        family="Llama 3.3",
-        display_name="Llama 3.3 70B",
-        description="Meta Llama 3.3 70B（Ollama 命名待接入）",
-        aliases={
-            "together": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
-            # "ollama": "llama3.3:70b",  # 暂不接入
-        },
-        tags=("open-source", "general"),
     ),
     CanonicalModel(
-        slug="qwen3-30b",
-        family="Qwen 3",
-        display_name="Qwen3 30B",
-        description="阿里 Qwen3 30B 稠密模型",
+        slug="gemini-3.1-flash-lite",
+        display_name="Gemini 3.1 Flash Lite",
         aliases={
-            "together": "Qwen/Qwen3-30B-A3B-Instruct-2507",
-            # "ollama": "qwen3:30b",  # 暂不接入
+            "google": "gemini-3.1-flash-lite",
+            "openrouter": "gemini-3.1-flash-lite",
+            "together": "gemini-3.1-flash-lite",
         },
-        tags=("open-source", "general"),
+    ),
+    CanonicalModel(
+        slug="gemini-3-flash",
+        display_name="Gemini 3 Flash",
+        aliases={
+            "google": "gemini-3-flash",
+            "openrouter": "gemini-3-flash",
+            "together": "gemini-3-flash",
+        },
+    ),
+    # ========== Groq / Together / OpenRouter / NIM (shared) ==========
+    CanonicalModel(
+        slug="kimi-2.6",
+        display_name="Kimi 2.6",
+        aliases={
+            "groq": "kimi-2.6",
+            "nim": "kimi-k2.6",
+            "openrouter": "kimi-2.6",
+            "together": "kimi-2.6",
+        },
+    ),
+    CanonicalModel(
+        slug="kimi-2.5",
+        display_name="Kimi 2.5",
+        aliases={
+            "groq": "kimi-2.5",
+            "openrouter": "kimi-2.5",
+            "together": "kimi-2.5",
+        },
+    ),
+    CanonicalModel(
+        slug="glm-5.1",
+        display_name="GLM 5.1",
+        aliases={
+            "groq": "glm-5.1",
+            "openrouter": "glm-5.1",
+            "together": "glm-5.1",
+        },
+    ),
+    CanonicalModel(
+        slug="minimax-2.7",
+        display_name="MiniMax 2.7",
+        aliases={
+            "groq": "minimax-2.7",
+            "openrouter": "minimax-2.7",
+            "nim": "minimax-m2.7",
+            "together": "minimax-2.7",
+        },
+    ),
+    CanonicalModel(
+        slug="deepseek-v4-pro",
+        display_name="DeepSeek V4 Pro",
+        aliases={
+            "groq": "deepseek-v4-pro",
+            "openrouter": "deepseek-v4-pro",
+            "nim": "deepseek-v4-pro",
+            "together": "deepseek-v4-pro",
+        },
+    ),
+    CanonicalModel(
+        slug="deepseek-v4-flash",
+        display_name="DeepSeek V4 Flash",
+        aliases={
+            "groq": "deepseek-v4-flash",
+            "openrouter": "deepseek-v4-flash",
+            "nim": "deepseek-v4-flash",
+            "together": "deepseek-v4-flash",
+        },
+    ),
+    CanonicalModel(
+        slug="mimo-v2.5-pro",
+        display_name="Mimo 2.5 Pro",
+        aliases={
+            "groq": "mimo-v2.5-pro",
+            "openrouter": "mimo-v2.5-pro",
+            "together": "mimo-v2.5-pro",
+        },
+    ),
+    CanonicalModel(
+        slug="mimo-v2.5",
+        display_name="Mimo 2.5",
+        aliases={
+            "groq": "mimo-v2.5",
+            "openrouter": "mimo-v2.5",
+            "together": "mimo-v2.5",
+        },
+    ),
+    CanonicalModel(
+        slug="minimax-m3",
+        display_name="MiniMax M3",
+        aliases={
+            "groq": "minimax-m3",
+            "mistral": "minimax-m3",
+            "openrouter": "minimax-m3",
+            "together": "minimax-m3",
+        },
+    ),
+    # ========== Mistral only ==========
+    CanonicalModel(
+        slug="mistral-medium-3.5",
+        display_name="Mistral Medium 3.5",
+        aliases={
+            "mistral": "mistral-medium-3.5",
+        },
+    ),
+    CanonicalModel(
+        slug="mistral-small-4",
+        display_name="Mistral Small 4",
+        aliases={
+            "mistral": "mistral-small-4",
+        },
+    ),
+    CanonicalModel(
+        slug="mistral-large-3",
+        display_name="Mistral Large 3",
+        aliases={
+            "mistral": "mistral-large-3",
+        },
+    ),
+    # ========== NIM only ==========
+    CanonicalModel(
+        slug="glm-5",
+        display_name="GLM 5",
+        aliases={
+            "nim": "glm-5",
+        },
     ),
 )
 

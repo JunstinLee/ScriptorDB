@@ -176,7 +176,6 @@ async def get_models_with_canonical(provider: str = ""):
     - provider_specific_id: provider 实际模型 ID
     - canonical_slug: 推断出的 canonical slug（可为空）
     - display_name: 用户面向的展示名（来自 canonical）
-    - family: 模型族（来自 canonical）
     """
     p = provider.strip() or settings.llm_provider
     try:
@@ -188,20 +187,17 @@ async def get_models_with_canonical(provider: str = ""):
     for mid in ids:
         slug = resolve_canonical_slug(p, mid)
         display_name = None
-        family = None
         if slug:
             from config.canonical_models import get_canonical_by_slug
 
             c = get_canonical_by_slug(slug)
             if c:
                 display_name = c.display_name
-                family = c.family
         entries.append(
             ModelEntry(
                 provider_specific_id=mid,
                 canonical_slug=slug,
                 display_name=display_name,
-                family=family,
             )
         )
     return ModelsWithCanonicalResponse(models=entries)

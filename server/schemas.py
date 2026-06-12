@@ -53,10 +53,7 @@ class DefaultModelResponse(BaseModel):
 
 class CanonicalModelItem(BaseModel):
     slug: str
-    family: str
     display_name: str
-    description: str = ""
-    tags: list[str] = []
     provider_specific_id: str | None = None
     available_providers: list[str] | None = None
 
@@ -71,7 +68,6 @@ class ModelEntry(BaseModel):
     provider_specific_id: str
     canonical_slug: str | None = None
     display_name: str | None = None
-    family: str | None = None
 
 
 class ModelsWithCanonicalResponse(BaseModel):

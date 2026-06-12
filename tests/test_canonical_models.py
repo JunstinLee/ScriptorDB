@@ -30,10 +30,9 @@ def test_canonical_aliases_reference_known_providers():
 
 
 def test_get_canonical_by_slug_hit():
-    m = get_canonical_by_slug("deepseek-r1")
+    m = get_canonical_by_slug("deepseek-v4-pro")
     assert m is not None
-    assert m.display_name == "DeepSeek R1"
-    assert m.family == "DeepSeek R1"
+    assert m.display_name == "DeepSeek V4 Pro"
 
 
 def test_get_canonical_by_slug_miss():
@@ -43,46 +42,52 @@ def test_get_canonical_by_slug_miss():
 def test_get_canonical_for_provider_openrouter():
     items = get_canonical_for_provider("openrouter")
     slugs = [m.slug for m in items]
-    assert "gpt-5" in slugs
-    assert "deepseek-r1" in slugs
-    assert "claude-opus-4" in slugs
+    assert "gpt-5.5" in slugs
+    assert "deepseek-v4-pro" in slugs
+    assert "claude-opus-4-8" in slugs
 
 
 def test_get_canonical_for_provider_together():
     items = get_canonical_for_provider("together")
     slugs = [m.slug for m in items]
-    assert "deepseek-r1" in slugs
-    assert "llama-4-maverick" in slugs
-    for m in items:
-        if m.slug == "llama-4-maverick":
-            assert m.aliases["together"].startswith("meta-llama/")
+    assert "deepseek-v4-pro" in slugs
+    assert "minimax-m3" in slugs
 
 
 def test_get_canonical_for_provider_official():
     items = get_canonical_for_provider("openai")
     slugs = [m.slug for m in items]
-    assert "gpt-5" in slugs
-    assert "gpt-4o" in slugs
+    assert "gpt-5.5" in slugs
+    assert "gpt-5.5-pro" in slugs
+
+
+def test_get_canonical_for_provider_nim():
+    items = get_canonical_for_provider("nim")
+    slugs = [m.slug for m in items]
+    assert "deepseek-v4-pro" in slugs
+    assert "kimi-2.6" in slugs
+    assert "minimax-2.7" in slugs
+    assert "glm-5" in slugs
 
 
 def test_reverse_resolve_exact():
-    m = get_canonical_for_provider_model("openrouter", "openai/gpt-5")
+    m = get_canonical_for_provider_model("openrouter", "gpt-5.5")
     assert m is not None
-    assert m.slug == "gpt-5"
+    assert m.slug == "gpt-5.5"
 
 
 def test_reverse_resolve_together_hf_style():
     m = get_canonical_for_provider_model(
-        "together", "deepseek-ai/DeepSeek-R1"
+        "together", "deepseek-v4-pro"
     )
     assert m is not None
-    assert m.slug == "deepseek-r1"
+    assert m.slug == "deepseek-v4-pro"
 
 
 def test_reverse_resolve_official():
-    m = get_canonical_for_provider_model("openai", "gpt-5")
+    m = get_canonical_for_provider_model("openai", "gpt-5.5")
     assert m is not None
-    assert m.slug == "gpt-5"
+    assert m.slug == "gpt-5.5"
 
 
 def test_reverse_resolve_unknown():
@@ -95,9 +100,9 @@ def test_reverse_resolve_empty():
 
 
 def test_models_resolve_canonical_slug_known():
-    assert models.resolve_canonical_slug("openrouter", "openai/gpt-5") == "gpt-5"
-    assert models.resolve_canonical_slug("together", "deepseek-ai/DeepSeek-R1") == "deepseek-r1"
-    assert models.resolve_canonical_slug("openai", "gpt-5") == "gpt-5"
+    assert models.resolve_canonical_slug("openrouter", "gpt-5.5") == "gpt-5.5"
+    assert models.resolve_canonical_slug("together", "deepseek-v4-pro") == "deepseek-v4-pro"
+    assert models.resolve_canonical_slug("openai", "gpt-5.5") == "gpt-5.5"
 
 
 def test_models_resolve_canonical_slug_unknown():
@@ -116,16 +121,16 @@ def test_list_canonical_models_with_provider():
     items = models.list_canonical_models("openrouter")
     assert all(item["provider_specific_id"] is not None for item in items)
     assert all(item.get("available_providers") is None for item in items)
-    deepseek = next(i for i in items if i["slug"] == "deepseek-r1")
-    assert deepseek["provider_specific_id"] == "deepseek/deepseek-r1"
+    deepseek = next(i for i in items if i["slug"] == "deepseek-v4-pro")
+    assert deepseek["provider_specific_id"] == "deepseek-v4-pro"
 
 
 def test_get_recommended_models_uses_canonical(monkeypatch):
     fake_models = [
-        "openai/gpt-5",
-        "openai/gpt-5-mini",
-        "anthropic/claude-opus-4",
-        "deepseek/deepseek-r1",
+        "gpt-5.5",
+        "gpt-5.5-pro",
+        "claude-opus-4-8",
+        "deepseek-v4-pro",
         "random/model",
         "text-embedding-3-small",
     ]
@@ -134,17 +139,16 @@ def test_get_recommended_models_uses_canonical(monkeypatch):
     )
 
     result = models.get_recommended_models("openrouter")
-    assert "openai/gpt-5" in result
-    assert "deepseek/deepseek-r1" in result
+    assert "gpt-5.5" in result
+    assert "deepseek-v4-pro" in result
     assert "random/model" not in result
 
 
 def test_get_recommended_models_together_hf_style(monkeypatch):
     fake_models = [
-        "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-        "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-        "Qwen/Qwen3-235B-A22B-Instruct-2507",
-        "deepseek-ai/DeepSeek-R1",
+        "deepseek-v4-pro",
+        "kimi-2.6",
+        "minimax-m3",
         "totally-unrelated/foo",
     ]
     monkeypatch.setattr(
@@ -152,23 +156,23 @@ def test_get_recommended_models_together_hf_style(monkeypatch):
     )
 
     result = models.get_recommended_models("together")
-    assert "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8" in result
-    assert "deepseek-ai/DeepSeek-R1" in result
+    assert "deepseek-v4-pro" in result
+    assert "kimi-2.6" in result
     assert "totally-unrelated/foo" not in result
 
 
 def test_get_recommended_models_deduplicates(monkeypatch):
     fake_models = [
-        "openai/gpt-5",
-        "openai/gpt-5",
-        "deepseek/deepseek-r1",
+        "gpt-5.5",
+        "gpt-5.5",
+        "deepseek-v4-pro",
     ]
     monkeypatch.setattr(
         models, "list_available_models", lambda provider, use_cache=True: fake_models
     )
 
     result = models.get_recommended_models("openrouter")
-    assert result.count("openai/gpt-5") == 1
+    assert result.count("gpt-5.5") == 1
 
 
 def test_get_recommended_models_no_match_returns_empty(monkeypatch):
@@ -193,10 +197,8 @@ def test_get_recommended_models_handles_listing_error(monkeypatch):
 def test_canonical_models_have_required_fields():
     for m in CANONICAL_REGISTRY:
         assert m.slug
-        assert m.family
         assert m.display_name
         assert isinstance(m.aliases, dict)
-        assert isinstance(m.tags, tuple)
 
 
 def test_canonical_aliases_are_non_empty_strings():

@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, Input, Label, TextField } from "@heroui/react";
 import { ArrowUp } from "lucide-react";
 import {
   fetchDefaultModel,
-  fetchModels,
   fetchModelsWithCanonical,
   fetchRecommendedModels,
 } from "../api/client";
@@ -30,23 +29,21 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [model, setModel] = useState<string>("");
   const [provider, setProvider] = useState<string>("");
   const [models, setModels] = useState<ModelEntry[]>([]);
-  const [allModels, setAllModels] = useState<ModelEntry[]>([]);
-  const [showAll, setShowAll] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState<string>("");
   const fetchedProvider = useRef<string>("");
 
   useEffect(() => {
     if (!provider) {
       setModels([]);
-      setAllModels([]);
-      setShowAll(false);
       setModel("");
+      setModelsError("");
       fetchedProvider.current = "";
       return;
     }
 
     setModel("");
-    setShowAll(false);
+    setModelsError("");
     setLoadingModels(true);
     fetchedProvider.current = provider;
 
@@ -61,50 +58,34 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
     fetchRecommendedModels(provider)
       .then((res) => {
         if (fetchedProvider.current !== provider) return;
-        if (res.models.length > 0) {
-          return fetchModelsWithCanonical(provider).then((withCanon) => {
-            if (fetchedProvider.current !== provider) return;
-            const map = new Map(
-              withCanon.models.map((m) => [m.provider_specific_id, m]),
-            );
-            const entries: ModelEntry[] = res.models.map((id) => map.get(id) ?? canonicalize([id])[0]);
-            setModels(entries);
-            return fetchDefaultModel(provider).then((def) => {
-              if (fetchedProvider.current !== provider) return;
-              if (def.model && entries.some((e) => e.provider_specific_id === def.model)) {
-                setModel(def.model);
-              } else if (entries.length > 0) {
-                setModel(entries[0].provider_specific_id);
-              }
-            });
-          });
+        if (res.models.length === 0) {
+          setModels([]);
+          setModelsError("No recommended models for this provider.");
+          return;
         }
-        return fetchModels(provider).then((full) => {
+        return fetchModelsWithCanonical(provider).then((withCanon) => {
           if (fetchedProvider.current !== provider) return;
-          return fetchModelsWithCanonical(provider).then((withCanon) => {
+          const map = new Map(
+            withCanon.models.map((m) => [m.provider_specific_id, m]),
+          );
+          const entries: ModelEntry[] = res.models.map(
+            (id) => map.get(id) ?? canonicalize([id])[0],
+          );
+          setModels(entries);
+          return fetchDefaultModel(provider).then((def) => {
             if (fetchedProvider.current !== provider) return;
-            const map = new Map(
-              withCanon.models.map((m) => [m.provider_specific_id, m]),
-            );
-            const fullEntries: ModelEntry[] = full.models.map(
-              (id) => map.get(id) ?? canonicalize([id])[0],
-            );
-            setModels(fullEntries);
-            setAllModels(fullEntries);
-            return fetchDefaultModel(provider).then((def) => {
-              if (fetchedProvider.current !== provider) return;
-              if (def.model && fullEntries.some((e) => e.provider_specific_id === def.model)) {
-                setModel(def.model);
-              } else if (fullEntries.length > 0) {
-                setModel(fullEntries[0].provider_specific_id);
-              }
-            });
+            if (def.model && entries.some((e) => e.provider_specific_id === def.model)) {
+              setModel(def.model);
+            } else {
+              setModel(entries[0].provider_specific_id);
+            }
           });
         });
       })
-      .catch(() => {
+      .catch((err) => {
         if (fetchedProvider.current !== provider) return;
         setModels([]);
+        setModelsError(err instanceof Error ? err.message : "Failed to load models.");
       })
       .finally(() => {
         if (fetchedProvider.current === provider) {
@@ -112,31 +93,6 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         }
       });
   }, [provider]);
-
-  const displayedModels = useMemo(
-    () => (showAll && allModels.length > 0 ? allModels : models),
-    [showAll, allModels, models],
-  );
-  const hasMore = models.length > 0;
-
-  const handleShowMore = useCallback(() => {
-    if (allModels.length > 0) {
-      setShowAll(true);
-      return;
-    }
-    setLoadingModels(true);
-    fetchModelsWithCanonical(provider)
-      .then((withCanon) => {
-        if (fetchedProvider.current !== provider) return;
-        setAllModels(withCanon.models);
-        setShowAll(true);
-      })
-      .finally(() => {
-        if (fetchedProvider.current === provider) {
-          setLoadingModels(false);
-        }
-      });
-  }, [provider, allModels]);
 
   const handleSend = useCallback(() => {
     const trimmed = prompt.trim();
@@ -195,23 +151,19 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
             className="rounded-lg border bg-surface px-2 py-1 text-xs outline-none focus:border-accent max-w-[28rem]"
             value={model}
             onChange={(e) => setModel(e.target.value)}
-            disabled={loadingModels && displayedModels.length === 0}
+            disabled={loadingModels && models.length === 0}
           >
             <option value="">Default</option>
-            {displayedModels.map((entry) => (
+            {models.map((entry) => (
               <option key={entry.provider_specific_id} value={entry.provider_specific_id}>
                 {formatModelLabel(entry)}
               </option>
             ))}
           </select>
-          {hasMore && !showAll && (
-            <button
-              type="button"
-              className="text-xs text-accent hover:underline whitespace-nowrap"
-              onClick={handleShowMore}
-            >
-              More...
-            </button>
+          {modelsError && (
+            <span className="text-xs text-warning whitespace-nowrap">
+              {modelsError}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1.5">

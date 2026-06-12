@@ -27,19 +27,6 @@ EXCLUDE_KEYWORDS = [
     "rerank",
 ]
 
-# 降级推荐表：当 Canonical Registry 中没有覆盖某个 provider 时使用。
-# 维护原则：尽量收敛到 Canonical slug（见 get_recommended_models）。
-RECOMMENDED_FALLBACK: dict[str, list[str]] = {
-    "groq": [
-        "llama-3.3-70b",
-        "llama-4-scout",
-    ],
-    "mistral": [
-        "mistral-large",
-    ],
-}
-
-
 def _cache_path(provider: str) -> Path:
     cache_dir = Path.home() / ".cache" / "scriptordb"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -118,26 +105,6 @@ def get_recommended_models(provider: str) -> list[str]:
                 seen.add(model)
                 break
 
-    if recommended:
-        return recommended
-
-    candidates = RECOMMENDED_FALLBACK.get(provider, [])
-    for candidate in candidates:
-        canonical = get_canonical_by_slug(candidate)
-        if canonical:
-            alias = canonical.aliases.get(provider)
-            if alias:
-                match = models_lower.get(alias.lower())
-                if match and match not in seen:
-                    recommended.append(match)
-                    seen.add(match)
-                    continue
-        for model in models:
-            if candidate.lower() in model.lower() and model not in seen:
-                recommended.append(model)
-                seen.add(model)
-                break
-
     return recommended
 
 
@@ -156,10 +123,7 @@ def list_canonical_models(provider: str | None = None) -> list[dict]:
     for m in items:
         entry: dict = {
             "slug": m.slug,
-            "family": m.family,
             "display_name": m.display_name,
-            "description": m.description,
-            "tags": list(m.tags),
         }
         if provider:
             entry["provider_specific_id"] = m.aliases.get(provider)
