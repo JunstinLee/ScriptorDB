@@ -8,6 +8,7 @@ import SessionList from "./SessionList";
 interface SessionMeta {
   session_id: string;
   created_at: string;
+  title: string;
 }
 
 interface SidebarProps {
@@ -30,7 +31,7 @@ export default function Sidebar({
   onDeleteSession,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     const html = document.documentElement;

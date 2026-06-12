@@ -21,6 +21,7 @@ export default function App() {
     appendStreamingText,
     finalizeAssistantMessage,
     setLoading,
+    refreshSessionTitle,
   } = useSessions();
 
   const { tables, loading: schemaLoading } = useSchema();
@@ -51,6 +52,7 @@ export default function App() {
           (fullOutput) => {
             finalizeAssistantMessage(fullOutput);
             setLoading(false);
+            void refreshSessionTitle(sid);
           },
         );
       };
@@ -98,11 +100,13 @@ export default function App() {
       <div className="flex flex-1 flex-col min-w-0">
         <ChatHeader activeSessionId={activeSessionId} />
 
-        <div className="flex flex-1 flex-col min-h-0">
+        <div className="flex flex-1 flex-col min-h-0 relative">
           {activeSessionId ? (
             <>
               <ChatMessages messages={messages} isLoading={isLoading} />
-              <ChatInput onSend={handleSend} disabled={isLoading} />
+              <div className="absolute bottom-0 left-0 right-0 z-10 bg-background">
+                <ChatInput onSend={handleSend} disabled={isLoading} />
+              </div>
             </>
           ) : (
             <WelcomeScreen onNewSession={handleNewSession} />

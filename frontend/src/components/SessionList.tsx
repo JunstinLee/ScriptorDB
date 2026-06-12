@@ -4,6 +4,7 @@ import { MessageSquarePlus, Trash2 } from "lucide-react";
 interface SessionMeta {
   session_id: string;
   created_at: string;
+  title: string;
 }
 
 interface SessionListProps {
@@ -60,8 +61,9 @@ export default function SessionList({
               <span
                 className="flex-1 truncate"
                 onClick={() => onSwitchSession(s.session_id)}
+                title={s.title}
               >
-                {s.session_id.slice(0, 8)}...
+                {s.title || s.session_id.slice(0, 8) + "..."}
               </span>
               <Button
                 variant="ghost"

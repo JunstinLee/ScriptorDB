@@ -10,6 +10,31 @@ import type { SessionInfo } from "../api/client";
 interface SessionMeta {
   session_id: string;
   created_at: string;
+  title: string;
+}
+
+const TITLE_MAX_LEN = 24;
+const DEFAULT_TITLE = "New Chat";
+
+function deriveTitle(info: SessionInfo): string {
+  const firstUser = info.messages.find((m) => m.role === "user" && m.content.trim());
+  if (!firstUser) return DEFAULT_TITLE;
+  const cleaned = firstUser.content.replace(/\s+/g, " ").trim();
+  return cleaned.length > TITLE_MAX_LEN ? `${cleaned.slice(0, TITLE_MAX_LEN)}…` : cleaned;
+}
+
+async function loadSessionMessages(sessionId: string): Promise<ChatMessage[]> {
+  const info: SessionInfo = await getSession(sessionId);
+  return info.messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+    timestamp: m.timestamp,
+  }));
+}
+
+async function loadSessionTitle(sessionId: string): Promise<string> {
+  const info: SessionInfo = await getSession(sessionId);
+  return deriveTitle(info);
 }
 
 export function useSessions() {
@@ -18,12 +43,22 @@ export function useSessions() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  const updateSessionTitle = useCallback(
+    (sessionId: string, title: string) => {
+      setSessions((prev) =>
+        prev.map((s) => (s.session_id === sessionId ? { ...s, title } : s)),
+      );
+    },
+    [],
+  );
+
   const createNewSession = useCallback(async () => {
     setIsLoading(true);
     const res = await createSession();
     const meta: SessionMeta = {
       session_id: res.session_id,
       created_at: new Date().toISOString(),
+      title: DEFAULT_TITLE,
     };
     setSessions((prev) => [meta, ...prev]);
     setActiveSessionId(meta.session_id);
@@ -41,14 +76,7 @@ export function useSessions() {
         if (remaining.length > 0) {
           const first = remaining[0];
           setActiveSessionId(first.session_id);
-          const info: SessionInfo = await getSession(first.session_id);
-          setMessages(
-            info.messages.map((m) => ({
-              role: m.role,
-              content: m.content,
-              timestamp: m.timestamp,
-            })),
-          );
+          setMessages(await loadSessionMessages(first.session_id));
         } else {
           setActiveSessionId(null);
           setMessages([]);
@@ -60,14 +88,7 @@ export function useSessions() {
 
   const switchSession = useCallback(async (sessionId: string) => {
     setActiveSessionId(sessionId);
-    const info: SessionInfo = await getSession(sessionId);
-    setMessages(
-      info.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        timestamp: m.timestamp,
-      })),
-    );
+    setMessages(await loadSessionMessages(sessionId));
   }, []);
 
   const addUserMessage = useCallback((content: string) => {
@@ -99,22 +120,37 @@ export function useSessions() {
     });
   }, []);
 
-  const finalizeAssistantMessage = useCallback((fullOutput: string) => {
-    setMessages((prev) => {
-      const last = prev[prev.length - 1];
-      if (last && last.role === "assistant") {
-        return [
-          ...prev.slice(0, -1),
-          { ...last, content: fullOutput },
-        ];
-      }
-      return prev;
-    });
-  }, []);
+  const finalizeAssistantMessage = useCallback(
+    (fullOutput: string) => {
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last && last.role === "assistant") {
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: fullOutput },
+          ];
+        }
+        return prev;
+      });
+    },
+    [],
+  );
 
   const setLoading = useCallback((loading: boolean) => {
     setIsLoading(loading);
   }, []);
+
+  const refreshSessionTitle = useCallback(
+    async (sessionId: string) => {
+      try {
+        const title = await loadSessionTitle(sessionId);
+        updateSessionTitle(sessionId, title);
+      } catch {
+        // keep previous title on failure
+      }
+    },
+    [updateSessionTitle],
+  );
 
   return {
     sessions,
@@ -128,5 +164,6 @@ export function useSessions() {
     appendStreamingText,
     finalizeAssistantMessage,
     setLoading,
+    refreshSessionTitle,
   };
 }
