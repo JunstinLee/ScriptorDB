@@ -31,3 +31,4 @@ cd frontend && npm run build      # TypeScript + Vite production build
 - Model list is cached per-provider at `~/.cache/scriptordb/models_<provider>.json` with 1h TTL
 - No linter or formatter is configured (no `ruff.toml`, no `mypy.ini`); only `pyright` is set up for IDE use via `pyrightconfig.json`
 - Tests use `pydantic_ai.models.test.TestModel` — they never call a real LLM API
+- Do NOT fix TypeScript / TSX type errors without explicit instruction — the user will inspect the files and provide the specific errors to address; do not modify `.ts` / `.tsx` files on your own initiative to resolve type issues
