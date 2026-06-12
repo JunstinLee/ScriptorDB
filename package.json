@@ -7,6 +7,6 @@
     "dev:web": "cd frontend && npm run dev"
   },
   "devDependencies": {
-    "concurrently": "^9.0.0"
+    "concurrently": "^10.0.3"
   }
 }
