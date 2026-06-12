@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import ChatHeader from "./components/ChatHeader";
 import ChatInput from "./components/ChatInput";
 import ChatMessages from "./components/ChatMessages";
@@ -30,6 +30,7 @@ export default function App() {
   const { tables, loading: schemaLoading } = useSchema();
   const abortRef = useRef<AbortController | null>(null);
   const settingsModal = useOverlayState();
+  const [settingsChanged, setSettingsChanged] = useState(0);
 
   const handleNewSession = useCallback(() => {
     void createNewSession();
@@ -108,14 +109,14 @@ export default function App() {
       />
 
       <div className="flex flex-1 flex-col min-w-0">
-        <ChatHeader activeSessionId={activeSessionId} />
+        <ChatHeader activeSessionId={activeSessionId} settingsChanged={settingsChanged} />
 
         <div className="flex flex-1 flex-col min-h-0 relative">
           {activeSessionId ? (
             <>
               <ChatMessages messages={messages} isLoading={isLoading} />
               <div className="absolute bottom-0 left-0 right-0 z-10 bg-background">
-                <ChatInput onSend={handleSend} disabled={isLoading} />
+                <ChatInput onSend={handleSend} disabled={isLoading} settingsChanged={settingsChanged} />
               </div>
             </>
           ) : (
@@ -128,7 +129,10 @@ export default function App() {
         isOpen={settingsModal.isOpen}
         onOpenChange={(open) => {
           if (open) settingsModal.open();
-          else settingsModal.close();
+          else {
+            settingsModal.close();
+            setSettingsChanged((v) => v + 1);
+          }
         }}
         onSessionsChanged={() => void refreshSessions()}
       />

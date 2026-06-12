@@ -1,28 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { health } from "../api/client";
 
 interface ChatHeaderProps {
   activeSessionId: string | null;
+  settingsChanged: number;
 }
 
-export default function ChatHeader({ activeSessionId }: ChatHeaderProps) {
+export default function ChatHeader({ activeSessionId, settingsChanged }: ChatHeaderProps) {
   const [provider, setProvider] = useState<string>("");
   const [model, setModel] = useState<string>("");
 
-  const fetchHealth = useCallback(async () => {
-    try {
-      const h = await health();
+  useEffect(() => {
+    health().then((h) => {
       setProvider(h.provider);
       setModel(h.model.split(":").pop() ?? h.model);
-    } catch {
+    }).catch(() => {
       setProvider("");
       setModel("");
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchHealth();
-  }, [fetchHealth]);
+    });
+  }, [activeSessionId, settingsChanged]);
 
   if (!activeSessionId) return null;
 

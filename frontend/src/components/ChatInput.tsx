@@ -5,12 +5,14 @@ import {
   fetchDefaultModel,
   fetchModelsWithCanonical,
   fetchRecommendedModels,
+  health,
 } from "../api/client";
 import type { ModelEntry } from "../types";
 
 interface ChatInputProps {
   onSend: (prompt: string, model?: string | null, provider?: string | null) => void;
   disabled: boolean;
+  settingsChanged: number;
 }
 
 const PROVIDERS = [
@@ -24,7 +26,7 @@ const PROVIDERS = [
   "together",
 ];
 
-export default function ChatInput({ onSend, disabled }: ChatInputProps) {
+export default function ChatInput({ onSend, disabled, settingsChanged }: ChatInputProps) {
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<string>("");
   const [provider, setProvider] = useState<string>("");
@@ -32,6 +34,14 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [loadingModels, setLoadingModels] = useState(false);
   const [modelsError, setModelsError] = useState<string>("");
   const fetchedProvider = useRef<string>("");
+
+  useEffect(() => {
+    health().then((h) => {
+      setProvider(h.provider);
+      const m = h.model.split(":").pop() ?? h.model;
+      setModel(m);
+    }).catch(() => {});
+  }, [settingsChanged]);
 
   useEffect(() => {
     if (!provider) {
