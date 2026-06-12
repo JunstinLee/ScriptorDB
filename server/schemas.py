@@ -22,6 +22,18 @@ class SessionInfo(BaseModel):
     created_at: datetime
 
 
+class SessionListItem(BaseModel):
+    session_id: str
+    created_at: datetime
+    last_access: datetime
+    message_count: int
+    title: str | None = None
+
+
+class SessionListResponse(BaseModel):
+    sessions: list[SessionListItem]
+
+
 class ChatRequest(BaseModel):
     prompt: str
     model: str | None = None
@@ -72,3 +84,34 @@ class ModelEntry(BaseModel):
 
 class ModelsWithCanonicalResponse(BaseModel):
     models: list[ModelEntry]
+
+
+class ProviderInfo(BaseModel):
+    name: str
+    base_url: str
+
+
+class SettingsResponse(BaseModel):
+    llm_provider: str
+    db_url: str
+    llm_model: str | None
+    default_models: dict[str, str]
+    auto_restore_sessions: bool
+    providers: list[ProviderInfo]
+    providers_with_keys: list[str]
+
+
+class SettingsUpdateRequest(BaseModel):
+    llm_provider: str | None = None
+    default_model: str | None = None
+    auto_restore_sessions: bool | None = None
+
+
+class ApiKeyRequest(BaseModel):
+    provider: str
+    api_key: str
+
+
+class ApiKeyTestResponse(BaseModel):
+    ok: bool
+    error: str | None = None

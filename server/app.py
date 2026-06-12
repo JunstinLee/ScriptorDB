@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
+import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -13,8 +15,11 @@ from config.models import (
     list_canonical_models,
     resolve_canonical_slug,
 )
+from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, get_api_key, save_api_key
 from config.settings import settings
 from server.schemas import (
+    ApiKeyRequest,
+    ApiKeyTestResponse,
     CanonicalModelItem,
     CanonicalModelsResponse,
     ChatRequest,
@@ -23,10 +28,15 @@ from server.schemas import (
     ModelEntry,
     ModelsResponse,
     ModelsWithCanonicalResponse,
+    ProviderInfo,
     SchemaResponse,
     SchemaTable,
     SessionCreateResponse,
     SessionInfo,
+    SessionListItem,
+    SessionListResponse,
+    SettingsResponse,
+    SettingsUpdateRequest,
 )
 from server.sessions import session_store
 from server.streaming import stream_agent_response
@@ -66,6 +76,33 @@ async def health():
 async def create_session():
     session = session_store.create()
     return SessionCreateResponse(session_id=session.session_id)
+
+
+@app.get("/api/sessions", response_model=SessionListResponse)
+async def list_sessions():
+    """List all active sessions (metadata only, no message bodies)."""
+    sessions = session_store.list_sessions()
+    items: list[SessionListItem] = []
+    for s in sessions:
+        title = None
+        first_user = next(
+            (m for m in s.messages if m.role == "user" and m.content.strip()), None
+        )
+        if first_user:
+            cleaned = first_user.content.replace(r"\s+", " ").strip()
+            title = (
+                cleaned[:24] + "..." if len(cleaned) > 24 else cleaned
+            )
+        items.append(
+            SessionListItem(
+                session_id=s.session_id,
+                created_at=s.created_at,
+                last_access=s.last_access,
+                message_count=len(s.messages),
+                title=title,
+            )
+        )
+    return SessionListResponse(sessions=items)
 
 
 @app.get("/api/sessions/{session_id}", response_model=SessionInfo)
@@ -115,6 +152,7 @@ async def chat(session_id: str, req: ChatRequest):
 
         if full_output:
             session.add_assistant_message(full_output)
+            session_store.save()
 
     return StreamingResponse(
         generate(),
@@ -221,3 +259,89 @@ async def get_canonical_models(provider: str = ""):
 async def get_default_model(provider: str = ""):
     p = provider.strip() or settings.llm_provider
     return DefaultModelResponse(model=settings.get_default_model(p))
+
+
+@app.get("/api/settings", response_model=SettingsResponse)
+async def get_settings():
+    providers = [
+        ProviderInfo(name=name, base_url=cfg.base_url)
+        for name, cfg in SUPPORTED_PROVIDERS.items()
+    ]
+    providers_with_keys = [
+        name for name in SUPPORTED_PROVIDERS.keys() if get_api_key(name)
+    ]
+    return SettingsResponse(
+        llm_provider=settings.llm_provider,
+        db_url=settings.db_url,
+        llm_model=settings.llm_model,
+        default_models=dict(settings.default_models),
+        auto_restore_sessions=settings.auto_restore_sessions,
+        providers=providers,
+        providers_with_keys=providers_with_keys,
+    )
+
+
+@app.post("/api/settings", response_model=SettingsResponse)
+async def update_settings(req: SettingsUpdateRequest):
+    if req.llm_provider is not None:
+        if req.llm_provider not in SUPPORTED_PROVIDERS:
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported provider: {req.llm_provider}"
+            )
+        settings.set_provider(req.llm_provider)
+    if req.default_model is not None:
+        provider = settings.llm_provider
+        if not req.default_model:
+            if provider in settings.default_models:
+                del settings.default_models[provider]
+            settings.llm_model = None
+        else:
+            settings.set_default_model(provider, req.default_model)
+    if req.auto_restore_sessions is not None:
+        settings.set_auto_restore_sessions(req.auto_restore_sessions)
+    return await get_settings()
+
+
+@app.post("/api/settings/api-key", response_model=ApiKeyTestResponse)
+async def set_api_key(req: ApiKeyRequest):
+    if req.provider not in SUPPORTED_PROVIDERS:
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported provider: {req.provider}"
+        )
+    if not req.api_key.strip():
+        raise HTTPException(status_code=400, detail="API key cannot be empty")
+    save_api_key(req.provider, req.api_key.strip())
+    return ApiKeyTestResponse(ok=True)
+
+
+@app.delete("/api/settings/api-key/{provider}", response_model=ApiKeyTestResponse)
+async def delete_provider_key(provider: str):
+    if provider not in SUPPORTED_PROVIDERS:
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported provider: {provider}"
+        )
+    try:
+        delete_api_key(provider)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return ApiKeyTestResponse(ok=True)
+
+
+@app.post("/api/settings/api-key/test", response_model=ApiKeyTestResponse)
+async def test_api_key(req: ApiKeyRequest):
+    """Test an API key by calling the provider's list-models endpoint."""
+    if req.provider not in SUPPORTED_PROVIDERS:
+        raise HTTPException(
+            status_code=400, detail=f"Unsupported provider: {req.provider}"
+        )
+    if not req.api_key.strip():
+        raise HTTPException(status_code=400, detail="API key cannot be empty")
+    cfg: Any = SUPPORTED_PROVIDERS[req.provider]
+    url = f"{cfg.base_url.rstrip('/')}{cfg.list_models_path}"
+    headers = {"Authorization": f"Bearer {req.api_key.strip()}"}
+    try:
+        resp = httpx.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+    except Exception as e:
+        return ApiKeyTestResponse(ok=False, error=str(e))
+    return ApiKeyTestResponse(ok=True)
