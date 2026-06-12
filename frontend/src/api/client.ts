@@ -1,8 +1,10 @@
 import type {
+  CanonicalModelsResponse,
   ChatRequest,
   DefaultModelResponse,
   HealthResponse,
   ModelsResponse,
+  ModelsWithCanonicalResponse,
   SchemaResponse,
   SessionCreateResponse,
   SessionInfo,
@@ -143,4 +145,19 @@ export function fetchRecommendedModels(provider: string): Promise<ModelsResponse
 
 export function fetchDefaultModel(provider: string): Promise<DefaultModelResponse> {
   return request<DefaultModelResponse>(`/models/default?provider=${encodeURIComponent(provider)}`);
+}
+
+export function fetchCanonicalModels(
+  provider: string = "",
+): Promise<CanonicalModelsResponse> {
+  const q = provider ? `?provider=${encodeURIComponent(provider)}` : "";
+  return request<CanonicalModelsResponse>(`/canonical-models${q}`);
+}
+
+export function fetchModelsWithCanonical(
+  provider: string,
+): Promise<ModelsWithCanonicalResponse> {
+  return request<ModelsWithCanonicalResponse>(
+    `/models/with-canonical?provider=${encodeURIComponent(provider)}`,
+  );
 }

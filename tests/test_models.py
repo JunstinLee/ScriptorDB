@@ -96,8 +96,9 @@ def test_get_recommended_models_finds_top(monkeypatch):
     )
     result = models.get_recommended_models("openai")
     assert "gpt-5" in result
-    assert "claude-sonnet-4" in result
-    assert "gemini-2.5-pro" in result
+    assert "gpt-4o" in result
+    assert "claude-sonnet-4" not in result
+    assert "gemini-2.5-pro" not in result
 
 
 def test_get_recommended_models_substring_fallback(monkeypatch):
@@ -108,4 +109,3 @@ def test_get_recommended_models_substring_fallback(monkeypatch):
     )
     result = models.get_recommended_models("openai")
     assert "openai/gpt-5-mini-2025" in result
-    assert "claude-sonnet-4-20250514" in result

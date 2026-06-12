@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Input, Label, TextField } from "@heroui/react";
 import { ArrowUp } from "lucide-react";
-import { fetchDefaultModel, fetchModels, fetchRecommendedModels } from "../api/client";
+import {
+  fetchDefaultModel,
+  fetchModels,
+  fetchModelsWithCanonical,
+  fetchRecommendedModels,
+} from "../api/client";
+import type { ModelEntry } from "../types";
 
 interface ChatInputProps {
   onSend: (prompt: string, model?: string | null, provider?: string | null) => void;
@@ -23,8 +29,8 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState<string>("");
   const [provider, setProvider] = useState<string>("");
-  const [models, setModels] = useState<string[]>([]);
-  const [allModels, setAllModels] = useState<string[]>([]);
+  const [models, setModels] = useState<ModelEntry[]>([]);
+  const [allModels, setAllModels] = useState<ModelEntry[]>([]);
   const [showAll, setShowAll] = useState(false);
   const [loadingModels, setLoadingModels] = useState(false);
   const fetchedProvider = useRef<string>("");
@@ -44,31 +50,55 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
     setLoadingModels(true);
     fetchedProvider.current = provider;
 
+    const canonicalize = (ids: string[]): ModelEntry[] =>
+      ids.map((id) => ({
+        provider_specific_id: id,
+        canonical_slug: null,
+        display_name: null,
+        family: null,
+      }));
+
     fetchRecommendedModels(provider)
       .then((res) => {
         if (fetchedProvider.current !== provider) return;
         if (res.models.length > 0) {
-          setModels(res.models);
-          return fetchDefaultModel(provider).then((def) => {
+          return fetchModelsWithCanonical(provider).then((withCanon) => {
             if (fetchedProvider.current !== provider) return;
-            if (def.model && res.models.includes(def.model)) {
-              setModel(def.model);
-            } else {
-              setModel(res.models[0]);
-            }
+            const map = new Map(
+              withCanon.models.map((m) => [m.provider_specific_id, m]),
+            );
+            const entries: ModelEntry[] = res.models.map((id) => map.get(id) ?? canonicalize([id])[0]);
+            setModels(entries);
+            return fetchDefaultModel(provider).then((def) => {
+              if (fetchedProvider.current !== provider) return;
+              if (def.model && entries.some((e) => e.provider_specific_id === def.model)) {
+                setModel(def.model);
+              } else if (entries.length > 0) {
+                setModel(entries[0].provider_specific_id);
+              }
+            });
           });
         }
         return fetchModels(provider).then((full) => {
           if (fetchedProvider.current !== provider) return;
-          setModels(full.models);
-          setAllModels(full.models);
-          return fetchDefaultModel(provider).then((def) => {
+          return fetchModelsWithCanonical(provider).then((withCanon) => {
             if (fetchedProvider.current !== provider) return;
-            if (def.model && full.models.includes(def.model)) {
-              setModel(def.model);
-            } else if (full.models.length > 0) {
-              setModel(full.models[0]);
-            }
+            const map = new Map(
+              withCanon.models.map((m) => [m.provider_specific_id, m]),
+            );
+            const fullEntries: ModelEntry[] = full.models.map(
+              (id) => map.get(id) ?? canonicalize([id])[0],
+            );
+            setModels(fullEntries);
+            setAllModels(fullEntries);
+            return fetchDefaultModel(provider).then((def) => {
+              if (fetchedProvider.current !== provider) return;
+              if (def.model && fullEntries.some((e) => e.provider_specific_id === def.model)) {
+                setModel(def.model);
+              } else if (fullEntries.length > 0) {
+                setModel(fullEntries[0].provider_specific_id);
+              }
+            });
           });
         });
       })
@@ -83,7 +113,10 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
       });
   }, [provider]);
 
-  const displayedModels = showAll && allModels.length > 0 ? allModels : models;
+  const displayedModels = useMemo(
+    () => (showAll && allModels.length > 0 ? allModels : models),
+    [showAll, allModels, models],
+  );
   const hasMore = models.length > 0;
 
   const handleShowMore = useCallback(() => {
@@ -92,10 +125,10 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
       return;
     }
     setLoadingModels(true);
-    fetchModels(provider)
-      .then((res) => {
+    fetchModelsWithCanonical(provider)
+      .then((withCanon) => {
         if (fetchedProvider.current !== provider) return;
-        setAllModels(res.models);
+        setAllModels(withCanon.models);
         setShowAll(true);
       })
       .finally(() => {
@@ -121,6 +154,13 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
     },
     [handleSend],
   );
+
+  const formatModelLabel = (entry: ModelEntry): string => {
+    if (entry.display_name && entry.display_name !== entry.provider_specific_id) {
+      return `${entry.display_name}  ·  ${entry.provider_specific_id}`;
+    }
+    return entry.provider_specific_id;
+  };
 
   return (
     <div className="border-t px-4 py-3">
@@ -152,15 +192,15 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         <div className="flex items-center gap-1.5">
           <Label className="text-xs text-muted">Model:</Label>
           <select
-            className="rounded-lg border bg-surface px-2 py-1 text-xs outline-none focus:border-accent"
+            className="rounded-lg border bg-surface px-2 py-1 text-xs outline-none focus:border-accent max-w-[28rem]"
             value={model}
             onChange={(e) => setModel(e.target.value)}
             disabled={loadingModels && displayedModels.length === 0}
           >
             <option value="">Default</option>
-            {displayedModels.map((m) => (
-              <option key={m} value={m}>
-                {m}
+            {displayedModels.map((entry) => (
+              <option key={entry.provider_specific_id} value={entry.provider_specific_id}>
+                {formatModelLabel(entry)}
               </option>
             ))}
           </select>

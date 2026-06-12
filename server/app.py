@@ -7,13 +7,22 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from config.models import get_recommended_models, list_available_models
+from config.models import (
+    get_recommended_models,
+    list_available_models,
+    list_canonical_models,
+    resolve_canonical_slug,
+)
 from config.settings import settings
 from server.schemas import (
+    CanonicalModelItem,
+    CanonicalModelsResponse,
     ChatRequest,
     DefaultModelResponse,
     HealthResponse,
+    ModelEntry,
     ModelsResponse,
+    ModelsWithCanonicalResponse,
     SchemaResponse,
     SchemaTable,
     SessionCreateResponse,
@@ -157,6 +166,59 @@ async def get_models_recommended(provider: str = ""):
     except RuntimeError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return ModelsResponse(models=models)
+
+
+@app.get("/api/models/with-canonical", response_model=ModelsWithCanonicalResponse)
+async def get_models_with_canonical(provider: str = ""):
+    """返回带 Canonical 信息的模型列表。
+
+    每条记录包含：
+    - provider_specific_id: provider 实际模型 ID
+    - canonical_slug: 推断出的 canonical slug（可为空）
+    - display_name: 用户面向的展示名（来自 canonical）
+    - family: 模型族（来自 canonical）
+    """
+    p = provider.strip() or settings.llm_provider
+    try:
+        ids = list_available_models(p)
+    except (ValueError, RuntimeError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    entries: list[ModelEntry] = []
+    for mid in ids:
+        slug = resolve_canonical_slug(p, mid)
+        display_name = None
+        family = None
+        if slug:
+            from config.canonical_models import get_canonical_by_slug
+
+            c = get_canonical_by_slug(slug)
+            if c:
+                display_name = c.display_name
+                family = c.family
+        entries.append(
+            ModelEntry(
+                provider_specific_id=mid,
+                canonical_slug=slug,
+                display_name=display_name,
+                family=family,
+            )
+        )
+    return ModelsWithCanonicalResponse(models=entries)
+
+
+@app.get("/api/canonical-models", response_model=CanonicalModelsResponse)
+async def get_canonical_models(provider: str = ""):
+    """返回 Canonical Model Registry 中的模型列表。
+
+    - 不传 provider：返回所有 canonical 模型及其 available_providers
+    - 传 provider：仅返回该 provider 有 alias 的模型，附带 provider_specific_id
+    """
+    p = provider.strip() or None
+    items = list_canonical_models(p)
+    return CanonicalModelsResponse(
+        models=[CanonicalModelItem(**item) for item in items]
+    )
 
 
 @app.get("/api/models/default", response_model=DefaultModelResponse)

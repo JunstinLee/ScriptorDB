@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 from agents.db_agent import get_agent
-from config.models import fuzzy_match_model
+from config.canonical_models import get_canonical_by_slug
+from config.models import fuzzy_match_model, resolve_canonical_slug
 from config.settings import Settings
 from pydantic_ai.messages import ModelMessage
 
@@ -35,8 +36,20 @@ async def stream_agent_response(
                 full_output += chunk
                 yield _sse_lines(chunk) + "\n\n"
 
+        canonical_slug = None
+        display_name = None
+        if settings.llm_model:
+            slug = resolve_canonical_slug(settings.llm_provider, settings.llm_model)
+            if slug:
+                canonical_slug = slug
+                c = get_canonical_by_slug(slug)
+                if c:
+                    display_name = c.display_name
+
         yield f"data: [DONE]\n\n"
-        yield f"event: metadata\ndata: {_sse_encode_json({'full_output': full_output})}\n\n"
+        yield (
+            f"event: metadata\ndata: {_sse_encode_json({'full_output': full_output, 'canonical_slug': canonical_slug, 'display_name': display_name, 'provider_specific_id': settings.llm_model})}\n\n"
+        )
 
     except Exception as e:
         yield f"event: error\ndata: {_sse_lines(str(e))}\n\n"
