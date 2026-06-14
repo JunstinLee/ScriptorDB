@@ -1,12 +1,20 @@
 import { useEffect, useState } from "react";
 import { health } from "../api/client";
+import { getSessionDisplayName } from "../utils/display";
 
 interface ChatHeaderProps {
   activeSessionId: string | null;
+  activeSessionTitle: string | null;
+  showSessionIdHover: boolean;
   settingsChanged: number;
 }
 
-export default function ChatHeader({ activeSessionId, settingsChanged }: ChatHeaderProps) {
+export default function ChatHeader({
+  activeSessionId,
+  activeSessionTitle,
+  showSessionIdHover,
+  settingsChanged,
+}: ChatHeaderProps) {
   const [provider, setProvider] = useState<string>("");
   const [model, setModel] = useState<string>("");
 
@@ -28,9 +36,12 @@ export default function ChatHeader({ activeSessionId, settingsChanged }: ChatHea
         <span className="text-xs text-muted">
           Session:
         </span>
-        <code className="rounded bg-default/50 px-1.5 py-0.5 text-xs font-mono">
-          {activeSessionId.slice(0, 12)}
-        </code>
+        <span
+          className="text-xs font-medium"
+          title={showSessionIdHover ? activeSessionId : undefined}
+        >
+          {getSessionDisplayName(activeSessionTitle)}
+        </span>
       </div>
       <div className="flex items-center gap-3 text-xs text-muted">
         <span>

@@ -1,5 +1,6 @@
 import { Button } from "@heroui/react";
 import { MessageSquarePlus, Trash2 } from "lucide-react";
+import { getSessionDisplayName } from "../utils/display";
 
 interface SessionMeta {
   session_id: string;
@@ -10,6 +11,7 @@ interface SessionMeta {
 interface SessionListProps {
   sessions: SessionMeta[];
   activeSessionId: string | null;
+  showSessionIdHover: boolean;
   onNewSession: () => void;
   onSwitchSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
@@ -18,6 +20,7 @@ interface SessionListProps {
 export default function SessionList({
   sessions,
   activeSessionId,
+  showSessionIdHover,
   onNewSession,
   onSwitchSession,
   onDeleteSession,
@@ -40,6 +43,7 @@ export default function SessionList({
       </div>
       <div className="flex flex-col gap-0.5">
         {sessions.map((s) => {
+          const displayName = getSessionDisplayName(s.title);
           const isActive = s.session_id === activeSessionId;
           return (
             <div
@@ -61,9 +65,9 @@ export default function SessionList({
               <span
                 className="flex-1 truncate"
                 onClick={() => onSwitchSession(s.session_id)}
-                title={s.title}
+                title={showSessionIdHover ? s.session_id : displayName}
               >
-                {s.title || s.session_id.slice(0, 8) + "..."}
+                {displayName}
               </span>
               <Button
                 variant="ghost"
@@ -71,7 +75,7 @@ export default function SessionList({
                 isIconOnly
                 className="opacity-0 group-hover:opacity-100 h-6 w-6"
                 onPress={() => onDeleteSession(s.session_id)}
-                aria-label={`Delete session ${s.session_id}`}
+                aria-label={`Delete ${displayName}`}
               >
                 <Trash2 className="h-3 w-3" />
               </Button>

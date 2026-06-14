@@ -33,17 +33,22 @@ import type {
   SessionListItem,
   SettingsResponse,
 } from "../types";
+import { getSessionDisplayName } from "../utils/display";
 
 interface SettingsModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onSessionsChanged?: () => void;
+  showSessionIdHover: boolean;
+  setShowSessionIdHover: (v: boolean) => void;
 }
 
 export default function SettingsModal({
   isOpen,
   onOpenChange,
   onSessionsChanged,
+  showSessionIdHover,
+  setShowSessionIdHover,
 }: SettingsModalProps) {
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -117,6 +122,8 @@ export default function SettingsModal({
                     settings={settings}
                     onSettingsChange={setSettings}
                     onSessionsChanged={onSessionsChanged}
+                    showSessionIdHover={showSessionIdHover}
+                    setShowSessionIdHover={setShowSessionIdHover}
                   />
                 </Tabs.Panel>
                 <Tabs.Panel className="pt-4" id="apikeys">
@@ -144,12 +151,16 @@ interface SessionsTabProps {
   settings: SettingsResponse;
   onSettingsChange: (s: SettingsResponse) => void;
   onSessionsChanged?: () => void;
+  showSessionIdHover: boolean;
+  setShowSessionIdHover: (v: boolean) => void;
 }
 
 function SessionsTab({
   settings,
   onSettingsChange,
   onSessionsChanged,
+  showSessionIdHover,
+  setShowSessionIdHover,
 }: SessionsTabProps) {
   const [items, setItems] = useState<SessionListItem[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -209,6 +220,26 @@ function SessionsTab({
         </Switch>
       </div>
 
+      <div className="flex items-center justify-between rounded-lg border p-3">
+        <div className="flex flex-col gap-0.5">
+          <Label className="text-sm font-medium">
+            Show session ID on hover
+          </Label>
+          <p className="text-xs text-muted">
+            When enabled, hovering over a session name shows the underlying
+            session ID as a tooltip.
+          </p>
+        </div>
+        <Switch
+          isSelected={showSessionIdHover}
+          onChange={(v) => void setShowSessionIdHover(v)}
+        >
+          <Switch.Control>
+            <Switch.Thumb />
+          </Switch.Control>
+        </Switch>
+      </div>
+
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">History</h3>
@@ -230,39 +261,45 @@ function SessionsTab({
           </div>
         ) : (
           <ul className="flex flex-col gap-1.5">
-            {items.map((s) => (
-              <li
-                key={s.session_id}
-                className="flex items-center gap-3 rounded-lg border bg-surface/50 px-3 py-2"
-              >
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-medium">
-                    {s.title || s.session_id.slice(0, 12)}
-                  </span>
-                  <span className="text-xs text-muted">
-                    {s.message_count} message{s.message_count === 1 ? "" : "s"} ·
-                    last active {formatRelative(s.last_access)}
-                  </span>
-                </div>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  isIconOnly
-                  aria-label={`Delete ${s.session_id}`}
-                  onPress={async () => {
-                    try {
-                      await deleteSession(s.session_id);
-                      await refresh();
-                      onSessionsChanged?.();
-                    } catch (e) {
-                      console.error(e);
-                    }
-                  }}
+            {items.map((s) => {
+              const displayName = getSessionDisplayName(s.title);
+              return (
+                <li
+                  key={s.session_id}
+                  className="flex items-center gap-3 rounded-lg border bg-surface/50 px-3 py-2"
                 >
-                  <Trash2 className="size-4" />
-                </Button>
-              </li>
-            ))}
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span
+                      className="truncate text-sm font-medium"
+                      title={showSessionIdHover ? s.session_id : displayName}
+                    >
+                      {displayName}
+                    </span>
+                    <span className="text-xs text-muted">
+                      {s.message_count} message{s.message_count === 1 ? "" : "s"} ·
+                      last active {formatRelative(s.last_access)}
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    isIconOnly
+                    aria-label={`Delete ${displayName}`}
+                    onPress={async () => {
+                      try {
+                        await deleteSession(s.session_id);
+                        await refresh();
+                        onSessionsChanged?.();
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

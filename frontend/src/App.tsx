@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import ChatHeader from "./components/ChatHeader";
 import ChatInput from "./components/ChatInput";
 import ChatMessages from "./components/ChatMessages";
 import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
 import WelcomeScreen from "./components/WelcomeScreen";
+import { useAppSettings } from "./hooks/useAppSettings";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
 import { streamChat } from "./api/client";
@@ -31,6 +32,12 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null);
   const settingsModal = useOverlayState();
   const [settingsChanged, setSettingsChanged] = useState(0);
+  const { showSessionIdHover, setShowSessionIdHover } = useAppSettings();
+
+  const activeSessionTitle = useMemo(
+    () => sessions.find((s) => s.session_id === activeSessionId)?.title ?? null,
+    [sessions, activeSessionId],
+  );
 
   const handleNewSession = useCallback(() => {
     void createNewSession();
@@ -106,10 +113,16 @@ export default function App() {
         onSwitchSession={switchSession}
         onDeleteSession={handleDeleteSession}
         onOpenSettings={handleOpenSettings}
+        showSessionIdHover={showSessionIdHover}
       />
 
       <div className="flex flex-1 flex-col min-w-0">
-        <ChatHeader activeSessionId={activeSessionId} settingsChanged={settingsChanged} />
+        <ChatHeader
+          activeSessionId={activeSessionId}
+          activeSessionTitle={activeSessionTitle}
+          showSessionIdHover={showSessionIdHover}
+          settingsChanged={settingsChanged}
+        />
 
         <div className="flex flex-1 flex-col min-h-0 relative">
           {activeSessionId ? (
@@ -135,6 +148,8 @@ export default function App() {
           }
         }}
         onSessionsChanged={() => void refreshSessions()}
+        showSessionIdHover={showSessionIdHover}
+        setShowSessionIdHover={setShowSessionIdHover}
       />
     </div>
   );

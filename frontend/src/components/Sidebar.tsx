@@ -23,6 +23,7 @@ interface SidebarProps {
   activeSessionId: string | null;
   tables: SchemaTable[];
   schemaLoading: boolean;
+  showSessionIdHover: boolean;
   onNewSession: () => void;
   onSwitchSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
@@ -34,6 +35,7 @@ export default function Sidebar({
   activeSessionId,
   tables,
   schemaLoading,
+  showSessionIdHover,
   onNewSession,
   onSwitchSession,
   onDeleteSession,
@@ -131,6 +133,7 @@ export default function Sidebar({
         <SessionList
           sessions={sessions}
           activeSessionId={activeSessionId}
+          showSessionIdHover={showSessionIdHover}
           onNewSession={onNewSession}
           onSwitchSession={onSwitchSession}
           onDeleteSession={onDeleteSession}
