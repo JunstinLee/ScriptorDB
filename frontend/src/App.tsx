@@ -1,10 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import ChatHeader from "./components/ChatHeader";
-import ChatInput from "./components/ChatInput";
-import ChatMessages from "./components/ChatMessages";
+import ChatPanel from "./components/ChatPanel";
 import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
-import WelcomeScreen from "./components/WelcomeScreen";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
@@ -133,16 +131,13 @@ export default function App() {
         />
 
         <div className="flex flex-1 flex-col min-h-0 relative">
-          {activeSessionId ? (
-            <>
-              <ChatMessages messages={messages} isLoading={isLoading} />
-              <div className="absolute bottom-0 left-0 right-0 z-10 bg-background">
-                <ChatInput onSend={handleSend} disabled={isLoading} />
-              </div>
-            </>
-          ) : (
-            <WelcomeScreen onNewSession={handleNewSession} />
-          )}
+          <ChatPanel
+            activeSessionId={activeSessionId}
+            messages={messages}
+            isLoading={isLoading}
+            onSend={handleSend}
+            onNewSession={handleNewSession}
+          />
         </div>
       </div>
 

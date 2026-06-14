@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { ChatMessage } from "../types";
-import { Sparkles, User } from "lucide-react";
+import ChatAvatar from "./common/ChatAvatar";
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
@@ -25,11 +25,7 @@ export default function ChatMessages({ messages, isLoading }: ChatMessagesProps)
             msg.role === "user" ? "justify-end" : "justify-start"
           }`}
         >
-          {msg.role === "assistant" && (
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 mt-0.5">
-              <Sparkles className="h-3.5 w-3.5 text-accent" />
-            </div>
-          )}
+          {msg.role === "assistant" && <ChatAvatar role="assistant" />}
           <div
             className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
               msg.role === "user"
@@ -43,18 +39,12 @@ export default function ChatMessages({ messages, isLoading }: ChatMessagesProps)
               ) : null)}
             </div>
           </div>
-          {msg.role === "user" && (
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-default/50 mt-0.5">
-              <User className="h-3.5 w-3.5" />
-            </div>
-          )}
+          {msg.role === "user" && <ChatAvatar role="user" />}
         </div>
       ))}
       {isLoading && messages[messages.length - 1]?.role === "user" && (
         <div className="flex gap-3 justify-start">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/15 mt-0.5">
-            <Sparkles className="h-3.5 w-3.5 text-accent" />
-          </div>
+          <ChatAvatar role="assistant" />
           <div className="rounded-2xl bg-surface border px-4 py-2.5">
             <span className="inline-block animate-pulse text-sm text-muted">
               Thinking...

@@ -79,6 +79,12 @@ export interface ChatMessage {
   timestamp: string;
 }
 
+export interface SessionMeta {
+  session_id: string;
+  created_at: string;
+  title: string;
+}
+
 export interface SessionListItem {
   session_id: string;
   created_at: string;

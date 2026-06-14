@@ -1,12 +1,7 @@
 import { Button } from "@heroui/react";
 import { MessageSquarePlus, Trash2 } from "lucide-react";
+import type { SessionMeta } from "../types";
 import { getSessionDisplayName } from "../utils/display";
-
-interface SessionMeta {
-  session_id: string;
-  created_at: string;
-  title: string;
-}
 
 interface SessionListProps {
   sessions: SessionMeta[];

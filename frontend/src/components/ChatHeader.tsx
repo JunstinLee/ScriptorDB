@@ -1,24 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  fetchDefaultModel,
-  fetchModelsWithCanonical,
-  fetchRecommendedModels,
-  health,
-} from "../api/client";
-import type { ModelEntry } from "../types";
-import { getSessionDisplayName } from "../utils/display";
+import { useCallback } from "react";
 import { Label } from "@heroui/react";
-
-const PROVIDERS = [
-  "openai",
-  "anthropic",
-  "google",
-  "groq",
-  "mistral",
-  "openrouter",
-  "nim",
-  "together",
-];
+import { PROVIDERS } from "../constants";
+import { useModelSelector } from "../hooks/useModelSelector";
+import { getSessionDisplayName } from "../utils/display";
 
 interface ChatHeaderProps {
   activeSessionId: string | null;
@@ -35,109 +19,31 @@ export default function ChatHeader({
   settingsChanged,
   onSelectionChange,
 }: ChatHeaderProps) {
-  const [provider, setProvider] = useState("");
-  const [model, setModel] = useState("");
-  const [models, setModels] = useState<ModelEntry[]>([]);
-  const [loadingModels, setLoadingModels] = useState(false);
-  const fetchedProvider = useRef("");
-  const onSelectionChangeRef = useRef(onSelectionChange);
-  onSelectionChangeRef.current = onSelectionChange;
-
-  useEffect(() => {
-    health()
-      .then((h) => {
-        setProvider(h.provider);
-      })
-      .catch(() => {
-        setProvider("");
-        setModel("");
-        setModels([]);
-      });
-  }, [settingsChanged]);
-
-  useEffect(() => {
-    if (!provider) {
-      setModels([]);
-      setModel("");
-      fetchedProvider.current = "";
-      return;
-    }
-
-    setModel("");
-    setLoadingModels(true);
-    fetchedProvider.current = provider;
-
-    const canonicalize = (ids: string[]): ModelEntry[] =>
-      ids.map((id) => ({
-        provider_specific_id: id,
-        canonical_slug: null,
-        display_name: null,
-        family: null,
-      }));
-
-    fetchRecommendedModels(provider)
-      .then((res) => {
-        if (fetchedProvider.current !== provider) return;
-        if (res.models.length === 0) {
-          setModels([]);
-          onSelectionChangeRef.current("", provider);
-          return;
-        }
-        return fetchModelsWithCanonical(provider).then((withCanon) => {
-          if (fetchedProvider.current !== provider) return;
-          const map = new Map(
-            withCanon.models.map((m) => [m.provider_specific_id, m]),
-          );
-          const entries: ModelEntry[] = res.models.map(
-            (id) => map.get(id) ?? canonicalize([id])[0],
-          );
-          setModels(entries);
-          return fetchDefaultModel(provider).then((def) => {
-            if (fetchedProvider.current !== provider) return;
-            const selectedModel =
-              def.model && entries.some((e) => e.provider_specific_id === def.model)
-                ? def.model
-                : entries[0]?.provider_specific_id ?? "";
-            setModel(selectedModel);
-            onSelectionChangeRef.current(selectedModel, provider);
-          });
-        });
-      })
-      .catch(() => {
-        if (fetchedProvider.current !== provider) return;
-        setModels([]);
-        setModel("");
-        onSelectionChangeRef.current("", provider);
-      })
-      .finally(() => {
-        if (fetchedProvider.current === provider) {
-          setLoadingModels(false);
-        }
-      });
-  }, [provider]);
+  const {
+    provider,
+    setProvider,
+    model,
+    setModel,
+    models,
+    loadingModels,
+    formatModelLabel,
+  } = useModelSelector(settingsChanged, onSelectionChange);
 
   const handleProviderChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       setProvider(e.target.value);
     },
-    [],
+    [setProvider],
   );
 
   const handleModelChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       const newModel = e.target.value;
       setModel(newModel);
-      onSelectionChangeRef.current(newModel, provider);
+      onSelectionChange(newModel, provider);
     },
-    [provider],
+    [provider, setModel, onSelectionChange],
   );
-
-  const formatModelLabel = (entry: ModelEntry): string => {
-    if (entry.display_name && entry.display_name !== entry.provider_specific_id) {
-      return `${entry.display_name}  ·  ${entry.provider_specific_id}`;
-    }
-    return entry.provider_specific_id;
-  };
 
   if (!activeSessionId) return null;
 
