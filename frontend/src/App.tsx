@@ -44,7 +44,7 @@ export default function App() {
   }, [createNewSession]);
 
   const handleSend = useCallback(
-    (prompt: string, model?: string | null, provider?: string | null) => {
+    (prompt: string) => {
       const sessionId = activeSessionId;
 
       const sendToSession = (sid: string) => {
@@ -53,7 +53,7 @@ export default function App() {
 
         abortRef.current = streamChat(
           sid,
-          { prompt, model, provider },
+          { prompt },
           (delta) => {
             appendStreamingText(delta);
           },
@@ -129,7 +129,7 @@ export default function App() {
             <>
               <ChatMessages messages={messages} isLoading={isLoading} />
               <div className="absolute bottom-0 left-0 right-0 z-10 bg-background">
-                <ChatInput onSend={handleSend} disabled={isLoading} settingsChanged={settingsChanged} />
+                <ChatInput onSend={handleSend} disabled={isLoading} />
               </div>
             </>
           ) : (
