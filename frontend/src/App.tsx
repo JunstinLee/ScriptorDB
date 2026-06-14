@@ -32,6 +32,8 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null);
   const settingsModal = useOverlayState();
   const [settingsChanged, setSettingsChanged] = useState(0);
+  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedProvider, setSelectedProvider] = useState("");
   const { showSessionIdHover, setShowSessionIdHover } = useAppSettings();
 
   const activeSessionTitle = useMemo(
@@ -53,7 +55,7 @@ export default function App() {
 
         abortRef.current = streamChat(
           sid,
-          { prompt },
+          { prompt, model: selectedModel || null, provider: selectedProvider || null },
           (delta) => {
             appendStreamingText(delta);
           },
@@ -88,6 +90,8 @@ export default function App() {
       finalizeAssistantMessage,
       refreshSessionTitle,
       setLoading,
+      selectedModel,
+      selectedProvider,
     ],
   );
 
@@ -122,6 +126,10 @@ export default function App() {
           activeSessionTitle={activeSessionTitle}
           showSessionIdHover={showSessionIdHover}
           settingsChanged={settingsChanged}
+          onSelectionChange={(model, provider) => {
+            setSelectedModel(model);
+            setSelectedProvider(provider);
+          }}
         />
 
         <div className="flex flex-1 flex-col min-h-0 relative">
