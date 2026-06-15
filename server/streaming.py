@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json as json_mod
 from collections.abc import AsyncIterator
 
 from agents.db_agent import get_agent
@@ -7,6 +8,20 @@ from config.canonical_models import get_canonical_by_slug
 from config.models import fuzzy_match_model, resolve_canonical_slug
 from config.settings import Settings
 from pydantic_ai.messages import ModelMessage
+from tools.tool_result import ToolResult
+
+
+def _sse_lines(data: str) -> str:
+    lines = data.split("\n")
+    return "\n".join(f"data: {line}" if line else "data:" for line in lines)
+
+
+def _sse_encode_json(obj: dict) -> str:
+    return json_mod.dumps(obj, ensure_ascii=False)
+
+
+def _serialize_tool_result(result: ToolResult) -> str:
+    return result.model_dump_json(ensure_ascii=False)
 
 
 async def stream_agent_response(
@@ -46,21 +61,12 @@ async def stream_agent_response(
                 if c:
                     display_name = c.display_name
 
-        yield f"data: [DONE]\n\n"
+        yield "data: [DONE]\n\n"
         yield (
-            f"event: metadata\ndata: {_sse_encode_json({'full_output': full_output, 'canonical_slug': canonical_slug, 'display_name': display_name, 'provider_specific_id': settings.llm_model})}\n\n"
+            "event: metadata\n"
+            f"data: {_sse_encode_json({'full_output': full_output, 'canonical_slug': canonical_slug, 'display_name': display_name, 'provider_specific_id': settings.llm_model})}\n\n"
         )
 
     except Exception as e:
-        yield f"event: error\ndata: {_sse_lines(str(e))}\n\n"
-
-
-def _sse_lines(data: str) -> str:
-    lines = data.split("\n")
-    return "\n".join(f"data: {line}" if line else "data:" for line in lines)
-
-
-def _sse_encode_json(obj: dict) -> str:
-    import json
-
-    return json.dumps(obj, ensure_ascii=False)
+        error_id = None
+        yield f"event: error\ndata: {_sse_encode_json({'message': str(e), 'error_id': error_id})}\n\n"

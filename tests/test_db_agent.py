@@ -1,11 +1,26 @@
 from __future__ import annotations
 
 import pytest
-from pydantic_ai import Agent
+from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, RunContext
+from pydantic_ai.capabilities import HandleDeferredToolCalls
 from pydantic_ai.models.test import TestModel as PydanticTestModel
 
 from config.settings import Settings
-from tools.db_tools import get_schema, query_db, run_python_code
+from tools.db_tools import get_schema, query_database, run_python_code
+from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
+from tools.export_tools import export_excel
+from tools.viz_tools import plot_chart
+
+
+def _auto_approve_handler(
+    ctx: RunContext[Settings],
+    requests: DeferredToolRequests,
+) -> DeferredToolResults:
+    from pydantic_ai import ToolApproved
+    results = DeferredToolResults()
+    for call in requests.approvals:
+        results.approvals[call.tool_call_id] = ToolApproved()
+    return results
 
 
 @pytest.fixture
@@ -13,8 +28,16 @@ def test_agent():
     return Agent(
         model=PydanticTestModel(),
         deps_type=Settings,
-        tools=[run_python_code, get_schema, query_db],
+        tools=[
+            query_database, get_schema,
+            read_csv, write_csv,
+            read_file, write_file,
+            list_files, export_excel, plot_chart,
+            run_python_code,
+        ],
+        capabilities=[HandleDeferredToolCalls(handler=_auto_approve_handler)],
     )
+
 
 
 @pytest.fixture
@@ -25,7 +48,14 @@ def test_settings(tmp_path):
 
 def test_agent_structure(test_agent):
     assert test_agent.model is not None
-    assert len(test_agent._function_toolset.tools) == 3
+    tools_dict = test_agent._function_toolset.tools
+    assert len(tools_dict) == 10
+    expected = {
+        "query_database", "get_schema", "read_csv", "read_file", "list_files",
+        "write_csv", "write_file", "export_excel", "run_python_code", "plot_chart",
+    }
+    actual = set(tools_dict.keys())
+    assert actual == expected
     assert test_agent.deps_type is Settings
 
 
@@ -47,4 +77,4 @@ async def test_agent_calls_tools(test_agent, test_settings):
     params = m.last_model_request_parameters
     assert params is not None
     tool_names = [p.name for p in params.function_tools]
-    assert any(name in tool_names for name in ("run_python_code", "get_schema", "query_db"))
+    assert any(name in tool_names for name in ("run_python_code", "get_schema", "query_database"))

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -75,8 +75,6 @@ class CanonicalModelsResponse(BaseModel):
 
 
 class ModelEntry(BaseModel):
-    """带 Canonical 信息的模型条目（前端可同时拿到 display_name 和原始 ID）。"""
-
     provider_specific_id: str
     canonical_slug: str | None = None
     display_name: str | None = None
@@ -116,3 +114,26 @@ class ApiKeyRequest(BaseModel):
 class ApiKeyTestResponse(BaseModel):
     ok: bool
     error: str | None = None
+
+
+class ToolErrorEvent(BaseModel):
+    """SSE tool_status event payload for tool execution state."""
+    tool_name: str
+    state: Literal["running", "done", "timeout", "error"]
+    error_id: str | None = None
+    message: str | None = None
+
+
+class ToolResultEvent(BaseModel):
+    """SSE tool_result event payload for structured tool output."""
+    tool_name: str
+    success: bool
+    output: str | None = None
+    data: dict[str, Any] | None = None
+    error_code: str | None = Field(default=None, description="ErrorCategory value when success=False")
+
+
+class ErrorEvent(BaseModel):
+    """SSE error event payload for user-facing errors."""
+    message: str
+    error_id: str | None = None
