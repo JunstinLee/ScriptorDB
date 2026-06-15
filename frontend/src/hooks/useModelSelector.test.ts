@@ -20,6 +20,9 @@ import { useModelSelector } from "./useModelSelector";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(fetchRecommendedModels).mockResolvedValue({ models: [] });
+  vi.mocked(fetchModelsWithCanonical).mockResolvedValue({ models: [] });
+  vi.mocked(fetchDefaultModel).mockResolvedValue({ model: "" });
 });
 
 function makeEntry(id: string) {
