@@ -3,6 +3,7 @@ from __future__ import annotations
 from config import models
 from config.canonical_models import (
     CANONICAL_REGISTRY,
+    _load_registry,
     get_canonical_by_slug,
     get_canonical_for_provider,
     get_canonical_for_provider_model,
@@ -207,3 +208,130 @@ def test_canonical_aliases_are_non_empty_strings():
             assert isinstance(alias, str) and alias, (
                 f"Empty alias for {m.slug} on {provider}"
             )
+
+
+import json
+import pytest
+
+
+def make_json_file(tmp_path, data):
+    p = tmp_path / "models.json"
+    p.write_text(json.dumps(data), encoding="utf-8")
+    return p
+
+
+def test_loader_valid_json(tmp_path):
+    p = make_json_file(tmp_path, [
+        {"slug": "test-model", "display_name": "Test Model", "aliases": {"openai": "test-model"}},
+    ])
+    registry = _load_registry(p)
+    assert len(registry) == 1
+    assert registry[0].slug == "test-model"
+    assert registry[0].display_name == "Test Model"
+    assert registry[0].aliases == {"openai": "test-model"}
+
+
+def test_loader_empty_array(tmp_path):
+    p = make_json_file(tmp_path, [])
+    registry = _load_registry(p)
+    assert registry == ()
+
+
+def test_loader_missing_file(tmp_path):
+    with pytest.raises(ValueError, match="Failed to read"):
+        _load_registry(tmp_path / "nonexistent.json")
+
+
+def test_loader_invalid_json(tmp_path):
+    p = tmp_path / "models.json"
+    p.write_text("{invalid", encoding="utf-8")
+    with pytest.raises(ValueError, match="Invalid JSON"):
+        _load_registry(p)
+
+
+def test_loader_not_a_list(tmp_path):
+    p = make_json_file(tmp_path, {"slug": "x"})
+    with pytest.raises(ValueError, match="must contain a JSON array"):
+        _load_registry(p)
+
+
+def test_loader_entry_not_a_dict(tmp_path):
+    p = make_json_file(tmp_path, ["not-a-dict"])
+    with pytest.raises(ValueError, match="must be an object"):
+        _load_registry(p)
+
+
+def test_loader_missing_slug(tmp_path):
+    p = make_json_file(tmp_path, [{"display_name": "X", "aliases": {}}])
+    with pytest.raises(ValueError, match="missing or invalid 'slug'"):
+        _load_registry(p)
+
+
+def test_loader_empty_slug(tmp_path):
+    p = make_json_file(tmp_path, [{"slug": "", "display_name": "X", "aliases": {}}])
+    with pytest.raises(ValueError, match="missing or invalid 'slug'"):
+        _load_registry(p)
+
+
+def test_loader_missing_display_name(tmp_path):
+    p = make_json_file(tmp_path, [{"slug": "x", "aliases": {}}])
+    with pytest.raises(ValueError, match="missing or invalid 'display_name'"):
+        _load_registry(p)
+
+
+def test_loader_missing_aliases(tmp_path):
+    p = make_json_file(tmp_path, [{"slug": "x", "display_name": "X"}])
+    with pytest.raises(ValueError, match="missing or invalid 'aliases'"):
+        _load_registry(p)
+
+
+def test_loader_invalid_aliases_type(tmp_path):
+    p = make_json_file(tmp_path, [{"slug": "x", "display_name": "X", "aliases": "not-dict"}])
+    with pytest.raises(ValueError, match="missing or invalid 'aliases'"):
+        _load_registry(p)
+
+
+def test_loader_duplicate_slug(tmp_path):
+    p = make_json_file(tmp_path, [
+        {"slug": "dup", "display_name": "A", "aliases": {}},
+        {"slug": "dup", "display_name": "B", "aliases": {}},
+    ])
+    with pytest.raises(ValueError, match="Duplicate slug 'dup'"):
+        _load_registry(p)
+
+
+def test_loader_invalid_provider_key(tmp_path):
+    p = make_json_file(tmp_path, [
+        {"slug": "x", "display_name": "X", "aliases": {"": "alias"}},
+    ])
+    with pytest.raises(ValueError, match="invalid provider key"):
+        _load_registry(p)
+
+
+def test_loader_invalid_alias_value(tmp_path):
+    p = make_json_file(tmp_path, [
+        {"slug": "x", "display_name": "X", "aliases": {"openai": ""}},
+    ])
+    with pytest.raises(ValueError, match="invalid alias for provider 'openai'"):
+        _load_registry(p)
+
+
+def test_loader_preserves_order(tmp_path):
+    p = make_json_file(tmp_path, [
+        {"slug": "first", "display_name": "F", "aliases": {}},
+        {"slug": "second", "display_name": "S", "aliases": {}},
+        {"slug": "third", "display_name": "T", "aliases": {}},
+    ])
+    registry = _load_registry(p)
+    assert [m.slug for m in registry] == ["first", "second", "third"]
+
+
+def test_json_file_matches_registry():
+    from pathlib import Path
+    json_path = Path(__file__).parent.parent / "config" / "recommended_models.json"
+    registry = _load_registry(json_path)
+    assert len(registry) == len(CANONICAL_REGISTRY)
+    for m_json, m_code in zip(registry, CANONICAL_REGISTRY):
+        assert m_json.slug == m_code.slug
+        assert m_json.display_name == m_code.display_name
+        assert m_json.aliases == m_code.aliases
