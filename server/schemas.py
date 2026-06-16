@@ -16,9 +16,33 @@ class MessageItem(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 
+class StoredToolInvocation(BaseModel):
+    call_id: str
+    tool_name: str
+    args: dict[str, Any] = Field(default_factory=dict)
+    status: Literal["running", "success", "error"] = "running"
+    output: str | None = None
+    error_code: str | None = None
+    duration_ms: int | None = None
+    started_at: str
+    ended_at: str | None = None
+
+
+class StoredRun(BaseModel):
+    run_id: str
+    status: Literal["running", "completed", "error"] = "running"
+    tool_invocations: list[StoredToolInvocation] = Field(default_factory=list)
+    trace_steps: list[Any] = Field(default_factory=list)
+    final_output: str = ""
+    started_at: str
+    ended_at: str | None = None
+    error_message: str | None = None
+
+
 class SessionInfo(BaseModel):
     session_id: str
     messages: list[MessageItem]
+    runs: list[StoredRun] = Field(default_factory=list)
     created_at: datetime
 
 

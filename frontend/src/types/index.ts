@@ -11,6 +11,7 @@ export interface MessageItem {
 export interface SessionInfo {
   session_id: string;
   messages: MessageItem[];
+  runs: Run[];
   created_at: string;
 }
 

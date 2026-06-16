@@ -37,6 +37,8 @@ from server.schemas import (
     SessionListResponse,
     SettingsResponse,
     SettingsUpdateRequest,
+    StoredRun,
+    StoredToolInvocation,
 )
 from server.sessions import session_store
 from server.streaming import stream_agent_response
@@ -113,6 +115,7 @@ async def get_session(session_id: str):
     return SessionInfo(
         session_id=session.session_id,
         messages=session.messages,
+        runs=session.runs,
         created_at=session.created_at,
     )
 
@@ -133,25 +136,36 @@ async def chat(session_id: str, req: ChatRequest):
     session.add_user_message(req.prompt)
 
     model_messages = session.get_model_messages()
+    run_collector: dict[str, Any] = {}
 
     async def generate():
-        full_output = ""
         async for sse_event in stream_agent_response(
             req.prompt,
             model_messages,
             settings,
             model=req.model,
             provider=req.provider,
+            run_collector=run_collector,
         ):
-            if sse_event.startswith("event: metadata"):
-                import json
-
-                data_str = sse_event.split("data: ", 1)[1].strip()
-                full_output = json.loads(data_str).get("full_output", "")
             yield sse_event
 
-        if full_output:
-            session.add_assistant_message(full_output)
+        if run_collector.get("status") == "completed" and run_collector.get("final_output"):
+            session.add_assistant_message(run_collector["final_output"])
+
+        if run_collector:
+            run = StoredRun(
+                run_id=run_collector["run_id"],
+                status=run_collector["status"],
+                tool_invocations=[
+                    StoredToolInvocation(**inv)
+                    for inv in run_collector.get("tool_invocations", [])
+                ],
+                final_output=run_collector.get("final_output", ""),
+                started_at=run_collector["started_at"],
+                ended_at=run_collector.get("ended_at"),
+                error_message=run_collector.get("error_message"),
+            )
+            session.add_run(run)
             session_store.save()
 
     return StreamingResponse(

@@ -13,7 +13,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from server.schemas import MessageItem
+from server.schemas import MessageItem, StoredRun
 
 SESSION_TTL = timedelta(hours=24)
 
@@ -25,6 +25,7 @@ class Session:
     def __init__(self, session_id: str | None = None):
         self.session_id = session_id or uuid.uuid4().hex[:12]
         self.messages: list[MessageItem] = []
+        self.runs: list[StoredRun] = []
         self.created_at = datetime.utcnow()
         self.last_access = datetime.utcnow()
 
@@ -47,6 +48,10 @@ class Session:
 
     def add_model_messages(self, new_messages: list[ModelMessage]) -> None:
         pass
+
+    def add_run(self, run: StoredRun) -> None:
+        self.runs.append(run)
+        self.last_access = datetime.utcnow()
 
     def get_model_messages(self) -> list[ModelMessage]:
         return self._rebuild_model_messages()
@@ -121,6 +126,15 @@ class SessionStore:
                         session.messages.append(
                             MessageItem(role=role, content=content, timestamp=ts)
                         )
+            runs_data = item.get("runs", [])
+            if isinstance(runs_data, list):
+                for r in runs_data:
+                    if not isinstance(r, dict):
+                        continue
+                    try:
+                        session.runs.append(StoredRun(**r))
+                    except Exception:
+                        pass
             self._sessions[sid] = session
 
     def save(self) -> None:
@@ -141,6 +155,7 @@ class SessionStore:
                             }
                             for m in s.messages
                         ],
+                        "runs": [r.model_dump() for r in s.runs],
                     }
                     for s in self._sessions.values()
                 ],

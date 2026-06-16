@@ -1,5 +1,5 @@
 import { getSession } from "../api/client";
-import type { ChatMessage, SessionListItem } from "../types";
+import type { ChatMessage, Run, SessionListItem } from "../types";
 
 export const TITLE_MAX_LEN = 24;
 export const DEFAULT_TITLE = "New Chat";
@@ -33,6 +33,24 @@ export async function loadSessionMessages(sessionId: string): Promise<ChatMessag
     content: m.content,
     timestamp: m.timestamp,
   }));
+}
+
+export async function loadSessionData(
+  sessionId: string,
+): Promise<{ messages: ChatMessage[]; runs: Run[] }> {
+  const info = await getSession(sessionId);
+  const messages = info.messages.map((m) => ({
+    role: m.role,
+    content: m.content,
+    timestamp: m.timestamp,
+  }));
+  const runs: Run[] = (info.runs ?? []).map((run) => ({
+    ...run,
+    tool_invocations: run.tool_invocations ?? [],
+    trace_steps: run.trace_steps ?? [],
+    final_output: run.final_output ?? "",
+  }));
+  return { messages, runs };
 }
 
 export async function loadSessionTitle(sessionId: string): Promise<string> {

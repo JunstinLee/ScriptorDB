@@ -3,12 +3,15 @@ import { useSessionList } from "./useSessionList";
 import { useChatMessages } from "./useChatMessages";
 import { deleteSession } from "../api/client";
 import {
-  loadSessionMessages,
+  loadSessionData,
   loadSessionTitle,
   writeStoredActiveSession,
 } from "../utils/sessions";
+import type { Run } from "../types";
 
-export function useSessions() {
+export function useSessions(
+  onRunsLoaded?: (sessionId: string, runs: Run[]) => void,
+) {
   const {
     sessions,
     activeSessionId,
@@ -42,16 +45,17 @@ export function useSessions() {
       return;
     }
     setMessages([]);
-    loadSessionMessages(targetId)
-      .then((msgs) => {
+    loadSessionData(targetId)
+      .then(({ messages, runs }) => {
         if (requestedSessionIdRef.current !== targetId) return;
-        setMessages(msgs);
+        setMessages(messages);
+        onRunsLoaded?.(targetId, runs);
       })
       .catch(() => {
         if (requestedSessionIdRef.current !== targetId) return;
         setMessages([]);
       });
-  }, [restored, activeSessionId, setMessages]);
+  }, [restored, activeSessionId, setMessages, onRunsLoaded]);
 
   const switchSession = useCallback(
     (sessionId: string) => {

@@ -9,8 +9,18 @@ import { useSessions } from "./hooks/useSessions";
 import { useRuns } from "./hooks/useRuns";
 import { streamChat } from "./api/client";
 import { useOverlayState } from "@heroui/react";
+import type { Run } from "./types";
 
 export default function App() {
+  const { getRuns, appendEvent, setRuns } = useRuns();
+
+  const handleRunsLoaded = useCallback(
+    (_sessionId: string, loadedRuns: Run[]) => {
+      setRuns(_sessionId, loadedRuns);
+    },
+    [setRuns],
+  );
+
   const {
     sessions,
     activeSessionId,
@@ -25,9 +35,8 @@ export default function App() {
     setLoading,
     refreshSessionTitle,
     refreshSessions,
-  } = useSessions();
+  } = useSessions(handleRunsLoaded);
 
-  const { getRuns, appendEvent } = useRuns();
   const runs = activeSessionId ? getRuns(activeSessionId) : [];
 
   const { tables, loading: schemaLoading } = useSchema();

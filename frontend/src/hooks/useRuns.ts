@@ -134,6 +134,13 @@ export function useRuns() {
     [],
   );
 
+  const setRuns = useCallback((sessionId: string, runs: Run[]) => {
+    setRunsBySession((prev) => ({
+      ...prev,
+      [sessionId]: runs,
+    }));
+  }, []);
+
   const clearRuns = useCallback((sessionId?: string) => {
     if (sessionId) {
       setRunsBySession((prev) => {
@@ -146,5 +153,5 @@ export function useRuns() {
     }
   }, []);
 
-  return { runsBySession, getRuns, appendEvent, clearRuns };
+  return { runsBySession, getRuns, appendEvent, setRuns, clearRuns };
 }

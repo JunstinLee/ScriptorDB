@@ -5,6 +5,7 @@ import time
 import uuid
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
+from typing import Any
 
 from agents.db_agent import get_agent
 from config.canonical_models import get_canonical_by_slug
@@ -50,6 +51,7 @@ async def stream_agent_response(
     model: str | None = None,
     provider: str | None = None,
     agent: Agent[Settings] | None = None,
+    run_collector: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
     if provider:
         settings.llm_provider = provider
@@ -62,6 +64,17 @@ async def stream_agent_response(
     full_output = ""
     run_id = uuid.uuid4().hex[:12]
     step_counter = 0
+
+    if run_collector is not None:
+        run_collector.update({
+            "run_id": run_id,
+            "status": "running",
+            "tool_invocations": [],
+            "final_output": "",
+            "started_at": _utc_now_iso(),
+            "ended_at": None,
+            "error_message": None,
+        })
 
     yield _sse_event("run_start", {
         "type": "run_start",
@@ -86,6 +99,8 @@ async def stream_agent_response(
                     if not content_delta:
                         continue
                     full_output += content_delta
+                    if run_collector is not None:
+                        run_collector["final_output"] = full_output
                     yield _sse_event("text_delta", {
                         "type": "text_delta",
                         "run_id": run_id,
@@ -101,12 +116,21 @@ async def stream_agent_response(
                             args = json_mod.loads(args)
                         except json_mod.JSONDecodeError:
                             args = {"raw": args}
+                    args_dict = args if isinstance(args, dict) else {"raw": str(args)}
+                    if run_collector is not None:
+                        run_collector["tool_invocations"].append({
+                            "call_id": call_id,
+                            "tool_name": event.part.tool_name,
+                            "args": args_dict,
+                            "status": "running",
+                            "started_at": _utc_now_iso(),
+                        })
                     yield _sse_event("tool_call", {
                         "type": "tool_call",
                         "run_id": run_id,
                         "call_id": call_id,
                         "tool_name": event.part.tool_name,
-                        "args": args if isinstance(args, dict) else {"raw": str(args)},
+                        "args": args_dict,
                         "timestamp": _utc_now_iso(),
                     })
 
@@ -130,6 +154,16 @@ async def stream_agent_response(
                             output = content.error.message
                     elif isinstance(content, str):
                         output = content
+
+                    if run_collector is not None:
+                        for inv in run_collector["tool_invocations"]:
+                            if inv["call_id"] == call_id:
+                                inv["status"] = "success" if success else "error"
+                                inv["output"] = output
+                                inv["error_code"] = error_code
+                                inv["duration_ms"] = duration_ms
+                                inv["ended_at"] = _utc_now_iso()
+                                break
 
                     yield _sse_event("tool_result", {
                         "type": "tool_result",
@@ -156,6 +190,13 @@ async def stream_agent_response(
                 if c:
                     display_name = c.display_name
 
+        if run_collector is not None:
+            run_collector.update({
+                "status": "completed",
+                "final_output": full_output,
+                "ended_at": _utc_now_iso(),
+            })
+
         yield "data: [DONE]\n\n"
         yield _sse_event("metadata", {
             "type": "metadata",
@@ -167,6 +208,12 @@ async def stream_agent_response(
         })
 
     except Exception as e:
+        if run_collector is not None:
+            run_collector.update({
+                "status": "error",
+                "error_message": str(e),
+                "ended_at": _utc_now_iso(),
+            })
         yield _sse_event("error", {
             "type": "error",
             "run_id": run_id,
