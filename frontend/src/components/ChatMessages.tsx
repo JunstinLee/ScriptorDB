@@ -22,6 +22,8 @@ export default function ChatMessages({
 
   if (messages.length === 0 && runs.length === 0) return null;
 
+  let runIndex = 0;
+
   return (
     <div className="flex-1 overflow-y-auto px-4 py-4 pb-32 space-y-4">
       {messages.map((msg, i) => {
@@ -38,7 +40,7 @@ export default function ChatMessages({
           );
         }
 
-        const run = runs[i];
+        const run = runs[runIndex++];
         if (run) {
           return (
             <div key={`run-${run.run_id}`} className="flex gap-3 justify-start">
@@ -62,14 +64,19 @@ export default function ChatMessages({
         );
       })}
 
-      {isLoading && runs.length > 0 && runs[runs.length - 1]?.status === "running" && (
-        <div className="flex gap-3 justify-start">
-          <ChatAvatar role="assistant" />
-          <div className="max-w-[85%] min-w-0">
-            <RunContainer run={runs[runs.length - 1]} />
+      {isLoading &&
+        runs.length > runIndex &&
+        runs.slice(runIndex).map((run) => (
+          <div
+            key={`pending-${run.run_id}`}
+            className="flex gap-3 justify-start"
+          >
+            <ChatAvatar role="assistant" />
+            <div className="max-w-[85%] min-w-0">
+              <RunContainer run={run} />
+            </div>
           </div>
-        </div>
-      )}
+        ))}
 
       {isLoading && runs.length === 0 && (
         <div className="flex gap-3 justify-start">
