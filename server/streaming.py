@@ -7,7 +7,7 @@ from agents.db_agent import get_agent
 from config.canonical_models import get_canonical_by_slug
 from config.models import fuzzy_match_model, resolve_canonical_slug
 from config.settings import Settings
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import ModelMessage, PartDeltaEvent, TextPartDelta
 from tools.tool_result import ToolResult
 
 
@@ -42,14 +42,20 @@ async def stream_agent_response(
     full_output = ""
 
     try:
-        async with agent.run_stream(
+        async with agent.run_stream_events(
             prompt,
             message_history=message_history if message_history else None,
             deps=settings,
-        ) as streamed:
-            async for chunk in streamed.stream_text(delta=True):
-                full_output += chunk
-                yield _sse_lines(chunk) + "\n\n"
+        ) as event_stream:
+            async for event in event_stream:
+                if isinstance(event, PartDeltaEvent) and isinstance(
+                    event.delta, TextPartDelta
+                ):
+                    content_delta = event.delta.content_delta
+                    if not content_delta:
+                        continue
+                    full_output += content_delta
+                    yield _sse_lines(content_delta) + "\n\n"
 
         canonical_slug = None
         display_name = None
