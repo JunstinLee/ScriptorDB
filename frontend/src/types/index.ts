@@ -68,11 +68,6 @@ export interface ModelsWithCanonicalResponse {
   models: ModelEntry[];
 }
 
-export interface SSEEvent {
-  type: "text" | "metadata" | "error" | "done";
-  data: string;
-}
-
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
@@ -127,4 +122,108 @@ export interface ApiKeyRequest {
 export interface ApiKeyTestResponse {
   ok: boolean;
   error: string | null;
+}
+
+// --- Agent Run events ---
+
+export interface RunStartEvent {
+  type: "run_start";
+  run_id: string;
+  timestamp: string;
+}
+
+export interface RunEndEvent {
+  type: "run_end";
+  run_id: string;
+  timestamp: string;
+}
+
+export interface TraceEvent {
+  type: "trace";
+  run_id: string;
+  step: number;
+  message: string;
+  timestamp: string;
+}
+
+export interface ToolCallRunEvent {
+  type: "tool_call";
+  run_id: string;
+  call_id: string;
+  tool_name: string;
+  args: Record<string, unknown>;
+  timestamp: string;
+}
+
+export interface ToolResultRunEvent {
+  type: "tool_result";
+  run_id: string;
+  call_id: string;
+  tool_name: string;
+  success: boolean;
+  output?: string;
+  error_code?: string;
+  duration_ms?: number;
+  timestamp: string;
+}
+
+export interface TextDeltaEvent {
+  type: "text_delta";
+  run_id: string;
+  delta: string;
+}
+
+export interface RunMetadataEvent {
+  type: "metadata";
+  run_id: string;
+  full_output: string;
+  canonical_slug?: string | null;
+  display_name?: string | null;
+  provider_specific_id?: string | null;
+}
+
+export interface RunErrorEvent {
+  type: "error";
+  run_id: string;
+  message: string;
+  error_id?: string | null;
+}
+
+export type StreamRunEvent =
+  | RunStartEvent
+  | RunEndEvent
+  | TraceEvent
+  | ToolCallRunEvent
+  | ToolResultRunEvent
+  | TextDeltaEvent
+  | RunMetadataEvent
+  | RunErrorEvent;
+
+export interface ToolInvocation {
+  call_id: string;
+  tool_name: string;
+  args: Record<string, unknown>;
+  status: "running" | "success" | "error";
+  output?: string;
+  error_code?: string;
+  duration_ms?: number;
+  started_at: string;
+  ended_at?: string;
+}
+
+export interface TraceStep {
+  step: number;
+  message: string;
+  timestamp: string;
+}
+
+export interface Run {
+  run_id: string;
+  status: "running" | "completed" | "error";
+  tool_invocations: ToolInvocation[];
+  trace_steps: TraceStep[];
+  final_output: string;
+  started_at: string;
+  ended_at?: string;
+  error_message?: string;
 }

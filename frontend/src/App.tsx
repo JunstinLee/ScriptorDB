@@ -6,6 +6,7 @@ import Sidebar from "./components/Sidebar";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
+import { useRuns } from "./hooks/useRuns";
 import { streamChat } from "./api/client";
 import { useOverlayState } from "@heroui/react";
 
@@ -25,6 +26,8 @@ export default function App() {
     refreshSessionTitle,
     refreshSessions,
   } = useSessions();
+
+  const { runs, appendEvent } = useRuns();
 
   const { tables, loading: schemaLoading } = useSchema();
   const abortRef = useRef<AbortController | null>(null);
@@ -54,8 +57,11 @@ export default function App() {
         abortRef.current = streamChat(
           sid,
           { prompt, model: selectedModel || null, provider: selectedProvider || null },
-          (delta) => {
-            appendStreamingText(delta);
+          (event) => {
+            appendEvent(event);
+            if (event.type === "text_delta") {
+              appendStreamingText(event.delta);
+            }
           },
           (error) => {
             appendStreamingText(`\n\nError: ${error}`);
@@ -83,6 +89,7 @@ export default function App() {
     [
       activeSessionId,
       addUserMessage,
+      appendEvent,
       appendStreamingText,
       createNewSession,
       finalizeAssistantMessage,
@@ -134,6 +141,7 @@ export default function App() {
           <ChatPanel
             activeSessionId={activeSessionId}
             messages={messages}
+            runs={runs}
             isLoading={isLoading}
             onSend={handleSend}
             onNewSession={handleNewSession}

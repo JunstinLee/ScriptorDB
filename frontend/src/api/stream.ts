@@ -1,11 +1,11 @@
-import type { ChatRequest } from "../types";
+import type { ChatRequest, StreamRunEvent } from "../types";
 
 const BASE = "/api";
 
 export function streamChat(
   sessionId: string,
   body: ChatRequest,
-  onText: (delta: string) => void,
+  onEvent: (event: StreamRunEvent) => void,
   onError: (error: string) => void,
   onDone: (fullOutput: string) => void,
 ): AbortController {
@@ -29,7 +29,6 @@ export function streamChat(
       const decoder = new TextDecoder();
       let buffer = "";
       let currentEvent = "message";
-      let metadataJson: string | null = null;
 
       const processLines = (lines: string[]) => {
         for (const line of lines) {
@@ -37,13 +36,28 @@ export function streamChat(
             currentEvent = line.slice(7).trim();
           } else if (line.startsWith("data: ")) {
             const data = line.slice(6);
-            if (currentEvent === "message") {
-              if (data === "[DONE]") continue;
-              onText(data);
-            } else if (currentEvent === "metadata") {
-              metadataJson = data;
-            } else if (currentEvent === "error") {
-              onError(data);
+            if (data === "[DONE]") continue;
+            if (
+              currentEvent === "text_delta" ||
+              currentEvent === "run_start" ||
+              currentEvent === "run_end" ||
+              currentEvent === "trace" ||
+              currentEvent === "tool_call" ||
+              currentEvent === "tool_result" ||
+              currentEvent === "metadata" ||
+              currentEvent === "error"
+            ) {
+              try {
+                const obj = JSON.parse(data) as StreamRunEvent;
+                onEvent(obj);
+                if (obj.type === "metadata") {
+                  onDone(obj.full_output ?? "");
+                } else if (obj.type === "error") {
+                  onError(obj.message);
+                }
+              } catch {
+                // non-JSON data line, ignore
+              }
             }
           } else if (line === "") {
             currentEvent = "message";
@@ -64,14 +78,7 @@ export function streamChat(
       buffer += decoder.decode();
       processLines(buffer.split("\n"));
 
-      if (metadataJson) {
-        try {
-          const meta = JSON.parse(metadataJson);
-          onDone(meta.full_output ?? "");
-        } catch {
-          onDone("");
-        }
-      } else {
+      if (!controller.signal.aborted) {
         onDone("");
       }
     } catch (err) {

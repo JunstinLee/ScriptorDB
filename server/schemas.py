@@ -116,24 +116,71 @@ class ApiKeyTestResponse(BaseModel):
     error: str | None = None
 
 
-class ToolErrorEvent(BaseModel):
-    """SSE tool_status event payload for tool execution state."""
+class RunStartEvent(BaseModel):
+    """SSE event: agent run started."""
+    type: Literal["run_start"] = "run_start"
+    run_id: str
+    timestamp: str
+
+
+class RunEndEvent(BaseModel):
+    """SSE event: agent run ended."""
+    type: Literal["run_end"] = "run_end"
+    run_id: str
+    timestamp: str
+
+
+class TraceEvent(BaseModel):
+    """SSE event: agent execution trace step."""
+    type: Literal["trace"] = "trace"
+    run_id: str
+    step: int
+    message: str
+    timestamp: str
+
+
+class ToolCallEvent(BaseModel):
+    """SSE event: tool invocation started."""
+    type: Literal["tool_call"] = "tool_call"
+    run_id: str
+    call_id: str
     tool_name: str
-    state: Literal["running", "done", "timeout", "error"]
-    error_id: str | None = None
-    message: str | None = None
+    args: dict[str, Any]
+    timestamp: str
 
 
 class ToolResultEvent(BaseModel):
-    """SSE tool_result event payload for structured tool output."""
+    """SSE event: tool invocation completed."""
+    type: Literal["tool_result"] = "tool_result"
+    run_id: str
+    call_id: str
     tool_name: str
     success: bool
     output: str | None = None
-    data: dict[str, Any] | None = None
-    error_code: str | None = Field(default=None, description="ErrorCategory value when success=False")
+    error_code: str | None = None
+    duration_ms: int | None = None
+    timestamp: str
+
+
+class TextDeltaEvent(BaseModel):
+    """SSE event: incremental text token."""
+    type: Literal["text_delta"] = "text_delta"
+    run_id: str
+    delta: str
+
+
+class RunMetadataEvent(BaseModel):
+    """SSE event: final metadata after run completes."""
+    type: Literal["metadata"] = "metadata"
+    run_id: str
+    full_output: str
+    canonical_slug: str | None = None
+    display_name: str | None = None
+    provider_specific_id: str | None = None
 
 
 class ErrorEvent(BaseModel):
-    """SSE error event payload for user-facing errors."""
+    """SSE event: user-facing error."""
+    type: Literal["error"] = "error"
     message: str
     error_id: str | None = None

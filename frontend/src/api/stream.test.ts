@@ -27,7 +27,7 @@ describe("streamChat", () => {
   it("sends POST with correct payload", () => {
     mockFetch.mockResolvedValueOnce(
       createSSEResponse([
-        "event: metadata\ndata: {}\n\n",
+        'event: metadata\ndata: {"type":"metadata","run_id":"r1","full_output":""}\n\n',
       ]),
     );
 
@@ -54,19 +54,19 @@ describe("streamChat", () => {
     );
   });
 
-  it("calls onText for message events", async () => {
-    const onText = vi.fn();
+  it("calls onEvent for text_delta events", async () => {
+    const onEvent = vi.fn();
     const onDone = vi.fn();
 
     mockFetch.mockResolvedValueOnce(
       createSSEResponse([
-        "event: message\ndata: Hello\n\n",
-        "event: message\ndata:  world\n\n",
-        "event: metadata\ndata: {}\n\n",
+        'event: text_delta\ndata: {"type":"text_delta","run_id":"r1","delta":"Hello"}\n\n',
+        'event: text_delta\ndata: {"type":"text_delta","run_id":"r1","delta":" world"}\n\n',
+        'event: metadata\ndata: {"type":"metadata","run_id":"r1","full_output":"Hello world"}\n\n',
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, onText, vi.fn(), onDone);
+    streamChat("s1", { prompt: "hi" }, onEvent, vi.fn(), onDone);
 
     await vi.waitFor(
       () => {
@@ -75,31 +75,37 @@ describe("streamChat", () => {
       { timeout: 500 },
     );
 
-    expect(onText).toHaveBeenCalledWith("Hello");
-    expect(onText).toHaveBeenCalledWith(" world");
-    expect(onText).toHaveBeenCalledTimes(2);
+    const textDeltas = onEvent.mock.calls
+      .map((c: any[]) => c[0])
+      .filter((e: any) => e.type === "text_delta");
+    expect(textDeltas).toHaveLength(2);
+    expect(textDeltas[0].delta).toBe("Hello");
+    expect(textDeltas[1].delta).toBe(" world");
   });
 
   it("skips [DONE] data lines", async () => {
-    const onText = vi.fn();
+    const onEvent = vi.fn();
     const onDone = vi.fn();
 
     mockFetch.mockResolvedValueOnce(
       createSSEResponse([
-        "event: message\ndata: hi\n\n",
-        "event: message\ndata: [DONE]\n\n",
-        "event: message\ndata: after\n\n",
-        "event: metadata\ndata: {}\n\n",
+        'event: text_delta\ndata: {"type":"text_delta","run_id":"r1","delta":"hi"}\n\n',
+        "data: [DONE]\n\n",
+        'event: text_delta\ndata: {"type":"text_delta","run_id":"r1","delta":"after"}\n\n',
+        'event: metadata\ndata: {"type":"metadata","run_id":"r1","full_output":"hiafter"}\n\n',
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, onText, vi.fn(), onDone);
+    streamChat("s1", { prompt: "hi" }, onEvent, vi.fn(), onDone);
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
 
-    expect(onText).toHaveBeenCalledWith("hi");
-    expect(onText).toHaveBeenCalledWith("after");
-    expect(onText).toHaveBeenCalledTimes(2);
+    const textDeltas = onEvent.mock.calls
+      .map((c: any[]) => c[0])
+      .filter((e: any) => e.type === "text_delta");
+    expect(textDeltas).toHaveLength(2);
+    expect(textDeltas[0].delta).toBe("hi");
+    expect(textDeltas[1].delta).toBe("after");
   });
 
   it("calls onDone with parsed full_output from metadata", async () => {
@@ -107,7 +113,7 @@ describe("streamChat", () => {
 
     mockFetch.mockResolvedValueOnce(
       createSSEResponse([
-        "event: metadata\ndata: {\"full_output\":\"Complete response\"}\n\n",
+        'event: metadata\ndata: {"type":"metadata","run_id":"r1","full_output":"Complete response"}\n\n',
       ]),
     );
 
@@ -121,7 +127,7 @@ describe("streamChat", () => {
     const onDone = vi.fn();
 
     mockFetch.mockResolvedValueOnce(
-      createSSEResponse(["event: message\ndata: text\n\n"]),
+      createSSEResponse(["event: text_delta\ndata: {\"type\":\"text_delta\",\"run_id\":\"r1\",\"delta\":\"text\"}\n\n"]),
     );
 
     streamChat("s1", { prompt: "hi" }, vi.fn(), vi.fn(), onDone);
@@ -136,8 +142,8 @@ describe("streamChat", () => {
 
     mockFetch.mockResolvedValueOnce(
       createSSEResponse([
-        "event: error\ndata: Something went wrong\n\n",
-        "event: metadata\ndata: {}\n\n",
+        'event: error\ndata: {"type":"error","message":"Something went wrong"}\n\n',
+        'event: metadata\ndata: {"type":"metadata","run_id":"r1","full_output":""}\n\n',
       ]),
     );
 
@@ -190,42 +196,52 @@ describe("streamChat", () => {
       { timeout: 500 },
     );
 
-    // AbortError should NOT trigger onError
     expect(onError).not.toHaveBeenCalled();
     expect(onDone).not.toHaveBeenCalled();
   });
 
-  it("handles empty line to reset event type", async () => {
-    const onError = vi.fn();
+  it("handles tool_call and tool_result events", async () => {
+    const onEvent = vi.fn();
     const onDone = vi.fn();
 
     mockFetch.mockResolvedValueOnce(
       createSSEResponse([
-        "event: error\ndata: err1\n\n",
-        "\n",
-        "data: this is message event after reset\n\n",
-        "event: metadata\ndata: {}\n\n",
+        'event: tool_call\ndata: {"type":"tool_call","run_id":"r1","call_id":"c1","tool_name":"get_schema","args":{},"timestamp":"2024-01-01T00:00:00Z"}\n\n',
+        'event: tool_result\ndata: {"type":"tool_result","run_id":"r1","call_id":"c1","tool_name":"get_schema","success":true,"output":"3 tables","duration_ms":12}\n\n',
+        'event: metadata\ndata: {"type":"metadata","run_id":"r1","full_output":"done"}\n\n',
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, vi.fn(), onError, onDone);
+    streamChat("s1", { prompt: "hi" }, onEvent, vi.fn(), onDone);
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
-    expect(onError).toHaveBeenCalledWith("err1");
+
+    const toolCallEvt = onEvent.mock.calls
+      .map((c: any[]) => c[0])
+      .find((e: any) => e.type === "tool_call");
+    expect(toolCallEvt).toBeDefined();
+    expect(toolCallEvt.tool_name).toBe("get_schema");
+
+    const toolResultEvt = onEvent.mock.calls
+      .map((c: any[]) => c[0])
+      .find((e: any) => e.type === "tool_result");
+    expect(toolResultEvt).toBeDefined();
+    expect(toolResultEvt.success).toBe(true);
   });
 
-  it("handles malformed metadata JSON gracefully", async () => {
+  it("handles malformed JSON in event data gracefully", async () => {
     const onDone = vi.fn();
 
     mockFetch.mockResolvedValueOnce(
       createSSEResponse([
-        "event: metadata\ndata: not-valid-json\n\n",
+        "event: text_delta\ndata: not-valid-json\n\n",
+        'event: metadata\ndata: {"type":"metadata","run_id":"r1","full_output":"ok"}\n\n',
       ]),
     );
 
     streamChat("s1", { prompt: "hi" }, vi.fn(), vi.fn(), onDone);
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
-    expect(onDone).toHaveBeenCalledWith("");
+    expect(onDone).toHaveBeenCalledWith("ok");
   });
 });
