@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useSessionList } from "./useSessionList";
 import { useChatMessages } from "./useChatMessages";
 import { deleteSession } from "../api/client";
@@ -28,27 +28,37 @@ export function useSessions() {
     addUserMessage,
     appendStreamingText,
     finalizeAssistantMessage,
+    reset,
   } = useChatMessages();
 
+  const requestedSessionIdRef = useRef<string | null>(null);
+
   useEffect(() => {
-    if (restored && activeSessionId) {
-      loadSessionMessages(activeSessionId)
-        .then(setMessages)
-        .catch(() => {});
+    if (!restored) return;
+    const targetId = activeSessionId;
+    requestedSessionIdRef.current = targetId;
+    if (targetId === null) {
+      setMessages([]);
+      return;
     }
+    setMessages([]);
+    loadSessionMessages(targetId)
+      .then((msgs) => {
+        if (requestedSessionIdRef.current !== targetId) return;
+        setMessages(msgs);
+      })
+      .catch(() => {
+        if (requestedSessionIdRef.current !== targetId) return;
+        setMessages([]);
+      });
   }, [restored, activeSessionId, setMessages]);
 
   const switchSession = useCallback(
-    async (sessionId: string) => {
+    (sessionId: string) => {
       setActiveSessionId(sessionId);
       writeStoredActiveSession(sessionId);
-      try {
-        setMessages(await loadSessionMessages(sessionId));
-      } catch {
-        setMessages([]);
-      }
     },
-    [setActiveSessionId, setMessages],
+    [setActiveSessionId],
   );
 
   const removeSession = useCallback(
@@ -66,12 +76,9 @@ export function useSessions() {
           remaining.length > 0 ? remaining[0].session_id : null;
         setActiveSessionId(nextActive);
         writeStoredActiveSession(nextActive);
-        if (nextActive) {
-          loadSessionMessages(nextActive)
-            .then(setMessages)
-            .catch(() => setMessages([]));
-        } else {
-          setMessages([]);
+        if (!nextActive) {
+          requestedSessionIdRef.current = null;
+          reset();
         }
       } else {
         setSessions((prev) =>
@@ -79,7 +86,13 @@ export function useSessions() {
         );
       }
     },
-    [activeSessionId, sessions, setSessions, setActiveSessionId, setMessages],
+    [
+      activeSessionId,
+      sessions,
+      setSessions,
+      setActiveSessionId,
+      reset,
+    ],
   );
 
   const setLoading = useCallback(

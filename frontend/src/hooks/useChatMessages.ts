@@ -49,11 +49,16 @@ export function useChatMessages() {
     [],
   );
 
+  const reset = useCallback(() => {
+    setMessages([]);
+  }, []);
+
   return {
     messages,
     setMessages,
     addUserMessage,
     appendStreamingText,
     finalizeAssistantMessage,
+    reset,
   };
 }

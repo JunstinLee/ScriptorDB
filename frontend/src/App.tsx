@@ -27,7 +27,8 @@ export default function App() {
     refreshSessions,
   } = useSessions();
 
-  const { runs, appendEvent } = useRuns();
+  const { getRuns, appendEvent } = useRuns();
+  const runs = activeSessionId ? getRuns(activeSessionId) : [];
 
   const { tables, loading: schemaLoading } = useSchema();
   const abortRef = useRef<AbortController | null>(null);
@@ -58,7 +59,7 @@ export default function App() {
           sid,
           { prompt, model: selectedModel || null, provider: selectedProvider || null },
           (event) => {
-            appendEvent(event);
+            appendEvent(sid, event);
             if (event.type === "text_delta") {
               appendStreamingText(event.delta);
             }
