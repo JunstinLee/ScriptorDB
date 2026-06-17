@@ -158,7 +158,12 @@ export default function App() {
         </div>
       </div>
 
-      <SchemaSidebar tables={tables} schemaLoading={schemaLoading} />
+      <SchemaSidebar
+        tables={tables}
+        schemaLoading={schemaLoading}
+        runs={runs}
+        activeSessionId={activeSessionId}
+      />
 
       <SettingsModal
         isOpen={settingsModal.isOpen}
