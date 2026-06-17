@@ -33,7 +33,7 @@ export default function SchemaSidebar({
   }
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-l">
+    <aside className="flex w-[360px] shrink-0 flex-col border-l">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <span className="font-semibold text-foreground">Schema</span>
         <button
