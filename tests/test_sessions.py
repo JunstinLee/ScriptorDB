@@ -6,19 +6,31 @@ from pathlib import Path
 
 import pytest
 
-from server.sessions import SESSION_TTL, Session, SessionStore
+from server.schemas import MessageItem, SessionCreateResponse
+from server.sessions import (
+    _LEGACY_BACKUP_FILE,
+    _LEGACY_SESSIONS_FILE,
+    Session,
+    SessionStore,
+)
+
+
+def _storage(tmp_path: Path) -> Path:
+    return tmp_path / "sessions"
 
 
 def test_session_store_create_persists(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
+    storage = _storage(tmp_path)
     store = SessionStore(storage_path=storage)
     s = store.create()
     assert s.session_id in store._sessions
-    assert storage.exists()
+    file_path = storage / store._session_relpath(s)
+    assert file_path.exists()
+    assert (storage / "_index.json").exists()
 
 
 def test_session_store_save_load_roundtrip(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
+    storage = _storage(tmp_path)
     store = SessionStore(storage_path=storage)
     s = store.create()
     s.add_user_message("hello")
@@ -36,42 +48,56 @@ def test_session_store_save_load_roundtrip(tmp_path: Path):
 
 
 def test_session_store_delete_persists(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
+    storage = _storage(tmp_path)
     store = SessionStore(storage_path=storage)
     s = store.create()
-    store.delete(s.session_id)
+    file_path = storage / store._session_relpath(s)
+    assert file_path.exists()
+    assert store.delete(s.session_id) is True
+    assert not file_path.exists()
     store2 = SessionStore(storage_path=storage)
     assert store2.get(s.session_id) is None
 
 
-def test_session_store_skips_expired_on_load(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
+def test_session_store_no_ttl_keeps_old_sessions(tmp_path: Path):
+    storage = _storage(tmp_path)
     payload = {
         "version": 1,
-        "sessions": [
-            {
-                "session_id": "expired01",
-                "created_at": (datetime.utcnow() - timedelta(days=2)).isoformat(),
-                "last_access": (datetime.utcnow() - timedelta(days=2)).isoformat(),
-                "messages": [],
+        "index": {
+            "old001": {
+                "path": "2024/01/old001.json",
+                "created_at": (datetime.utcnow() - timedelta(days=365)).isoformat(),
+                "last_access": (datetime.utcnow() - timedelta(days=365)).isoformat(),
+                "message_count": 0,
             }
-        ],
+        },
     }
-    storage.write_text(json.dumps(payload))
+    (storage / "2024" / "01").mkdir(parents=True)
+    (storage / "2024" / "01" / "old001.json").write_text(json.dumps({
+        "version": 2,
+        "session_id": "old001",
+        "created_at": (datetime.utcnow() - timedelta(days=365)).isoformat(),
+        "last_access": (datetime.utcnow() - timedelta(days=365)).isoformat(),
+        "messages": [],
+        "runs": [],
+    }))
+    (storage / "_index.json").write_text(json.dumps(payload))
     store = SessionStore(storage_path=storage)
-    assert store.get("expired01") is None
-    assert "expired01" not in store._sessions
+    assert store.get("old001") is not None
+    assert "old001" in store._sessions
 
 
 def test_session_store_list_sorders_by_last_access(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
+    storage = _storage(tmp_path)
     store = SessionStore(storage_path=storage)
     s1 = store.create()
     s1.add_user_message("first")
     s1.last_access = datetime.utcnow() - timedelta(hours=2)
+    store.save()
     s2 = store.create()
     s2.add_user_message("second")
     s2.last_access = datetime.utcnow() - timedelta(hours=1)
+    store.save()
     s3 = store.create()
     s3.add_user_message("third")
     s3.last_access = datetime.utcnow()
@@ -82,7 +108,7 @@ def test_session_store_list_sorders_by_last_access(tmp_path: Path):
 
 
 def test_session_store_list_sessions_counts_messages(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
+    storage = _storage(tmp_path)
     store = SessionStore(storage_path=storage)
     s = store.create()
     s.add_user_message("u1")
@@ -93,44 +119,34 @@ def test_session_store_list_sessions_counts_messages(tmp_path: Path):
     assert len(sessions[0].messages) == 3
 
 
-def test_session_store_load_handles_garbage_file(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
-    storage.write_text("{not valid json")
+def test_session_store_load_handles_garbage_index(tmp_path: Path):
+    storage = _storage(tmp_path)
+    storage.mkdir(parents=True)
+    (storage / "_index.json").write_text("{not valid json")
     store = SessionStore(storage_path=storage)
     assert store._sessions == {}
 
 
-def test_session_store_load_skips_invalid_entries(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
-    payload = {
-        "version": 1,
-        "sessions": [
-            {"session_id": "good01", "created_at": datetime.utcnow().isoformat(),
-             "last_access": datetime.utcnow().isoformat(), "messages": []},
-            "not a dict",
-            {"created_at": datetime.utcnow().isoformat(), "last_access": datetime.utcnow().isoformat()},
-        ],
-    }
-    storage.write_text(json.dumps(payload))
+def test_session_store_load_rebuilds_index_from_disk(tmp_path: Path):
+    storage = _storage(tmp_path)
+    (storage / "2025" / "03").mkdir(parents=True)
+    (storage / "2025" / "03" / "abc123456789.json").write_text(json.dumps({
+        "version": 2,
+        "session_id": "abc123456789",
+        "created_at": datetime.utcnow().isoformat(),
+        "last_access": datetime.utcnow().isoformat(),
+        "messages": [],
+        "runs": [],
+    }))
     store = SessionStore(storage_path=storage)
-    assert "good01" in store._sessions
-    assert len(store._sessions) == 1
-
-
-def test_session_get_returns_none_for_expired_and_removes(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
-    store = SessionStore(storage_path=storage)
-    s = store.create()
-    s.last_access = datetime.utcnow() - SESSION_TTL - timedelta(minutes=1)
-    store.save()
-    assert store.get(s.session_id) is None
-    assert s.session_id not in store._sessions
-    store2 = SessionStore(storage_path=storage)
-    assert s.session_id not in store2._sessions
+    assert "abc123456789" in store._sessions
+    assert (storage / "_index.json").exists()
+    index = json.loads((storage / "_index.json").read_text())
+    assert "abc123456789" in index["index"]
 
 
 def test_session_store_create_assigns_unique_id(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
+    storage = _storage(tmp_path)
     store = SessionStore(storage_path=storage)
     s1 = store.create()
     s2 = store.create()
@@ -138,13 +154,50 @@ def test_session_store_create_assigns_unique_id(tmp_path: Path):
     assert len(s1.session_id) == 12
 
 
-def test_session_store_cleanup_expired(tmp_path: Path):
-    storage = tmp_path / "sessions.json"
+def test_session_placed_in_year_month_subdir(tmp_path: Path):
+    storage = _storage(tmp_path)
     store = SessionStore(storage_path=storage)
-    s1 = store.create()
-    s1.last_access = datetime.utcnow() - SESSION_TTL - timedelta(minutes=1)
-    s2 = store.create()
-    removed = store.cleanup_expired()
-    assert removed == 1
-    assert s1.session_id not in store._sessions
-    assert s2.session_id in store._sessions
+    s = store.create()
+    rel = store._session_relpath(s)
+    parts = rel.split("/")
+    assert len(parts) == 3
+    assert parts[0] == f"{s.created_at.year:04d}"
+    assert parts[1] == f"{s.created_at.month:02d}"
+    assert parts[2] == f"{s.session_id}.json"
+    assert (storage / rel).exists()
+
+
+def test_session_store_index_tracks_message_count(tmp_path: Path):
+    storage = _storage(tmp_path)
+    store = SessionStore(storage_path=storage)
+    s = store.create()
+    s.add_user_message("u1")
+    s.add_assistant_message("a1")
+    store.save()
+    index = json.loads((storage / "_index.json").read_text())
+    assert index["index"][s.session_id]["message_count"] == 2
+
+
+def test_session_store_migrates_legacy_file(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr("server.sessions._LEGACY_SESSIONS_FILE", tmp_path / "sessions.json")
+    monkeypatch.setattr("server.sessions._LEGACY_BACKUP_FILE", tmp_path / "sessions.json.bak")
+    legacy_payload = {
+        "version": 1,
+        "sessions": [
+            {
+                "session_id": "legacy01",
+                "created_at": datetime.utcnow().isoformat(),
+                "last_access": datetime.utcnow().isoformat(),
+                "messages": [
+                    {"role": "user", "content": "hi", "timestamp": datetime.utcnow().isoformat()},
+                ],
+                "runs": [],
+            }
+        ],
+    }
+    (tmp_path / "sessions.json").write_text(json.dumps(legacy_payload))
+    storage = tmp_path / "sessions"
+    store = SessionStore(storage_path=storage)
+    assert store.get("legacy01") is not None
+    assert not (tmp_path / "sessions.json").exists()
+    assert (tmp_path / "sessions.json.bak").exists()

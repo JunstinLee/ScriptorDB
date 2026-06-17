@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 from pydantic_ai.messages import (
@@ -15,10 +15,13 @@ from pydantic_ai.messages import (
 
 from server.schemas import MessageItem, StoredRun
 
-SESSION_TTL = timedelta(hours=24)
-
-_SESSIONS_DIR = Path.home() / ".config" / "scriptordb"
-_SESSIONS_FILE = _SESSIONS_DIR / "sessions.json"
+_SCRIPTORDB_DIR = Path.home() / ".config" / "scriptordb"
+_SESSIONS_DIR = _SCRIPTORDB_DIR / "sessions"
+_INDEX_FILE = _SESSIONS_DIR / "_index.json"
+_LEGACY_SESSIONS_FILE = _SCRIPTORDB_DIR / "sessions.json"
+_LEGACY_BACKUP_FILE = _SCRIPTORDB_DIR / "sessions.json.bak"
+_PAYLOAD_VERSION = 2
+_INDEX_VERSION = 2
 
 
 class Session:
@@ -56,159 +59,261 @@ class Session:
     def get_model_messages(self) -> list[ModelMessage]:
         return self._rebuild_model_messages()
 
-    @property
-    def is_expired(self) -> bool:
-        return datetime.utcnow() - self.last_access > SESSION_TTL
-
 
 class SessionStore:
     def __init__(self, storage_path: Path | None = None):
-        self._storage_path = storage_path or _SESSIONS_FILE
+        self._storage_dir = (storage_path if storage_path is not None else _SESSIONS_DIR)
+        self._index_file = self._storage_dir / "_index.json"
         self._sessions: dict[str, Session] = {}
+        self._ensure_dir(self._storage_dir)
+        self._migrate_legacy()
         self._load()
 
-    def _load(self) -> None:
-        if not self._storage_path.exists():
+    @staticmethod
+    def _ensure_dir(path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+
+    def _session_relpath(self, session: Session) -> str:
+        created = session.created_at
+        return f"{created.year:04d}/{created.month:02d}/{session.session_id}.json"
+
+    def _session_abspath(self, session: Session) -> Path:
+        return self._storage_dir / self._session_relpath(session)
+
+    def _migrate_legacy(self) -> None:
+        if not _LEGACY_SESSIONS_FILE.exists():
             return
         try:
-            payload = json.loads(self._storage_path.read_text())
+            payload = json.loads(_LEGACY_SESSIONS_FILE.read_text())
         except (OSError, json.JSONDecodeError):
             return
         sessions_data = payload.get("sessions", [])
         if not isinstance(sessions_data, list):
             return
-        now = datetime.utcnow()
         for item in sessions_data:
             if not isinstance(item, dict):
                 continue
             sid = item.get("session_id")
             if not isinstance(sid, str):
                 continue
-            last_access_str = item.get("last_access")
+            now = datetime.utcnow()
             try:
-                last_access = (
-                    datetime.fromisoformat(last_access_str)
-                    if isinstance(last_access_str, str)
-                    else now
-                )
+                created_at = datetime.fromisoformat(item["created_at"]) if isinstance(item.get("created_at"), str) else now
+            except ValueError:
+                created_at = now
+            try:
+                last_access = datetime.fromisoformat(item["last_access"]) if isinstance(item.get("last_access"), str) else now
             except ValueError:
                 last_access = now
-            if now - last_access > SESSION_TTL:
-                continue
             session = Session(session_id=sid)
+            session.created_at = created_at
             session.last_access = last_access
-            try:
-                created_at_str = item.get("created_at")
-                session.created_at = (
-                    datetime.fromisoformat(created_at_str)
-                    if isinstance(created_at_str, str)
-                    else now
-                )
-            except ValueError:
-                session.created_at = now
-            messages_data = item.get("messages", [])
-            if isinstance(messages_data, list):
-                for m in messages_data:
+            for m in item.get("messages", []):
+                if not isinstance(m, dict):
+                    continue
+                role = m.get("role")
+                content = m.get("content")
+                if role in ("user", "assistant") and isinstance(content, str):
+                    try:
+                        ts = datetime.fromisoformat(m["timestamp"]) if isinstance(m.get("timestamp"), str) else now
+                    except ValueError:
+                        ts = now
+                    session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
+            for r in item.get("runs", []):
+                if isinstance(r, dict):
+                    try:
+                        session.runs.append(StoredRun(**r))
+                    except Exception:
+                        pass
+            self._write_session_file(session)
+        try:
+            _LEGACY_SESSIONS_FILE.rename(_LEGACY_BACKUP_FILE)
+        except OSError:
+            pass
+
+    def _load(self) -> None:
+        index = self._read_index()
+        if index is not None:
+            for sid, meta in index.items():
+                if not isinstance(meta, dict):
+                    continue
+                rel = meta.get("path")
+                if not isinstance(rel, str):
+                    continue
+                file_path = self._storage_dir / rel
+                if not file_path.exists():
+                    continue
+                try:
+                    payload = json.loads(file_path.read_text())
+                except (OSError, json.JSONDecodeError):
+                    continue
+                if not isinstance(payload, dict):
+                    continue
+                session = Session(session_id=sid)
+                try:
+                    created_at = datetime.fromisoformat(payload["created_at"]) if isinstance(payload.get("created_at"), str) else datetime.utcnow()
+                except ValueError:
+                    created_at = datetime.utcnow()
+                try:
+                    last_access = datetime.fromisoformat(payload["last_access"]) if isinstance(payload.get("last_access"), str) else datetime.utcnow()
+                except ValueError:
+                    last_access = datetime.utcnow()
+                session.created_at = created_at
+                session.last_access = last_access
+                for m in payload.get("messages", []):
                     if not isinstance(m, dict):
                         continue
                     role = m.get("role")
                     content = m.get("content")
                     if role in ("user", "assistant") and isinstance(content, str):
-                        timestamp = m.get("timestamp")
                         try:
-                            ts = (
-                                datetime.fromisoformat(timestamp)
-                                if isinstance(timestamp, str)
-                                else now
-                            )
+                            ts = datetime.fromisoformat(m["timestamp"]) if isinstance(m.get("timestamp"), str) else datetime.utcnow()
                         except ValueError:
-                            ts = now
-                        session.messages.append(
-                            MessageItem(role=role, content=content, timestamp=ts)
-                        )
-            runs_data = item.get("runs", [])
-            if isinstance(runs_data, list):
-                for r in runs_data:
-                    if not isinstance(r, dict):
-                        continue
+                            ts = datetime.utcnow()
+                        session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
+                for r in payload.get("runs", []):
+                    if isinstance(r, dict):
+                        try:
+                            session.runs.append(StoredRun(**r))
+                        except Exception:
+                            pass
+                self._sessions[sid] = session
+            return
+        self._rebuild_from_disk()
+
+    def _read_index(self) -> dict[str, dict] | None:
+        if not self._index_file.exists():
+            return None
+        try:
+            payload = json.loads(self._index_file.read_text())
+        except (OSError, json.JSONDecodeError):
+            return None
+        if not isinstance(payload, dict):
+            return None
+        index = payload.get("index")
+        if not isinstance(index, dict):
+            return None
+        return index
+
+    def _rebuild_from_disk(self) -> None:
+        if not self._storage_dir.exists():
+            return
+        for file_path in self._storage_dir.rglob("*.json"):
+            if file_path == self._index_file:
+                continue
+            try:
+                payload = json.loads(file_path.read_text())
+            except (OSError, json.JSONDecodeError):
+                continue
+            if not isinstance(payload, dict):
+                continue
+            sid = payload.get("session_id")
+            if not isinstance(sid, str):
+                continue
+            session = Session(session_id=sid)
+            now = datetime.utcnow()
+            try:
+                session.created_at = datetime.fromisoformat(payload["created_at"]) if isinstance(payload.get("created_at"), str) else now
+            except ValueError:
+                session.created_at = now
+            try:
+                session.last_access = datetime.fromisoformat(payload["last_access"]) if isinstance(payload.get("last_access"), str) else now
+            except ValueError:
+                session.last_access = now
+            for m in payload.get("messages", []):
+                if not isinstance(m, dict):
+                    continue
+                role = m.get("role")
+                content = m.get("content")
+                if role in ("user", "assistant") and isinstance(content, str):
+                    try:
+                        ts = datetime.fromisoformat(m["timestamp"]) if isinstance(m.get("timestamp"), str) else now
+                    except ValueError:
+                        ts = now
+                    session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
+            for r in payload.get("runs", []):
+                if isinstance(r, dict):
                     try:
                         session.runs.append(StoredRun(**r))
                     except Exception:
                         pass
             self._sessions[sid] = session
+        if self._sessions:
+            self._write_index()
 
-    def save(self) -> None:
+    def _write_session_file(self, session: Session) -> None:
         try:
-            self._storage_path.parent.mkdir(parents=True, exist_ok=True)
+            file_path = self._session_abspath(session)
+            self._ensure_dir(file_path.parent)
             payload = {
-                "version": 1,
-                "sessions": [
+                "version": _PAYLOAD_VERSION,
+                "session_id": session.session_id,
+                "created_at": session.created_at.isoformat(),
+                "last_access": session.last_access.isoformat(),
+                "messages": [
                     {
-                        "session_id": s.session_id,
-                        "created_at": s.created_at.isoformat(),
-                        "last_access": s.last_access.isoformat(),
-                        "messages": [
-                            {
-                                "role": m.role,
-                                "content": m.content,
-                                "timestamp": m.timestamp.isoformat(),
-                            }
-                            for m in s.messages
-                        ],
-                        "runs": [r.model_dump() for r in s.runs],
+                        "role": m.role,
+                        "content": m.content,
+                        "timestamp": m.timestamp.isoformat(),
                     }
-                    for s in self._sessions.values()
+                    for m in session.messages
                 ],
+                "runs": [r.model_dump() for r in session.runs],
             }
-            self._storage_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
         except OSError:
             pass
+
+    def _write_index(self) -> None:
+        try:
+            payload = {
+                "version": _INDEX_VERSION,
+                "index": {
+                    s.session_id: {
+                        "path": self._session_relpath(s),
+                        "created_at": s.created_at.isoformat(),
+                        "last_access": s.last_access.isoformat(),
+                        "message_count": len(s.messages),
+                    }
+                    for s in self._sessions.values()
+                },
+            }
+            self._index_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+        except OSError:
+            pass
+
+    def save(self) -> None:
+        for session in self._sessions.values():
+            self._write_session_file(session)
+        self._write_index()
 
     def create(self) -> Session:
         session = Session()
         self._sessions[session.session_id] = session
-        self.save()
+        self._write_session_file(session)
+        self._write_index()
         return session
 
     def get(self, session_id: str) -> Session | None:
-        session = self._sessions.get(session_id)
-        if session is None:
-            return None
-        if session.is_expired:
-            del self._sessions[session_id]
-            self.save()
-            return None
-        return session
+        return self._sessions.get(session_id)
 
     def delete(self, session_id: str) -> bool:
-        if session_id in self._sessions:
-            del self._sessions[session_id]
-            self.save()
-            return True
-        return False
+        session = self._sessions.pop(session_id, None)
+        if session is None:
+            return False
+        try:
+            file_path = self._session_abspath(session)
+            if file_path.exists():
+                file_path.unlink()
+        except OSError:
+            pass
+        self._write_index()
+        return True
 
     def list_sessions(self) -> list[Session]:
-        active: list[Session] = []
-        expired: list[str] = []
-        for sid, session in self._sessions.items():
-            if session.is_expired:
-                expired.append(sid)
-            else:
-                active.append(session)
-        for sid in expired:
-            del self._sessions[sid]
-        if expired:
-            self.save()
+        active = list(self._sessions.values())
         active.sort(key=lambda s: s.last_access, reverse=True)
         return active
-
-    def cleanup_expired(self) -> int:
-        expired = [sid for sid, s in self._sessions.items() if s.is_expired]
-        for sid in expired:
-            del self._sessions[sid]
-        if expired:
-            self.save()
-        return len(expired)
 
 
 session_store = SessionStore()
