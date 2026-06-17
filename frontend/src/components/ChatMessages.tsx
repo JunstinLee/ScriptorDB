@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { Wrench } from "lucide-react";
 import type { ChatMessage, Run } from "../types";
 import ChatAvatar from "./common/ChatAvatar";
 import RunContainer from "./RunContainer";
@@ -7,12 +8,14 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   runs: Run[];
   isLoading: boolean;
+  onHighlightRun: (runId: string) => void;
 }
 
 export default function ChatMessages({
   messages,
   runs,
   isLoading,
+  onHighlightRun,
 }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -45,9 +48,18 @@ export default function ChatMessages({
           return (
             <div key={`run-${run.run_id}`} className="flex gap-3 justify-start">
               <ChatAvatar role="assistant" />
-              <div className="max-w-[85%] min-w-0">
+              <div className="flex-1 min-w-0">
                 <RunContainer run={run} />
               </div>
+              <button
+                type="button"
+                onClick={() => onHighlightRun(run.run_id)}
+                disabled={run.tool_invocations.length === 0}
+                title={run.tool_invocations.length === 0 ? "无工具调用" : "查看工具调用"}
+                className="shrink-0 self-start mt-1 rounded-lg p-1.5 text-muted hover:text-foreground hover:bg-default-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <Wrench className="h-4 w-4" />
+              </button>
             </div>
           );
         }

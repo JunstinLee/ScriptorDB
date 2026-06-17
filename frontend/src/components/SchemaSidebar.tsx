@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Tabs } from "@heroui/react";
 import { PanelRightClose, PanelRightOpen, Database, Wrench } from "lucide-react";
 import type { Run, SchemaTable } from "../types";
@@ -10,6 +10,7 @@ interface SchemaSidebarProps {
   schemaLoading: boolean;
   runs: Run[];
   activeSessionId: string | null;
+  highlightedRunId: string | null;
 }
 
 export default function SchemaSidebar({
@@ -17,6 +18,7 @@ export default function SchemaSidebar({
   schemaLoading,
   runs,
   activeSessionId,
+  highlightedRunId,
 }: SchemaSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState("schema");
@@ -24,6 +26,13 @@ export default function SchemaSidebar({
   const toggleCollapse = useCallback(() => {
     setCollapsed((prev) => !prev);
   }, []);
+
+  useEffect(() => {
+    if (highlightedRunId) {
+      setCollapsed(false);
+      setSelectedTab("tools");
+    }
+  }, [highlightedRunId]);
 
   if (collapsed) {
     return (
@@ -81,7 +90,7 @@ export default function SchemaSidebar({
                 <p className="text-sm">请先选择会话</p>
               </div>
             ) : (
-              <ToolsPanel runs={runs} />
+              <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} />
             )}
           </div>
         )}

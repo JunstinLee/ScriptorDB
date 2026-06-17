@@ -8,3 +8,12 @@ body,
   margin: 0;
   padding: 0;
 }
+
+@keyframes highlight-fade {
+  0% { background-color: color-mix(in oklch, var(--color-warning) 25%, transparent); }
+  100% { background-color: transparent; }
+}
+
+.run-highlight {
+  animation: highlight-fade 5s ease-out forwards;
+}

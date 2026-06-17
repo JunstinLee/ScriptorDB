@@ -47,6 +47,7 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState("");
   const [selectedProvider, setSelectedProvider] = useState("");
   const { showSessionIdHover, setShowSessionIdHover } = useAppSettings();
+  const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null);
 
   const activeSessionTitle = useMemo(
     () => sessions.find((s) => s.session_id === activeSessionId)?.title ?? null,
@@ -122,6 +123,11 @@ export default function App() {
     settingsModal.open();
   }, [settingsModal]);
 
+  const handleHighlightRun = useCallback((runId: string) => {
+    setHighlightedRunId(runId);
+    setTimeout(() => setHighlightedRunId(null), 5500);
+  }, []);
+
   return (
     <div className="flex h-screen bg-background text-foreground">
       <Sidebar
@@ -154,6 +160,7 @@ export default function App() {
             isLoading={isLoading}
             onSend={handleSend}
             onNewSession={handleNewSession}
+            onHighlightRun={handleHighlightRun}
           />
         </div>
       </div>
@@ -163,6 +170,7 @@ export default function App() {
         schemaLoading={schemaLoading}
         runs={runs}
         activeSessionId={activeSessionId}
+        highlightedRunId={highlightedRunId}
       />
 
       <SettingsModal

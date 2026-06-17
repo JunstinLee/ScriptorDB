@@ -10,6 +10,7 @@ interface ChatPanelProps {
   isLoading: boolean;
   onSend: (prompt: string) => void;
   onNewSession: () => void;
+  onHighlightRun: (runId: string) => void;
 }
 
 export default function ChatPanel({
@@ -19,6 +20,7 @@ export default function ChatPanel({
   isLoading,
   onSend,
   onNewSession,
+  onHighlightRun,
 }: ChatPanelProps) {
   if (!activeSessionId) {
     return <WelcomeScreen onNewSession={onNewSession} />;
@@ -26,7 +28,7 @@ export default function ChatPanel({
 
   return (
     <>
-      <ChatMessages messages={messages} runs={runs} isLoading={isLoading} />
+      <ChatMessages messages={messages} runs={runs} isLoading={isLoading} onHighlightRun={onHighlightRun} />
       <div className="absolute bottom-0 left-0 right-0 z-10 bg-background">
         <ChatInput onSend={onSend} disabled={isLoading} />
       </div>

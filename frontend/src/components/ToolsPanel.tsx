@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Wrench,
   MessageSquare,
@@ -81,9 +81,10 @@ function getCollapsedSummary(invocations: TI[]): string {
 
 interface ToolsPanelProps {
   runs: Run[];
+  highlightedRunId: string | null;
 }
 
-export default function ToolsPanel({ runs }: ToolsPanelProps) {
+export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) {
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
   );
@@ -111,6 +112,42 @@ export default function ToolsPanel({ runs }: ToolsPanelProps) {
     });
   };
 
+  useEffect(() => {
+    if (!highlightedRunId) return;
+
+    const targetRunIndex = runs.findIndex((r) => r.run_id === highlightedRunId);
+    if (targetRunIndex === -1) return;
+
+    const runsWithToolsIndex = runsWithTools.findIndex((r) => r.run_id === highlightedRunId);
+    const roundIndex = runsWithToolsIndex + 1;
+
+    // Auto-expand the round
+    setCollapsedRounds((prev) => {
+      const next = new Set(prev);
+      next.delete(roundIndex);
+      return next;
+    });
+
+    // Auto-expand tools
+    setCollapsedTools((prev) => {
+      const next = new Set(prev);
+      next.delete(roundIndex);
+      return next;
+    });
+
+    // Wait for DOM to update after state changes, then scroll + highlight
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`[data-run-id="${highlightedRunId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.remove("run-highlight");
+        // Force reflow to restart animation
+        void (el as HTMLElement).offsetWidth;
+        el.classList.add("run-highlight");
+      }
+    });
+  }, [highlightedRunId, runs, runsWithTools]);
+
   if (runsWithTools.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted">
@@ -132,6 +169,7 @@ export default function ToolsPanel({ runs }: ToolsPanelProps) {
         return (
           <div
             key={run.run_id}
+            data-run-id={run.run_id}
             className="rounded-lg border border-default-200 overflow-hidden"
           >
             {/* 轮次标题 */}
