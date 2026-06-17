@@ -5,16 +5,13 @@ import {
   PanelLeftOpen,
   Settings as SettingsIcon,
 } from "lucide-react";
-import type { SchemaTable, SessionMeta } from "../types";
-import SchemaViewer from "./SchemaViewer";
+import type { SessionMeta } from "../types";
 import SessionList from "./SessionList";
 import ThemeToggle from "./common/ThemeToggle";
 
 interface SidebarProps {
   sessions: SessionMeta[];
   activeSessionId: string | null;
-  tables: SchemaTable[];
-  schemaLoading: boolean;
   showSessionIdHover: boolean;
   onNewSession: () => void;
   onSwitchSession: (id: string) => void;
@@ -25,8 +22,6 @@ interface SidebarProps {
 export default function Sidebar({
   sessions,
   activeSessionId,
-  tables,
-  schemaLoading,
   showSessionIdHover,
   onNewSession,
   onSwitchSession,
@@ -104,12 +99,6 @@ export default function Sidebar({
           onSwitchSession={onSwitchSession}
           onDeleteSession={onDeleteSession}
         />
-
-        <div className="px-2">
-          <hr className="border-separator" />
-        </div>
-
-        <SchemaViewer tables={tables} loading={schemaLoading} />
       </div>
 
       <div className="border-t px-4 py-3">

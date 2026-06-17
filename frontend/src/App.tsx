@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import ChatHeader from "./components/ChatHeader";
 import ChatPanel from "./components/ChatPanel";
+import SchemaSidebar from "./components/SchemaSidebar";
 import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
 import { useAppSettings } from "./hooks/useAppSettings";
@@ -126,13 +127,11 @@ export default function App() {
       <Sidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
-        tables={tables}
-        schemaLoading={schemaLoading}
+        showSessionIdHover={showSessionIdHover}
         onNewSession={handleNewSession}
         onSwitchSession={switchSession}
         onDeleteSession={handleDeleteSession}
         onOpenSettings={handleOpenSettings}
-        showSessionIdHover={showSessionIdHover}
       />
 
       <div className="flex flex-1 flex-col min-w-0">
@@ -158,6 +157,8 @@ export default function App() {
           />
         </div>
       </div>
+
+      <SchemaSidebar tables={tables} schemaLoading={schemaLoading} />
 
       <SettingsModal
         isOpen={settingsModal.isOpen}
