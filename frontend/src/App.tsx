@@ -48,6 +48,7 @@ export default function App() {
   const [selectedProvider, setSelectedProvider] = useState("");
   const { showSessionIdHover, setShowSessionIdHover } = useAppSettings();
   const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const activeSessionTitle = useMemo(
     () => sessions.find((s) => s.session_id === activeSessionId)?.title ?? null,
@@ -124,9 +125,15 @@ export default function App() {
   }, [settingsModal]);
 
   const handleHighlightRun = useCallback((runId: string) => {
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
     setHighlightedRunId(null);
     requestAnimationFrame(() => {
       setHighlightedRunId(runId);
+      highlightTimeoutRef.current = setTimeout(() => {
+        setHighlightedRunId(null);
+      }, 5500);
     });
   }, []);
 

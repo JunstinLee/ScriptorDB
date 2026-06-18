@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Wrench,
   MessageSquare,
@@ -124,6 +124,12 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
 
   const runsWithTools = runs.filter((r) => r.tool_invocations.length > 0);
 
+  // Keep refs to avoid stale values in the effect
+  const runsRef = useRef(runs);
+  runsRef.current = runs;
+  const runsWithToolsRef = useRef(runsWithTools);
+  runsWithToolsRef.current = runsWithTools;
+
   const toggleRound = (roundIndex: number) => {
     setCollapsedRounds((prev) => {
       const next = new Set(prev);
@@ -145,10 +151,10 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
   useEffect(() => {
     if (!highlightedRunId) return;
 
-    const targetRunIndex = runs.findIndex((r) => r.run_id === highlightedRunId);
+    const targetRunIndex = runsRef.current.findIndex((r) => r.run_id === highlightedRunId);
     if (targetRunIndex === -1) return;
 
-    const runsWithToolsIndex = runsWithTools.findIndex((r) => r.run_id === highlightedRunId);
+    const runsWithToolsIndex = runsWithToolsRef.current.findIndex((r) => r.run_id === highlightedRunId);
     const roundIndex = runsWithToolsIndex + 1;
 
     // Auto-expand the round
@@ -165,18 +171,14 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
       return next;
     });
 
-    // Wait for DOM to update after state changes, then scroll + highlight
+    // Wait for DOM to update after state changes, then scroll
     requestAnimationFrame(() => {
       const el = document.querySelector(`[data-run-id="${highlightedRunId}"]`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.classList.remove("run-highlight");
-        // Force reflow to restart animation
-        void (el as HTMLElement).offsetWidth;
-        el.classList.add("run-highlight");
       }
     });
-  }, [highlightedRunId, runs, runsWithTools]);
+  }, [highlightedRunId]);
 
   if (runsWithTools.length === 0) {
     return (
@@ -200,7 +202,9 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
           <div
             key={run.run_id}
             data-run-id={run.run_id}
-            className="rounded-lg border border-default-200 overflow-hidden"
+            className={`rounded-lg border border-default-200 overflow-hidden ${
+              run.run_id === highlightedRunId ? "run-highlight" : ""
+            }`}
           >
             {/* 轮次标题 */}
             <button
