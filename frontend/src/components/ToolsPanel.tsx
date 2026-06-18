@@ -23,6 +23,9 @@ function getOperations(invocations: TI[]): OperationItem[] {
   let charts = 0;
   let queries = 0;
   let pythons = 0;
+  let dbWrites = 0;
+  let dbCreates = 0;
+  let dbDdl = 0;
 
   for (const inv of invocations) {
     switch (inv.tool_name) {
@@ -42,6 +45,15 @@ function getOperations(invocations: TI[]): OperationItem[] {
         break;
       case "run_python_code":
         pythons++;
+        break;
+      case "create_table":
+        dbCreates++;
+        break;
+      case "execute_ddl":
+        dbDdl++;
+        break;
+      case "write_data":
+        dbWrites++;
         break;
     }
   }
@@ -68,6 +80,24 @@ function getOperations(invocations: TI[]): OperationItem[] {
     ops.push({
       icon: <Terminal className="h-3 w-3" />,
       label: `执行 Python 代码`,
+    });
+  }
+  if (dbCreates > 0) {
+    ops.push({
+      icon: <Database className="h-3 w-3" />,
+      label: `创建数据表`,
+    });
+  }
+  if (dbDdl > 0) {
+    ops.push({
+      icon: <Database className="h-3 w-3" />,
+      label: `执行 DDL 语句`,
+    });
+  }
+  if (dbWrites > 0) {
+    ops.push({
+      icon: <Database className="h-3 w-3" />,
+      label: `写入数据库`,
     });
   }
   return ops;

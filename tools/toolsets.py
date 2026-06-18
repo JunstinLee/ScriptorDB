@@ -4,9 +4,16 @@ from pydantic_ai import Tool
 from pydantic_ai.toolsets.function import FunctionToolset
 
 from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
-from tools.db_tools import get_schema, query_database, run_python_code
+from tools.db_tools import create_table, execute_ddl, get_schema, query_database, run_python_code, write_data
 from tools.export_tools import export_excel
-from tools.validators import validate_file_path, validate_python_code, validate_sql_readonly
+from tools.validators import (
+    validate_create_table_args,
+    validate_file_path,
+    validate_python_code,
+    validate_sql_ddl,
+    validate_sql_dml,
+    validate_sql_readonly,
+)
 from tools.viz_tools import plot_chart
 
 
@@ -104,6 +111,36 @@ _write_tools = [
         sequential=True,
         include_return_schema=True,
     ),
+    Tool(
+        create_table,
+        takes_ctx=True,
+        name="create_table",
+        timeout=15,
+        max_retries=1,
+        requires_approval=True,
+        args_validator=validate_create_table_args,
+        include_return_schema=True,
+    ),
+    Tool(
+        execute_ddl,
+        takes_ctx=True,
+        name="execute_ddl",
+        timeout=15,
+        max_retries=1,
+        requires_approval=True,
+        args_validator=validate_sql_ddl,
+        include_return_schema=True,
+    ),
+    Tool(
+        write_data,
+        takes_ctx=True,
+        name="write_data",
+        timeout=15,
+        max_retries=1,
+        requires_approval=True,
+        args_validator=validate_sql_dml,
+        include_return_schema=True,
+    ),
 ]
 
 
@@ -136,7 +173,11 @@ write_toolset = FunctionToolset(
         "Write and export operations. ALL operations in this toolset require user approval. "
         "Use write_csv, write_file for file output; "
         "export_excel for .xlsx export; "
-        "run_python_code for sandboxed Python execution. "
+        "run_python_code for sandboxed Python execution; "
+        "create_table to build a table with structured column definitions; "
+        "execute_ddl for generic DDL statements (CREATE/ALTER/DROP); "
+        "write_data for parameterized INSERT/UPDATE/DELETE. "
+        "DELETE and UPDATE must include a WHERE clause. DROP requires confirm_drop=True. "
         "All output is returned as structured ToolResult with success/error/data fields."
     ),
     tools=_write_tools,

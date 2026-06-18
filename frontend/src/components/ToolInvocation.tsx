@@ -74,6 +74,37 @@ function getToolSummary(toolName: string, args: Record<string, unknown>): string
       return title ? `生成 ${type} 图: ${title}` : `生成 ${type} 图表`;
     }
 
+    case "create_table": {
+      const tableName = args.table_name as string || "";
+      const columns = args.columns as Array<{ name: string }> | undefined;
+      const colCount = columns?.length || 0;
+      return tableName
+        ? `创建表 ${tableName} (${colCount} 列)`
+        : "创建数据表";
+    }
+
+    case "execute_ddl": {
+      const sql = (args.sql as string || "").trim();
+      if (!sql) return "执行 DDL 语句";
+      const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
+      return `DDL: ${preview}`;
+    }
+
+    case "write_data": {
+      const sql = (args.sql as string || "").trim();
+      if (!sql) return "写入数据";
+      const upper = sql.toUpperCase();
+      const op = upper.startsWith("INSERT")
+        ? "插入"
+        : upper.startsWith("UPDATE")
+          ? "更新"
+          : upper.startsWith("DELETE")
+            ? "删除"
+            : "写入";
+      const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
+      return `${op}: ${preview}`;
+    }
+
     default:
       return "执行操作";
   }
