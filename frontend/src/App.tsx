@@ -124,8 +124,10 @@ export default function App() {
   }, [settingsModal]);
 
   const handleHighlightRun = useCallback((runId: string) => {
-    setHighlightedRunId(runId);
-    setTimeout(() => setHighlightedRunId(null), 5500);
+    setHighlightedRunId(null);
+    requestAnimationFrame(() => {
+      setHighlightedRunId(runId);
+    });
   }, []);
 
   return (

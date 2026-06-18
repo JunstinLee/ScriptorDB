@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Tabs } from "@heroui/react";
 import { PanelRightClose, PanelRightOpen, Database, Wrench } from "lucide-react";
 import type { Run, SchemaTable } from "../types";
@@ -22,6 +22,7 @@ export default function SchemaSidebar({
 }: SchemaSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState("schema");
+  const prevToolCountRef = useRef(0);
 
   const toggleCollapse = useCallback(() => {
     setCollapsed((prev) => !prev);
@@ -33,6 +34,19 @@ export default function SchemaSidebar({
       setSelectedTab("tools");
     }
   }, [highlightedRunId]);
+
+  useEffect(() => {
+    prevToolCountRef.current = 0;
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    const currentCount = runs.reduce((sum, r) => sum + r.tool_invocations.length, 0);
+    if (currentCount > prevToolCountRef.current) {
+      setCollapsed(false);
+      setSelectedTab("tools");
+    }
+    prevToolCountRef.current = currentCount;
+  }, [runs]);
 
   if (collapsed) {
     return (
