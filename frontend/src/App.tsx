@@ -46,7 +46,7 @@ export default function App() {
   const [settingsChanged, setSettingsChanged] = useState(0);
   const [selectedModel, setSelectedModel] = useState("");
   const [selectedProvider, setSelectedProvider] = useState("");
-  const { showSessionIdHover, setShowSessionIdHover } = useAppSettings();
+  const { showSessionIdHover, setShowSessionIdHover, showSchemaSql, setShowSchemaSql } = useAppSettings();
   const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -180,6 +180,7 @@ export default function App() {
         runs={runs}
         activeSessionId={activeSessionId}
         highlightedRunId={highlightedRunId}
+        showSchemaSql={showSchemaSql}
       />
 
       <SettingsModal
@@ -194,6 +195,8 @@ export default function App() {
         onSessionsChanged={() => void refreshSessions()}
         showSessionIdHover={showSessionIdHover}
         setShowSessionIdHover={setShowSessionIdHover}
+        showSchemaSql={showSchemaSql}
+        setShowSchemaSql={setShowSchemaSql}
       />
     </div>
   );

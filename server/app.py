@@ -29,6 +29,7 @@ from server.schemas import (
     ModelsResponse,
     ModelsWithCanonicalResponse,
     ProviderInfo,
+    SchemaColumn,
     SchemaResponse,
     SchemaTable,
     SessionCreateResponse,
@@ -185,12 +186,29 @@ async def get_schema():
 
     db_path = settings.db_url.replace("sqlite:///", "")
     conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
     try:
         cursor = conn.execute(
             "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
         )
         rows = cursor.fetchall()
-        tables = [SchemaTable(name=name, sql=sql) for name, sql in rows]
+        tables: list[SchemaTable] = []
+        for row in rows:
+            table_name = row["name"]
+            col_cursor = conn.execute(f"PRAGMA table_info('{table_name.replace(chr(39), chr(39)+chr(39))}')")
+            col_rows = col_cursor.fetchall()
+            columns = [
+                SchemaColumn(
+                    name=col["name"],
+                    type=col["type"],
+                    pk=bool(col["pk"]),
+                    notnull=bool(col["notnull"]),
+                    default_value=col["dflt_value"],
+                    autoincrement=bool(col["pk"]) and col["type"].upper() in ("INTEGER", "INT", "BIGINT"),
+                )
+                for col in col_rows
+            ]
+            tables.append(SchemaTable(name=table_name, sql=row["sql"], columns=columns))
     finally:
         conn.close()
     return SchemaResponse(tables=tables)

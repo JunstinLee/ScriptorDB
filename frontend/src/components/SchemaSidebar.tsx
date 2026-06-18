@@ -11,6 +11,7 @@ interface SchemaSidebarProps {
   runs: Run[];
   activeSessionId: string | null;
   highlightedRunId: string | null;
+  showSchemaSql: boolean;
 }
 
 export default function SchemaSidebar({
@@ -19,6 +20,7 @@ export default function SchemaSidebar({
   runs,
   activeSessionId,
   highlightedRunId,
+  showSchemaSql,
 }: SchemaSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState("schema");
@@ -96,7 +98,7 @@ export default function SchemaSidebar({
 
       <div className="flex-1 overflow-y-auto py-2">
         {selectedTab === "schema" ? (
-          <SchemaViewer tables={tables} loading={schemaLoading} />
+          <SchemaViewer tables={tables} loading={schemaLoading} showSql={showSchemaSql} />
         ) : (
           <div className="px-2">
             {!activeSessionId ? (

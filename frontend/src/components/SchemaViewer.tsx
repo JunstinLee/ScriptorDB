@@ -1,13 +1,15 @@
 import { Accordion } from "@heroui/react";
 import { ChevronDown } from "lucide-react";
 import type { SchemaTable } from "../types";
+import SchemaColumnList from "./SchemaColumnList";
 
 interface SchemaViewerProps {
   tables: SchemaTable[];
   loading: boolean;
+  showSql: boolean;
 }
 
-export default function SchemaViewer({ tables, loading }: SchemaViewerProps) {
+export default function SchemaViewer({ tables, loading, showSql }: SchemaViewerProps) {
   return (
     <div className="flex flex-col gap-1">
       <span className="px-2 py-1 text-xs font-semibold uppercase text-muted tracking-wide">
@@ -33,9 +35,14 @@ export default function SchemaViewer({ tables, loading }: SchemaViewerProps) {
               </Accordion.Heading>
               <Accordion.Panel>
                 <Accordion.Body>
-                  <pre className="overflow-x-auto rounded-md bg-default/30 p-2 text-xs text-muted">
-                    {table.sql}
-                  </pre>
+                  <div className="flex flex-col gap-2 py-1">
+                    <SchemaColumnList columns={table.columns} />
+                    {showSql && (
+                      <pre className="overflow-x-auto rounded-md bg-default/30 p-2 text-xs text-muted mt-1">
+                        {table.sql}
+                      </pre>
+                    )}
+                  </div>
                 </Accordion.Body>
               </Accordion.Panel>
             </Accordion.Item>

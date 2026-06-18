@@ -14,6 +14,8 @@ interface SettingsModalProps {
   onSessionsChanged?: () => void;
   showSessionIdHover: boolean;
   setShowSessionIdHover: (v: boolean) => void;
+  showSchemaSql: boolean;
+  setShowSchemaSql: (v: boolean) => void;
 }
 
 export default function SettingsModal({
@@ -22,6 +24,8 @@ export default function SettingsModal({
   onSessionsChanged,
   showSessionIdHover,
   setShowSessionIdHover,
+  showSchemaSql,
+  setShowSchemaSql,
 }: SettingsModalProps) {
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -93,6 +97,8 @@ export default function SettingsModal({
                     onSessionsChanged={onSessionsChanged}
                     showSessionIdHover={showSessionIdHover}
                     setShowSessionIdHover={setShowSessionIdHover}
+                    showSchemaSql={showSchemaSql}
+                    setShowSchemaSql={setShowSchemaSql}
                   />
                 </Tabs.Panel>
                 <Tabs.Panel className="pt-4" id="apikeys">
