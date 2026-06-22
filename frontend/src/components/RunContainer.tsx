@@ -27,6 +27,14 @@ export default function RunContainer({ run }: RunContainerProps) {
           <p className="text-sm text-danger">{run.error_message}</p>
         </div>
       )}
+
+      {run.status === "running" && !run.final_output && run.trace_steps.length === 0 && (
+        <div className="px-4 py-3">
+          <span className="inline-block animate-pulse text-sm text-muted">
+            Thinking...
+          </span>
+        </div>
+      )}
     </div>
   );
 }

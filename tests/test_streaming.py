@@ -136,13 +136,11 @@ async def test_stream_emits_run_start_and_end(test_settings):
 async def test_stream_emits_tool_call_and_result(test_settings):
     """核心验证：工具调用场景下必须出现 tool_call、tool_result、trace 和 run_end 事件。"""
 
+    call_count = [0]
+
     def fn(messages: list[Any], info: AgentInfo) -> ModelResponse:
-        already_called = any(
-            isinstance(m, ModelRequest)
-            and any(isinstance(p, ToolReturnPart) for p in m.parts)
-            for m in messages
-        )
-        if already_called:
+        call_count[0] += 1
+        if call_count[0] > 1:
             return ModelResponse(
                 parts=[TextPart(content="已查完 schema，继续回复。")]
             )
@@ -179,3 +177,40 @@ async def test_stream_emits_tool_call_and_result(test_settings):
 
     traces = [e for e in events if e["type"] == "trace"]
     assert len(traces) >= 2
+
+
+@pytest.mark.asyncio
+async def test_stream_fallback_to_result_output(test_settings):
+    """当 LLM 没有以 delta 方式返回文本时，full_output 应回退到 result.output。"""
+
+    call_count = [0]
+
+    def fn(messages: list[Any], info: AgentInfo) -> ModelResponse:
+        call_count[0] += 1
+        if call_count[0] > 1:
+            return ModelResponse(
+                parts=[TextPart(content="fallback response")]
+            )
+        return ModelResponse(
+            parts=[
+                ToolCallPart(
+                    tool_name="get_schema",
+                    args={},
+                    tool_call_id="call_fb_1",
+                )
+            ]
+        )
+
+    agent = Agent(
+        model=FunctionModel(fn),
+        deps_type=Settings,
+        tools=[get_schema],
+        capabilities=[HandleDeferredToolCalls(handler=_auto_approve_handler)],
+    )
+
+    chunks: list[str] = []
+    async for sse in stream_agent_response("fallback test", [], test_settings, agent=agent):
+        chunks.append(sse)
+
+    _, metadata = _parse_sse(chunks)
+    assert metadata.get("full_output") == "fallback response"
