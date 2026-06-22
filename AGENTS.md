@@ -36,3 +36,4 @@ cd frontend && npm run build      # TypeScript + Vite production build
 - Do NOT fix TypeScript / TSX type errors without explicit instruction — the user will inspect the files and provide the specific errors to address; do not modify `.ts` / `.tsx` files on your own initiative to resolve type issues
 - `main.py` with no args enters the dispatcher (text menu); with any arg delegates directly to the Typer CLI
 - `npm run dev` passes `--no-reload` to uvicorn to avoid reloader conflicts with concurrently; `npm run dev:api` does not
+- If there are any backend changes, prompt the user to restart the backend
