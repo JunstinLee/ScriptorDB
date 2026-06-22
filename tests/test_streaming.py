@@ -113,7 +113,7 @@ async def test_stream_emits_done_and_metadata(test_settings):
 
 @pytest.mark.asyncio
 async def test_stream_emits_run_start_and_end(test_settings):
-    """验证 run_start 和 metadata 事件被正确发出。"""
+    """验证 run_start、metadata 和 run_end 事件被正确发出。"""
     agent = Agent(
         model=TestModel(),
         deps_type=Settings,
@@ -129,11 +129,12 @@ async def test_stream_emits_run_start_and_end(test_settings):
     event_types = [e["type"] for e in events]
     assert "run_start" in event_types
     assert "metadata" in event_types
+    assert "run_end" in event_types
 
 
 @pytest.mark.asyncio
 async def test_stream_emits_tool_call_and_result(test_settings):
-    """核心验证：工具调用场景下必须出现 tool_call 和 tool_result 事件。"""
+    """核心验证：工具调用场景下必须出现 tool_call、tool_result、trace 和 run_end 事件。"""
 
     def fn(messages: list[Any], info: AgentInfo) -> ModelResponse:
         already_called = any(
@@ -155,15 +156,26 @@ async def test_stream_emits_tool_call_and_result(test_settings):
             ]
         )
 
-    m = FunctionModel(fn)
-
     agent = Agent(
-        model=m,
+        model=FunctionModel(fn),
         deps_type=Settings,
         tools=[get_schema],
         capabilities=[HandleDeferredToolCalls(handler=_auto_approve_handler)],
     )
 
-    result = await agent.run("看看", deps=test_settings)
+    chunks: list[str] = []
+    async for sse in stream_agent_response("看看", [], test_settings, agent=agent):
+        chunks.append(sse)
 
-    assert "schema" in result.output.lower() or "完成" in result.output or len(result.new_messages()) > 0
+    events = _parse_events(chunks)
+    event_types = [e["type"] for e in events]
+
+    assert "run_start" in event_types
+    assert "tool_call" in event_types
+    assert "tool_result" in event_types
+    assert "trace" in event_types
+    assert "metadata" in event_types
+    assert "run_end" in event_types
+
+    traces = [e for e in events if e["type"] == "trace"]
+    assert len(traces) >= 2

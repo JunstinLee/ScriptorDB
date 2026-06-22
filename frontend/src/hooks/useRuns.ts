@@ -124,6 +124,13 @@ export function useRuns() {
                   ended_at: new Date().toISOString(),
                 };
               }
+              case "run_end": {
+                return {
+                  ...run,
+                  status: "completed",
+                  ended_at: event.timestamp,
+                };
+              }
               default:
                 return run;
             }

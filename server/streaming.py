@@ -64,6 +64,7 @@ async def stream_agent_response(
     agent = agent or get_agent(model, provider)
     full_output = ""
     run_id = uuid.uuid4().hex[:12]
+    trace_step = 0
     queue: asyncio.Queue[str | None] = asyncio.Queue()
 
     if run_collector is not None:
@@ -84,7 +85,7 @@ async def stream_agent_response(
     })
 
     async def event_stream_handler(ctx: RunContext[Settings], events: Any) -> None:
-        nonlocal full_output
+        nonlocal full_output, trace_step
         async for event in events:
             if isinstance(event, FunctionToolCallEvent):
                 call_id = event.part.tool_call_id
@@ -110,6 +111,15 @@ async def stream_agent_response(
                     "call_id": call_id,
                     "tool_name": event.part.tool_name,
                     "args": args_dict,
+                    "timestamp": _utc_now_iso(),
+                }))
+
+                trace_step += 1
+                await queue.put(_sse_event("trace", {
+                    "type": "trace",
+                    "run_id": run_id,
+                    "step": trace_step,
+                    "message": f"调用工具 {event.part.tool_name}",
                     "timestamp": _utc_now_iso(),
                 }))
 
@@ -153,6 +163,15 @@ async def stream_agent_response(
                     "output": output,
                     "error_code": error_code,
                     "duration_ms": duration_ms,
+                    "timestamp": _utc_now_iso(),
+                }))
+
+                trace_step += 1
+                await queue.put(_sse_event("trace", {
+                    "type": "trace",
+                    "run_id": run_id,
+                    "step": trace_step,
+                    "message": f"工具 {tool_name} 执行{'成功' if success else '失败'}: {output or error_code or ''}",
                     "timestamp": _utc_now_iso(),
                 }))
 
@@ -231,6 +250,11 @@ async def stream_agent_response(
             "display_name": display_name,
             "provider_specific_id": settings.llm_model,
         })
+        yield _sse_event("run_end", {
+            "type": "run_end",
+            "run_id": run_id,
+            "timestamp": _utc_now_iso(),
+        })
 
     except Exception as e:
         if run_collector is not None:
@@ -244,6 +268,11 @@ async def stream_agent_response(
             "run_id": run_id,
             "message": str(e),
             "error_id": uuid.uuid4().hex[:12],
+        })
+        yield _sse_event("run_end", {
+            "type": "run_end",
+            "run_id": run_id,
+            "timestamp": _utc_now_iso(),
         })
     finally:
         _tool_start_times.clear()
