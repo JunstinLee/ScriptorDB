@@ -28,6 +28,7 @@ class Session:
     def __init__(self, session_id: str | None = None):
         self.session_id = session_id or uuid.uuid4().hex[:12]
         self.messages: list[MessageItem] = []
+        self.model_messages: list[ModelMessage] = []
         self.runs: list[StoredRun] = []
         self.created_at = datetime.utcnow()
         self.last_access = datetime.utcnow()
@@ -50,13 +51,16 @@ class Session:
         self.last_access = datetime.utcnow()
 
     def add_model_messages(self, new_messages: list[ModelMessage]) -> None:
-        pass
+        self.model_messages.extend(new_messages)
+        self.last_access = datetime.utcnow()
 
     def add_run(self, run: StoredRun) -> None:
         self.runs.append(run)
         self.last_access = datetime.utcnow()
 
     def get_model_messages(self) -> list[ModelMessage]:
+        if self.model_messages:
+            return self.model_messages.copy()
         return self._rebuild_model_messages()
 
 
@@ -177,6 +181,27 @@ class SessionStore:
                             session.runs.append(StoredRun(**r))
                         except Exception:
                             pass
+                for m in payload.get("model_messages", []):
+                    if isinstance(m, dict):
+                        try:
+                            msg_type = m.get("type")
+                            parts = m.get("parts", [])
+                            if msg_type == "ModelRequest":
+                                model_parts = []
+                                for p in parts:
+                                    if isinstance(p, dict) and p.get("type") == "UserPromptPart":
+                                        model_parts.append(UserPromptPart(content=p.get("content", "")))
+                                if model_parts:
+                                    session.model_messages.append(ModelRequest(parts=model_parts))
+                            elif msg_type == "ModelResponse":
+                                model_parts = []
+                                for p in parts:
+                                    if isinstance(p, dict) and p.get("type") == "TextPart":
+                                        model_parts.append(TextPart(content=p.get("content", "")))
+                                if model_parts:
+                                    session.model_messages.append(ModelResponse(parts=model_parts))
+                        except Exception:
+                            pass
                 self._sessions[sid] = session
             return
         self._rebuild_from_disk()
@@ -237,6 +262,27 @@ class SessionStore:
                         session.runs.append(StoredRun(**r))
                     except Exception:
                         pass
+            for m in payload.get("model_messages", []):
+                if isinstance(m, dict):
+                    try:
+                        msg_type = m.get("type")
+                        parts = m.get("parts", [])
+                        if msg_type == "ModelRequest":
+                            model_parts = []
+                            for p in parts:
+                                if isinstance(p, dict) and p.get("type") == "UserPromptPart":
+                                    model_parts.append(UserPromptPart(content=p.get("content", "")))
+                            if model_parts:
+                                session.model_messages.append(ModelRequest(parts=model_parts))
+                        elif msg_type == "ModelResponse":
+                            model_parts = []
+                            for p in parts:
+                                if isinstance(p, dict) and p.get("type") == "TextPart":
+                                    model_parts.append(TextPart(content=p.get("content", "")))
+                            if model_parts:
+                                session.model_messages.append(ModelResponse(parts=model_parts))
+                    except Exception:
+                        pass
             self._sessions[sid] = session
         if self._sessions:
             self._write_index()
@@ -245,6 +291,20 @@ class SessionStore:
         try:
             file_path = self._session_abspath(session)
             self._ensure_dir(file_path.parent)
+            model_msgs_data = []
+            for m in session.model_messages:
+                if isinstance(m, ModelRequest):
+                    parts_data = []
+                    for p in m.parts:
+                        if isinstance(p, UserPromptPart):
+                            parts_data.append({"type": "UserPromptPart", "content": p.content})
+                    model_msgs_data.append({"type": "ModelRequest", "parts": parts_data})
+                elif isinstance(m, ModelResponse):
+                    parts_data = []
+                    for p in m.parts:
+                        if isinstance(p, TextPart):
+                            parts_data.append({"type": "TextPart", "content": p.content})
+                    model_msgs_data.append({"type": "ModelResponse", "parts": parts_data})
             payload = {
                 "version": _PAYLOAD_VERSION,
                 "session_id": session.session_id,
@@ -258,6 +318,7 @@ class SessionStore:
                     }
                     for m in session.messages
                 ],
+                "model_messages": model_msgs_data,
                 "runs": [r.model_dump() for r in session.runs],
             }
             file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))

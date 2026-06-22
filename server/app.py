@@ -8,6 +8,7 @@ import httpx
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pydantic_ai.messages import ModelMessage
 
 from config.models import (
     get_recommended_models,
@@ -138,6 +139,7 @@ async def chat(session_id: str, req: ChatRequest):
 
     model_messages = session.get_model_messages()
     run_collector: dict[str, Any] = {}
+    new_messages_collector: list[ModelMessage] = []
 
     async def generate():
         async for sse_event in stream_agent_response(
@@ -147,8 +149,12 @@ async def chat(session_id: str, req: ChatRequest):
             model=req.model,
             provider=req.provider,
             run_collector=run_collector,
+            new_messages_collector=new_messages_collector,
         ):
             yield sse_event
+
+        if new_messages_collector:
+            session.add_model_messages(new_messages_collector)
 
         if run_collector.get("status") == "completed" and run_collector.get("final_output"):
             session.add_assistant_message(run_collector["final_output"])

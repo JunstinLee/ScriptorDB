@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json as json_mod
 import time
 import uuid
@@ -11,15 +12,14 @@ from agents.db_agent import get_agent
 from config.canonical_models import get_canonical_by_slug
 from config.models import fuzzy_match_model, resolve_canonical_slug
 from config.settings import Settings
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
     ModelMessage,
-    PartDeltaEvent,
-    PartEndEvent,
-    PartStartEvent,
+    ModelRequest,
     TextPartDelta,
+    UserPromptPart,
 )
 from tools.tool_result import ToolResult
 
@@ -52,6 +52,7 @@ async def stream_agent_response(
     provider: str | None = None,
     agent: Agent[Settings] | None = None,
     run_collector: dict[str, Any] | None = None,
+    new_messages_collector: list[ModelMessage] | None = None,
 ) -> AsyncIterator[str]:
     if provider:
         settings.llm_provider = provider
@@ -63,7 +64,7 @@ async def stream_agent_response(
     agent = agent or get_agent(model, provider)
     full_output = ""
     run_id = uuid.uuid4().hex[:12]
-    step_counter = 0
+    queue: asyncio.Queue[str | None] = asyncio.Queue()
 
     if run_collector is not None:
         run_collector.update({
@@ -82,103 +83,127 @@ async def stream_agent_response(
         "timestamp": _utc_now_iso(),
     })
 
-    try:
-        async with agent.run_stream_events(
-            prompt,
-            message_history=message_history if message_history else None,
-            deps=settings,
-        ) as event_stream:
-            async for event in event_stream:
-                if isinstance(event, PartStartEvent):
-                    step_counter += 1
-
-                elif isinstance(event, PartDeltaEvent) and isinstance(
-                    event.delta, TextPartDelta
-                ):
-                    content_delta = event.delta.content_delta
-                    if not content_delta:
-                        continue
-                    full_output += content_delta
-                    if run_collector is not None:
-                        run_collector["final_output"] = full_output
-                    yield _sse_event("text_delta", {
-                        "type": "text_delta",
-                        "run_id": run_id,
-                        "delta": content_delta,
-                    })
-
-                elif isinstance(event, FunctionToolCallEvent):
-                    call_id = event.part.tool_call_id
-                    _tool_start_times[call_id] = time.monotonic()
-                    args = event.part.args
-                    if isinstance(args, str):
-                        try:
-                            args = json_mod.loads(args)
-                        except json_mod.JSONDecodeError:
-                            args = {"raw": args}
-                    args_dict = args if isinstance(args, dict) else {"raw": str(args)}
-                    if run_collector is not None:
-                        run_collector["tool_invocations"].append({
-                            "call_id": call_id,
-                            "tool_name": event.part.tool_name,
-                            "args": args_dict,
-                            "status": "running",
-                            "started_at": _utc_now_iso(),
-                        })
-                    yield _sse_event("tool_call", {
-                        "type": "tool_call",
-                        "run_id": run_id,
+    async def event_stream_handler(ctx: RunContext[Settings], events: Any) -> None:
+        nonlocal full_output
+        async for event in events:
+            if isinstance(event, FunctionToolCallEvent):
+                call_id = event.part.tool_call_id
+                _tool_start_times[call_id] = time.monotonic()
+                args = event.part.args
+                if isinstance(args, str):
+                    try:
+                        args = json_mod.loads(args)
+                    except json_mod.JSONDecodeError:
+                        args = {"raw": args}
+                args_dict = args if isinstance(args, dict) else {"raw": str(args)}
+                if run_collector is not None:
+                    run_collector["tool_invocations"].append({
                         "call_id": call_id,
                         "tool_name": event.part.tool_name,
                         "args": args_dict,
-                        "timestamp": _utc_now_iso(),
+                        "status": "running",
+                        "started_at": _utc_now_iso(),
                     })
+                await queue.put(_sse_event("tool_call", {
+                    "type": "tool_call",
+                    "run_id": run_id,
+                    "call_id": call_id,
+                    "tool_name": event.part.tool_name,
+                    "args": args_dict,
+                    "timestamp": _utc_now_iso(),
+                }))
 
-                elif isinstance(event, FunctionToolResultEvent):
-                    call_id = event.part.tool_call_id if event.part else "unknown"
-                    tool_name = event.part.tool_name if event.part else "unknown"
-                    start = _tool_start_times.pop(call_id, None)
-                    duration_ms = (
-                        int((time.monotonic() - start) * 1000) if start else None
-                    )
+            elif isinstance(event, FunctionToolResultEvent):
+                call_id = event.part.tool_call_id if event.part else "unknown"
+                tool_name = event.part.tool_name if event.part else "unknown"
+                start = _tool_start_times.pop(call_id, None)
+                duration_ms = (
+                    int((time.monotonic() - start) * 1000) if start else None
+                )
 
-                    success = True
-                    output = None
-                    error_code = None
-                    content = event.part.content if event.part else None
-                    if isinstance(content, ToolResult):
-                        success = content.success
-                        output = content.output
-                        if content.error:
-                            error_code = content.error.category
-                            output = content.error.message
-                    elif isinstance(content, str):
-                        output = content
+                success = True
+                output = None
+                error_code = None
+                content = event.part.content if event.part else None
+                if isinstance(content, ToolResult):
+                    success = content.success
+                    output = content.output
+                    if content.error:
+                        error_code = content.error.category
+                        output = content.error.message
+                elif isinstance(content, str):
+                    output = content
 
-                    if run_collector is not None:
-                        for inv in run_collector["tool_invocations"]:
-                            if inv["call_id"] == call_id:
-                                inv["status"] = "success" if success else "error"
-                                inv["output"] = output
-                                inv["error_code"] = error_code
-                                inv["duration_ms"] = duration_ms
-                                inv["ended_at"] = _utc_now_iso()
-                                break
+                if run_collector is not None:
+                    for inv in run_collector["tool_invocations"]:
+                        if inv["call_id"] == call_id:
+                            inv["status"] = "success" if success else "error"
+                            inv["output"] = output
+                            inv["error_code"] = error_code
+                            inv["duration_ms"] = duration_ms
+                            inv["ended_at"] = _utc_now_iso()
+                            break
 
-                    yield _sse_event("tool_result", {
-                        "type": "tool_result",
-                        "run_id": run_id,
-                        "call_id": call_id,
-                        "tool_name": tool_name,
-                        "success": success,
-                        "output": output,
-                        "error_code": error_code,
-                        "duration_ms": duration_ms,
-                        "timestamp": _utc_now_iso(),
-                    })
+                await queue.put(_sse_event("tool_result", {
+                    "type": "tool_result",
+                    "run_id": run_id,
+                    "call_id": call_id,
+                    "tool_name": tool_name,
+                    "success": success,
+                    "output": output,
+                    "error_code": error_code,
+                    "duration_ms": duration_ms,
+                    "timestamp": _utc_now_iso(),
+                }))
 
-                elif isinstance(event, PartEndEvent):
-                    pass
+            else:
+                event_str = str(event)
+                if "TextPartDelta" in event_str or "content_delta" in event_str:
+                    if hasattr(event, "delta") and isinstance(event.delta, TextPartDelta):
+                        content_delta = event.delta.content_delta
+                        if content_delta:
+                            full_output += content_delta
+                            if run_collector is not None:
+                                run_collector["final_output"] = full_output
+                            await queue.put(_sse_event("text_delta", {
+                                "type": "text_delta",
+                                "run_id": run_id,
+                                "delta": content_delta,
+                            }))
+
+        await queue.put(None)
+
+    async def run_agent() -> Any:
+        return await agent.run(
+            prompt,
+            message_history=message_history if message_history else None,
+            deps=settings,
+            event_stream_handler=event_stream_handler,
+        )
+
+    run_task = asyncio.create_task(run_agent())
+
+    try:
+        while True:
+            sse = await queue.get()
+            if sse is None:
+                break
+            yield sse
+
+        result = await run_task
+
+        if new_messages_collector is not None:
+            new_messages = result.new_messages()
+            if (
+                new_messages
+                and isinstance(new_messages[0], ModelRequest)
+                and all(
+                    isinstance(p, UserPromptPart)
+                    for p in new_messages[0].parts
+                )
+            ):
+                new_messages = new_messages[1:]
+            new_messages_collector.extend(new_messages)
 
         canonical_slug = None
         display_name = None
