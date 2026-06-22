@@ -1,5 +1,6 @@
 import type { Run } from "../types";
 import TraceList from "./TraceList";
+import MarkdownRenderer from "./common/MarkdownRenderer";
 
 interface RunContainerProps {
   run: Run;
@@ -10,9 +11,7 @@ export default function RunContainer({ run }: RunContainerProps) {
     <div className="rounded-xl overflow-hidden">
       {run.final_output && (
         <div className="px-4 py-3">
-          <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-            {run.final_output}
-          </div>
+          <MarkdownRenderer content={run.final_output} />
         </div>
       )}
 

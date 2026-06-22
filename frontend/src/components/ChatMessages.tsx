@@ -3,6 +3,7 @@ import { Wrench } from "lucide-react";
 import type { ChatMessage, Run } from "../types";
 import ChatAvatar from "./common/ChatAvatar";
 import RunContainer from "./RunContainer";
+import MarkdownRenderer from "./common/MarkdownRenderer";
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
@@ -67,10 +68,8 @@ export default function ChatMessages({
         return (
           <div key={`msg-${i}`} className="flex gap-3 justify-start">
             <ChatAvatar role="assistant" />
-            <div className="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-surface text-surface-foreground border">
-              <div className="whitespace-pre-wrap break-words">
-                {msg.content}
-              </div>
+            <div className="max-w-[75%] rounded-2xl px-4 py-2.5 bg-surface text-surface-foreground border">
+              <MarkdownRenderer content={msg.content} />
             </div>
           </div>
         );
