@@ -87,6 +87,8 @@ class HealthResponse(BaseModel):
     status: str
     provider: str
     model: str
+    workspace_id: str | None = None
+    workspace_name: str | None = None
 
 
 class ModelsResponse(BaseModel):
@@ -131,6 +133,7 @@ class SettingsResponse(BaseModel):
     auto_restore_sessions: bool
     providers: list[ProviderInfo]
     providers_with_keys: list[str]
+    workspace_id: str | None = None
 
 
 class SettingsUpdateRequest(BaseModel):
@@ -218,3 +221,41 @@ class ErrorEvent(BaseModel):
     type: Literal["error"] = "error"
     message: str
     error_id: str | None = None
+
+
+class WorkspaceCreateRequest(BaseModel):
+    name: str | None = None
+    path: str
+    db_url: str | None = None
+
+
+class WorkspaceActivateRequest(BaseModel):
+    workspace_id: str | None = None
+
+
+class WorkspaceItem(BaseModel):
+    id: str
+    name: str
+    path: str
+    created_at: str
+    is_active: bool = False
+
+
+class WorkspaceDetail(WorkspaceItem):
+    db_url: str
+    llm_provider: str
+    llm_model: str | None = None
+
+
+class WorkspaceListResponse(BaseModel):
+    workspaces: list[WorkspaceItem]
+    active_workspace_id: str | None = None
+
+
+class ActiveWorkspaceResponse(BaseModel):
+    workspace: WorkspaceDetail | None = None
+
+
+class WorkspaceDeleteResponse(BaseModel):
+    ok: bool
+    deleted_files: bool = False

@@ -25,21 +25,31 @@ def _auto_approve_handler(
 
 
 _agent: Agent[Settings] | None = None
+_agent_signature: tuple[str, str, str | None] | None = None
+
+
+def reset_agent_cache() -> None:
+    """切换工作区或修改 provider/model 时清空 agent 缓存。"""
+    global _agent, _agent_signature
+    _agent = None
+    _agent_signature = None
 
 
 def get_agent(model: str | None = None, provider: str | None = None) -> Agent[Settings]:
-    global _agent
-    if _agent is None or model is not None or provider is not None:
-        active_provider = provider or Settings().llm_provider
-        resolved_model = (
-            resolve_model(active_provider, model) if model else Settings().resolved_model
-        )
+    global _agent, _agent_signature
+    settings = Settings()
+    active_provider = provider or settings.llm_provider
+    resolved_model = (
+        resolve_model(active_provider, model) if model else settings.resolved_model
+    )
+    signature = (active_provider, resolved_model, settings.workspace_id)
 
+    if _agent is None or _agent_signature != signature or model is not None or provider is not None:
         audit_hooks = build_audit_hooks()
         approval = HandleDeferredToolCalls(handler=_auto_approve_handler)
 
         if active_provider in ("nim", "together"):
-            api_key = get_api_key(active_provider)
+            api_key = get_api_key(active_provider, settings.workspace_id)
             config = SUPPORTED_PROVIDERS[active_provider]
             model_name = resolved_model.split(":", 1)[-1]
             _agent = Agent(
@@ -58,4 +68,5 @@ def get_agent(model: str | None = None, provider: str | None = None) -> Agent[Se
                 toolsets=[read_toolset, write_toolset, viz_toolset],
                 capabilities=[audit_hooks, approval],
             )
+        _agent_signature = signature
     return _agent

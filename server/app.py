@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -10,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
+from agents.db_agent import reset_agent_cache
 from config.models import (
     get_recommended_models,
     list_available_models,
@@ -17,8 +19,17 @@ from config.models import (
     resolve_canonical_slug,
 )
 from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, get_api_key, save_api_key
-from config.settings import settings
+from config.settings import load_default_workspace, settings
+from config.workspace import (
+    WorkspaceAlreadyExistsError,
+    WorkspaceNotFoundError,
+    WorkspaceNotSelectedError,
+    WorkspaceRegistry,
+    WorkspaceSettings,
+    workspace_sessions_dir,
+)
 from server.schemas import (
+    ActiveWorkspaceResponse,
     ApiKeyRequest,
     ApiKeyTestResponse,
     CanonicalModelItem,
@@ -41,15 +52,29 @@ from server.schemas import (
     SettingsUpdateRequest,
     StoredRun,
     StoredToolInvocation,
+    WorkspaceActivateRequest,
+    WorkspaceCreateRequest,
+    WorkspaceDeleteResponse,
+    WorkspaceDetail,
+    WorkspaceItem,
+    WorkspaceListResponse,
 )
-from server.sessions import session_store
+from server.sessions import SessionStore, session_store
 from server.streaming import stream_agent_response
+
+
+def _reload_session_store(workspace_path: Path) -> None:
+    global session_store
+    target = workspace_sessions_dir(workspace_path)
+    session_store = SessionStore(storage_path=target)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+    load_default_workspace()
+    if settings.workspace_path is not None:
+        _reload_session_store(settings.workspace_path)
     yield
-    session_store.cleanup_expired()
 
 
 app = FastAPI(title="ScriptorDB API", lifespan=lifespan)
@@ -63,21 +88,176 @@ app.add_middleware(
 )
 
 
+def _require_workspace() -> None:
+    if not settings.workspace_id:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "detail": "No active workspace",
+                "code": "WORKSPACE_NOT_SELECTED",
+            },
+        )
+
+
 @app.get("/api/health", response_model=HealthResponse)
 async def health():
     try:
-        model = settings.resolved_model
+        model = settings.resolved_model if settings.workspace_id else (
+            settings.llm_model or "(not configured)"
+        )
     except Exception:
         model = settings.llm_model or "(not configured)"
     return HealthResponse(
         status="ok",
         provider=settings.llm_provider,
         model=model,
+        workspace_id=settings.workspace_id,
+        workspace_name=settings.workspace_name,
     )
+
+
+@app.get("/api/workspaces", response_model=WorkspaceListResponse)
+async def list_workspaces():
+    registry = WorkspaceRegistry()
+    items = [
+        WorkspaceItem(
+            id=rec.id,
+            name=rec.name,
+            path=rec.path,
+            created_at=rec.created_at,
+            is_active=(rec.id == settings.workspace_id),
+        )
+        for rec in registry.list()
+    ]
+    return WorkspaceListResponse(
+        workspaces=items,
+        active_workspace_id=settings.workspace_id,
+    )
+
+
+@app.post("/api/workspaces", response_model=WorkspaceItem)
+async def create_workspace(req: WorkspaceCreateRequest):
+    if not req.path:
+        raise HTTPException(status_code=400, detail="path is required")
+    target = Path(req.path).expanduser()
+    if not target.exists():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Workspace path does not exist: {target}",
+        )
+    if not target.is_dir():
+        raise HTTPException(
+            status_code=400,
+            detail=f"Workspace path is not a directory: {target}",
+        )
+    registry = WorkspaceRegistry()
+    try:
+        rec = registry.create(target, name=req.name, db_url=req.db_url)
+    except WorkspaceAlreadyExistsError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return WorkspaceItem(
+        id=rec.id,
+        name=rec.name,
+        path=rec.path,
+        created_at=rec.created_at,
+        is_active=False,
+    )
+
+
+@app.get("/api/workspaces/active", response_model=ActiveWorkspaceResponse)
+async def get_active_workspace():
+    if not settings.workspace_id or not settings.workspace_path:
+        return ActiveWorkspaceResponse(workspace=None)
+    ws_settings = WorkspaceSettings.load(
+        settings.workspace_path, settings.workspace_id, settings.workspace_name or ""
+    )
+    return ActiveWorkspaceResponse(
+        workspace=WorkspaceDetail(
+            id=settings.workspace_id,
+            name=settings.workspace_name or "",
+            path=str(settings.workspace_path),
+            created_at="",
+            is_active=True,
+            db_url=ws_settings.db_url,
+            llm_provider=ws_settings.llm_provider,
+            llm_model=ws_settings.llm_model,
+        )
+    )
+
+
+@app.get("/api/workspaces/{workspace_id}", response_model=WorkspaceDetail)
+async def get_workspace(workspace_id: str):
+    registry = WorkspaceRegistry()
+    try:
+        rec = registry.get(workspace_id)
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    ws_path = Path(rec.path)
+    ws_settings = WorkspaceSettings.load(ws_path, rec.id, rec.name)
+    return WorkspaceDetail(
+        id=rec.id,
+        name=rec.name,
+        path=rec.path,
+        created_at=rec.created_at,
+        is_active=(rec.id == settings.workspace_id),
+        db_url=ws_settings.db_url,
+        llm_provider=ws_settings.llm_provider,
+        llm_model=ws_settings.llm_model,
+    )
+
+
+@app.post("/api/workspaces/{workspace_id}/activate", response_model=WorkspaceDetail)
+async def activate_workspace(workspace_id: str):
+    registry = WorkspaceRegistry()
+    try:
+        rec = registry.get(workspace_id)
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    settings.load_for_workspace(rec.id)
+    registry.set_last_active(rec.id)
+    ws_path = settings.workspace_path
+    if ws_path is None:
+        raise HTTPException(status_code=500, detail="Workspace path missing")
+    _reload_session_store(ws_path)
+    reset_agent_cache()
+    ws_settings = WorkspaceSettings.load(ws_path, settings.workspace_id or rec.id, settings.workspace_name or rec.name)
+    return WorkspaceDetail(
+        id=rec.id,
+        name=rec.name,
+        path=rec.path,
+        created_at=rec.created_at,
+        is_active=True,
+        db_url=ws_settings.db_url,
+        llm_provider=ws_settings.llm_provider,
+        llm_model=ws_settings.llm_model,
+    )
+
+
+@app.post("/api/workspaces/activate", response_model=WorkspaceDetail)
+async def activate_workspace_by_body(req: WorkspaceActivateRequest):
+    if not req.workspace_id:
+        raise HTTPException(status_code=400, detail="workspace_id is required")
+    return await activate_workspace(req.workspace_id)
+
+
+@app.delete("/api/workspaces/{workspace_id}", response_model=WorkspaceDeleteResponse)
+async def delete_workspace(workspace_id: str, delete_files: bool = False):
+    registry = WorkspaceRegistry()
+    try:
+        registry.get(workspace_id)
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    was_active = settings.workspace_id == workspace_id
+    registry.remove(workspace_id, delete_files=delete_files)
+    if was_active:
+        settings.clear()
+        reset_agent_cache()
+    return WorkspaceDeleteResponse(ok=True, deleted_files=delete_files)
 
 
 @app.post("/api/sessions", response_model=SessionCreateResponse)
 async def create_session():
+    _require_workspace()
     session = session_store.create()
     return SessionCreateResponse(session_id=session.session_id)
 
@@ -85,6 +265,7 @@ async def create_session():
 @app.get("/api/sessions", response_model=SessionListResponse)
 async def list_sessions():
     """List all active sessions (metadata only, no message bodies)."""
+    _require_workspace()
     sessions = session_store.list_sessions()
     items: list[SessionListItem] = []
     for s in sessions:
@@ -111,6 +292,7 @@ async def list_sessions():
 
 @app.get("/api/sessions/{session_id}", response_model=SessionInfo)
 async def get_session(session_id: str):
+    _require_workspace()
     session = session_store.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -124,6 +306,7 @@ async def get_session(session_id: str):
 
 @app.delete("/api/sessions/{session_id}")
 async def delete_session(session_id: str):
+    _require_workspace()
     if not session_store.delete(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
     return {"ok": True}
@@ -131,6 +314,7 @@ async def delete_session(session_id: str):
 
 @app.post("/api/sessions/{session_id}/chat")
 async def chat(session_id: str, req: ChatRequest):
+    _require_workspace()
     session = session_store.get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -188,6 +372,7 @@ async def chat(session_id: str, req: ChatRequest):
 
 @app.get("/api/schema", response_model=SchemaResponse)
 async def get_schema():
+    _require_workspace()
     import sqlite3
 
     db_path = settings.db_url.replace("sqlite:///", "")
@@ -306,7 +491,8 @@ async def get_settings():
         for name, cfg in SUPPORTED_PROVIDERS.items()
     ]
     providers_with_keys = [
-        name for name in SUPPORTED_PROVIDERS.keys() if get_api_key(name)
+        name for name in SUPPORTED_PROVIDERS.keys()
+        if get_api_key(name, settings.workspace_id)
     ]
     return SettingsResponse(
         llm_provider=settings.llm_provider,
@@ -316,11 +502,13 @@ async def get_settings():
         auto_restore_sessions=settings.auto_restore_sessions,
         providers=providers,
         providers_with_keys=providers_with_keys,
+        workspace_id=settings.workspace_id,
     )
 
 
 @app.post("/api/settings", response_model=SettingsResponse)
 async def update_settings(req: SettingsUpdateRequest):
+    _require_workspace()
     if req.llm_provider is not None:
         if req.llm_provider not in SUPPORTED_PROVIDERS:
             raise HTTPException(
@@ -353,7 +541,7 @@ async def set_api_key(req: ApiKeyRequest):
         )
     if not req.api_key.strip():
         raise HTTPException(status_code=400, detail="API key cannot be empty")
-    save_api_key(req.provider, req.api_key.strip())
+    save_api_key(req.provider, req.api_key.strip(), settings.workspace_id)
     return ApiKeyTestResponse(ok=True)
 
 
@@ -364,7 +552,7 @@ async def delete_provider_key(provider: str):
             status_code=400, detail=f"Unsupported provider: {provider}"
         )
     try:
-        delete_api_key(provider)
+        delete_api_key(provider, settings.workspace_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
     return ApiKeyTestResponse(ok=True)

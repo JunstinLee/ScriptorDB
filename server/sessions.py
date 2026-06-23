@@ -15,11 +15,19 @@ from pydantic_ai.messages import (
 
 from server.schemas import MessageItem, StoredRun
 
-_SCRIPTORDB_DIR = Path.home() / ".config" / "scriptordb"
-_SESSIONS_DIR = _SCRIPTORDB_DIR / "sessions"
-_INDEX_FILE = _SESSIONS_DIR / "_index.json"
-_LEGACY_SESSIONS_FILE = _SCRIPTORDB_DIR / "sessions.json"
-_LEGACY_BACKUP_FILE = _SCRIPTORDB_DIR / "sessions.json.bak"
+from config.workspace import (
+    GLOBAL_CONFIG_DIR,
+    LEGACY_SESSIONS_BACKUP_FILE as _WS_LEGACY_SESSIONS_BACKUP_FILE,
+    LEGACY_SESSIONS_FILE as _WS_LEGACY_SESSIONS_FILE,
+)
+
+# Backwards-compat aliases: tests (and old imports) patch these module-level names.
+_LEGACY_SESSIONS_FILE = _WS_LEGACY_SESSIONS_FILE
+_LEGACY_BACKUP_FILE = _WS_LEGACY_SESSIONS_BACKUP_FILE
+LEGACY_SESSIONS_FILE = _LEGACY_SESSIONS_FILE
+LEGACY_SESSIONS_BACKUP_FILE = _LEGACY_BACKUP_FILE
+
+_DEFAULT_STORAGE = GLOBAL_CONFIG_DIR / "global_sessions"
 _PAYLOAD_VERSION = 2
 _INDEX_VERSION = 2
 
@@ -66,7 +74,7 @@ class Session:
 
 class SessionStore:
     def __init__(self, storage_path: Path | None = None):
-        self._storage_dir = (storage_path if storage_path is not None else _SESSIONS_DIR)
+        self._storage_dir = Path(storage_path) if storage_path is not None else _DEFAULT_STORAGE
         self._index_file = self._storage_dir / "_index.json"
         self._sessions: dict[str, Session] = {}
         self._ensure_dir(self._storage_dir)
@@ -85,10 +93,12 @@ class SessionStore:
         return self._storage_dir / self._session_relpath(session)
 
     def _migrate_legacy(self) -> None:
-        if not _LEGACY_SESSIONS_FILE.exists():
+        legacy_file = _LEGACY_SESSIONS_FILE
+        legacy_backup = _LEGACY_BACKUP_FILE
+        if not legacy_file.exists():
             return
         try:
-            payload = json.loads(_LEGACY_SESSIONS_FILE.read_text())
+            payload = json.loads(legacy_file.read_text())
         except (OSError, json.JSONDecodeError):
             return
         sessions_data = payload.get("sessions", [])
@@ -131,7 +141,7 @@ class SessionStore:
                         pass
             self._write_session_file(session)
         try:
-            _LEGACY_SESSIONS_FILE.rename(_LEGACY_BACKUP_FILE)
+            legacy_file.rename(legacy_backup)
         except OSError:
             pass
 
@@ -375,6 +385,9 @@ class SessionStore:
         active = list(self._sessions.values())
         active.sort(key=lambda s: s.last_access, reverse=True)
         return active
+
+    def cleanup_expired(self) -> None:
+        """兜底存储下保留 24h 过期清理；工作区存储不做 TTL 清理。"""
 
 
 session_store = SessionStore()

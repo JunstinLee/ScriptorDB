@@ -4,19 +4,41 @@ from dataclasses import dataclass
 
 import keyring
 
-SERVICE = "ScriptorDB"
+LEGACY_SERVICE = "ScriptorDB"
 
 
-def get_api_key(provider: str) -> str | None:
-    return keyring.get_password(SERVICE, provider)
+def _service(workspace_id: str | None) -> str:
+    if workspace_id:
+        return f"scriptordb:{workspace_id}"
+    return LEGACY_SERVICE
 
 
-def save_api_key(provider: str, key: str) -> None:
-    keyring.set_password(SERVICE, provider, key)
+def get_api_key(provider: str, workspace_id: str | None = None) -> str | None:
+    value = keyring.get_password(_service(workspace_id), provider)
+    if value is None and workspace_id is not None:
+        value = keyring.get_password(LEGACY_SERVICE, provider)
+    return value
 
 
-def delete_api_key(provider: str) -> None:
-    keyring.delete_password(SERVICE, provider)
+def save_api_key(provider: str, key: str, workspace_id: str | None = None) -> None:
+    keyring.set_password(_service(workspace_id), provider, key)
+
+
+def _safe_delete(service: str, provider: str) -> None:
+    try:
+        keyring.delete_password(service, provider)
+    except Exception:
+        pass
+
+
+def delete_api_key(provider: str, workspace_id: str | None = None) -> None:
+    _safe_delete(_service(workspace_id), provider)
+    if workspace_id is not None:
+        _safe_delete(LEGACY_SERVICE, provider)
+
+
+def has_api_key(provider: str, workspace_id: str | None = None) -> bool:
+    return get_api_key(provider, workspace_id) is not None
 
 
 @dataclass(frozen=True)

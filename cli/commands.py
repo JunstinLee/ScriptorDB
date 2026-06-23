@@ -2,19 +2,50 @@ from __future__ import annotations
 
 import asyncio
 import getpass
-from typing import Annotated
+from pathlib import Path
+from typing import Annotated, Optional
 
 import typer
 
 from agents.db_agent import get_agent
 from cli import app
+from cli import workspace_cli  # noqa: F401
 from config.models import fuzzy_match_model, list_available_models
 from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, save_api_key
-from config.settings import settings
+from config.settings import load_default_workspace, settings
+from config.workspace import (
+    WorkspaceAlreadyExistsError,
+    WorkspaceNotFoundError,
+    WorkspaceNotSelectedError,
+    WorkspaceRegistry,
+)
+
+
+def _ensure_workspace() -> bool:
+    if settings.workspace_id:
+        return True
+    if load_default_workspace():
+        return True
+    typer.echo(
+        "No active workspace. Run 'python main.py workspace list' to create or select one.",
+        err=True,
+    )
+    return False
 
 
 @app.command()
-def setup():
+def setup(
+    workspace: Annotated[Optional[str], typer.Option("--workspace", help="临时工作区 ID")] = None,
+):
+    if workspace:
+        try:
+            settings.load_for_workspace(workspace)
+        except WorkspaceNotFoundError as e:
+            typer.echo(str(e), err=True)
+            raise typer.Exit(1)
+    elif not _ensure_workspace():
+        raise typer.Exit(1)
+
     providers = list(SUPPORTED_PROVIDERS.keys())
     typer.echo("Available LLM providers:\n")
     for i, p in enumerate(providers, 1):
@@ -36,8 +67,9 @@ def setup():
         typer.echo("API key cannot be empty.", err=True)
         raise typer.Exit(1)
 
-    save_api_key(provider, api_key)
+    save_api_key(provider, api_key, settings.workspace_id)
     settings.llm_provider = provider
+    settings._persist()
     typer.echo(f"\nAPI key for {provider} saved to system keychain.")
 
     try:
@@ -69,10 +101,20 @@ def setup():
 
 
 @app.command()
-def forget():
+def forget(
+    workspace: Annotated[Optional[str], typer.Option("--workspace", help="临时工作区 ID")] = None,
+):
+    if workspace:
+        try:
+            settings.load_for_workspace(workspace)
+        except WorkspaceNotFoundError as e:
+            typer.echo(str(e), err=True)
+            raise typer.Exit(1)
+    elif not _ensure_workspace():
+        raise typer.Exit(1)
     provider = settings.llm_provider
     try:
-        delete_api_key(provider)
+        delete_api_key(provider, settings.workspace_id)
         typer.echo(f"Removed API key for {provider} from keychain.")
     except Exception:
         typer.echo(f"No key found for {provider}.", err=True)
@@ -81,8 +123,17 @@ def forget():
 @app.command()
 def models(
     provider: Annotated[str | None, typer.Option("--provider", "-p")] = None,
+    workspace: Annotated[Optional[str], typer.Option("--workspace", help="临时工作区 ID")] = None,
 ):
     """List available models for the given (or current) provider."""
+    if workspace:
+        try:
+            settings.load_for_workspace(workspace)
+        except WorkspaceNotFoundError as e:
+            typer.echo(str(e), err=True)
+            raise typer.Exit(1)
+    elif not _ensure_workspace():
+        raise typer.Exit(1)
     p = provider or settings.llm_provider
     try:
         ms = list_available_models(p)
@@ -98,7 +149,17 @@ def ask(
     prompt: Annotated[str, typer.Argument(help="自然语言数据库操作请求")],
     model: Annotated[str | None, typer.Option("--model", "-m")] = None,
     provider: Annotated[str | None, typer.Option("--provider", "-p")] = None,
+    workspace: Annotated[Optional[str], typer.Option("--workspace", help="临时工作区 ID")] = None,
 ):
+    if workspace:
+        try:
+            settings.load_for_workspace(workspace)
+        except WorkspaceNotFoundError as e:
+            typer.echo(str(e), err=True)
+            raise typer.Exit(1)
+    elif not _ensure_workspace():
+        raise typer.Exit(1)
+
     if provider:
         settings.llm_provider = provider
 
@@ -117,10 +178,20 @@ def ask(
 def interactive(
     provider: Annotated[str | None, typer.Option("--provider", "-p")] = None,
     model: Annotated[str | None, typer.Option("--model", "-m")] = None,
+    workspace: Annotated[Optional[str], typer.Option("--workspace", help="临时工作区 ID")] = None,
 ):
     import readline
     from rich.console import Console
     from rich.markdown import Markdown
+
+    if workspace:
+        try:
+            settings.load_for_workspace(workspace)
+        except WorkspaceNotFoundError as e:
+            typer.echo(str(e), err=True)
+            raise typer.Exit(1)
+    elif not _ensure_workspace():
+        raise typer.Exit(1)
 
     if provider:
         settings.llm_provider = provider
@@ -156,5 +227,12 @@ def serve(
 ):
     import uvicorn
 
+    load_default_workspace()
     typer.echo(f"Starting ScriptorDB API server at http://{host}:{port}")
+    if settings.workspace_id:
+        typer.echo(
+            f"Active workspace: {settings.workspace_name} ({settings.workspace_id}) @ {settings.workspace_path}"
+        )
+    else:
+        typer.echo("No active workspace — endpoints requiring one will return 409.")
     uvicorn.run("server.app:app", host=host, port=port, reload=reload)
