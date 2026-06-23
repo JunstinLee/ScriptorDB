@@ -1,4 +1,5 @@
 import type { ChatRequest, StreamRunEvent } from "../types";
+import { WorkspaceNotSelectedError } from "./core";
 
 const BASE = "/api";
 
@@ -6,7 +7,7 @@ export function streamChat(
   sessionId: string,
   body: ChatRequest,
   onEvent: (event: StreamRunEvent) => void,
-  onError: (error: string) => void,
+  onError: (error: Error) => void,
   onDone: (fullOutput: string) => void,
 ): AbortController {
   const controller = new AbortController();
@@ -21,7 +22,14 @@ export function streamChat(
       });
 
       if (!res.ok || !res.body) {
-        onError(`HTTP ${res.status}`);
+        if (res.status === 409) {
+          const text = await res.text().catch(() => "");
+          if (text.includes("WORKSPACE_NOT_SELECTED")) {
+            onError(new WorkspaceNotSelectedError(text));
+            return;
+          }
+        }
+        onError(new Error(`HTTP ${res.status}`));
         return;
       }
 
@@ -53,7 +61,7 @@ export function streamChat(
                 if (obj.type === "metadata") {
                   onDone(obj.full_output ?? "");
                 } else if (obj.type === "error") {
-                  onError(obj.message);
+                  onError(new Error(obj.message));
                 }
               } catch {
                 // non-JSON data line, ignore
@@ -83,7 +91,7 @@ export function streamChat(
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      onError(err instanceof Error ? err.message : "Unknown error");
+      onError(err instanceof Error ? err : new Error("Unknown error"));
     }
   })();
 

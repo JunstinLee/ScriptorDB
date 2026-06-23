@@ -3,6 +3,8 @@ import { Label } from "@heroui/react";
 import { PROVIDERS } from "../constants";
 import { useModelSelector } from "../hooks/useModelSelector";
 import { getSessionDisplayName } from "../utils/display";
+import type { WorkspaceDetail, WorkspaceItem } from "../types";
+import WorkspaceSwitcher from "./WorkspaceSwitcher";
 
 interface ChatHeaderProps {
   activeSessionId: string | null;
@@ -10,6 +12,12 @@ interface ChatHeaderProps {
   showSessionIdHover: boolean;
   settingsChanged: number;
   onSelectionChange: (model: string, provider: string) => void;
+  activeWorkspace: WorkspaceDetail | null;
+  workspaces: WorkspaceItem[];
+  switchingWorkspace: boolean;
+  onSwitchWorkspace: (id: string) => void;
+  onRequestNewWorkspace: () => void;
+  onOpenWorkspaceSettings: () => void;
 }
 
 export default function ChatHeader({
@@ -18,6 +26,12 @@ export default function ChatHeader({
   showSessionIdHover,
   settingsChanged,
   onSelectionChange,
+  activeWorkspace,
+  workspaces,
+  switchingWorkspace,
+  onSwitchWorkspace,
+  onRequestNewWorkspace,
+  onOpenWorkspaceSettings,
 }: ChatHeaderProps) {
   const {
     provider,
@@ -49,14 +63,26 @@ export default function ChatHeader({
 
   return (
     <div className="flex items-center justify-between border-b px-4 py-2.5">
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted">Session:</span>
-        <span
-          className="text-xs font-medium"
-          title={showSessionIdHover ? activeSessionId : undefined}
-        >
-          {getSessionDisplayName(activeSessionTitle)}
-        </span>
+      <div className="flex items-center gap-3">
+        {activeWorkspace && (
+          <WorkspaceSwitcher
+            activeWorkspace={activeWorkspace}
+            workspaces={workspaces}
+            disabled={switchingWorkspace}
+            onSwitch={onSwitchWorkspace}
+            onOpenSettings={onOpenWorkspaceSettings}
+            onRequestNew={onRequestNewWorkspace}
+          />
+        )}
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted">Session:</span>
+          <span
+            className="text-xs font-medium"
+            title={showSessionIdHover ? activeSessionId : undefined}
+          >
+            {getSessionDisplayName(activeSessionTitle)}
+          </span>
+        </div>
       </div>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1.5">

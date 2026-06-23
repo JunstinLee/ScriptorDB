@@ -108,7 +108,43 @@ export interface ProviderInfo {
   base_url: string;
 }
 
+export interface WorkspaceItem {
+  id: string;
+  name: string;
+  path: string;
+  created_at: string;
+}
+
+export interface WorkspaceDetail extends WorkspaceItem {
+  db_url: string;
+  llm_provider: string;
+  llm_model: string | null;
+}
+
+export interface ActiveWorkspaceResponse {
+  workspace: WorkspaceDetail | null;
+}
+
+export interface WorkspaceListResponse {
+  workspaces: WorkspaceItem[];
+}
+
+export interface WorkspaceCreateRequest {
+  name: string;
+  path: string;
+  db_url?: string | null;
+}
+
+export interface WorkspaceActivateRequest {
+  workspace_id: string;
+}
+
+export interface WorkspaceUpdateRequest {
+  name?: string;
+}
+
 export interface SettingsResponse {
+  workspace_id: string | null;
   llm_provider: string;
   db_url: string;
   llm_model: string | null;

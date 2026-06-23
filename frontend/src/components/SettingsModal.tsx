@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal, Tabs } from "@heroui/react";
-import { Key, MessageSquare, Settings as SettingsIcon } from "lucide-react";
+import {
+  Folder,
+  Key,
+  MessageSquare,
+  Settings as SettingsIcon,
+} from "lucide-react";
 import { fetchSettings } from "../api/client";
-import type { SettingsResponse } from "../types";
+import type { SettingsResponse, WorkspaceDetail } from "../types";
 import AlertBanner from "./common/AlertBanner";
 import ApiKeysTab from "./settings/ApiKeysTab";
 import DefaultsTab from "./settings/DefaultsTab";
 import SessionsTab from "./settings/SessionsTab";
+import WorkspacesTab from "./settings/WorkspacesTab";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -16,6 +22,10 @@ interface SettingsModalProps {
   setShowSessionIdHover: (v: boolean) => void;
   showSchemaSql: boolean;
   setShowSchemaSql: (v: boolean) => void;
+  activeWorkspace: WorkspaceDetail | null;
+  workspacesCount: number;
+  onWorkspaceChanged: () => void;
+  onOpenWorkspacePicker: () => void;
 }
 
 export default function SettingsModal({
@@ -26,6 +36,10 @@ export default function SettingsModal({
   setShowSessionIdHover,
   showSchemaSql,
   setShowSchemaSql,
+  activeWorkspace,
+  workspacesCount,
+  onWorkspaceChanged,
+  onOpenWorkspacePicker,
 }: SettingsModalProps) {
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -66,12 +80,17 @@ export default function SettingsModal({
                 Loading…
               </div>
             ) : (
-              <Tabs className="w-full" defaultSelectedKey="sessions">
+              <Tabs className="w-full" defaultSelectedKey="workspaces">
                 <Tabs.ListContainer>
                   <Tabs.List
                     aria-label="Settings"
                     className="w-fit *:h-9 *:w-fit *:px-3 *:text-sm *:font-normal"
                   >
+                    <Tabs.Tab id="workspaces">
+                      <Folder className="mr-1.5 inline size-4" />
+                      Workspaces
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
                     <Tabs.Tab id="sessions">
                       <MessageSquare className="mr-1.5 inline size-4" />
                       Sessions
@@ -90,6 +109,14 @@ export default function SettingsModal({
                   </Tabs.List>
                 </Tabs.ListContainer>
 
+                <Tabs.Panel className="pt-4" id="workspaces">
+                  <WorkspacesTab
+                    activeWorkspace={activeWorkspace}
+                    workspacesCount={workspacesCount}
+                    onOpenPicker={onOpenWorkspacePicker}
+                    onWorkspaceChanged={onWorkspaceChanged}
+                  />
+                </Tabs.Panel>
                 <Tabs.Panel className="pt-4" id="sessions">
                   <SessionsTab
                     settings={settings}

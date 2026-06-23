@@ -4,7 +4,9 @@
 //   stream.ts   — SSE streaming chat
 //   models.ts   — model listing / canonical APIs
 //   settings.ts — settings + API key management
+//   workspaces.ts — workspace CRUD + activation
 
+export { ApiError, WorkspaceNotSelectedError } from "./core";
 export { type SessionInfo } from "./sessions";
 export {
   createSession,
@@ -29,3 +31,13 @@ export {
   deleteApiKey,
   testApiKey,
 } from "./settings";
+export {
+  fetchWorkspaces,
+  fetchActiveWorkspace,
+  createWorkspace,
+  getWorkspace,
+  activateWorkspace,
+  updateWorkspace,
+  deleteWorkspace,
+  type WorkspaceItem,
+} from "./workspaces";

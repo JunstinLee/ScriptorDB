@@ -92,6 +92,14 @@ export function useSessionList() {
     }
   }, [buildMetaList, refreshSessionList]);
 
+  const resetSessionList = useCallback(() => {
+    setSessions([]);
+    setActiveSessionId(null);
+    writeStoredActiveSession(null);
+    initialised.current = false;
+    setRestored(false);
+  }, []);
+
   return {
     sessions,
     activeSessionId,
@@ -103,6 +111,7 @@ export function useSessionList() {
     setIsLoading,
     createNewSession,
     refreshSessions,
+    resetSessionList,
     updateSessionTitle,
     buildMetaList,
     refreshSessionList,

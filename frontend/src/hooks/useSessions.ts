@@ -11,6 +11,7 @@ import type { Run } from "../types";
 
 export function useSessions(
   onRunsLoaded?: (sessionId: string, runs: Run[]) => void,
+  workspaceId?: string | null,
 ) {
   const {
     sessions,
@@ -23,6 +24,7 @@ export function useSessions(
     createNewSession,
     refreshSessions,
     updateSessionTitle,
+    resetSessionList,
   } = useSessionList();
 
   const {
@@ -35,6 +37,22 @@ export function useSessions(
   } = useChatMessages();
 
   const requestedSessionIdRef = useRef<string | null>(null);
+  const lastWorkspaceIdRef = useRef<string | null | undefined>(workspaceId);
+
+  useEffect(() => {
+    if (!restored) return;
+    if (lastWorkspaceIdRef.current === workspaceId) return;
+    lastWorkspaceIdRef.current = workspaceId;
+    if (workspaceId === null || workspaceId === undefined) {
+      resetSessionList();
+      reset();
+      return;
+    }
+    // Workspace switched — clear local state and trigger a refresh so the
+    // session list re-fetches from the new workspace.
+    resetSessionList();
+    reset();
+  }, [workspaceId, restored, resetSessionList, reset]);
 
   useEffect(() => {
     if (!restored) return;

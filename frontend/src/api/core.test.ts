@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
-import { request } from "./core";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { request, WorkspaceNotSelectedError, ApiError } from "./core";
 
-const mockJson = vi.fn(() => Promise.resolve({ ok: true }));
-const mockText = vi.fn(() => Promise.resolve("error body"));
-const mockFetch = vi.fn(() =>
+const mockJson: ReturnType<typeof vi.fn> = vi.fn(() =>
+  Promise.resolve({ ok: true }),
+);
+const mockText: ReturnType<typeof vi.fn> = vi.fn(() =>
+  Promise.resolve("error body"),
+);
+const mockFetch: ReturnType<typeof vi.fn> = vi.fn(() =>
   Promise.resolve({ ok: true, json: mockJson, text: mockText, status: 200 }),
 );
 
@@ -58,5 +62,33 @@ describe("request (core)", () => {
       text: vi.fn(() => Promise.reject(new Error("body unreadable"))),
     });
     await expect(request("/missing")).rejects.toThrow("HTTP 404: Unknown error");
+  });
+
+  it("throws WorkspaceNotSelectedError on 409 with WORKSPACE_NOT_SELECTED", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: mockJson,
+      text: vi
+        .fn()
+        .mockResolvedValueOnce(
+          JSON.stringify({ detail: "No active workspace", code: "WORKSPACE_NOT_SELECTED" }),
+        ),
+    });
+    await expect(request("/workspaces/active")).rejects.toBeInstanceOf(
+      WorkspaceNotSelectedError,
+    );
+  });
+
+  it("throws ApiError (not WorkspaceNotSelectedError) on plain 409", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      json: mockJson,
+      text: vi.fn().mockResolvedValueOnce("Conflict"),
+    });
+    const err = await request("/something").catch((e) => e);
+    expect(err).toBeInstanceOf(ApiError);
+    expect(err).not.toBeInstanceOf(WorkspaceNotSelectedError);
   });
 });

@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 import {
   Database,
+  Folder,
   PanelLeftClose,
   PanelLeftOpen,
   Settings as SettingsIcon,
 } from "lucide-react";
-import type { SessionMeta } from "../types";
+import type { SessionMeta, WorkspaceDetail } from "../types";
 import SessionList from "./SessionList";
 import ThemeToggle from "./common/ThemeToggle";
 
@@ -17,6 +18,8 @@ interface SidebarProps {
   onSwitchSession: (id: string) => void;
   onDeleteSession: (id: string) => void;
   onOpenSettings: () => void;
+  activeWorkspace: WorkspaceDetail | null;
+  onOpenWorkspacePicker: () => void;
 }
 
 export default function Sidebar({
@@ -27,6 +30,8 @@ export default function Sidebar({
   onSwitchSession,
   onDeleteSession,
   onOpenSettings,
+  activeWorkspace,
+  onOpenWorkspacePicker,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -101,7 +106,17 @@ export default function Sidebar({
         />
       </div>
 
-      <div className="border-t px-4 py-3">
+      <div className="border-t px-4 py-3 space-y-2">
+        <button
+          type="button"
+          onClick={onOpenWorkspacePicker}
+          className="flex w-full items-center gap-2 rounded-lg border bg-surface/50 px-2 py-1.5 text-left text-xs hover:bg-default/50"
+        >
+          <Folder className="size-3.5 text-muted" />
+          <span className="truncate font-medium">
+            {activeWorkspace?.name ?? "No workspace"}
+          </span>
+        </button>
         <ThemeToggle variant="switch" />
       </div>
     </aside>
