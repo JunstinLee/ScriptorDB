@@ -12,7 +12,7 @@ from cli import app
 from cli import workspace_cli  # noqa: F401
 from config.models import fuzzy_match_model, list_available_models
 from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, save_api_key
-from config.settings import load_default_workspace, settings
+from config.settings import load_default_workspace, load_for_workspace, set_default_model, settings
 from config.workspace import (
     WorkspaceAlreadyExistsError,
     WorkspaceNotFoundError,
@@ -39,7 +39,7 @@ def setup(
 ):
     if workspace:
         try:
-            settings.load_for_workspace(workspace)
+            load_for_workspace(settings, workspace)
         except WorkspaceNotFoundError as e:
             typer.echo(str(e), err=True)
             raise typer.Exit(1)
@@ -69,7 +69,19 @@ def setup(
 
     save_api_key(provider, api_key, settings.workspace_id)
     settings.llm_provider = provider
-    settings._persist()
+    from config.workspace import WorkspaceSettings
+    if settings.workspace_path and settings.workspace_id:
+        ws_settings = WorkspaceSettings(
+            workspace_id=settings.workspace_id,
+            name=settings.workspace_name or "",
+            path=settings.workspace_path,
+            db_url=settings.db_url,
+            llm_provider=settings.llm_provider,
+            llm_model=settings.llm_model,
+            default_models=dict(settings.default_models),
+            auto_restore_sessions=settings.auto_restore_sessions,
+        )
+        ws_settings.save()
     typer.echo(f"\nAPI key for {provider} saved to system keychain.")
 
     try:
@@ -94,7 +106,7 @@ def setup(
         show_default=False,
     )
     if model_choice and 1 <= model_choice <= len(models):
-        settings.set_default_model(provider, models[model_choice - 1])
+        set_default_model(settings, provider, models[model_choice - 1])
         typer.echo(f"Default model set to: {models[model_choice - 1]}")
     else:
         typer.echo("Skipped. You can pass --model at query time.")
@@ -106,7 +118,7 @@ def forget(
 ):
     if workspace:
         try:
-            settings.load_for_workspace(workspace)
+            load_for_workspace(settings, workspace)
         except WorkspaceNotFoundError as e:
             typer.echo(str(e), err=True)
             raise typer.Exit(1)
@@ -128,7 +140,7 @@ def models(
     """List available models for the given (or current) provider."""
     if workspace:
         try:
-            settings.load_for_workspace(workspace)
+            load_for_workspace(settings, workspace)
         except WorkspaceNotFoundError as e:
             typer.echo(str(e), err=True)
             raise typer.Exit(1)
@@ -153,7 +165,7 @@ def ask(
 ):
     if workspace:
         try:
-            settings.load_for_workspace(workspace)
+            load_for_workspace(settings, workspace)
         except WorkspaceNotFoundError as e:
             typer.echo(str(e), err=True)
             raise typer.Exit(1)
@@ -186,7 +198,7 @@ def interactive(
 
     if workspace:
         try:
-            settings.load_for_workspace(workspace)
+            load_for_workspace(settings, workspace)
         except WorkspaceNotFoundError as e:
             typer.echo(str(e), err=True)
             raise typer.Exit(1)

@@ -6,6 +6,7 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 from agents.capabilities import build_audit_hooks
+from config.app_config import AppConfig
 from config.models import resolve_model
 from config.secrets import SUPPORTED_PROVIDERS, get_api_key
 from config.settings import Settings
@@ -24,49 +25,49 @@ def _auto_approve_handler(
     return results
 
 
-_agent: Agent[Settings] | None = None
-_agent_signature: tuple[str, str, str | None] | None = None
+def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings]:
+    audit_hooks = build_audit_hooks()
+    approval = HandleDeferredToolCalls(handler=_auto_approve_handler)
+
+    active_provider = config.llm_provider
+    if active_provider in ("nim", "together"):
+        api_key = get_api_key(active_provider, config.workspace_id)
+        provider_cfg = SUPPORTED_PROVIDERS[active_provider]
+        model_name = resolved_model.split(":", 1)[-1]
+        return Agent(
+            model=OpenAIChatModel(
+                model_name,
+                provider=OpenAIProvider(base_url=provider_cfg.base_url, api_key=api_key),
+            ),
+            deps_type=Settings,
+            toolsets=[read_toolset, write_toolset, viz_toolset],
+            capabilities=[audit_hooks, approval],
+        )
+
+    return Agent(
+        model=resolved_model,
+        deps_type=Settings,
+        toolsets=[read_toolset, write_toolset, viz_toolset],
+        capabilities=[audit_hooks, approval],
+    )
+
+
+def get_agent(
+    model: str | None = None,
+    provider: str | None = None,
+    config: AppConfig | None = None,
+) -> Agent[Settings]:
+    if config is None:
+        from config.settings import settings as _settings
+
+        config = _settings
+    active_provider = provider or config.llm_provider
+    resolved = (
+        resolve_model(active_provider, model) if model else config.resolved_model
+    )
+    return _build_agent(config, resolved)
 
 
 def reset_agent_cache() -> None:
-    """切换工作区或修改 provider/model 时清空 agent 缓存。"""
-    global _agent, _agent_signature
-    _agent = None
-    _agent_signature = None
-
-
-def get_agent(model: str | None = None, provider: str | None = None) -> Agent[Settings]:
-    global _agent, _agent_signature
-    settings = Settings()
-    active_provider = provider or settings.llm_provider
-    resolved_model = (
-        resolve_model(active_provider, model) if model else settings.resolved_model
-    )
-    signature = (active_provider, resolved_model, settings.workspace_id)
-
-    if _agent is None or _agent_signature != signature or model is not None or provider is not None:
-        audit_hooks = build_audit_hooks()
-        approval = HandleDeferredToolCalls(handler=_auto_approve_handler)
-
-        if active_provider in ("nim", "together"):
-            api_key = get_api_key(active_provider, settings.workspace_id)
-            config = SUPPORTED_PROVIDERS[active_provider]
-            model_name = resolved_model.split(":", 1)[-1]
-            _agent = Agent(
-                model=OpenAIChatModel(
-                    model_name,
-                    provider=OpenAIProvider(base_url=config.base_url, api_key=api_key),
-                ),
-                deps_type=Settings,
-                toolsets=[read_toolset, write_toolset, viz_toolset],
-                capabilities=[audit_hooks, approval],
-            )
-        else:
-            _agent = Agent(
-                model=resolved_model,
-                deps_type=Settings,
-                toolsets=[read_toolset, write_toolset, viz_toolset],
-                capabilities=[audit_hooks, approval],
-            )
-        _agent_signature = signature
-    return _agent
+    """向后兼容：缓存现已绑定到 AppContext，无模块级缓存可清空。"""
+    return None

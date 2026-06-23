@@ -8,7 +8,7 @@ import typer
 from agents.db_agent import reset_agent_cache
 from cli import workspace_cli  # noqa: F401
 from cli.commands import ask, forget, interactive, models, serve, setup
-from config.settings import load_default_workspace, settings
+from config.settings import load_default_workspace, load_for_workspace, settings
 from config.workspace import WorkspaceRegistry, migrate_legacy
 
 COMMAND_MAP = {
@@ -118,7 +118,7 @@ def _interactive_create_workspace(registry: WorkspaceRegistry) -> None:
 
 
 def _activate(workspace_id: str, registry: WorkspaceRegistry) -> None:
-    settings.load_for_workspace(workspace_id)
+    load_for_workspace(settings, workspace_id)
     registry.set_last_active(workspace_id)
     reset_agent_cache()
     typer.echo(f"✅ 已激活: {settings.workspace_name} ({settings.workspace_id})\n")

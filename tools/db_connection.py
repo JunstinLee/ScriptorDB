@@ -3,8 +3,6 @@ from __future__ import annotations
 import sqlite3
 from typing import Any
 
-from config.settings import Settings
-
 
 def get_connection(db_url: str) -> sqlite3.Connection:
     if db_url.startswith("sqlite:///"):
@@ -13,6 +11,24 @@ def get_connection(db_url: str) -> sqlite3.Connection:
         conn.row_factory = sqlite3.Row
         return conn
     raise ValueError(f"Unsupported database URL: {db_url}")
+
+
+def get_all_tables(db_url: str) -> list[dict[str, Any]]:
+    """公共 API：列出所有表名 + CREATE SQL。"""
+    conn = get_connection(db_url)
+    try:
+        return _get_all_tables(conn, db_url)
+    finally:
+        conn.close()
+
+
+def get_single_table_schema(db_url: str, table: str) -> dict[str, Any]:
+    """公共 API：获取单个表的 schema + create_sql。"""
+    conn = get_connection(db_url)
+    try:
+        return _get_single_table_schema(conn, db_url, table)
+    finally:
+        conn.close()
 
 
 def _get_all_tables(conn: sqlite3.Connection, db_url: str) -> list[dict[str, Any]]:

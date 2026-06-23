@@ -7,7 +7,7 @@ import typer
 
 from agents.db_agent import reset_agent_cache
 from cli import app
-from config.settings import load_default_workspace, settings
+from config.settings import load_default_workspace, load_for_workspace, settings
 from config.workspace import (
     WorkspaceAlreadyExistsError,
     WorkspaceNotFoundError,
@@ -65,7 +65,7 @@ def workspace_switch(
     """切换当前工作区。"""
     registry = WorkspaceRegistry()
     rec = _resolve_workspace(registry, workspace_id)
-    settings.load_for_workspace(rec.id)
+    load_for_workspace(settings, rec.id)
     registry.set_last_active(rec.id)
     reset_agent_cache()
     typer.echo(f"已切换到工作区: {rec.name} ({rec.id})")
