@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Chip, Spinner } from "@heroui/react";
-import { ChevronDown, Check, X, Clock } from "lucide-react";
+import { ChevronDown, Check, X, Clock, Copy } from "lucide-react";
 import type { ToolInvocation as ToolInvocationType } from "../types";
 
 interface ToolInvocationProps {
@@ -125,12 +125,36 @@ function getStatusText(
   return "";
 }
 
+function extractErrorId(message: string | undefined): string | null {
+  if (!message) return null;
+  const match = message.match(/（ID: ([^)）]+)）/);
+  return match?.[1] ?? null;
+}
+
+function isInternalError(error_code: string | undefined): boolean {
+  return error_code === "internal_error" || error_code === "external_service_error";
+}
+
 export default function ToolInvocation({ invocation }: ToolInvocationProps) {
   const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
   const { tool_name, status, output, error_code, duration_ms } = invocation;
 
   const summary = getToolSummary(tool_name, invocation.args);
   const statusText = getStatusText(status, output, error_code);
+  const errorId = extractErrorId(output);
+  const showCopyButton = isInternalError(error_code) && errorId != null;
+
+  const handleCopyErrorId = useCallback(async () => {
+    if (!errorId) return;
+    try {
+      await navigator.clipboard.writeText(errorId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable
+    }
+  }, [errorId]);
 
   return (
     <div className="border border-default-200 rounded-lg overflow-hidden">
@@ -188,10 +212,25 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
       {expanded && (output || error_code) && (
         <div className="border-t border-default-200 px-3 py-2">
           {error_code && (
-            <div className="mb-1">
+            <div className="mb-1 flex items-center gap-1.5">
               <Chip size="sm" color="danger" variant="soft">
                 {error_code}
               </Chip>
+              {showCopyButton && (
+                <button
+                  type="button"
+                  onClick={handleCopyErrorId}
+                  className="text-xs text-muted hover:text-foreground transition-colors flex items-center gap-1"
+                  title="复制错误 ID"
+                >
+                  {copied ? (
+                    <Check className="h-3 w-3 text-success" />
+                  ) : (
+                    <Copy className="h-3 w-3" />
+                  )}
+                  <span>{copied ? "已复制" : "复制 ID"}</span>
+                </button>
+              )}
             </div>
           )}
           <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto">

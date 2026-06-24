@@ -13,12 +13,13 @@ from pydantic_ai.messages import ToolCallPart
 from pydantic_ai.tools import ToolDefinition
 
 from config.settings import Settings
+from tools.errors import current_error_id
 
 
 _LOGGER = logging.getLogger("scriptordb.audit")
 _LOG_DIR = Path.home() / ".config" / "scriptordb"
 _LOG_FILE = _LOG_DIR / "scriptordb.log"
-_call_audit_map: dict[str, str] = {}
+_call_audit_map: dict[str, tuple[str, Any]] = {}
 
 
 def _ensure_logger() -> logging.Logger:
@@ -62,7 +63,8 @@ def build_audit_hooks() -> Hooks[Settings]:
             call.tool_name,
             _serialize_args(args),
         )
-        _call_audit_map[call.tool_call_id] = error_id
+        token = current_error_id.set(error_id)
+        _call_audit_map[call.tool_call_id] = (error_id, token)
         return args
 
     @hooks.on.after_tool_execute
@@ -74,7 +76,9 @@ def build_audit_hooks() -> Hooks[Settings]:
         args: ValidatedToolArgs,
         result: Any,
     ) -> Any:
-        error_id = _call_audit_map.pop(call.tool_call_id, "?")
+        error_id, token = _call_audit_map.pop(call.tool_call_id, ("?", None))
+        if token is not None:
+            current_error_id.reset(token)
         logger = _ensure_logger()
         logger.info(
             "[%s] tool_call_end    tool=%s  success=%s",

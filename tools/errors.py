@@ -1,12 +1,43 @@
 from __future__ import annotations
 
+import logging
 import sqlite3
 import subprocess
+import traceback
+import uuid
+from contextvars import ContextVar
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from tools.tool_result import ToolResult, ToolErrorInfo
+
+_error_logger: logging.Logger | None = None
+
+
+def _get_error_logger() -> logging.Logger:
+    global _error_logger
+    if _error_logger is None:
+        _error_logger = logging.getLogger("scriptordb.errors")
+        if not _error_logger.handlers:
+            log_dir = Path.home() / ".config" / "scriptordb"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            handler = logging.FileHandler(
+                str(log_dir / "scriptordb.log"), encoding="utf-8"
+            )
+            handler.setFormatter(
+                logging.Formatter(
+                    "%(asctime)s [%(levelname)s] %(message)s",
+                    datefmt="%Y-%m-%dT%H:%M:%S",
+                )
+            )
+            _error_logger.addHandler(handler)
+            _error_logger.setLevel(logging.DEBUG)
+    return _error_logger
+
+
+current_error_id: ContextVar[str | None] = ContextVar("current_error_id", default=None)
 
 
 class ErrorCategory(str, Enum):
@@ -17,6 +48,15 @@ class ErrorCategory(str, Enum):
     output_limit_exceeded = "output_limit_exceeded"
     external_service_error = "external_service_error"
     internal_error = "internal_error"
+
+
+USER_VISIBLE_CATEGORIES = {
+    ErrorCategory.parameter_error,
+    ErrorCategory.permission_error,
+    ErrorCategory.resource_not_found,
+    ErrorCategory.execution_timeout,
+    ErrorCategory.output_limit_exceeded,
+}
 
 
 def _sanitize_sql_error(e: Exception) -> str:
@@ -55,6 +95,20 @@ def _to_tool_error(e: Exception, error_id: str = "") -> ToolResult:
     elif isinstance(e, TimeoutError):
         category = ErrorCategory.execution_timeout
         message = "执行超时，请简化代码或分批执行"
+
+    if not error_id:
+        error_id = current_error_id.get() or uuid.uuid4().hex[:12]
+
+    if category not in USER_VISIBLE_CATEGORIES:
+        logger = _get_error_logger()
+        logger.error(
+            "[%s] tool_error category=%s exception=%s\n%s",
+            error_id,
+            category.value,
+            repr(e),
+            traceback.format_exc(),
+        )
+        message = f"内部错误（ID: {error_id}），请联系管理员"
 
     return ToolResult(
         success=False,

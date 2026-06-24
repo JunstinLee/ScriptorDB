@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json as json_mod
+import traceback
 import uuid
 from collections.abc import AsyncIterator
 from typing import Any
@@ -210,12 +211,21 @@ async def run_agent_stream(
             "timestamp": utc_now_iso(),
         }
     except Exception as e:
+        error_id = uuid.uuid4().hex[:12]
+        from tools.errors import _get_error_logger
+        logger = _get_error_logger()
+        logger.error(
+            "[%s] run_error exception=%s\n%s",
+            error_id,
+            repr(e),
+            traceback.format_exc(),
+        )
         local_tracker.fail(str(e))
         yield {
             "type": "error",
             "run_id": local_tracker.run_id,
-            "message": str(e),
-            "error_id": uuid.uuid4().hex[:12],
+            "message": f"运行失败（ID: {error_id}），请联系管理员",
+            "error_id": error_id,
         }
         yield {
             "type": "run_end",
