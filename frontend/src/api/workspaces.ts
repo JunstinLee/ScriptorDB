@@ -65,4 +65,24 @@ export function deleteWorkspace(
   );
 }
 
+export interface LegacySessionsSummary {
+  exists: boolean;
+  count: number;
+  earliest?: string;
+  latest?: string;
+}
+
+export function fetchLegacySessionsSummary(): Promise<LegacySessionsSummary> {
+  return request<LegacySessionsSummary>("/workspaces/legacy-sessions");
+}
+
+export function importLegacySessions(
+  workspaceId: string,
+): Promise<{ ok: boolean; imported_count: number }> {
+  return request<{ ok: boolean; imported_count: number }>(
+    `/workspaces/${encodeURIComponent(workspaceId)}/import-legacy-sessions`,
+    { method: "POST" },
+  );
+}
+
 export { WorkspaceNotSelectedError };

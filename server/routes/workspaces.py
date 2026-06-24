@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
@@ -24,6 +26,7 @@ from server.schemas import (
     WorkspaceListResponse,
 )
 from server.sessions import _DefaultSessionStore, session_store
+from config.workspace_paths import LEGACY_SESSIONS_FILE, LEGACY_SESSIONS_BACKUP_FILE
 
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
 
@@ -182,3 +185,121 @@ async def delete_workspace(workspace_id: str, delete_files: bool = False):
         config.clear()
         reset_agent_cache()
     return WorkspaceDeleteResponse(ok=True, deleted_files=delete_files)
+
+
+@router.get("/legacy-sessions")
+async def get_legacy_sessions_summary():
+    config = get_config()
+    if not config.workspace_path:
+        raise HTTPException(status_code=409, detail="No active workspace")
+    
+    if not LEGACY_SESSIONS_FILE.exists():
+        return {"exists": False, "count": 0}
+    
+    try:
+        payload = json.loads(LEGACY_SESSIONS_FILE.read_text())
+        sessions_data = payload.get("sessions", [])
+        if not isinstance(sessions_data, list):
+            return {"exists": True, "count": 0}
+        
+        count = len(sessions_data)
+        dates = []
+        for s in sessions_data:
+            if isinstance(s, dict):
+                created = s.get("created_at")
+                if isinstance(created, str):
+                    try:
+                        dates.append(datetime.fromisoformat(created))
+                    except ValueError:
+                        pass
+        
+        if dates:
+            return {
+                "exists": True,
+                "count": count,
+                "earliest": min(dates).isoformat(),
+                "latest": max(dates).isoformat()
+            }
+        return {"exists": True, "count": count}
+    except (OSError, json.JSONDecodeError):
+        return {"exists": False, "count": 0}
+
+
+@router.post("/{workspace_id}/import-legacy-sessions")
+async def import_legacy_sessions(workspace_id: str):
+    config = get_config()
+    registry = WorkspaceRegistry()
+    try:
+        rec = registry.get(workspace_id)
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
+    if not LEGACY_SESSIONS_FILE.exists():
+        raise HTTPException(status_code=404, detail="No legacy sessions file found")
+    
+    try:
+        payload = json.loads(LEGACY_SESSIONS_FILE.read_text())
+        sessions_data = payload.get("sessions", [])
+        if not isinstance(sessions_data, list):
+            raise HTTPException(status_code=400, detail="Invalid sessions format")
+        
+        ws_path = Path(rec.path)
+        target_dir = workspace_sessions_dir(ws_path)
+        target_dir.mkdir(parents=True, exist_ok=True)
+        
+        session_store = _DefaultSessionStore(storage_path=target_dir)
+        
+        for item in sessions_data:
+            if not isinstance(item, dict):
+                continue
+            sid = item.get("session_id")
+            if not isinstance(sid, str):
+                continue
+            
+            from server.session_model import Session
+            from server.schemas import MessageItem, StoredRun
+            
+            session = Session(session_id=sid)
+            
+            try:
+                session.created_at = datetime.fromisoformat(item["created_at"]) if isinstance(item.get("created_at"), str) else datetime.utcnow()
+            except ValueError:
+                session.created_at = datetime.utcnow()
+            
+            try:
+                session.last_access = datetime.fromisoformat(item["last_access"]) if isinstance(item.get("last_access"), str) else datetime.utcnow()
+            except ValueError:
+                session.last_access = datetime.utcnow()
+            
+            for m in item.get("messages", []):
+                if not isinstance(m, dict):
+                    continue
+                role = m.get("role")
+                content = m.get("content")
+                if role in ("user", "assistant") and isinstance(content, str):
+                    try:
+                        ts = datetime.fromisoformat(m["timestamp"]) if isinstance(m.get("timestamp"), str) else session.created_at
+                    except ValueError:
+                        ts = session.created_at
+                    session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
+            
+            for r in item.get("runs", []):
+                if isinstance(r, dict):
+                    try:
+                        session.runs.append(StoredRun(**r))
+                    except Exception:
+                        pass
+            
+            session_store._sessions[sid] = session
+            session_store._write_session_file(session)
+        
+        session_store._write_index()
+        
+        try:
+            LEGACY_SESSIONS_FILE.rename(LEGACY_SESSIONS_BACKUP_FILE)
+        except OSError:
+            pass
+        
+        return {"ok": True, "imported_count": len(sessions_data)}
+    except (OSError, json.JSONDecodeError) as e:
+        raise HTTPException(status_code=500, detail=f"Failed to import sessions: {str(e)}")

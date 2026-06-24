@@ -1,6 +1,12 @@
 import { Button, Label } from "@heroui/react";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, Upload } from "lucide-react";
+import { useState, useEffect } from "react";
 import type { WorkspaceDetail } from "../../types";
+import {
+  fetchLegacySessionsSummary,
+  importLegacySessions,
+  type LegacySessionsSummary,
+} from "../../api/workspaces";
 
 interface WorkspacesTabProps {
   activeWorkspace: WorkspaceDetail | null;
@@ -13,7 +19,34 @@ export default function WorkspacesTab({
   activeWorkspace,
   workspacesCount,
   onOpenPicker,
+  onWorkspaceChanged,
 }: WorkspacesTabProps) {
+  const [legacySummary, setLegacySummary] = useState<LegacySessionsSummary | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchLegacySessionsSummary()
+      .then(setLegacySummary)
+      .catch(() => {});
+  }, []);
+
+  const handleImport = async () => {
+    if (!activeWorkspace) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const result = await importLegacySessions(activeWorkspace.id);
+      setImportResult(`Imported ${result.imported_count} sessions`);
+      setLegacySummary({ exists: false, count: 0 });
+      onWorkspaceChanged();
+    } catch (e) {
+      setImportResult(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-lg border p-3">
@@ -68,6 +101,32 @@ export default function WorkspacesTab({
           workspace.
         </p>
       </div>
+
+      {legacySummary?.exists && legacySummary.count > 0 && (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <div className="flex flex-col gap-2">
+            <Label className="text-sm font-medium">Legacy sessions found</Label>
+            <p className="text-xs text-muted">
+              {legacySummary.count} old session{legacySummary.count === 1 ? "" : "s"} available to import.
+              {legacySummary.earliest && legacySummary.latest && (
+                <> From {new Date(legacySummary.earliest).toLocaleDateString()} to {new Date(legacySummary.latest).toLocaleDateString()}.</>
+              )}
+            </p>
+            <Button
+              variant="primary"
+              onPress={handleImport}
+              isLoading={importing}
+              isDisabled={!activeWorkspace}
+            >
+              <Upload className="mr-1.5 size-3.5" />
+              {activeWorkspace ? `Import to ${activeWorkspace.name}` : "Select a workspace first"}
+            </Button>
+            {importResult && (
+              <p className="text-xs text-muted">{importResult}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
         <p className="text-xs text-muted">

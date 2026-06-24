@@ -34,7 +34,16 @@ def _make_default_store() -> SessionStore:
     return _DefaultSessionStore()
 
 
-session_store: SessionStore = _make_default_store()
+# 延迟初始化：避免在 import 时就消费旧的 sessions.json
+# 当 server/app.py 启动时会根据工作区设置重新创建 store
+session_store: SessionStore | None = None
+
+
+def get_session_store() -> SessionStore:
+    global session_store
+    if session_store is None:
+        session_store = _make_default_store()
+    return session_store
 
 
 __all__ = [
@@ -46,4 +55,5 @@ __all__ = [
     "_DefaultSessionStore",
     "create_session_store",
     "session_store",
+    "get_session_store",
 ]

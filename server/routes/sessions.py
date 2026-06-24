@@ -9,7 +9,7 @@ from server.schemas import (
     SessionListItem,
     SessionListResponse,
 )
-from server.sessions import session_store
+from server.sessions import get_session_store
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 @router.post("", response_model=SessionCreateResponse)
 async def create_session():
     require_workspace()
-    session = session_store.create()
+    session = get_session_store().create()
     return SessionCreateResponse(session_id=session.session_id)
 
 
@@ -25,7 +25,7 @@ async def create_session():
 async def list_sessions():
     """List all active sessions (metadata only, no message bodies)."""
     require_workspace()
-    sessions = session_store.list_sessions()
+    sessions = get_session_store().list_sessions()
     items: list[SessionListItem] = []
     for s in sessions:
         title = None
@@ -52,7 +52,7 @@ async def list_sessions():
 @router.get("/{session_id}", response_model=SessionInfo)
 async def get_session(session_id: str):
     require_workspace()
-    session = session_store.get(session_id)
+    session = get_session_store().get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
     return SessionInfo(
@@ -66,6 +66,6 @@ async def get_session(session_id: str):
 @router.delete("/{session_id}")
 async def delete_session(session_id: str):
     require_workspace()
-    if not session_store.delete(session_id):
+    if not get_session_store().delete(session_id):
         raise HTTPException(status_code=404, detail="Session not found")
     return {"ok": True}

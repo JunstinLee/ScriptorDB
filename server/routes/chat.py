@@ -8,7 +8,7 @@ from pydantic_ai.messages import ModelMessage
 
 from server.dependencies import get_config, require_workspace
 from server.schemas import ChatRequest, StoredRun, StoredToolInvocation
-from server.sessions import session_store
+from server.sessions import get_session_store
 from server.streaming import stream_agent_response
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/sessions", tags=["chat"])
 async def chat(session_id: str, req: ChatRequest):
     require_workspace()
     config = get_config()
-    session = session_store.get(session_id)
+    session = get_session_store().get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -60,7 +60,7 @@ async def chat(session_id: str, req: ChatRequest):
                 error_message=run_collector.get("error_message"),
             )
             session.add_run(run)
-            session_store.save()
+            get_session_store().save()
 
     return StreamingResponse(
         generate(),
