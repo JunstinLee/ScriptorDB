@@ -22,6 +22,9 @@ const noopRefresh = (): Promise<void> => Promise.resolve();
 const noopCancel = (): void => {
   /* noop */
 };
+const noopClose = (): void => {
+  /* noop */
+};
 
 const sampleWorkspaces: WorkspaceItem[] = [
   {
@@ -43,7 +46,7 @@ beforeEach(() => {
 });
 
 describe("WorkspacePicker", () => {
-  it("renders existing workspaces", () => {
+  it("renders existing workspaces when open", () => {
     render(
       <WorkspacePicker
         workspaces={sampleWorkspaces}
@@ -55,6 +58,9 @@ describe("WorkspacePicker", () => {
         onDelete={noopDelete}
         onRefresh={noopRefresh}
         onCancelActive={noopCancel}
+        isOpen={true}
+        onClose={noopClose}
+        isClosable={true}
       />,
     );
 
@@ -74,6 +80,9 @@ describe("WorkspacePicker", () => {
         onDelete={noopDelete}
         onRefresh={noopRefresh}
         onCancelActive={noopCancel}
+        isOpen={true}
+        onClose={noopClose}
+        isClosable={true}
       />,
     );
 
@@ -93,6 +102,9 @@ describe("WorkspacePicker", () => {
         onDelete={noopDelete}
         onRefresh={noopRefresh}
         onCancelActive={noopCancel}
+        isOpen={true}
+        onClose={noopClose}
+        isClosable={true}
       />,
     );
 
@@ -104,7 +116,7 @@ describe("WorkspacePicker", () => {
     });
   });
 
-  it("calls onCreate with form values on submit", async () => {
+  it("calls onCreate with name only on submit", async () => {
     const onCreate = vi.fn().mockResolvedValue({} as never);
     render(
       <WorkspacePicker
@@ -117,14 +129,15 @@ describe("WorkspacePicker", () => {
         onDelete={noopDelete}
         onRefresh={noopRefresh}
         onCancelActive={noopCancel}
+        isOpen={true}
+        onClose={noopClose}
+        isClosable={true}
       />,
     );
 
     const nameInput = screen.getByLabelText(/name/i) as HTMLInputElement;
-    const pathInput = screen.getByLabelText(/path/i) as HTMLInputElement;
 
     fireEvent.change(nameInput, { target: { value: "New WS" } });
-    fireEvent.change(pathInput, { target: { value: "/tmp/new" } });
 
     const submit = screen.getByRole("button", { name: /create & open/i });
     fireEvent.click(submit);
@@ -132,7 +145,6 @@ describe("WorkspacePicker", () => {
     await waitFor(() => {
       expect(onCreate).toHaveBeenCalledWith({
         name: "New WS",
-        path: "/tmp/new",
         db_url: null,
       });
     });
@@ -150,9 +162,61 @@ describe("WorkspacePicker", () => {
         onDelete={noopDelete}
         onRefresh={noopRefresh}
         onCancelActive={noopCancel}
+        isOpen={true}
+        onClose={noopClose}
+        isClosable={true}
       />,
     );
 
     expect(screen.getByText("boom")).toBeTruthy();
+  });
+
+  it("does not show rename or delete buttons for active workspace", () => {
+    render(
+      <WorkspacePicker
+        workspaces={sampleWorkspaces}
+        activeWorkspace={{
+          ...sampleWorkspaces[0],
+          db_url: "sqlite:///test.db",
+          llm_provider: "openai",
+          llm_model: null,
+        }}
+        error={null}
+        onActivate={noopActivate}
+        onCreate={noopCreate}
+        onRename={noopRename}
+        onDelete={noopDelete}
+        onRefresh={noopRefresh}
+        onCancelActive={noopCancel}
+        isOpen={true}
+        onClose={noopClose}
+        isClosable={true}
+      />,
+    );
+
+    expect(screen.getByText(/active/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /rename project a/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /delete project a/i })).toBeNull();
+  });
+
+  it("does not render when isOpen is false", () => {
+    render(
+      <WorkspacePicker
+        workspaces={sampleWorkspaces}
+        activeWorkspace={null}
+        error={null}
+        onActivate={noopActivate}
+        onCreate={noopCreate}
+        onRename={noopRename}
+        onDelete={noopDelete}
+        onRefresh={noopRefresh}
+        onCancelActive={noopCancel}
+        isOpen={false}
+        onClose={noopClose}
+        isClosable={true}
+      />,
+    );
+
+    expect(screen.queryByText("Workspaces")).toBeNull();
   });
 });

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -9,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from config.workspace_paths import (
+    DEFAULT_WORKSPACES_DIR,
     GLOBAL_CONFIG_DIR,
     REGISTRY_FILE,
     REGISTRY_VERSION,
@@ -185,6 +187,29 @@ class WorkspaceRegistry:
             ws_settings.db_url = db_url
         ws_settings.save()
         return rec
+
+    def _sanitize_dir_name(self, name: str) -> str:
+        sanitized = re.sub(r'[^\w\s\-]', '', name.strip())
+        sanitized = re.sub(r'[\s]+', '_', sanitized)
+        return sanitized or "workspace"
+
+    def _unique_dir_name(self, base_name: str) -> str:
+        candidate = base_name
+        counter = 0
+        while (DEFAULT_WORKSPACES_DIR / candidate).exists():
+            counter += 1
+            candidate = f"{base_name}_{counter}"
+        return candidate
+
+    def create_default(self, name: str, db_url: str | None = None) -> WorkspaceRecord:
+        if not name.strip():
+            raise ValueError("Workspace name is required")
+        DEFAULT_WORKSPACES_DIR.mkdir(parents=True, exist_ok=True)
+        base_name = self._sanitize_dir_name(name)
+        dir_name = self._unique_dir_name(base_name)
+        target = DEFAULT_WORKSPACES_DIR / dir_name
+        target.mkdir(parents=True, exist_ok=True)
+        return self.create(target, name=name.strip(), db_url=db_url)
 
     def remove(self, workspace_id: str, delete_files: bool = False) -> None:
         rec = self.get(workspace_id)

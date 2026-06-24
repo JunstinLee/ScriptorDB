@@ -131,7 +131,7 @@ export interface WorkspaceListResponse {
 
 export interface WorkspaceCreateRequest {
   name: string;
-  path: string;
+  path?: string | null;
   db_url?: string | null;
 }
 

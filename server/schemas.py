@@ -225,7 +225,7 @@ class ErrorEvent(BaseModel):
 
 class WorkspaceCreateRequest(BaseModel):
     name: str | None = None
-    path: str
+    path: str | None = None
     db_url: str | None = None
 
 

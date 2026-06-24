@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from agents.db_agent import reset_agent_cache
 from config.settings import load_for_workspace, settings
 from config.workspace import (
+    DEFAULT_WORKSPACES_DIR,
     WorkspaceAlreadyExistsError,
     WorkspaceNotFoundError,
     WorkspaceRegistry,
@@ -59,22 +60,25 @@ async def list_workspaces():
 
 @router.post("", response_model=WorkspaceItem)
 async def create_workspace(req: WorkspaceCreateRequest):
-    if not req.path:
-        raise HTTPException(status_code=400, detail="path is required")
-    target = Path(req.path).expanduser()
-    if not target.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Workspace path does not exist: {target}",
-        )
-    if not target.is_dir():
-        raise HTTPException(
-            status_code=400,
-            detail=f"Workspace path is not a directory: {target}",
-        )
     registry = WorkspaceRegistry()
     try:
-        rec = registry.create(target, name=req.name, db_url=req.db_url)
+        if req.path:
+            target = Path(req.path).expanduser()
+            if not target.exists():
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Workspace path does not exist: {target}",
+                )
+            if not target.is_dir():
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Workspace path is not a directory: {target}",
+                )
+            rec = registry.create(target, name=req.name, db_url=req.db_url)
+        else:
+            if not req.name or not req.name.strip():
+                raise HTTPException(status_code=400, detail="name is required when path is not provided")
+            rec = registry.create_default(req.name, db_url=req.db_url)
     except WorkspaceAlreadyExistsError as e:
         raise HTTPException(status_code=409, detail=str(e))
     return WorkspaceItem(

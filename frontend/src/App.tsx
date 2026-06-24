@@ -90,52 +90,43 @@ export default function App() {
     );
   }
 
-  if (!activeWorkspace) {
-    return (
-      <WorkspacePicker
-        workspaces={workspaces}
-        activeWorkspace={activeWorkspace}
-        error={workspacesError}
-        onActivate={handlePickerActivate}
-        onCreate={handlePickerCreate}
-        onRename={handlePickerRename}
-        onDelete={handlePickerDelete}
-        onRefresh={refreshWorkspaces}
-        onCancelActive={() => {
-          /* no active workspace to clear */
-        }}
-      />
-    );
-  }
-
   return (
     <MainApp
       workspace={activeWorkspace}
       workspaces={workspaces}
+      workspacesError={workspacesError}
       switchingWorkspace={switchingWorkspace}
       onSwitchWorkspace={handlePickerActivate}
-      onPickerCreate={handlePickerCreate}
-      onWorkspaceChanged={refreshWorkspaces}
+      onCreateWorkspace={handlePickerCreate}
+      onRenameWorkspace={handlePickerRename}
+      onDeleteWorkspace={handlePickerDelete}
+      onRefreshWorkspaces={refreshWorkspaces}
     />
   );
 }
 
 interface MainAppProps {
-  workspace: WorkspaceDetail;
+  workspace: WorkspaceDetail | null;
   workspaces: WorkspaceItem[];
+  workspacesError: string | null;
   switchingWorkspace: boolean;
   onSwitchWorkspace: (id: string) => Promise<WorkspaceDetail>;
-  onPickerCreate: (body: WorkspaceCreateRequest) => Promise<WorkspaceDetail>;
-  onWorkspaceChanged: () => Promise<void>;
+  onCreateWorkspace: (body: WorkspaceCreateRequest) => Promise<WorkspaceDetail>;
+  onRenameWorkspace: (id: string, body: WorkspaceUpdateRequest) => Promise<WorkspaceDetail>;
+  onDeleteWorkspace: (id: string, deleteFiles?: boolean) => Promise<void>;
+  onRefreshWorkspaces: () => Promise<void>;
 }
 
 function MainApp({
   workspace,
   workspaces,
+  workspacesError,
   switchingWorkspace,
   onSwitchWorkspace,
-  onPickerCreate,
-  onWorkspaceChanged,
+  onCreateWorkspace,
+  onRenameWorkspace,
+  onDeleteWorkspace,
+  onRefreshWorkspaces,
 }: MainAppProps) {
   const { getRuns, appendEvent, setRuns, clearRuns } = useRuns();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -161,11 +152,11 @@ function MainApp({
     setLoading,
     refreshSessionTitle,
     refreshSessions,
-  } = useSessions(handleRunsLoaded, workspace.id);
+  } = useSessions(handleRunsLoaded, workspace?.id);
 
   const runs = activeSessionId ? getRuns(activeSessionId) : [];
 
-  const { tables, loading: schemaLoading } = useSchema(workspace.id);
+  const { tables, loading: schemaLoading } = useSchema(workspace?.id);
   const abortRef = useRef<AbortController | null>(null);
   const settingsModal = useOverlayState();
   const [settingsChanged, setSettingsChanged] = useState(0);
@@ -288,40 +279,14 @@ function MainApp({
   const handleSwitchWorkspace = useCallback(
     async (id: string): Promise<WorkspaceDetail> => {
       const detail = await onSwitchWorkspace(id);
-      await onWorkspaceChanged();
+      await onRefreshWorkspaces();
       clearRuns();
       return detail;
     },
-    [clearRuns, onSwitchWorkspace, onWorkspaceChanged],
+    [clearRuns, onSwitchWorkspace, onRefreshWorkspaces],
   );
 
-  if (pickerOpen) {
-    return (
-      <WorkspacePicker
-        workspaces={workspaces}
-        activeWorkspace={workspace}
-        error={null}
-        onActivate={handleSwitchWorkspace}
-        onCreate={async (body) => {
-          const detail = await onPickerCreate(body);
-          setPickerOpen(false);
-          await onWorkspaceChanged();
-          return detail;
-        }}
-        onRename={async (id, body) => {
-          const detail = await apiUpdateWorkspace(id, body);
-          await onWorkspaceChanged();
-          return detail;
-        }}
-        onDelete={async (id, deleteFiles) => {
-          await apiDeleteWorkspace(id, deleteFiles);
-          await onWorkspaceChanged();
-        }}
-        onRefresh={onWorkspaceChanged}
-        onCancelActive={handleCloseWorkspacePicker}
-      />
-    );
-  }
+  const pickerClosable = !!workspace;
 
   return (
     <div className="flex h-screen bg-background text-foreground">
@@ -334,7 +299,11 @@ function MainApp({
         onDeleteSession={handleDeleteSession}
         onOpenSettings={handleOpenSettings}
         activeWorkspace={workspace}
+        workspaces={workspaces}
+        switchingWorkspace={switchingWorkspace}
+        onSwitchWorkspace={handleSwitchWorkspace}
         onOpenWorkspacePicker={handleOpenWorkspacePicker}
+        onRequestNewWorkspace={handleOpenWorkspacePicker}
       />
 
       <div className="flex flex-1 flex-col min-w-0">
@@ -347,12 +316,6 @@ function MainApp({
             setSelectedModel(model);
             setSelectedProvider(provider);
           }}
-          activeWorkspace={workspace}
-          workspaces={workspaces}
-          switchingWorkspace={switchingWorkspace}
-          onSwitchWorkspace={handleSwitchWorkspace}
-          onRequestNewWorkspace={handleOpenWorkspacePicker}
-          onOpenWorkspaceSettings={() => settingsModal.open()}
         />
 
         <div className="flex flex-1 flex-col min-h-0 relative">
@@ -393,8 +356,35 @@ function MainApp({
         setShowSchemaSql={setShowSchemaSql}
         activeWorkspace={workspace}
         workspacesCount={workspaces.length}
-        onWorkspaceChanged={onWorkspaceChanged}
+        onWorkspaceChanged={onRefreshWorkspaces}
         onOpenWorkspacePicker={handleOpenWorkspacePicker}
+      />
+
+      <WorkspacePicker
+        workspaces={workspaces}
+        activeWorkspace={workspace}
+        error={workspacesError}
+        onActivate={handleSwitchWorkspace}
+        onCreate={async (body) => {
+          const detail = await onCreateWorkspace(body);
+          setPickerOpen(false);
+          await onRefreshWorkspaces();
+          return detail;
+        }}
+        onRename={async (id, body) => {
+          const detail = await onRenameWorkspace(id, body);
+          await onRefreshWorkspaces();
+          return detail;
+        }}
+        onDelete={async (id, deleteFiles) => {
+          await onDeleteWorkspace(id, deleteFiles);
+          await onRefreshWorkspaces();
+        }}
+        onRefresh={onRefreshWorkspaces}
+        onCancelActive={handleCloseWorkspacePicker}
+        isOpen={pickerOpen || !workspace}
+        onClose={handleCloseWorkspacePicker}
+        isClosable={pickerClosable}
       />
 
       {switchingWorkspace && (

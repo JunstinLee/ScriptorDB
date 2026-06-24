@@ -6,6 +6,7 @@ from config.workspace_loader import (
     migrate_legacy,
 )
 from config.workspace_paths import (
+    DEFAULT_WORKSPACES_DIR,
     GLOBAL_CONFIG_DIR,
     LEGACY_CONFIG_FILE,
     LEGACY_SESSIONS_BACKUP_FILE,
@@ -31,6 +32,7 @@ from config.workspace_settings import WorkspaceSettings
 
 
 __all__ = [
+    "DEFAULT_WORKSPACES_DIR",
     "GLOBAL_CONFIG_DIR",
     "LEGACY_CONFIG_FILE",
     "LEGACY_SESSIONS_BACKUP_FILE",
