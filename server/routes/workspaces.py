@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
 
@@ -26,16 +27,24 @@ from server.schemas import (
     WorkspaceItem,
     WorkspaceListResponse,
 )
-from server.sessions import _DefaultSessionStore, session_store
+import server.sessions as sessions_module
+from server.sessions import _DefaultSessionStore
 from config.workspace_paths import LEGACY_SESSIONS_FILE, LEGACY_SESSIONS_BACKUP_FILE
+
+logger = logging.getLogger("scriptordb.workspace")
 
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
 
 
 def _reload_session_store(workspace_path: Path) -> None:
-    global session_store
     target = workspace_sessions_dir(workspace_path)
-    session_store = _DefaultSessionStore(storage_path=target)
+    new_store = _DefaultSessionStore(storage_path=target)
+    sessions_module.session_store = new_store
+    logger.info(
+        "session_store reloaded: id=%s path=%s",
+        id(sessions_module.session_store),
+        target,
+    )
 
 
 @router.get("", response_model=WorkspaceListResponse)

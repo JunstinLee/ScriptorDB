@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -12,11 +13,18 @@ from config.workspace import workspace_sessions_dir
 from server.routes import api_keys, chat, health, models, schema, sessions, settings as settings_routes, workspaces
 from server.sessions import _DefaultSessionStore, get_session_store
 
+logger = logging.getLogger("scriptordb.workspace")
+
 
 def _reload_session_store(workspace_path: Path) -> None:
     import server.sessions as sessions_module
     target = workspace_sessions_dir(workspace_path)
     sessions_module.session_store = _DefaultSessionStore(storage_path=target)
+    logger.info(
+        "session_store reloaded (lifespan): id=%s path=%s",
+        id(sessions_module.session_store),
+        target,
+    )
 
 
 @asynccontextmanager
