@@ -13,6 +13,7 @@ import {
 import type { SessionMeta, WorkspaceDetail, WorkspaceItem } from "../types";
 import SessionList from "./SessionList";
 import ThemeToggle from "./common/ThemeToggle";
+import WorkspacePath from "./common/WorkspacePath";
 
 interface SidebarProps {
   sessions: SessionMeta[];
@@ -151,12 +152,10 @@ export default function Sidebar({
                 <div className="truncate text-sm font-medium">
                   {activeWorkspace?.name ?? "No workspace"}
                 </div>
-                <div
-                  className="truncate text-xs text-muted font-mono"
-                  title={activeWorkspace?.path}
-                >
-                  {activeWorkspace?.path ?? "—"}
-                </div>
+                <WorkspacePath
+                  path={activeWorkspace?.path}
+                  className="text-xs text-muted font-mono"
+                />
               </div>
 
               {workspaces.length > 1 && (
@@ -177,12 +176,10 @@ export default function Sidebar({
                             <span className="truncate font-medium">
                               {w.name}
                             </span>
-                            <span
-                              className="truncate text-xs text-muted font-mono"
-                              title={w.path}
-                            >
-                              {w.path}
-                            </span>
+                            <WorkspacePath
+                              path={w.path}
+                              className="text-xs text-muted font-mono"
+                            />
                           </button>
                         </li>
                       ))}

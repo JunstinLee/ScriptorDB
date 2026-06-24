@@ -17,3 +17,12 @@ body,
 .run-highlight {
   animation: highlight-fade 5s ease-out forwards;
 }
+
+@keyframes workspace-path-marquee {
+  0%, 10% { transform: translateX(0); }
+  90%, 100% { transform: translateX(calc(-50%)); }
+}
+
+.workspace-path-marquee {
+  animation: workspace-path-marquee 20s linear infinite;
+}

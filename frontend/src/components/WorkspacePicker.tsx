@@ -8,6 +8,7 @@ import type {
   WorkspaceUpdateRequest,
 } from "../types";
 import AlertBanner from "./common/AlertBanner";
+import WorkspacePath from "./common/WorkspacePath";
 
 interface WorkspacePickerProps {
   workspaces: WorkspaceItem[];
@@ -211,12 +212,10 @@ export default function WorkspacePicker({
                             )}
                           </span>
                         )}
-                        <span
-                          className="truncate text-xs text-muted font-mono"
-                          title={ws.path}
-                        >
-                          {ws.path}
-                        </span>
+                        <WorkspacePath
+                          path={ws.path}
+                          className="text-xs text-muted font-mono"
+                        />
                       </div>
                       {isRenaming ? (
                         <>

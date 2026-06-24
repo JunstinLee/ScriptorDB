@@ -7,6 +7,7 @@ import {
   importLegacySessions,
   type LegacySessionsSummary,
 } from "../../api/workspaces";
+import WorkspacePath from "../common/WorkspacePath";
 
 interface WorkspacesTabProps {
   activeWorkspace: WorkspaceDetail | null;
@@ -57,12 +58,10 @@ export default function WorkspacesTab({
               <span className="truncate text-sm font-medium">
                 {activeWorkspace.name}
               </span>
-              <span
-                className="truncate text-xs text-muted font-mono"
-                title={activeWorkspace.path}
-              >
-                {activeWorkspace.path}
-              </span>
+              <WorkspacePath
+                path={activeWorkspace.path}
+                className="text-xs text-muted font-mono"
+              />
               <span
                 className="truncate text-xs text-muted"
                 title={activeWorkspace.db_url}
