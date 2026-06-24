@@ -12,12 +12,12 @@ import {
   type SessionMeta,
 } from "../utils/sessions";
 
-export function useSessionList() {
+export function useSessionList(workspaceId?: string | null) {
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [restored, setRestored] = useState(false);
-  const initialised = useRef(false);
+  const restoringRef = useRef<string | null | undefined>(null);
 
   const updateSessionTitle = useCallback(
     (sessionId: string, title: string) => {
@@ -39,31 +39,38 @@ export function useSessionList() {
     [],
   );
 
-  const restoreInitialState = useCallback(async () => {
-    if (initialised.current) return;
-    initialised.current = true;
+  const restoreInitialState = useCallback(async (wid: string) => {
+    restoringRef.current = wid;
     setIsLoading(true);
+    setRestored(false);
     try {
       const items = await refreshSessionList();
+      if (restoringRef.current !== wid) return;
       const metaList = buildMetaList(items);
       setSessions(metaList);
-
-      const stored = readStoredActiveSession();
+      const stored = readStoredActiveSession(wid);
       const stillExists = stored && metaList.find((s) => s.session_id === stored);
-      if (stillExists) {
-        setActiveSessionId(stored);
-      }
+      setActiveSessionId(stillExists ? stored : null);
     } catch {
       // server unreachable — leave empty state
     } finally {
-      setIsLoading(false);
-      setRestored(true);
+      if (restoringRef.current === wid) {
+        setIsLoading(false);
+        setRestored(true);
+      }
     }
   }, [buildMetaList, refreshSessionList]);
 
   useEffect(() => {
-    void restoreInitialState();
-  }, [restoreInitialState]);
+    if (!workspaceId) {
+      setSessions([]);
+      setActiveSessionId(null);
+      setIsLoading(false);
+      setRestored(true);
+      return;
+    }
+    void restoreInitialState(workspaceId);
+  }, [workspaceId, restoreInitialState]);
 
   const createNewSession = useCallback(async () => {
     setIsLoading(true);
@@ -76,12 +83,12 @@ export function useSessionList() {
       };
       setSessions((prev) => [meta, ...prev]);
       setActiveSessionId(meta.session_id);
-      writeStoredActiveSession(meta.session_id);
+      writeStoredActiveSession(meta.session_id, workspaceId);
       return meta.session_id;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [workspaceId]);
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -92,26 +99,16 @@ export function useSessionList() {
     }
   }, [buildMetaList, refreshSessionList]);
 
-  const resetSessionList = useCallback(() => {
-    setSessions([]);
-    setActiveSessionId(null);
-    writeStoredActiveSession(null);
-    initialised.current = false;
-    setRestored(false);
-  }, []);
-
   return {
     sessions,
     activeSessionId,
     isLoading,
     restored,
-    initialised,
     setSessions,
     setActiveSessionId,
     setIsLoading,
     createNewSession,
     refreshSessions,
-    resetSessionList,
     updateSessionTitle,
     buildMetaList,
     refreshSessionList,

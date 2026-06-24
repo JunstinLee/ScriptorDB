@@ -24,8 +24,7 @@ export function useSessions(
     createNewSession,
     refreshSessions,
     updateSessionTitle,
-    resetSessionList,
-  } = useSessionList();
+  } = useSessionList(workspaceId);
 
   const {
     messages,
@@ -40,19 +39,10 @@ export function useSessions(
   const lastWorkspaceIdRef = useRef<string | null | undefined>(workspaceId);
 
   useEffect(() => {
-    if (!restored) return;
     if (lastWorkspaceIdRef.current === workspaceId) return;
     lastWorkspaceIdRef.current = workspaceId;
-    if (workspaceId === null || workspaceId === undefined) {
-      resetSessionList();
-      reset();
-      return;
-    }
-    // Workspace switched — clear local state and trigger a refresh so the
-    // session list re-fetches from the new workspace.
-    resetSessionList();
     reset();
-  }, [workspaceId, restored, resetSessionList, reset]);
+  }, [workspaceId, reset]);
 
   useEffect(() => {
     if (!restored) return;
@@ -78,9 +68,9 @@ export function useSessions(
   const switchSession = useCallback(
     (sessionId: string) => {
       setActiveSessionId(sessionId);
-      writeStoredActiveSession(sessionId);
+      writeStoredActiveSession(sessionId, workspaceId);
     },
-    [setActiveSessionId],
+    [setActiveSessionId, workspaceId],
   );
 
   const removeSession = useCallback(
@@ -97,7 +87,7 @@ export function useSessions(
         const nextActive =
           remaining.length > 0 ? remaining[0].session_id : null;
         setActiveSessionId(nextActive);
-        writeStoredActiveSession(nextActive);
+        writeStoredActiveSession(nextActive, workspaceId);
         if (!nextActive) {
           requestedSessionIdRef.current = null;
           reset();
@@ -114,6 +104,7 @@ export function useSessions(
       setSessions,
       setActiveSessionId,
       reset,
+      workspaceId,
     ],
   );
 

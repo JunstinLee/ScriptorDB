@@ -16,8 +16,7 @@ router = APIRouter(tags=["schema"])
 @router.get("/api/schema", response_model=SchemaResponse)
 async def get_schema():
     config = require_workspace()
-    db_path = config.db_url.replace("sqlite:///", "")
-    conn = get_connection(db_path)
+    conn = get_connection(config.db_url)
     try:
         tables_meta = get_all_tables(config.db_url)
         tables: list[SchemaTable] = []

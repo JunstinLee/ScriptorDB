@@ -3,7 +3,12 @@ import type { ChatMessage, Run, SessionListItem } from "../types";
 
 export const TITLE_MAX_LEN = 24;
 export const DEFAULT_TITLE = "New Chat";
-export const ACTIVE_SESSION_KEY = "scriptordb:active_session_id";
+const ACTIVE_SESSION_KEY = "scriptordb:active_session_id";
+
+export function activeSessionKey(workspaceId?: string | null): string {
+  if (!workspaceId) return ACTIVE_SESSION_KEY;
+  return `scriptordb:active_session_id:${workspaceId}`;
+}
 
 export interface SessionMeta {
   session_id: string;
@@ -58,20 +63,21 @@ export async function loadSessionTitle(sessionId: string): Promise<string> {
   return deriveTitle(info.messages);
 }
 
-export function readStoredActiveSession(): string | null {
+export function readStoredActiveSession(workspaceId?: string | null): string | null {
   try {
-    return localStorage.getItem(ACTIVE_SESSION_KEY);
+    return localStorage.getItem(activeSessionKey(workspaceId));
   } catch {
     return null;
   }
 }
 
-export function writeStoredActiveSession(id: string | null): void {
+export function writeStoredActiveSession(id: string | null, workspaceId?: string | null): void {
   try {
+    const key = activeSessionKey(workspaceId);
     if (id) {
-      localStorage.setItem(ACTIVE_SESSION_KEY, id);
+      localStorage.setItem(key, id);
     } else {
-      localStorage.removeItem(ACTIVE_SESSION_KEY);
+      localStorage.removeItem(key);
     }
   } catch {
     // ignore quota / privacy mode errors

@@ -7,10 +7,11 @@ from typing import Any
 def get_connection(db_url: str) -> sqlite3.Connection:
     if db_url.startswith("sqlite:///"):
         path = db_url.replace("sqlite:///", "")
-        conn = sqlite3.connect(path)
-        conn.row_factory = sqlite3.Row
-        return conn
-    raise ValueError(f"Unsupported database URL: {db_url}")
+    else:
+        path = db_url
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def get_all_tables(db_url: str) -> list[dict[str, Any]]:
