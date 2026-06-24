@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
-from uuid import uuid4
 
+from uuid import uuid4
 from pydantic_ai import RunContext
 
 from config.settings import Settings
