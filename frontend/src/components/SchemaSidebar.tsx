@@ -66,7 +66,7 @@ export default function SchemaSidebar({
 
   return (
     <aside className="flex w-[360px] shrink-0 flex-col border-l">
-      <div className="flex items-center justify-between border-b px-4 py-3">
+      <div className="flex items-center justify-between px-4 py-2.5">
         <Tabs
           selectedKey={selectedTab}
           onSelectionChange={(key: string) => setSelectedTab(key)}
