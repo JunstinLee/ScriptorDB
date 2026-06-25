@@ -1,12 +1,8 @@
-import { useCallback, useState } from "react";
+import { useCallback } from "react";
 import { Popover } from "@heroui/react";
 import {
   ChevronDown,
-  Database,
   Folder,
-  FolderOpen,
-  PanelLeftClose,
-  PanelLeftOpen,
   Plus,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -46,12 +42,6 @@ export default function Sidebar({
   onOpenWorkspacePicker,
   onRequestNewWorkspace,
 }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
-
-  const toggleCollapse = useCallback(() => {
-    setCollapsed((prev) => !prev);
-  }, []);
-
   const handleSelectWorkspace = useCallback(
     (id: string) => {
       if (activeWorkspace && id === activeWorkspace.id) return;
@@ -60,86 +50,29 @@ export default function Sidebar({
     [activeWorkspace, onSwitchWorkspace],
   );
 
-  if (collapsed) {
-    return (
-      <aside className="flex w-14 shrink-0 flex-col items-center gap-3 border-r py-3">
-        <button
-          className="rounded-lg p-1.5 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
-          onClick={toggleCollapse}
-          aria-label="Expand sidebar"
-        >
-          <PanelLeftOpen className="h-4 w-4" />
-        </button>
-        <button
-          className="rounded-lg p-1.5 hover:bg-default/50 text-accent transition-colors"
-          onClick={onNewSession}
-          aria-label="New session"
-        >
-          <Database className="h-4 w-4" />
-        </button>
-        <div className="mt-auto flex flex-col gap-1">
-          <button
-            className="rounded-lg p-1.5 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
-            onClick={onOpenSettings}
-            aria-label="Open settings"
-          >
-            <SettingsIcon className="h-4 w-4" />
-          </button>
-        </div>
-      </aside>
-    );
-  }
-
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-r">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Database className="h-5 w-5 text-accent" />
-          <span className="font-semibold text-foreground">ScriptorDB</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            className="rounded-lg p-1 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
-            onClick={onOpenSettings}
-            aria-label="Open settings"
-          >
-            <SettingsIcon className="h-4 w-4" />
-          </button>
-          <button
-            className="rounded-lg p-1 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
-            onClick={toggleCollapse}
-            aria-label="Collapse sidebar"
-          >
-            <PanelLeftClose className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto py-2 space-y-4">
-        <SessionList
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          showSessionIdHover={showSessionIdHover}
-          onNewSession={onNewSession}
-          onSwitchSession={onSwitchSession}
-          onDeleteSession={onDeleteSession}
-        />
-      </div>
-
-      <div className="px-4 py-3 space-y-3">
+    <aside className="flex w-[260px] shrink-0 flex-col border-r">
+      {/* Top section: Workspace selector */}
+      <div className="px-4 py-3">
         <Popover>
           <Popover.Trigger>
             <button
               type="button"
-              className="flex w-full items-center gap-2 rounded-lg border bg-surface/50 px-2 py-1.5 text-left text-xs hover:bg-default/50"
+              className="flex w-full items-center gap-2 rounded-lg border border-grid bg-surface px-3 py-2 text-left transition-colors hover:bg-surface/70 focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
               disabled={switchingWorkspace}
               aria-label="Switch workspace"
             >
-              <Folder className="size-3.5 text-muted" />
-              <span className="truncate font-medium flex-1">
-                {activeWorkspace?.name ?? "No workspace"}
-              </span>
-              <ChevronDown className="size-3.5 text-muted" />
+              <Folder className="size-4 text-graphite" />
+              <div className="flex-1 min-w-0">
+                <div className="truncate text-[13px] font-medium text-ink">
+                  {activeWorkspace?.name ?? "No workspace"}
+                </div>
+                <WorkspacePath
+                  path={activeWorkspace?.path}
+                  className="text-[11px] text-graphite font-mono truncate"
+                />
+              </div>
+              <ChevronDown className="size-3.5 text-graphite shrink-0" />
             </button>
           </Popover.Trigger>
           <Popover.Content className="w-72 p-0">
@@ -147,7 +80,7 @@ export default function Sidebar({
               <div className="px-2 py-1.5 text-xs text-muted">
                 Current workspace
               </div>
-              <div className="rounded-md bg-accent/10 px-2 py-1.5">
+              <div className="rounded-md border-l-[3px] border-l-cobalt bg-surface px-3 py-2">
                 <div className="truncate text-sm font-medium">
                   {activeWorkspace?.name ?? "No workspace"}
                 </div>
@@ -157,7 +90,7 @@ export default function Sidebar({
                 />
               </div>
 
-              {workspaces.length > 1 && (
+              {workspaces.filter((w) => w.id !== activeWorkspace?.id).length > 0 && (
                 <>
                   <div className="mt-2 px-2 py-1.5 text-xs text-muted">
                     Switch to
@@ -169,7 +102,7 @@ export default function Sidebar({
                         <li key={w.id}>
                           <button
                             type="button"
-                            className="flex w-full min-w-0 flex-col items-stretch rounded-md px-2 py-1.5 text-left text-sm hover:bg-default/50"
+                            className="flex w-full min-w-0 flex-col items-stretch rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface"
                             onClick={() => handleSelectWorkspace(w.id)}
                           >
                             <span className="truncate font-medium">
@@ -186,28 +119,49 @@ export default function Sidebar({
                 </>
               )}
 
-              <div className="mt-2 flex flex-col gap-0.5 border-t pt-2">
+              <div className="mt-2 flex flex-col gap-0.5 border-t border-grid pt-2">
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-default/50"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface"
                   onClick={onRequestNewWorkspace}
                 >
                   <Plus className="size-3.5" /> New workspace
                 </button>
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-default/50"
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface"
                   onClick={onOpenWorkspacePicker}
                 >
-                  <FolderOpen className="size-3.5" /> Manage workspaces
+                  <Folder className="size-3.5" /> Manage workspaces
                 </button>
               </div>
             </Popover.Dialog>
           </Popover.Content>
         </Popover>
-        <div className="mt-3">
-          <ThemeToggle variant="switch" />
-        </div>
+      </div>
+
+      {/* Middle section: Sessions */}
+      <div className="flex-1 overflow-y-auto py-2">
+        <SessionList
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          showSessionIdHover={showSessionIdHover}
+          onNewSession={onNewSession}
+          onSwitchSession={onSwitchSession}
+          onDeleteSession={onDeleteSession}
+        />
+      </div>
+
+      {/* Bottom section: Theme + Settings */}
+      <div className="flex items-center justify-between px-4 py-3 border-t border-grid">
+        <ThemeToggle variant="switch" />
+        <button
+          className="rounded-lg p-1.5 text-graphite transition-colors hover:bg-surface hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={onOpenSettings}
+          aria-label="Open settings"
+        >
+          <SettingsIcon className="h-4 w-4" />
+        </button>
       </div>
     </aside>
   );

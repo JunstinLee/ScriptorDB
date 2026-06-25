@@ -1,5 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
-import ChatHeader from "./components/ChatHeader";
+import { useCallback, useRef, useState } from "react";
 import ChatPanel from "./components/ChatPanel";
 import SchemaSidebar from "./components/SchemaSidebar";
 import SettingsModal from "./components/SettingsModal";
@@ -171,11 +170,6 @@ function MainApp({
   const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const activeSessionTitle = useMemo(
-    () => sessions.find((s) => s.session_id === activeSessionId)?.title ?? null,
-    [sessions, activeSessionId],
-  );
-
   const handleNewSession = useCallback(() => {
     void createNewSession();
   }, [createNewSession]);
@@ -307,26 +301,20 @@ function MainApp({
       />
 
       <div className="flex flex-1 flex-col min-w-0">
-        <ChatHeader
-          activeSessionId={activeSessionId}
-          activeSessionTitle={activeSessionTitle}
-          showSessionIdHover={showSessionIdHover}
-          settingsChanged={settingsChanged}
-          onSelectionChange={(model, provider) => {
-            setSelectedModel(model);
-            setSelectedProvider(provider);
-          }}
-        />
-
         <div className="flex flex-1 flex-col min-h-0 relative">
           <ChatPanel
             activeSessionId={activeSessionId}
             messages={messages}
             runs={runs}
             isLoading={isLoading}
+            settingsChanged={settingsChanged}
             onSend={handleSend}
             onNewSession={handleNewSession}
             onHighlightRun={handleHighlightRun}
+            onSelectionChange={(model, provider) => {
+              setSelectedModel(model);
+              setSelectedProvider(provider);
+            }}
           />
         </div>
       </div>

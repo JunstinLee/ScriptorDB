@@ -119,7 +119,7 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
       </p>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="apikeys-api-key">API Key</Label>
+        <Label htmlFor="apikeys-api-key" className="text-xs text-graphite">API Key</Label>
         <div className="flex gap-2">
           <Input
             id="apikeys-api-key"

@@ -65,7 +65,7 @@ export default function SessionsTab({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between rounded-lg border p-3">
+      <div className="flex items-center justify-between rounded-lg border border-grid bg-surface p-3">
         <div className="flex flex-col gap-0.5">
           <Label className="text-sm font-medium">
             Auto-restore sessions on restart
@@ -86,7 +86,7 @@ export default function SessionsTab({
         </Switch>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border p-3">
+      <div className="flex items-center justify-between rounded-lg border border-grid bg-surface p-3">
         <div className="flex flex-col gap-0.5">
           <Label className="text-sm font-medium">
             Show session ID on hover
@@ -106,7 +106,7 @@ export default function SessionsTab({
         </Switch>
       </div>
 
-      <div className="flex items-center justify-between rounded-lg border p-3">
+      <div className="flex items-center justify-between rounded-lg border border-grid bg-surface p-3">
         <div className="flex flex-col gap-0.5">
           <Label className="text-sm font-medium">
             Show CREATE SQL in schema
@@ -152,7 +152,7 @@ export default function SessionsTab({
               return (
                 <li
                   key={s.session_id}
-                  className="flex items-center gap-3 rounded-lg border bg-surface/50 px-3 py-2"
+                  className="flex items-center gap-3 rounded-lg border border-grid bg-surface px-3 py-2"
                 >
                   <div className="flex min-w-0 flex-1 flex-col">
                     <span

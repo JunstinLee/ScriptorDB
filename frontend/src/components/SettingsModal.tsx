@@ -65,7 +65,7 @@ export default function SettingsModal({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog className="sm:max-w-[640px] max-h-[85vh]">
+        <Modal.Dialog className="sm:max-w-[640px] max-h-[85vh] bg-surface">
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
@@ -84,27 +84,27 @@ export default function SettingsModal({
                 <Tabs.ListContainer>
                   <Tabs.List
                     aria-label="Settings"
-                    className="w-fit *:h-9 *:w-fit *:px-3 *:text-sm *:font-normal"
+                    className="w-fit *:h-9 *:w-fit *:px-3 *:text-[11px] *:font-semibold *:uppercase *:tracking-wider"
                   >
                     <Tabs.Tab id="workspaces">
-                      <Folder className="mr-1.5 inline size-4" />
+                      <Folder className="mr-1.5 inline size-3.5 text-graphite" />
                       Workspaces
-                      <Tabs.Indicator />
+                      <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
                     <Tabs.Tab id="sessions">
-                      <MessageSquare className="mr-1.5 inline size-4" />
+                      <MessageSquare className="mr-1.5 inline size-3.5 text-graphite" />
                       Sessions
-                      <Tabs.Indicator />
+                      <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
                     <Tabs.Tab id="apikeys">
-                      <Key className="mr-1.5 inline size-4" />
+                      <Key className="mr-1.5 inline size-3.5 text-graphite" />
                       API Keys
-                      <Tabs.Indicator />
+                      <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
                     <Tabs.Tab id="defaults">
-                      <SettingsIcon className="mr-1.5 inline size-4" />
+                      <SettingsIcon className="mr-1.5 inline size-3.5 text-graphite" />
                       Default Models
-                      <Tabs.Indicator />
+                      <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
                   </Tabs.List>
                 </Tabs.ListContainer>

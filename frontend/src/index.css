@@ -68,3 +68,8 @@ body,
 .workspace-path-marquee {
   animation: workspace-path-marquee 20s linear infinite;
 }
+
+.focus-cobalt:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}

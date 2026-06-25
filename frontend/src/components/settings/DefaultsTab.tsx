@@ -94,7 +94,7 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
       </p>
 
       <div className="flex flex-col gap-1.5">
-        <Label id="defaults-model-label">
+        <Label id="defaults-model-label" className="text-xs text-graphite">
           Set default model for {selectedProvider}
         </Label>
         {loading ? (
@@ -114,7 +114,7 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
                 : [...(keys as Set<string>)][0];
               if (typeof v === "string") setPickedModel(v);
             }}
-            className="max-h-64 overflow-y-auto rounded-lg border"
+            className="max-h-64 overflow-y-auto rounded-lg border border-grid"
           >
             {models.map((m) => (
               <ListBox.Item

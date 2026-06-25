@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Button, Input, Label, Modal } from "@heroui/react";
-import { FolderOpen, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import type {
   WorkspaceCreateRequest,
   WorkspaceDetail,
@@ -101,11 +101,9 @@ export default function WorkspacePicker({
     async (id: string) => {
       const ws = workspaces.find((w) => w.id === id);
       if (!ws) return;
-      if (!window.confirm(`Delete workspace "${ws.name}"?\n\nTip: choose "Delete files" to also remove the directory contents.`)) {
-        return;
-      }
+      if (!window.confirm(`Delete workspace "${ws.name}"?`)) return;
       const deleteFiles = window.confirm(
-        "Also remove the workspace directory contents?\n\nClick OK to delete files, Cancel to keep them.",
+        "Also delete its files from disk?",
       );
       setBusy(true);
       setLocalError(null);
@@ -154,7 +152,7 @@ export default function WorkspacePicker({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={isClosable ? onClose : undefined}>
       <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog className="sm:max-w-[640px] max-h-[85vh]">
+        <Modal.Dialog className="sm:max-w-[640px] max-h-[85vh] bg-surface">
           {isClosable && <Modal.CloseTrigger />}
           <Modal.Header>
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
@@ -186,8 +184,8 @@ export default function WorkspacePicker({
                   return (
                     <li
                       key={ws.id}
-                      className={`flex items-center gap-3 rounded-lg border px-3 py-2 ${
-                        isActive ? "border-accent/40 bg-accent/5" : "bg-surface/50"
+                      className={`flex items-center gap-3 rounded-lg border border-grid bg-surface px-3 py-2 ${
+                        isActive ? "border-l-[3px] border-l-cobalt border-l" : ""
                       }`}
                     >
                       <div className="flex min-w-0 flex-1 flex-col">
@@ -208,7 +206,7 @@ export default function WorkspacePicker({
                           <span className="truncate text-sm font-medium">
                             {ws.name}
                             {isActive && (
-                              <span className="ml-2 text-xs text-accent">active</span>
+                              <span className="ml-2 text-xs text-cobalt">active</span>
                             )}
                           </span>
                         )}
@@ -253,7 +251,7 @@ export default function WorkspacePicker({
                               aria-label={`Rename ${ws.name}`}
                               onPress={() => handleStartRename(ws)}
                             >
-                              <FolderOpen className="size-3.5" />
+                              <Pencil className="size-3.5" />
                             </Button>
                           )}
                           {!isActive && (
@@ -277,7 +275,7 @@ export default function WorkspacePicker({
 
             <form
               onSubmit={(e) => void handleSubmitCreate(e)}
-              className="space-y-3 border-t pt-4"
+              className="space-y-3 border-t border-grid pt-4"
             >
               <div className="flex items-center gap-2">
                 <Plus className="size-4 text-muted" />
@@ -285,7 +283,7 @@ export default function WorkspacePicker({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="ws-name">Name</Label>
+                <Label htmlFor="ws-name" className="text-xs text-graphite">Name</Label>
                 <Input
                   id="ws-name"
                   name="name"
@@ -308,13 +306,13 @@ export default function WorkspacePicker({
                     }))
                   }
                 >
-                  {createForm.showAdvanced ? "▾" : "▸"} Advanced
+                  {createForm.showAdvanced ? "\u25BE" : "\u25B8"} Advanced
                 </button>
               </div>
 
               {createForm.showAdvanced && (
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="ws-dburl">DB URL (optional)</Label>
+                  <Label htmlFor="ws-dburl" className="text-xs text-graphite">DB URL (optional)</Label>
                   <Input
                     id="ws-dburl"
                     name="db_url"
@@ -341,7 +339,7 @@ export default function WorkspacePicker({
                   variant="primary"
                   isDisabled={busy || !createForm.name.trim()}
                 >
-                  {busy ? "Creating…" : "Create & open"}
+                  {busy ? "Creating\u2026" : "Create & open"}
                 </Button>
               </div>
             </form>

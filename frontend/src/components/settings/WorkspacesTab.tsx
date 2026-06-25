@@ -50,7 +50,7 @@ export default function WorkspacesTab({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-lg border p-3">
+      <div className="rounded-lg border border-grid bg-surface p-3">
         <div className="flex flex-col gap-1">
           <Label className="text-sm font-medium">Active workspace</Label>
           {activeWorkspace ? (
@@ -79,7 +79,7 @@ export default function WorkspacesTab({
         </div>
       </div>
 
-      <div className="flex flex-col gap-2 rounded-lg border p-3">
+      <div className="flex flex-col gap-2 rounded-lg border border-grid bg-surface p-3">
         <Label className="text-sm font-medium">Manage workspaces</Label>
         <p className="text-xs text-muted">
           {workspacesCount} workspace{workspacesCount === 1 ? "" : "s"} registered.
@@ -102,7 +102,7 @@ export default function WorkspacesTab({
       </div>
 
       {legacySummary?.exists && legacySummary.count > 0 && (
-        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+        <div className="rounded-lg border border-grid bg-surface p-3">
           <div className="flex flex-col gap-2">
             <Label className="text-sm font-medium">Legacy sessions found</Label>
             <p className="text-xs text-muted">
@@ -127,7 +127,7 @@ export default function WorkspacesTab({
         </div>
       )}
 
-      <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
+      <div className="rounded-lg border border-grid bg-surface p-3">
         <p className="text-xs text-muted">
           <strong className="text-foreground">Heads up:</strong> LLM settings
           (API keys, default model) shown in the other tabs are stored per
