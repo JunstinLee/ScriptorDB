@@ -46,6 +46,7 @@ class ErrorCategory(str, Enum):
     resource_not_found = "resource_not_found"
     execution_timeout = "execution_timeout"
     output_limit_exceeded = "output_limit_exceeded"
+    resource_exhausted = "resource_exhausted"
     external_service_error = "external_service_error"
     internal_error = "internal_error"
 
@@ -56,6 +57,7 @@ USER_VISIBLE_CATEGORIES = {
     ErrorCategory.resource_not_found,
     ErrorCategory.execution_timeout,
     ErrorCategory.output_limit_exceeded,
+    ErrorCategory.resource_exhausted,
 }
 
 

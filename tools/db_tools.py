@@ -105,14 +105,21 @@ def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
     category = ErrorCategory.internal_error
     if result.exit_code == -1:
         category = ErrorCategory.execution_timeout
+    elif result.memory_killed or "__SANDBOX_MEMORY_LIMIT__" in result.stderr:
+        category = ErrorCategory.resource_exhausted
     elif "SyntaxError" in result.stderr or "NameError" in result.stderr:
         category = ErrorCategory.parameter_error
+
+    if category == ErrorCategory.resource_exhausted:
+        message = "代码执行时内存超过 4GB 限制，请减少数据量或优化代码"
+    else:
+        message = result.stderr.strip() or "代码执行失败"
 
     return ToolResult(
         success=False,
         error=ToolErrorInfo(
             category=category,
-            message=result.stderr.strip() or "代码执行失败",
+            message=message,
         ),
     )
 

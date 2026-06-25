@@ -68,6 +68,7 @@ class TestErrorCategory:
             ErrorCategory.resource_not_found,
             ErrorCategory.execution_timeout,
             ErrorCategory.output_limit_exceeded,
+            ErrorCategory.resource_exhausted,
             ErrorCategory.external_service_error,
             ErrorCategory.internal_error,
         }
