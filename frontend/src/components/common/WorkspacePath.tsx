@@ -41,7 +41,7 @@ export default function WorkspacePath({
     <div
       ref={containerRef}
       className={`relative min-w-0 overflow-hidden ${className}`}
-      title={path ?? undefined}
+      title={display || undefined}
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
