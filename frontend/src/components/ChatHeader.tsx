@@ -48,7 +48,7 @@ export default function ChatHeader({
   if (!activeSessionId) return null;
 
   return (
-    <div className="flex items-center justify-between border-b px-4 py-2.5">
+    <div className="flex items-center justify-between px-4 py-2.5">
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted">Session:</span>

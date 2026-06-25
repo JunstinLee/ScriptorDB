@@ -28,7 +28,7 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
   );
 
   return (
-    <div className="border-t px-4 py-3">
+    <div className="px-4 py-3">
       <div className="flex gap-2">
         <div className="flex-1">
           <TextField
