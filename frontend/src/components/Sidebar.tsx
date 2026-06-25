@@ -93,7 +93,7 @@ export default function Sidebar({
 
   return (
     <aside className="flex w-72 shrink-0 flex-col border-r">
-      <div className="flex items-center justify-between border-b px-4 py-3">
+      <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <Database className="h-5 w-5 text-accent" />
           <span className="font-semibold text-foreground">ScriptorDB</span>
@@ -127,7 +127,7 @@ export default function Sidebar({
         />
       </div>
 
-      <div className="border-t px-4 py-3 space-y-3">
+      <div className="px-4 py-3 space-y-3">
         <Popover>
           <Popover.Trigger>
             <button
