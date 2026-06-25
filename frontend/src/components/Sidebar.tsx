@@ -127,7 +127,7 @@ export default function Sidebar({
         />
       </div>
 
-      <div className="border-t px-4 py-3 space-y-2">
+      <div className="border-t px-4 py-3 space-y-3">
         <Popover>
           <Popover.Trigger>
             <button
@@ -170,7 +170,7 @@ export default function Sidebar({
                         <li key={w.id}>
                           <button
                             type="button"
-                            className="flex w-full flex-col items-start rounded-md px-2 py-1.5 text-left text-sm hover:bg-default/50"
+                            className="flex w-full min-w-0 flex-col items-stretch rounded-md px-2 py-1.5 text-left text-sm hover:bg-default/50"
                             onClick={() => handleSelectWorkspace(w.id)}
                           >
                             <span className="truncate font-medium">
@@ -206,7 +206,9 @@ export default function Sidebar({
             </Popover.Dialog>
           </Popover.Content>
         </Popover>
-        <ThemeToggle variant="switch" />
+        <div className="mt-3">
+          <ThemeToggle variant="switch" />
+        </div>
       </div>
     </aside>
   );
