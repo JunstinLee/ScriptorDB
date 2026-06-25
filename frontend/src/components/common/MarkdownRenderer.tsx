@@ -3,7 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { useIsDark } from "../../hooks/useIsDark";
+import { useTheme } from "../../hooks/useTheme";
 
 import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
@@ -32,7 +32,7 @@ interface MarkdownRendererProps {
 }
 
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
-  const isDark = useIsDark();
+  const { isDark } = useTheme();
   const match = /language-(\w+)/.exec(className || "");
   const language = match?.[1];
 

@@ -1,6 +1,48 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-muted: var(--graphite);
+  --color-surface: var(--surface);
+  --color-accent: var(--cobalt);
+  --color-accent-dim: var(--cobalt-dim);
+  --color-success: var(--sage);
+  --color-warning: var(--amber);
+  --color-danger: var(--vermilion);
+  --color-default: var(--grid);
+}
+
+:root {
+  --paper: #F7F5F0;
+  --ink: #1A1B1F;
+  --graphite: #6B6F78;
+  --grid: #E6E3DC;
+  --surface: #FFFFFF;
+  --cobalt: #2E5BFF;
+  --cobalt-dim: #1E3ECC;
+  --amber: #D98A16;
+  --sage: #3A8A5E;
+  --vermilion: #C94036;
+}
+
+.dark {
+  --paper: #141519;
+  --ink: #E8E6E1;
+  --graphite: #8C9099;
+  --grid: #2A2D34;
+  --surface: #1C1E24;
+  --cobalt: #5B8AFF;
+  --cobalt-dim: #416DDB;
+  --amber: #F0A820;
+  --sage: #5FB382;
+  --vermilion: #EF5350;
+}
+
 html,
 body,
 #root {

@@ -78,7 +78,6 @@ export default function Sidebar({
           <Database className="h-4 w-4" />
         </button>
         <div className="mt-auto flex flex-col gap-1">
-          <ThemeToggle variant="icon" />
           <button
             className="rounded-lg p-1.5 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
             onClick={onOpenSettings}

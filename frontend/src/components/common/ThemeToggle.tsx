@@ -1,28 +1,22 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { Switch } from "@heroui/react";
 import { Moon, Sun } from "lucide-react";
+import { useTheme } from "../../hooks/useTheme";
+import type { Theme } from "../../hooks/useTheme";
 
 interface ThemeToggleProps {
   variant: "icon" | "switch";
 }
 
 export default function ThemeToggle({ variant }: ThemeToggleProps) {
-  const [isDark, setIsDark] = useState(false);
+  const { theme, setTheme, isDark } = useTheme();
 
-  useEffect(() => {
-    const html = document.documentElement;
-    if (isDark) {
-      html.classList.add("dark");
-      html.setAttribute("data-theme", "dark");
-    } else {
-      html.classList.remove("dark");
-      html.setAttribute("data-theme", "light");
-    }
-  }, [isDark]);
+  const resolved = theme === "system" ? "system" : isDark ? "dark" : "light";
 
   const toggleTheme = useCallback(() => {
-    setIsDark((prev) => !prev);
-  }, []);
+    const next: Theme = isDark ? "light" : "dark";
+    setTheme(next);
+  }, [isDark, setTheme]);
 
   if (variant === "icon") {
     return (
@@ -47,7 +41,7 @@ export default function ThemeToggle({ variant }: ThemeToggleProps) {
       </Switch.Control>
       <Switch.Content>
         <span className="text-xs font-medium">
-          {isDark ? "Dark Mode" : "Light Mode"}
+          {resolved === "system" ? "System" : isDark ? "Dark Mode" : "Light Mode"}
         </span>
       </Switch.Content>
     </Switch>
