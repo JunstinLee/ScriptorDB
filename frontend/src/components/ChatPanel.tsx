@@ -50,12 +50,14 @@ export default function ChatPanel({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-grid bg-background">
-        <ModelProviderBar
-          settingsChanged={settingsChanged}
-          onSelectionChange={onSelectionChange}
-        />
-        <ChatInput onSend={onSend} disabled={isLoading} />
+      <div className="shrink-0 bg-background px-4 py-3">
+        <div className="overflow-hidden rounded-lg border border-grid bg-surface">
+          <ChatInput onSend={onSend} disabled={isLoading} />
+          <ModelProviderBar
+            settingsChanged={settingsChanged}
+            onSelectionChange={onSelectionChange}
+          />
+        </div>
       </div>
     </div>
   );

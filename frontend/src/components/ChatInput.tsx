@@ -54,30 +54,28 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
   );
 
   return (
-    <div className="px-4 py-3">
-      <div className="flex items-end gap-2 rounded-lg border border-grid bg-surface px-3 py-2">
-        <textarea
-          ref={textareaRef}
-          value={prompt}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Ask about your database..."
-          disabled={disabled}
-          rows={1}
-          className="flex-1 resize-none bg-transparent text-[14px] text-ink placeholder:text-graphite outline-none leading-relaxed min-h-[24px] max-h-[144px]"
-        />
-        <Button
-          variant="primary"
-          isIconOnly
-          size="sm"
-          onPress={handleSend}
-          isDisabled={disabled || !prompt.trim()}
-          aria-label="Send"
-          className="shrink-0"
-        >
-          <ArrowUp className="h-4 w-4" />
-        </Button>
-      </div>
+    <div className="flex items-end gap-2 px-3 py-2">
+      <textarea
+        ref={textareaRef}
+        value={prompt}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        placeholder="Ask about your database..."
+        disabled={disabled}
+        rows={1}
+        className="flex-1 resize-none bg-transparent text-[14px] text-ink placeholder:text-graphite outline-none leading-relaxed min-h-[24px] max-h-[144px]"
+      />
+      <Button
+        variant="primary"
+        isIconOnly
+        size="sm"
+        onPress={handleSend}
+        isDisabled={disabled || !prompt.trim()}
+        aria-label="Send"
+        className="shrink-0"
+      >
+        <ArrowUp className="h-4 w-4" />
+      </Button>
     </div>
   );
 }
