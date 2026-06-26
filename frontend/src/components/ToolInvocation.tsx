@@ -15,110 +15,110 @@ function formatDuration(ms: number): string {
 function getToolSummary(toolName: string, args: Record<string, unknown>): string {
   switch (toolName) {
     case "run_python_code":
-      return "执行 Python 代码";
+      return "Ran Python";
 
     case "write_csv": {
-      const path = args.filepath as string || "";
+      const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `写入 ${filename || "CSV 文件"}`;
+      return `Created file: ${filename || "output.csv"}`;
     }
 
     case "write_file": {
-      const path = args.filepath as string || "";
+      const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `写入 ${filename || "文件"}`;
+      return `Created file: ${filename || "file"}`;
     }
 
     case "export_excel": {
-      const path = args.filepath as string || "";
+      const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `导出 Excel ${filename || "文件"}`;
+      return `Exported Excel: ${filename || "file"}`;
     }
 
     case "read_csv": {
-      const path = args.filepath as string || "";
+      const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `读取 ${filename || "CSV 文件"}`;
+      return `Read file: ${filename || "CSV file"}`;
     }
 
     case "read_file": {
-      const path = args.filepath as string || "";
+      const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `读取 ${filename || "文件"}`;
+      return `Read file: ${filename || "file"}`;
     }
 
     case "list_files": {
-      const dir = args.directory as string || ".";
-      return `列出 ${dir} 目录`;
+      const dir = (args.directory as string) || ".";
+      return `Listed: ${dir}`;
     }
 
     case "query_database": {
-      const sql = (args.sql as string || "").trim();
-      if (!sql) return "查询数据库";
+      const sql = ((args.sql as string) || "").trim();
+      if (!sql) return "Queried database";
       const upper = sql.toUpperCase();
       if (upper.startsWith("SELECT") || upper.startsWith("WITH")) {
         const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
-        return `查询: ${preview}`;
+        return `Queried: ${preview}`;
       }
-      return "查询数据库";
+      return "Queried database";
     }
 
     case "get_schema": {
       const table = args.table as string;
-      return table ? `获取 ${table} 表结构` : "获取所有表结构";
+      return table ? `Got schema: ${table}` : "Got all table schemas";
     }
 
     case "plot_chart": {
-      const type = args.chart_type as string || "图表";
-      const title = args.title as string || "";
-      return title ? `生成 ${type} 图: ${title}` : `生成 ${type} 图表`;
+      const type = (args.chart_type as string) || "chart";
+      const title = (args.title as string) || "";
+      return title ? `Generated chart: ${title}` : `Generated ${type} chart`;
     }
 
     case "create_table": {
-      const tableName = args.table_name as string || "";
+      const tableName = (args.table_name as string) || "";
       const columns = args.columns as Array<{ name: string }> | undefined;
       const colCount = columns?.length || 0;
       return tableName
-        ? `创建表 ${tableName} (${colCount} 列)`
-        : "创建数据表";
+        ? `Created table: ${tableName} (${colCount} cols)`
+        : "Created table";
     }
 
     case "execute_ddl": {
-      const sql = (args.sql as string || "").trim();
-      if (!sql) return "执行 DDL 语句";
+      const sql = ((args.sql as string) || "").trim();
+      if (!sql) return "Executed DDL";
       const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
       return `DDL: ${preview}`;
     }
 
     case "write_data": {
-      const sql = (args.sql as string || "").trim();
-      if (!sql) return "写入数据";
+      const sql = ((args.sql as string) || "").trim();
+      if (!sql) return "Wrote data";
       const upper = sql.toUpperCase();
       const op = upper.startsWith("INSERT")
-        ? "插入"
+        ? "Inserted"
         : upper.startsWith("UPDATE")
-          ? "更新"
+          ? "Updated"
           : upper.startsWith("DELETE")
-            ? "删除"
-            : "写入";
+            ? "Deleted"
+            : "Wrote";
       const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
       return `${op}: ${preview}`;
     }
 
     default:
-      return "执行操作";
+      return "Executed";
   }
 }
 
 function getStatusText(
   status: "running" | "success" | "error",
   output: string | undefined,
-  error_code: string | undefined
+  error_code: string | undefined,
 ): string {
-  if (status === "running") return "执行中...";
-  if (status === "error") return error_code || "执行失败";
+  if (status === "running") return "Running...";
+  if (status === "error") return error_code || "Failed";
   if (status === "success") {
-    if (!output) return "完成";
+    if (!output) return "Done";
     if (output.length > 50) return output.slice(0, 47) + "...";
     return output;
   }
@@ -128,11 +128,15 @@ function getStatusText(
 function extractErrorId(message: string | undefined): string | null {
   if (!message) return null;
   const match = message.match(/（ID: ([^)）]+)）/);
-  return match?.[1] ?? null;
+  if (match) return match[1];
+  const enMatch = message.match(/\(ID: ([^)]+)\)/);
+  return enMatch?.[1] ?? null;
 }
 
 function isInternalError(error_code: string | undefined): boolean {
-  return error_code === "internal_error" || error_code === "external_service_error";
+  return (
+    error_code === "internal_error" || error_code === "external_service_error"
+  );
 }
 
 export default function ToolInvocation({ invocation }: ToolInvocationProps) {
@@ -157,22 +161,25 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
   }, [errorId]);
 
   return (
-    <div className="border border-default-200 rounded-lg overflow-hidden">
-      {/* Title bar */}
+    <div className="border border-grid rounded-md overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-default-100 transition-colors"
+        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-default/30 transition-colors"
       >
         {status === "running" && (
           <Spinner size="sm" className="text-warning" />
         )}
         {status === "success" && (
-          <Check className="h-3.5 w-3.5 text-success" />
+          <Check className="h-3.5 w-3.5 text-sage" />
         )}
-        {status === "error" && <X className="h-3.5 w-3.5 text-danger" />}
+        {status === "error" && (
+          <X className="h-3.5 w-3.5 text-vermilion" />
+        )}
 
-        <code className="text-xs font-medium text-foreground">{tool_name}</code>
+        <code className="text-xs font-medium text-foreground font-mono">
+          {tool_name}
+        </code>
 
         {duration_ms != null && (
           <span className="flex items-center gap-1 text-xs text-muted">
@@ -196,21 +203,21 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
         </Chip>
 
         <ChevronDown
-          className={`h-3.5 w-3.5 text-muted transition-transform ${expanded ? "rotate-180" : ""}`}
+          className={`h-3.5 w-3.5 text-muted ml-auto transition-transform ${
+            expanded ? "rotate-180" : ""
+          }`}
         />
       </button>
 
-      {/* Middle layer - status summary */}
-      <div className="px-3 py-1.5 bg-default-50 border-t border-default-200">
+      <div className="px-3 py-1.5 bg-default/10 border-t border-grid">
         <span className="text-xs text-muted">{summary}</span>
         {status !== "running" && statusText && (
           <span className="text-xs text-muted ml-2">— {statusText}</span>
         )}
       </div>
 
-      {/* Expanded details - output/error only */}
       {expanded && (output || error_code) && (
-        <div className="border-t border-default-200 px-3 py-2">
+        <div className="border-t border-grid px-3 py-2">
           {error_code && (
             <div className="mb-1 flex items-center gap-1.5">
               <Chip size="sm" color="danger" variant="soft">
@@ -221,19 +228,19 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
                   type="button"
                   onClick={handleCopyErrorId}
                   className="text-xs text-muted hover:text-foreground transition-colors flex items-center gap-1"
-                  title="复制错误 ID"
+                  title="Copy error ID"
                 >
                   {copied ? (
-                    <Check className="h-3 w-3 text-success" />
+                    <Check className="h-3 w-3 text-sage" />
                   ) : (
                     <Copy className="h-3 w-3" />
                   )}
-                  <span>{copied ? "已复制" : "复制 ID"}</span>
+                  <span>{copied ? "Copied" : "Copy ID"}</span>
                 </button>
               )}
             </div>
           )}
-          <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+          <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto font-mono">
             {output || "(no output)"}
           </pre>
         </div>

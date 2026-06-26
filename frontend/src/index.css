@@ -60,6 +60,13 @@ body,
   animation: highlight-fade 5s ease-out forwards;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .run-highlight {
+    animation: none;
+    background-color: color-mix(in oklch, var(--color-warning) 15%, transparent);
+  }
+}
+
 @keyframes workspace-path-marquee {
   0%, 10% { transform: translateX(0); }
   90%, 100% { transform: translateX(calc(-50%)); }

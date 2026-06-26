@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import {
   Wrench,
-  MessageSquare,
   ChevronDown,
   ChevronRight,
-  FileText,
-  Database,
-  Terminal,
-  BarChart3,
 } from "lucide-react";
 import type { Run, ToolInvocation as TI } from "../types";
 import ToolInvocation from "./ToolInvocation";
@@ -25,7 +20,6 @@ function getOperations(invocations: TI[]): OperationItem[] {
   let pythons = 0;
   let dbWrites = 0;
   let dbCreates = 0;
-  let dbDdl = 0;
 
   for (const inv of invocations) {
     switch (inv.tool_name) {
@@ -50,54 +44,46 @@ function getOperations(invocations: TI[]): OperationItem[] {
         dbCreates++;
         break;
       case "execute_ddl":
-        dbDdl++;
-        break;
       case "write_data":
         dbWrites++;
         break;
     }
   }
 
-  if (writes.length > 0) {
+  for (const name of writes) {
     ops.push({
-      icon: <FileText className="h-3 w-3" />,
-      label: `新建文件: ${writes.join(", ")}`,
+      icon: <span className="text-[10px] font-mono text-graphite">FILE</span>,
+      label: `Created file: ${name}`,
     });
   }
   if (charts > 0) {
     ops.push({
-      icon: <BarChart3 className="h-3 w-3" />,
-      label: `生成图表`,
+      icon: <span className="text-[10px] font-mono text-graphite">CHART</span>,
+      label: charts > 1 ? `Generated ${charts} charts` : "Generated chart",
     });
   }
   if (queries > 0) {
     ops.push({
-      icon: <Database className="h-3 w-3" />,
-      label: `查询数据库`,
+      icon: <span className="text-[10px] font-mono text-graphite">QUERY</span>,
+      label: queries > 1 ? `Queried database (${queries}x)` : "Queried database",
     });
   }
   if (pythons > 0) {
     ops.push({
-      icon: <Terminal className="h-3 w-3" />,
-      label: `执行 Python 代码`,
+      icon: <span className="text-[10px] font-mono text-graphite">PY</span>,
+      label: pythons > 1 ? `Ran Python (${pythons}x)` : "Ran Python",
     });
   }
   if (dbCreates > 0) {
     ops.push({
-      icon: <Database className="h-3 w-3" />,
-      label: `创建数据表`,
-    });
-  }
-  if (dbDdl > 0) {
-    ops.push({
-      icon: <Database className="h-3 w-3" />,
-      label: `执行 DDL 语句`,
+      icon: <span className="text-[10px] font-mono text-graphite">DDL</span>,
+      label: dbCreates > 1 ? `Created ${dbCreates} tables` : "Created table",
     });
   }
   if (dbWrites > 0) {
     ops.push({
-      icon: <Database className="h-3 w-3" />,
-      label: `写入数据库`,
+      icon: <span className="text-[10px] font-mono text-graphite">DB</span>,
+      label: `Wrote to database`,
     });
   }
   return ops;
@@ -105,7 +91,7 @@ function getOperations(invocations: TI[]): OperationItem[] {
 
 function getCollapsedSummary(invocations: TI[]): string {
   const ops = getOperations(invocations);
-  if (ops.length === 0) return `${invocations.length} 个工具`;
+  if (ops.length === 0) return `${invocations.length} tools`;
   return ops.map((op) => op.label).join(" · ");
 }
 
@@ -124,7 +110,6 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
 
   const runsWithTools = runs.filter((r) => r.tool_invocations.length > 0);
 
-  // Keep refs to avoid stale values in the effect
   const runsRef = useRef(runs);
   runsRef.current = runs;
   const runsWithToolsRef = useRef(runsWithTools);
@@ -151,31 +136,38 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
   useEffect(() => {
     if (!highlightedRunId) return;
 
-    const targetRunIndex = runsRef.current.findIndex((r) => r.run_id === highlightedRunId);
+    const targetRunIndex = runsRef.current.findIndex(
+      (r) => r.run_id === highlightedRunId,
+    );
     if (targetRunIndex === -1) return;
 
-    const runsWithToolsIndex = runsWithToolsRef.current.findIndex((r) => r.run_id === highlightedRunId);
+    const runsWithToolsIndex = runsWithToolsRef.current.findIndex(
+      (r) => r.run_id === highlightedRunId,
+    );
     const roundIndex = runsWithToolsIndex + 1;
 
-    // Auto-expand the round
     setCollapsedRounds((prev) => {
       const next = new Set(prev);
       next.delete(roundIndex);
       return next;
     });
 
-    // Auto-expand tools
     setCollapsedTools((prev) => {
       const next = new Set(prev);
       next.delete(roundIndex);
       return next;
     });
 
-    // Wait for DOM to update after state changes, then scroll
     requestAnimationFrame(() => {
+      const prefersReduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
       const el = document.querySelector(`[data-run-id="${highlightedRunId}"]`);
       if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.scrollIntoView({
+          behavior: prefersReduced ? "auto" : "smooth",
+          block: "center",
+        });
       }
     });
   }, [highlightedRunId]);
@@ -184,7 +176,7 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted">
         <Wrench className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-sm">暂无工具调用</p>
+        <p className="text-sm">No tool invocations</p>
       </div>
     );
   }
@@ -192,9 +184,10 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
   return (
     <div className="flex flex-col gap-2.5">
       {runsWithTools.map((run) => {
-        const roundIndex = runs.indexOf(run) + 1;
-        const isRoundCollapsed = collapsedRounds.has(roundIndex);
-        const isToolsCollapsed = collapsedTools.has(roundIndex);
+        const runIndex = runsWithTools.findIndex((r) => r.run_id === run.run_id);
+        const runNumber = runIndex + 1;
+        const isRoundCollapsed = collapsedRounds.has(runNumber);
+        const isToolsCollapsed = collapsedTools.has(runNumber);
         const operations = getOperations(run.tool_invocations);
         const collapsedSummary = getCollapsedSummary(run.tool_invocations);
 
@@ -202,40 +195,36 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
           <div
             key={run.run_id}
             data-run-id={run.run_id}
-            className={`rounded-lg border border-default-200 overflow-hidden ${
+            className={`rounded-lg border border-grid overflow-hidden ${
               run.run_id === highlightedRunId ? "run-highlight" : ""
             }`}
           >
-            {/* 轮次标题 */}
             <button
               type="button"
-              onClick={() => toggleRound(roundIndex)}
-              className="flex items-center gap-2 w-full px-3 py-2 bg-default-100/50 border-b border-default-200 text-left hover:bg-default-100 transition-colors"
+              onClick={() => toggleRound(runNumber)}
+              className="flex items-center gap-2 w-full px-3 py-2 bg-default/30 border-b border-grid text-left hover:bg-default/50 transition-colors"
             >
               {isRoundCollapsed ? (
                 <ChevronRight className="h-3 w-3 text-muted shrink-0" />
               ) : (
                 <ChevronDown className="h-3 w-3 text-muted shrink-0" />
               )}
-              <MessageSquare className="h-3 w-3 text-muted shrink-0" />
-              <span className="text-xs font-medium text-muted shrink-0">
-                第 {roundIndex} 轮
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted shrink-0 font-mono">
+                Run {runNumber}
               </span>
               {isRoundCollapsed && (
-                <span className="text-xs text-default-400 truncate">
+                <span className="text-xs text-graphite truncate">
                   · {collapsedSummary}
                 </span>
               )}
             </button>
 
-            {/* 展开内容 */}
             {!isRoundCollapsed && (
               <>
-                {/* 操作摘要区 */}
                 {operations.length > 0 && (
-                  <div className="px-3 py-2.5 bg-default-50 border-b border-default-200">
-                    <div className="text-[10px] font-medium text-default-400 uppercase tracking-wide mb-1.5">
-                      操作
+                  <div className="px-3 py-2.5 bg-default/10 border-b border-grid">
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-1.5">
+                      Operations
                     </div>
                     <div className="flex flex-col gap-1">
                       {operations.map((op, i) => (
@@ -243,7 +232,7 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
                           key={i}
                           className="flex items-center gap-2 text-xs text-muted"
                         >
-                          <span className="text-default-400">{op.icon}</span>
+                          {op.icon}
                           <span>{op.label}</span>
                         </div>
                       ))}
@@ -251,12 +240,11 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
                   </div>
                 )}
 
-                {/* 工具调用区 */}
                 <div className="p-2">
                   <button
                     type="button"
-                    onClick={() => toggleTools(roundIndex)}
-                    className="flex items-center gap-1.5 w-full text-left px-1 py-1 hover:bg-default-50 rounded transition-colors"
+                    onClick={() => toggleTools(runNumber)}
+                    className="flex items-center gap-1.5 w-full text-left px-1 py-1 hover:bg-default/30 rounded transition-colors"
                   >
                     {isToolsCollapsed ? (
                       <ChevronRight className="h-3 w-3 text-muted shrink-0" />
@@ -264,8 +252,8 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
                       <ChevronDown className="h-3 w-3 text-muted shrink-0" />
                     )}
                     <Wrench className="h-3 w-3 text-muted shrink-0" />
-                    <span className="text-xs font-medium text-muted">
-                      工具调用 ({run.tool_invocations.length})
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      Tool Invocations ({run.tool_invocations.length})
                     </span>
                   </button>
                   {!isToolsCollapsed && (

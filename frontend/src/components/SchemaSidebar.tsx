@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Tabs } from "@heroui/react";
 import { PanelRightClose, PanelRightOpen, Database, Wrench } from "lucide-react";
 import type { Run, SchemaTable } from "../types";
+import SchemaMap from "./SchemaMap";
 import SchemaViewer from "./SchemaViewer";
 import ToolsPanel from "./ToolsPanel";
 
@@ -73,18 +74,21 @@ export default function SchemaSidebar({
           className="w-full"
         >
           <Tabs.ListContainer>
-            <Tabs.List aria-label="Sidebar tabs">
-              <Tabs.Tab id="schema">
-                <Database className="inline h-3.5 w-3.5 mr-1" />
-                Schema
-                <Tabs.Indicator />
-              </Tabs.Tab>
-              <Tabs.Tab id="tools">
-                <Wrench className="inline h-3.5 w-3.5 mr-1" />
-                Tools
-                <Tabs.Indicator />
-              </Tabs.Tab>
-            </Tabs.List>
+            <Tabs.List
+                aria-label="Sidebar tabs"
+                className="*:h-9 *:w-fit *:px-3 *:text-[11px] *:font-semibold *:uppercase *:tracking-wider"
+              >
+                <Tabs.Tab id="schema">
+                  <Database className="mr-1.5 inline size-3.5 text-graphite" />
+                  Schema
+                  <Tabs.Indicator className="bg-cobalt" />
+                </Tabs.Tab>
+                <Tabs.Tab id="tools">
+                  <Wrench className="mr-1.5 inline size-3.5 text-graphite" />
+                  Tools
+                  <Tabs.Indicator className="bg-cobalt" />
+                </Tabs.Tab>
+              </Tabs.List>
           </Tabs.ListContainer>
         </Tabs>
         <button
@@ -98,12 +102,15 @@ export default function SchemaSidebar({
 
       <div className="flex-1 overflow-y-auto py-2">
         {selectedTab === "schema" ? (
-          <SchemaViewer tables={tables} loading={schemaLoading} showSql={showSchemaSql} />
+          <div>
+            <SchemaMap tables={tables} />
+            <SchemaViewer tables={tables} loading={schemaLoading} showSql={showSchemaSql} />
+          </div>
         ) : (
           <div className="px-2">
             {!activeSessionId ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted">
-                <p className="text-sm">请先选择会话</p>
+                <p className="text-sm">No session selected</p>
               </div>
             ) : (
               <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} />
