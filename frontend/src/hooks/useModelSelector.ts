@@ -90,10 +90,7 @@ export function useModelSelector(settingsChanged: number, onSelectionChange: (mo
   }, [provider]);
 
   const formatModelLabel = useCallback((entry: ModelEntry): string => {
-    if (entry.display_name && entry.display_name !== entry.provider_specific_id) {
-      return `${entry.display_name}  ·  ${entry.provider_specific_id}`;
-    }
-    return entry.provider_specific_id;
+    return entry.display_name || entry.provider_specific_id;
   }, []);
 
   return {
