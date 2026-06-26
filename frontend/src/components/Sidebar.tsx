@@ -122,7 +122,7 @@ export default function Sidebar({
             <button
               ref={triggerRef}
               type="button"
-              className="box-border flex w-full min-w-0 items-center gap-2 rounded-lg border border-grid bg-surface px-3 py-2 text-left transition-colors hover:bg-surface/70 focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+              className="box-border flex w-[220px] min-w-0 items-center gap-2 rounded-lg border border-grid bg-surface px-3 py-2 text-left transition-colors hover:bg-surface/70 focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
               disabled={switchingWorkspace}
               aria-label="Switch workspace"
               onClick={measureTrigger}
@@ -134,7 +134,6 @@ export default function Sidebar({
                 </div>
                 <WorkspacePath
                   path={activeWorkspace?.path}
-                  compact
                   className="text-[11px] text-graphite font-mono"
                 />
               </div>

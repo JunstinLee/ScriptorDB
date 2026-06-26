@@ -17,7 +17,7 @@ export default function WorkspacePath({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLSpanElement | null>(null);
   const [overflow, setOverflow] = useState(false);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(true);
 
   const display = formatWorkspacePath(path) || (path ? path : fallback);
 
@@ -43,13 +43,10 @@ export default function WorkspacePath({
   if (compact) {
     return (
       <div
-        ref={containerRef}
         className={`block min-w-0 w-full truncate ${className}`}
         title={display || undefined}
       >
-        <span ref={textRef} className="block truncate">
-          {display}
-        </span>
+        <span className="block truncate">{display}</span>
       </div>
     );
   }
@@ -57,26 +54,31 @@ export default function WorkspacePath({
   return (
     <div
       ref={containerRef}
-      className={`relative min-w-0 overflow-hidden ${className}`}
+      className={`relative block min-w-0 w-full overflow-hidden whitespace-nowrap ${className}`}
       title={display || undefined}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
+      onMouseEnter={() => setPaused(false)}
+      onMouseLeave={() => setPaused(true)}
     >
-      <div
-        className={
-          overflow
-            ? `flex w-max items-center gap-8 ${paused ? "" : "workspace-path-marquee"}`
-            : "truncate"
-        }
-      >
-        <span
-          ref={textRef}
-          className="whitespace-nowrap"
+      {overflow ? (
+        <div
+          className={`flex w-max items-center gap-8 ${
+            paused ? "" : "workspace-path-marquee"
+          }`}
         >
-          {display}
-        </span>
-        {overflow && <span className="whitespace-nowrap">{display}</span>}
-      </div>
+          <span ref={textRef} className="whitespace-nowrap">
+            {display}
+          </span>
+          <span className="whitespace-nowrap" aria-hidden>
+            {display}
+          </span>
+        </div>
+      ) : (
+        <div className="block truncate">
+          <span ref={textRef} className="block whitespace-nowrap">
+            {display}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

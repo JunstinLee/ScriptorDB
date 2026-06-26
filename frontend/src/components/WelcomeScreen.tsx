@@ -1,6 +1,7 @@
 import { Button } from "@heroui/react";
 import { MessageSquarePlus } from "lucide-react";
 import type { SchemaTable, WorkspaceDetail } from "../types";
+import WorkspacePath from "./common/WorkspacePath";
 
 interface WelcomeScreenProps {
   workspace: WorkspaceDetail | null;
@@ -34,9 +35,10 @@ export default function WelcomeScreen({ workspace, tables, onNewSession }: Welco
             <span className="text-[13px] font-medium text-ink">
               {workspace.name}
             </span>
-            <span className="text-[11px] text-graphite font-mono truncate max-w-[400px]">
-              {workspace.path}
-            </span>
+            <WorkspacePath
+              path={workspace.path}
+              className="text-[11px] text-graphite font-mono max-w-[400px]"
+            />
           </div>
         )}
 
