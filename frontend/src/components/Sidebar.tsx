@@ -1,8 +1,11 @@
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Popover } from "@heroui/react";
 import {
   ChevronDown,
   Folder,
+  MessageSquarePlus,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -42,6 +45,10 @@ export default function Sidebar({
   onOpenWorkspacePicker,
   onRequestNewWorkspace,
 }: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [popoverWidth, setPopoverWidth] = useState(232);
+
   const handleSelectWorkspace = useCallback(
     (id: string) => {
       if (activeWorkspace && id === activeWorkspace.id) return;
@@ -50,32 +57,95 @@ export default function Sidebar({
     [activeWorkspace, onSwitchWorkspace],
   );
 
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => !prev);
+  }, []);
+
+  const measureTrigger = useCallback(() => {
+    const el = triggerRef.current;
+    if (!el) return;
+    setPopoverWidth(Math.max(160, Math.round(el.getBoundingClientRect().width)));
+  }, []);
+
+  if (collapsed) {
+    return (
+      <aside className="flex w-14 shrink-0 flex-col items-center gap-2 overflow-x-hidden border-r py-3">
+        <button
+          type="button"
+          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={onOpenWorkspacePicker}
+          disabled={switchingWorkspace}
+          aria-label="Open workspace picker"
+          title={activeWorkspace?.name ?? "No workspace"}
+        >
+          <Folder className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={toggleCollapsed}
+          aria-label="Expand sidebar"
+          title="Expand sidebar"
+        >
+          <PanelLeftOpen className="size-4" />
+        </button>
+        <div className="my-1 h-px w-6 bg-grid" aria-hidden />
+        <button
+          type="button"
+          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={onNewSession}
+          aria-label="New session"
+          title="New session"
+        >
+          <MessageSquarePlus className="size-4" />
+        </button>
+        <div className="flex-1" />
+        <ThemeToggle variant="icon" />
+        <button
+          type="button"
+          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={onOpenSettings}
+          aria-label="Open settings"
+        >
+          <SettingsIcon className="size-4" />
+        </button>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="flex w-[260px] shrink-0 flex-col border-r">
+    <aside className="flex w-[260px] shrink-0 flex-col overflow-x-hidden border-r">
       {/* Top section: Workspace selector */}
       <div className="px-4 py-3">
         <Popover>
           <Popover.Trigger>
             <button
+              ref={triggerRef}
               type="button"
-              className="flex w-full items-center gap-2 rounded-lg border border-grid bg-surface px-3 py-2 text-left transition-colors hover:bg-surface/70 focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+              className="box-border flex w-full min-w-0 items-center gap-2 rounded-lg border border-grid bg-surface px-3 py-2 text-left transition-colors hover:bg-surface/70 focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
               disabled={switchingWorkspace}
               aria-label="Switch workspace"
+              onClick={measureTrigger}
             >
-              <Folder className="size-4 text-graphite" />
-              <div className="flex-1 min-w-0">
+              <Folder className="size-4 shrink-0 text-graphite" />
+              <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-medium text-ink">
                   {activeWorkspace?.name ?? "No workspace"}
                 </div>
                 <WorkspacePath
                   path={activeWorkspace?.path}
-                  className="text-[11px] text-graphite font-mono truncate"
+                  compact
+                  className="text-[11px] text-graphite font-mono"
                 />
               </div>
-              <ChevronDown className="size-3.5 text-graphite shrink-0" />
+              <ChevronDown className="size-3.5 shrink-0 text-graphite" />
             </button>
           </Popover.Trigger>
-          <Popover.Content className="w-72 p-0">
+          <Popover.Content
+            placement="bottom"
+            className="p-0"
+            style={{ width: `${popoverWidth}px`, maxWidth: `${popoverWidth}px` }}
+          >
             <Popover.Dialog className="p-1">
               <div className="px-2 py-1.5 text-xs text-muted">
                 Current workspace
@@ -138,6 +208,20 @@ export default function Sidebar({
             </Popover.Dialog>
           </Popover.Content>
         </Popover>
+      </div>
+
+      {/* Divider with collapse button — at the end of the workspace area */}
+      <div className="flex items-center justify-end gap-1 border-b border-grid px-3 py-1">
+        <span className="flex-1" />
+        <button
+          type="button"
+          className="rounded-md p-1 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={toggleCollapsed}
+          aria-label="Collapse sidebar"
+          title="Collapse sidebar"
+        >
+          <PanelLeftClose className="h-3.5 w-3.5" />
+        </button>
       </div>
 
       {/* Middle section: Sessions */}

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { SchemaTable } from "../types";
 import SchemaColumnList from "./SchemaColumnList";
@@ -7,6 +7,7 @@ interface SchemaViewerProps {
   tables: SchemaTable[];
   loading: boolean;
   showSql: boolean;
+  selectedTable?: string | null;
   onTableClick?: (tableName: string) => void;
 }
 
@@ -14,9 +15,11 @@ export default function SchemaViewer({
   tables,
   loading,
   showSql,
+  selectedTable,
   onTableClick,
 }: SchemaViewerProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const selectedRowRef = useRef<HTMLDivElement | null>(null);
 
   const toggle = useCallback((name: string) => {
     setExpanded((prev) => {
@@ -35,6 +38,25 @@ export default function SchemaViewer({
     [toggle, onTableClick],
   );
 
+  useEffect(() => {
+    if (!selectedTable) return;
+    setExpanded((prev) => {
+      if (prev.has(selectedTable)) return prev;
+      const next = new Set(prev);
+      next.add(selectedTable);
+      return next;
+    });
+    requestAnimationFrame(() => {
+      const prefersReduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      selectedRowRef.current?.scrollIntoView({
+        behavior: prefersReduced ? "auto" : "smooth",
+        block: "center",
+      });
+    });
+  }, [selectedTable]);
+
   return (
     <div className="flex flex-col gap-1">
       {loading && (
@@ -47,8 +69,15 @@ export default function SchemaViewer({
         tables.length > 0 &&
         tables.map((table) => {
           const isExpanded = expanded.has(table.name);
+          const isSelected = selectedTable === table.name;
           return (
-            <div key={table.name} className="border-b border-grid last:border-0">
+            <div
+              key={table.name}
+              ref={isSelected ? selectedRowRef : undefined}
+              className={`border-b border-grid last:border-0 ${
+                isSelected ? "bg-cobalt/5" : ""
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => handleClick(table.name)}

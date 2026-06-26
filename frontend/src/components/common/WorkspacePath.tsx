@@ -5,12 +5,14 @@ interface WorkspacePathProps {
   path: string | null | undefined;
   className?: string;
   fallback?: string;
+  compact?: boolean;
 }
 
 export default function WorkspacePath({
   path,
   className = "",
   fallback = "—",
+  compact = false,
 }: WorkspacePathProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const textRef = useRef<HTMLSpanElement | null>(null);
@@ -20,6 +22,7 @@ export default function WorkspacePath({
   const display = formatWorkspacePath(path) || (path ? path : fallback);
 
   useEffect(() => {
+    if (compact) return;
     const container = containerRef.current;
     const text = textRef.current;
     if (!container || !text) return;
@@ -35,7 +38,21 @@ export default function WorkspacePath({
     observer.observe(text);
 
     return () => observer.disconnect();
-  }, [display]);
+  }, [display, compact]);
+
+  if (compact) {
+    return (
+      <div
+        ref={containerRef}
+        className={`block min-w-0 w-full truncate ${className}`}
+        title={display || undefined}
+      >
+        <span ref={textRef} className="block truncate">
+          {display}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div

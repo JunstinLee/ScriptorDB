@@ -9,6 +9,7 @@ import {
 
 interface SchemaMapProps {
   tables: SchemaTable[];
+  selectedTable?: string | null;
   onTableClick?: (tableName: string) => void;
 }
 
@@ -17,7 +18,11 @@ const HEADER_HEIGHT = 32;
 const COL_ROW_HEIGHT = 16;
 const FONT_MONO = "JetBrains Mono, ui-monospace, monospace";
 
-export default function SchemaMap({ tables, onTableClick }: SchemaMapProps) {
+export default function SchemaMap({
+  tables,
+  selectedTable,
+  onTableClick,
+}: SchemaMapProps) {
   const handleClick = useCallback(
     (tableName: string) => {
       onTableClick?.(tableName);
@@ -118,6 +123,9 @@ export default function SchemaMap({ tables, onTableClick }: SchemaMapProps) {
 
           const displayColumns = table.columns.slice(0, 8);
           const hasMore = table.columns.length > 8;
+          const isSelected =
+            !!selectedTable &&
+            selectedTable.toLowerCase() === lo.tableName.toLowerCase();
 
           return (
             <g
@@ -132,8 +140,8 @@ export default function SchemaMap({ tables, onTableClick }: SchemaMapProps) {
                 height={lo.height}
                 rx={TABLE_RADIUS}
                 fill="var(--surface)"
-                stroke="var(--grid)"
-                strokeWidth={1}
+                stroke={isSelected ? "var(--cobalt)" : "var(--grid)"}
+                strokeWidth={isSelected ? 1.5 : 1}
               />
 
               <line
