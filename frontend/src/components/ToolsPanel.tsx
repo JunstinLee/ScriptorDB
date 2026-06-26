@@ -176,7 +176,7 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted">
         <Wrench className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-sm">No tool invocations</p>
+        <p className="text-sm">No tool calls in this session yet. They appear when the assistant runs actions.</p>
       </div>
     );
   }

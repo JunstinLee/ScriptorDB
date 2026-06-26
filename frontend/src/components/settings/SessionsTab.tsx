@@ -143,7 +143,7 @@ export default function SessionsTab({
           <div className="py-4 text-center text-sm text-muted">Loading…</div>
         ) : items.length === 0 ? (
           <div className="py-4 text-center text-sm text-muted">
-            No sessions yet.
+            No sessions yet. Start a new session to ask about your data.
           </div>
         ) : (
           <ul className="flex flex-col gap-1.5">

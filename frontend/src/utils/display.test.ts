@@ -3,19 +3,19 @@ import { getSessionDisplayName, formatRelative } from "./display";
 
 describe("getSessionDisplayName", () => {
   it("returns default for null title", () => {
-    expect(getSessionDisplayName(null)).toBe("New Chat");
+    expect(getSessionDisplayName(null)).toBe("New session");
   });
 
   it("returns default for undefined title", () => {
-    expect(getSessionDisplayName(undefined)).toBe("New Chat");
+    expect(getSessionDisplayName(undefined)).toBe("New session");
   });
 
   it("returns default for empty string", () => {
-    expect(getSessionDisplayName("")).toBe("New Chat");
+    expect(getSessionDisplayName("")).toBe("New session");
   });
 
   it("returns default for whitespace-only title", () => {
-    expect(getSessionDisplayName("   ")).toBe("New Chat");
+    expect(getSessionDisplayName("   ")).toBe("New session");
   });
 
   it("returns trimmed title when valid", () => {

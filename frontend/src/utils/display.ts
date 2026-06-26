@@ -1,4 +1,4 @@
-export const DEFAULT_SESSION_TITLE = "New Chat";
+export const DEFAULT_SESSION_TITLE = "New session";
 
 export function getSessionDisplayName(
   title: string | null | undefined,

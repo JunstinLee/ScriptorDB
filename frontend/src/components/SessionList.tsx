@@ -90,7 +90,7 @@ export default function SessionList({
         </div>
       ) : (
         <p className="px-4 py-4 text-[13px] text-graphite">
-          No sessions yet. Start a new one to ask about your data.
+          No sessions yet. Start a new session to ask about your data.
         </p>
       )}
     </div>

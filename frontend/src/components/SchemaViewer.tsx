@@ -41,7 +41,7 @@ export default function SchemaViewer({
         <p className="px-2 py-2 text-xs text-muted">Loading...</p>
       )}
       {!loading && tables.length === 0 && (
-        <p className="px-2 py-2 text-xs text-muted">No tables found</p>
+        <p className="px-2 py-2 text-xs text-muted">No tables found. Add a table or import data to see the schema map.</p>
       )}
       {!loading &&
         tables.length > 0 &&

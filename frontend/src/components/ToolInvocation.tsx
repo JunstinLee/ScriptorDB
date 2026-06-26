@@ -15,12 +15,12 @@ function formatDuration(ms: number): string {
 function getToolSummary(toolName: string, args: Record<string, unknown>): string {
   switch (toolName) {
     case "run_python_code":
-      return "Ran Python";
+      return "Ran Python code";
 
     case "write_csv": {
       const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `Created file: ${filename || "output.csv"}`;
+      return `Created CSV: ${filename || "output.csv"}`;
     }
 
     case "write_file": {
@@ -38,7 +38,7 @@ function getToolSummary(toolName: string, args: Record<string, unknown>): string
     case "read_csv": {
       const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `Read file: ${filename || "CSV file"}`;
+      return `Read CSV: ${filename || "output.csv"}`;
     }
 
     case "read_file": {
@@ -49,7 +49,7 @@ function getToolSummary(toolName: string, args: Record<string, unknown>): string
 
     case "list_files": {
       const dir = (args.directory as string) || ".";
-      return `Listed: ${dir}`;
+      return `Listed directory: ${dir}`;
     }
 
     case "query_database": {
@@ -58,20 +58,22 @@ function getToolSummary(toolName: string, args: Record<string, unknown>): string
       const upper = sql.toUpperCase();
       if (upper.startsWith("SELECT") || upper.startsWith("WITH")) {
         const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
-        return `Queried: ${preview}`;
+        return `Queried database: ${preview}`;
       }
       return "Queried database";
     }
 
     case "get_schema": {
       const table = args.table as string;
-      return table ? `Got schema: ${table}` : "Got all table schemas";
+      return table ? `Fetched schema: ${table}` : "Fetched all table schemas";
     }
 
     case "plot_chart": {
       const type = (args.chart_type as string) || "chart";
       const title = (args.title as string) || "";
-      return title ? `Generated chart: ${title}` : `Generated ${type} chart`;
+      return title
+        ? `Generated ${type} chart: ${title}`
+        : `Generated ${type} chart`;
     }
 
     case "create_table": {
@@ -79,7 +81,7 @@ function getToolSummary(toolName: string, args: Record<string, unknown>): string
       const columns = args.columns as Array<{ name: string }> | undefined;
       const colCount = columns?.length || 0;
       return tableName
-        ? `Created table: ${tableName} (${colCount} cols)`
+        ? `Created table ${tableName} (${colCount} columns)`
         : "Created table";
     }
 
@@ -87,7 +89,7 @@ function getToolSummary(toolName: string, args: Record<string, unknown>): string
       const sql = ((args.sql as string) || "").trim();
       if (!sql) return "Executed DDL";
       const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
-      return `DDL: ${preview}`;
+      return `Executed DDL: ${preview}`;
     }
 
     case "write_data": {
@@ -115,7 +117,7 @@ function getStatusText(
   output: string | undefined,
   error_code: string | undefined,
 ): string {
-  if (status === "running") return "Running...";
+  if (status === "running") return "Running";
   if (status === "error") return error_code || "Failed";
   if (status === "success") {
     if (!output) return "Done";
@@ -235,7 +237,7 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
                   ) : (
                     <Copy className="h-3 w-3" />
                   )}
-                  <span>{copied ? "Copied" : "Copy ID"}</span>
+                  <span>{copied ? "Copied" : "Copy"}</span>
                 </button>
               )}
             </div>

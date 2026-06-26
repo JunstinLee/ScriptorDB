@@ -86,7 +86,7 @@ describe("WorkspacePicker", () => {
       />,
     );
 
-    expect(screen.getByText(/no workspaces yet/i)).toBeTruthy();
+    expect(screen.getByText(/no workspaces\./i)).toBeTruthy();
   });
 
   it("calls onActivate when a workspace's Open button is pressed", async () => {
@@ -139,7 +139,7 @@ describe("WorkspacePicker", () => {
 
     fireEvent.change(nameInput, { target: { value: "New WS" } });
 
-    const submit = screen.getByRole("button", { name: /create & open/i });
+    const submit = screen.getByRole("button", { name: /create workspace/i });
     fireEvent.click(submit);
 
     await waitFor(() => {

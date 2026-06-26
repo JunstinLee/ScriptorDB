@@ -174,7 +174,7 @@ export default function WorkspacePicker({
 
             {workspaces.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted">
-                No workspaces yet. Create one to get started.
+                No workspaces. Create one to get started.
               </p>
             ) : (
               <ul className="flex flex-col gap-2">
@@ -339,7 +339,7 @@ export default function WorkspacePicker({
                   variant="primary"
                   isDisabled={busy || !createForm.name.trim()}
                 >
-                  {busy ? "Creating\u2026" : "Create & open"}
+                  {busy ? "Creating\u2026" : "Create workspace"}
                 </Button>
               </div>
             </form>

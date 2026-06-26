@@ -38,7 +38,7 @@ export default function SchemaMap({ tables, onTableClick }: SchemaMapProps) {
   if (tables.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-muted">
-        <p className="text-xs">No tables found in this workspace.</p>
+        <p className="text-xs">No tables found. Add a table or import data to see the schema map.</p>
       </div>
     );
   }
