@@ -51,7 +51,7 @@ export default function ChatPanel({
       </div>
 
       <div className="shrink-0 bg-background px-4 py-3">
-        <div className="overflow-hidden rounded-lg border border-grid bg-surface">
+        <div className="overflow-hidden rounded-2xl border border-grid bg-surface">
           <ChatInput onSend={onSend} disabled={isLoading} />
           <ModelProviderBar
             settingsChanged={settingsChanged}

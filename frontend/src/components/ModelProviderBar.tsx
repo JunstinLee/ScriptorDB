@@ -110,7 +110,7 @@ export default function ModelProviderBar({
     : model || "default";
 
   return (
-    <div className="relative flex items-center gap-3 border-t border-grid px-3 py-2">
+    <div className="relative flex items-center gap-3 px-3 py-2">
       {/* Left: future attach/image buttons placeholder */}
       <div className="flex items-center gap-1.5">
         {/* Reserved for future controls */}
@@ -144,7 +144,7 @@ export default function ModelProviderBar({
             role="dialog"
             aria-label="Select model"
             style={popoverStyle}
-            className="popover-animate w-[360px] overflow-hidden rounded-lg border border-grid bg-surface shadow-lg"
+            className="popover-animate w-[360px] overflow-hidden rounded-2xl border border-grid bg-surface shadow-lg"
           >
             <div className="flex h-[240px]">
               {/* Provider pane */}

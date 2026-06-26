@@ -15,6 +15,7 @@
   --color-warning: var(--amber);
   --color-danger: var(--vermilion);
   --color-default: var(--grid);
+  --color-input: var(--input);
 }
 
 :root {
@@ -28,6 +29,7 @@
   --amber: #D98A16;
   --sage: #3A8A5E;
   --vermilion: #C94036;
+  --input: #E2DFD8;
 }
 
 .dark {
@@ -41,6 +43,7 @@
   --amber: #F0A820;
   --sage: #5FB382;
   --vermilion: #EF5350;
+  --input: #262932;
 }
 
 html,
