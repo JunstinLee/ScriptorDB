@@ -219,53 +219,61 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
               )}
             </button>
 
-            {!isRoundCollapsed && (
-              <>
-                {operations.length > 0 && (
-                  <div className="px-3 py-2.5 bg-default/10 border-b border-grid">
-                    <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-1.5">
-                      Operations
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      {operations.map((op, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center gap-2 text-xs text-muted"
-                        >
-                          {op.icon}
-                          <span>{op.label}</span>
-                        </div>
-                      ))}
-                    </div>
+            <div
+              className={`tool-expand ${
+                isRoundCollapsed ? "tool-expand-collapsed" : "tool-expand-open"
+              }`}
+            >
+              {operations.length > 0 && (
+                <div className="px-3 py-2.5 bg-default/10 border-b border-grid">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-1.5">
+                    Operations
                   </div>
-                )}
-
-                <div className="p-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleTools(runNumber)}
-                    className="flex items-center gap-1.5 w-full text-left px-1 py-1 hover:bg-default/30 rounded transition-colors"
-                  >
-                    {isToolsCollapsed ? (
-                      <ChevronRight className="h-3 w-3 text-muted shrink-0" />
-                    ) : (
-                      <ChevronDown className="h-3 w-3 text-muted shrink-0" />
-                    )}
-                    <Wrench className="h-3 w-3 text-muted shrink-0" />
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
-                      Tool Invocations ({run.tool_invocations.length})
-                    </span>
-                  </button>
-                  {!isToolsCollapsed && (
-                    <div className="flex flex-col gap-1.5 mt-1.5">
-                      {run.tool_invocations.map((inv) => (
-                        <ToolInvocation key={inv.call_id} invocation={inv} />
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex flex-col gap-1">
+                    {operations.map((op, i) => (
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 text-xs text-muted"
+                      >
+                        {op.icon}
+                        <span>{op.label}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </>
-            )}
+              )}
+
+              <div className="p-2">
+                <button
+                  type="button"
+                  onClick={() => toggleTools(runNumber)}
+                  className="flex items-center gap-1.5 w-full text-left px-1 py-1 hover:bg-default/30 rounded transition-colors"
+                >
+                  {isToolsCollapsed ? (
+                    <ChevronRight className="h-3 w-3 text-muted shrink-0" />
+                  ) : (
+                    <ChevronDown className="h-3 w-3 text-muted shrink-0" />
+                  )}
+                  <Wrench className="h-3 w-3 text-muted shrink-0" />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                    Tool Invocations ({run.tool_invocations.length})
+                  </span>
+                </button>
+                <div
+                  className={`tool-expand ${
+                    isToolsCollapsed
+                      ? "tool-expand-collapsed"
+                      : "tool-expand-open"
+                  }`}
+                >
+                  <div className="flex flex-col gap-1.5 mt-1.5">
+                    {run.tool_invocations.map((inv) => (
+                      <ToolInvocation key={inv.call_id} invocation={inv} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         );
       })}

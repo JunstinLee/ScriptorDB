@@ -21,7 +21,7 @@ export default function SessionList({
   onDeleteSession,
 }: SessionListProps) {
   return (
-    <div className="flex flex-col gap-0.5">
+    <div className="flex flex-col gap-0.5" role="list" aria-label="Sessions">
       <div className="flex items-center justify-between px-4 py-1">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-graphite">
           Sessions
@@ -46,14 +46,14 @@ export default function SessionList({
             return (
               <div
                 key={s.session_id}
-                className={`flex cursor-pointer items-center rounded-r-lg px-4 py-2 text-[13px] transition-colors ${
+                className={`flex cursor-pointer items-center rounded-r-lg px-4 py-2 text-[13px] transition-colors group ${
                   isActive
                     ? "border-l-[3px] border-l-cobalt bg-surface text-ink"
                     : "border-l-[3px] border-l-transparent text-graphite hover:bg-surface/50"
                 }`}
-                role="button"
+                role="listitem"
                 tabIndex={0}
-                aria-pressed={isActive}
+                aria-current={isActive ? "true" : undefined}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
@@ -67,7 +67,7 @@ export default function SessionList({
                   {displayName}
                 </span>
                 <button
-                  className="flex shrink-0 items-center justify-center rounded p-0.5 text-graphite transition-colors hover:text-vermilion focus:outline-2 focus:outline-offset-1 focus:outline-cobalt"
+                  className="flex shrink-0 items-center justify-center rounded p-0.5 text-graphite transition-colors hover:text-vermilion focus-visible:opacity-100 focus-visible:text-vermilion focus:outline-2 focus:outline-offset-1 focus:outline-cobalt opacity-0 group-hover:opacity-100"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDeleteSession(s.session_id);

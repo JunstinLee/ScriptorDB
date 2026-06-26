@@ -33,11 +33,7 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.key === "Enter" && !e.shiftKey && !e.metaKey) {
-        e.preventDefault();
-        handleSend();
-      }
-      if (e.key === "Enter" && e.metaKey) {
+      if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         handleSend();
       }

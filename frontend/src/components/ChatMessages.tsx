@@ -32,7 +32,7 @@ export default function ChatMessages({
       {messages.map((msg, i) => {
         if (msg.role === "user") {
           return (
-            <div key={`msg-${i}`} className="flex flex-col gap-1.5">
+            <div key={`msg-${i}`} className="flex flex-col gap-1.5 message-enter">
               <div className="flex items-center gap-1.5 text-graphite">
                 <User className="h-3 w-3" />
                 <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
@@ -51,7 +51,7 @@ export default function ChatMessages({
         const run = runs[runIndex++];
         if (run) {
           return (
-            <div key={`run-${run.run_id}`} className="flex flex-col gap-1.5">
+            <div key={`run-${run.run_id}`} className="flex flex-col gap-1.5 message-enter">
               <div className="flex items-center gap-1.5 text-graphite">
                 <Sparkles className="h-3 w-3" />
                 <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
@@ -81,7 +81,7 @@ export default function ChatMessages({
         }
 
         return (
-          <div key={`msg-${i}`} className="flex flex-col gap-1.5">
+          <div key={`msg-${i}`} className="flex flex-col gap-1.5 message-enter">
             <div className="flex items-center gap-1.5 text-graphite">
               <Sparkles className="h-3 w-3" />
               <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
@@ -98,7 +98,7 @@ export default function ChatMessages({
       {isLoading &&
         runs.length > runIndex &&
         runs.slice(runIndex).map((run) => (
-          <div key={`pending-${run.run_id}`} className="flex flex-col gap-1.5">
+          <div key={`pending-${run.run_id}`} className="flex flex-col gap-1.5 message-enter">
             <div className="flex items-center gap-1.5 text-graphite">
               <Sparkles className="h-3 w-3" />
               <span className="text-[11px] font-medium uppercase tracking-[0.08em]">

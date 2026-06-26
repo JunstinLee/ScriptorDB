@@ -51,36 +51,69 @@ body,
   padding: 0;
 }
 
-@keyframes highlight-fade {
-  0% { background-color: color-mix(in oklch, var(--color-warning) 25%, transparent); }
-  100% { background-color: transparent; }
-}
+/* ── Orchestrated animations ── */
 
-.run-highlight {
-  animation: highlight-fade 5s ease-out forwards;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .run-highlight {
-    animation: none;
-    background-color: color-mix(in oklch, var(--color-warning) 15%, transparent);
+/* 1. New message entrance */
+@keyframes message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-@keyframes workspace-path-marquee {
-  0%, 10% { transform: translateX(0); }
-  90%, 100% { transform: translateX(calc(-50%)); }
+.message-enter {
+  animation: message-enter 250ms ease-out forwards;
 }
 
-.workspace-path-marquee {
-  animation: workspace-path-marquee 20s linear infinite;
+/* 2. Schema map node stagger */
+@keyframes schema-node-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
-.focus-cobalt:focus-visible {
-  outline: 2px solid var(--cobalt);
-  outline-offset: 2px;
+.schema-node-in {
+  animation: schema-node-in 300ms ease-out forwards;
 }
 
+/* 3. Run highlight — amber flash on left border */
+@keyframes highlight-fade {
+  0% {
+    box-shadow: inset 3px 0 0 0 var(--amber);
+  }
+  100% {
+    box-shadow: inset 3px 0 0 0 transparent;
+  }
+}
+
+.run-highlight {
+  animation: highlight-fade 800ms ease-out forwards;
+}
+
+/* 4. Tool invocation expand/collapse */
+.tool-expand {
+  transition: max-height 200ms ease, opacity 200ms ease;
+  overflow: hidden;
+}
+
+.tool-expand-collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.tool-expand-open {
+  max-height: 2000px;
+  opacity: 1;
+}
+
+/* 5. Popover entrance */
 @keyframes popover-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -90,8 +123,35 @@ body,
   animation: popover-in 0.15s ease-out;
 }
 
+/* ── Focus ring ── */
+.focus-cobalt:focus-visible {
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+/* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
+  .message-enter,
+  .schema-node-in,
+  .run-highlight,
   .popover-animate {
     animation: none;
+  }
+
+  .run-highlight {
+    box-shadow: inset 3px 0 0 0 var(--amber);
+  }
+
+  .tool-expand {
+    transition: none;
+  }
+
+  .message-enter {
+    opacity: 1;
+    transform: none;
+  }
+
+  .schema-node-in {
+    opacity: 1;
   }
 }

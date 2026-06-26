@@ -170,13 +170,13 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
         className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-default/30 transition-colors"
       >
         {status === "running" && (
-          <Spinner size="sm" className="text-warning" />
+          <Spinner size="sm" className="text-warning" aria-label="Running" />
         )}
         {status === "success" && (
-          <Check className="h-3.5 w-3.5 text-sage" />
+          <Check className="h-3.5 w-3.5 text-sage" aria-label="Success" />
         )}
         {status === "error" && (
-          <X className="h-3.5 w-3.5 text-vermilion" />
+          <X className="h-3.5 w-3.5 text-vermilion" aria-label="Error" />
         )}
 
         <code className="text-xs font-medium text-foreground font-mono">
@@ -218,35 +218,43 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
         )}
       </div>
 
-      {expanded && (output || error_code) && (
-        <div className="border-t border-grid px-3 py-2">
-          {error_code && (
-            <div className="mb-1 flex items-center gap-1.5">
-              <Chip size="sm" color="danger" variant="soft">
-                {error_code}
-              </Chip>
-              {showCopyButton && (
-                <button
-                  type="button"
-                  onClick={handleCopyErrorId}
-                  className="text-xs text-muted hover:text-foreground transition-colors flex items-center gap-1"
-                  title="Copy error ID"
-                >
-                  {copied ? (
-                    <Check className="h-3 w-3 text-sage" />
-                  ) : (
-                    <Copy className="h-3 w-3" />
-                  )}
-                  <span>{copied ? "Copied" : "Copy"}</span>
-                </button>
-              )}
-            </div>
-          )}
-          <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto font-mono">
-            {output || "(no output)"}
-          </pre>
-        </div>
-      )}
+      <div
+        className={`tool-expand ${
+          expanded && (output || error_code)
+            ? "tool-expand-open"
+            : "tool-expand-collapsed"
+        }`}
+      >
+        {(output || error_code) && (
+          <div className="border-t border-grid px-3 py-2">
+            {error_code && (
+              <div className="mb-1 flex items-center gap-1.5">
+                <Chip size="sm" color="danger" variant="soft">
+                  {error_code}
+                </Chip>
+                {showCopyButton && (
+                  <button
+                    type="button"
+                    onClick={handleCopyErrorId}
+                    className="text-xs text-muted hover:text-foreground transition-colors flex items-center gap-1"
+                    title="Copy error ID"
+                  >
+                    {copied ? (
+                      <Check className="h-3 w-3 text-sage" />
+                    ) : (
+                      <Copy className="h-3 w-3" />
+                    )}
+                    <span>{copied ? "Copied" : "Copy"}</span>
+                  </button>
+                )}
+              </div>
+            )}
+            <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto font-mono">
+              {output || "(no output)"}
+            </pre>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

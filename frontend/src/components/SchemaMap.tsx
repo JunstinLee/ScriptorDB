@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import type { SchemaTable } from "../types";
 import {
   computeLayout,
@@ -23,6 +23,8 @@ export default function SchemaMap({
   selectedTable,
   onTableClick,
 }: SchemaMapProps) {
+  const nodeCountRef = useRef(0);
+
   const handleClick = useCallback(
     (tableName: string) => {
       onTableClick?.(tableName);
@@ -48,6 +50,8 @@ export default function SchemaMap({
     );
   }
 
+  nodeCountRef.current = layout.length;
+
   const svgWidth = Math.max(
     320,
     ...layout.map((l) => l.x + l.width),
@@ -64,7 +68,7 @@ export default function SchemaMap({
     return lo ? lo.y + lo.height / 2 : null;
   }
 
-  function drawEdge(edge: FKEdge): React.ReactNode {
+  function drawEdge(edge: FKEdge, index: number): React.ReactNode {
     const from = layoutMap.get(edge.fromTable);
     const to = layoutMap.get(edge.toTable);
     if (!from || !to) return null;
@@ -86,6 +90,8 @@ export default function SchemaMap({
         stroke="var(--grid)"
         strokeWidth={1}
         markerEnd="url(#cobaltArrow)"
+        className="schema-node-in"
+        style={{ animationDelay: `${index * 40 + 150}ms` }}
       />
     );
   }
@@ -113,9 +119,9 @@ export default function SchemaMap({
           </marker>
         </defs>
 
-        {edges.map(drawEdge)}
+        {edges.map((edge, i) => drawEdge(edge, i))}
 
-        {layout.map((lo) => {
+        {layout.map((lo, index) => {
           const table = tables.find(
             (t) => t.name.toLowerCase() === lo.tableName.toLowerCase(),
           );
@@ -131,7 +137,10 @@ export default function SchemaMap({
             <g
               key={lo.tableName}
               onClick={() => handleClick(lo.tableName)}
-              className="cursor-pointer"
+              role="button"
+              aria-label={`Table ${table.name}`}
+              className="schema-node-in"
+              style={{ animationDelay: `${index * 40}ms` }}
             >
               <rect
                 x={lo.x}
