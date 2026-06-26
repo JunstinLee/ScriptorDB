@@ -2,7 +2,7 @@ import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
 import ModelProviderBar from "./ModelProviderBar";
 import WelcomeScreen from "./WelcomeScreen";
-import type { ChatMessage, Run } from "../types";
+import type { ChatMessage, Run, SchemaTable, WorkspaceDetail } from "../types";
 
 interface ChatPanelProps {
   activeSessionId: string | null;
@@ -10,6 +10,8 @@ interface ChatPanelProps {
   runs: Run[];
   isLoading: boolean;
   settingsChanged: number;
+  workspace: WorkspaceDetail | null;
+  tables: SchemaTable[];
   onSend: (prompt: string) => void;
   onNewSession: () => void;
   onHighlightRun: (runId: string) => void;
@@ -22,25 +24,39 @@ export default function ChatPanel({
   runs,
   isLoading,
   settingsChanged,
+  workspace,
+  tables,
   onSend,
   onNewSession,
   onHighlightRun,
   onSelectionChange,
 }: ChatPanelProps) {
-  if (!activeSessionId) {
-    return <WelcomeScreen onNewSession={onNewSession} />;
-  }
-
   return (
-    <>
-      <ChatMessages messages={messages} runs={runs} isLoading={isLoading} onHighlightRun={onHighlightRun} />
-      <div className="absolute bottom-0 left-0 right-0 z-10 bg-background">
+    <div className="flex flex-1 flex-col min-h-0">
+      <div className="flex-1 overflow-y-auto min-h-0">
+        {activeSessionId ? (
+          <ChatMessages
+            messages={messages}
+            runs={runs}
+            isLoading={isLoading}
+            onHighlightRun={onHighlightRun}
+          />
+        ) : (
+          <WelcomeScreen
+            workspace={workspace}
+            tables={tables}
+            onNewSession={onNewSession}
+          />
+        )}
+      </div>
+
+      <div className="shrink-0 border-t border-grid bg-background">
         <ModelProviderBar
           settingsChanged={settingsChanged}
           onSelectionChange={onSelectionChange}
         />
         <ChatInput onSend={onSend} disabled={isLoading} />
       </div>
-    </>
+    </div>
   );
 }

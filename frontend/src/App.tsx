@@ -301,22 +301,22 @@ function MainApp({
       />
 
       <div className="flex flex-1 flex-col min-w-0">
-        <div className="flex flex-1 flex-col min-h-0 relative">
-          <ChatPanel
-            activeSessionId={activeSessionId}
-            messages={messages}
-            runs={runs}
-            isLoading={isLoading}
-            settingsChanged={settingsChanged}
-            onSend={handleSend}
-            onNewSession={handleNewSession}
-            onHighlightRun={handleHighlightRun}
-            onSelectionChange={(model, provider) => {
-              setSelectedModel(model);
-              setSelectedProvider(provider);
-            }}
-          />
-        </div>
+        <ChatPanel
+          activeSessionId={activeSessionId}
+          messages={messages}
+          runs={runs}
+          isLoading={isLoading}
+          settingsChanged={settingsChanged}
+          workspace={workspace}
+          tables={tables}
+          onSend={handleSend}
+          onNewSession={handleNewSession}
+          onHighlightRun={handleHighlightRun}
+          onSelectionChange={(model, provider) => {
+            setSelectedModel(model);
+            setSelectedProvider(provider);
+          }}
+        />
       </div>
 
       <SchemaSidebar

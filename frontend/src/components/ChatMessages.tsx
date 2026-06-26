@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Wrench } from "lucide-react";
+import { Sparkles, User, Wrench } from "lucide-react";
 import type { ChatMessage, Run } from "../types";
-import ChatAvatar from "./common/ChatAvatar";
 import RunContainer from "./RunContainer";
 import MarkdownRenderer from "./common/MarkdownRenderer";
 
@@ -29,17 +28,22 @@ export default function ChatMessages({
   let runIndex = 0;
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 pb-32 space-y-4">
+    <div className="px-4 py-4 space-y-4">
       {messages.map((msg, i) => {
         if (msg.role === "user") {
           return (
-            <div key={`msg-${i}`} className="flex gap-3 justify-end">
-              <div className="max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed bg-accent text-accent-foreground">
-                <div className="whitespace-pre-wrap break-words">
+            <div key={`msg-${i}`} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 text-graphite">
+                <User className="h-3 w-3" />
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+                  You
+                </span>
+              </div>
+              <div className="border-l-[3px] border-l-amber bg-amber/8 px-3 py-2">
+                <div className="text-[14px] text-ink whitespace-pre-wrap break-words leading-relaxed">
                   {msg.content}
                 </div>
               </div>
-              <ChatAvatar role="user" />
             </div>
           );
         }
@@ -47,28 +51,44 @@ export default function ChatMessages({
         const run = runs[runIndex++];
         if (run) {
           return (
-            <div key={`run-${run.run_id}`} className="flex gap-3 justify-start">
-              <ChatAvatar role="assistant" />
-              <div className="flex-1 min-w-0">
+            <div key={`run-${run.run_id}`} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5 text-graphite">
+                <Sparkles className="h-3 w-3" />
+                <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+                  Assistant
+                </span>
+              </div>
+              <div className="rounded-lg border border-grid bg-surface overflow-hidden">
                 <RunContainer run={run} />
               </div>
-              <button
-                type="button"
-                onClick={() => onHighlightRun(run.run_id)}
-                disabled={run.tool_invocations.length === 0}
-                title={run.tool_invocations.length === 0 ? "无工具调用" : "查看工具调用"}
-                className="shrink-0 self-start mt-1 rounded-lg p-1.5 text-muted hover:text-foreground hover:bg-default-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-              >
-                <Wrench className="h-4 w-4" />
-              </button>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onHighlightRun(run.run_id)}
+                  disabled={run.tool_invocations.length === 0}
+                  title={
+                    run.tool_invocations.length === 0
+                      ? "No tools to highlight"
+                      : "Highlight in tool panel"
+                  }
+                  className="rounded-md p-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-graphite disabled:hover:bg-transparent"
+                >
+                  <Wrench className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
           );
         }
 
         return (
-          <div key={`msg-${i}`} className="flex gap-3 justify-start">
-            <ChatAvatar role="assistant" />
-            <div className="max-w-[75%] rounded-2xl px-4 py-2.5 bg-surface text-surface-foreground border">
+          <div key={`msg-${i}`} className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 text-graphite">
+              <Sparkles className="h-3 w-3" />
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+                Assistant
+              </span>
+            </div>
+            <div className="rounded-lg border border-grid bg-surface px-4 py-3">
               <MarkdownRenderer content={msg.content} />
             </div>
           </div>
@@ -78,24 +98,45 @@ export default function ChatMessages({
       {isLoading &&
         runs.length > runIndex &&
         runs.slice(runIndex).map((run) => (
-          <div
-            key={`pending-${run.run_id}`}
-            className="flex gap-3 justify-start"
-          >
-            <ChatAvatar role="assistant" />
-            <div className="max-w-[85%] min-w-0">
+          <div key={`pending-${run.run_id}`} className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5 text-graphite">
+              <Sparkles className="h-3 w-3" />
+              <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+                Assistant
+              </span>
+            </div>
+            <div className="rounded-lg border border-grid bg-surface overflow-hidden">
               <RunContainer run={run} />
             </div>
           </div>
         ))}
 
       {isLoading && runs.length === 0 && (
-        <div className="flex gap-3 justify-start">
-          <ChatAvatar role="assistant" />
-          <div className="rounded-2xl bg-surface border px-4 py-2.5">
-            <span className="inline-block animate-pulse text-sm text-muted">
-              Thinking...
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5 text-graphite">
+            <Sparkles className="h-3 w-3" />
+            <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+              Assistant
             </span>
+          </div>
+          <div className="rounded-lg border border-grid bg-surface px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-graphite">
+              <span>Assistant is working</span>
+              <span className="flex gap-0.5">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
+                  style={{ animationDelay: "0ms" }}
+                />
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
+                  style={{ animationDelay: "150ms" }}
+                />
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
+                  style={{ animationDelay: "300ms" }}
+                />
+              </span>
+            </div>
           </div>
         </div>
       )}

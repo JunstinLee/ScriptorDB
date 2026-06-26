@@ -2,7 +2,6 @@ import { useCallback, useState, type CSSProperties } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { useTheme } from "../../hooks/useTheme";
 
 import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
@@ -31,6 +30,76 @@ interface MarkdownRendererProps {
   content: string;
 }
 
+const prismLight: Record<string, CSSProperties> = {
+  'code[class*="language-"]': { color: "#1A1B1F", background: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.8125rem", lineHeight: "1.5", tabSize: 2, hyphens: "none" },
+  'pre[class*="language-"]': { color: "#1A1B1F", background: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.8125rem", lineHeight: "1.5", tabSize: 2, hyphens: "none", padding: 0, margin: 0 },
+  comment: { color: "#6B6F78", fontStyle: "italic" },
+  prolog: { color: "#6B6F78" },
+  doctype: { color: "#6B6F78" },
+  cdata: { color: "#6B6F78" },
+  punctuation: { color: "#6B6F78" },
+  property: { color: "#2E5BFF" },
+  tag: { color: "#2E5BFF" },
+  boolean: { color: "#D98A16" },
+  number: { color: "#D98A16" },
+  constant: { color: "#D98A16" },
+  symbol: { color: "#D98A16" },
+  selector: { color: "#3A8A5E" },
+  "attr-name": { color: "#3A8A5E" },
+  string: { color: "#3A8A5E" },
+  char: { color: "#3A8A5E" },
+  builtin: { color: "#2E5BFF" },
+  inserted: { color: "#3A8A5E" },
+  operator: { color: "#6B6F78" },
+  entity: { color: "#2E5BFF" },
+  url: { color: "#2E5BFF" },
+  atrule: { color: "#2E5BFF" },
+  "attr-value": { color: "#3A8A5E" },
+  keyword: { color: "#C94036" },
+  "function": { color: "#2E5BFF" },
+  "class-name": { color: "#C94036" },
+  regex: { color: "#D98A16" },
+  important: { color: "#D98A16", fontWeight: "bold" },
+  variable: { color: "#D98A16" },
+  deleted: { color: "#C94036" },
+  namespace: { opacity: 0.7 },
+};
+
+const prismDark: Record<string, CSSProperties> = {
+  'code[class*="language-"]': { color: "#E8E6E1", background: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.8125rem", lineHeight: "1.5", tabSize: 2, hyphens: "none" },
+  'pre[class*="language-"]': { color: "#E8E6E1", background: "none", fontFamily: "'JetBrains Mono', monospace", fontSize: "0.8125rem", lineHeight: "1.5", tabSize: 2, hyphens: "none", padding: 0, margin: 0 },
+  comment: { color: "#8C9099", fontStyle: "italic" },
+  prolog: { color: "#8C9099" },
+  doctype: { color: "#8C9099" },
+  cdata: { color: "#8C9099" },
+  punctuation: { color: "#8C9099" },
+  property: { color: "#5B8AFF" },
+  tag: { color: "#5B8AFF" },
+  boolean: { color: "#F0A820" },
+  number: { color: "#F0A820" },
+  constant: { color: "#F0A820" },
+  symbol: { color: "#F0A820" },
+  selector: { color: "#5FB382" },
+  "attr-name": { color: "#5FB382" },
+  string: { color: "#5FB382" },
+  char: { color: "#5FB382" },
+  builtin: { color: "#5B8AFF" },
+  inserted: { color: "#5FB382" },
+  operator: { color: "#8C9099" },
+  entity: { color: "#5B8AFF" },
+  url: { color: "#5B8AFF" },
+  atrule: { color: "#5B8AFF" },
+  "attr-value": { color: "#5FB382" },
+  keyword: { color: "#EF5350" },
+  "function": { color: "#5B8AFF" },
+  "class-name": { color: "#EF5350" },
+  regex: { color: "#F0A820" },
+  important: { color: "#F0A820", fontWeight: "bold" },
+  variable: { color: "#F0A820" },
+  deleted: { color: "#EF5350" },
+  namespace: { opacity: 0.7 },
+};
+
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
   const { isDark } = useTheme();
   const match = /language-(\w+)/.exec(className || "");
@@ -40,7 +109,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
 
   if (isInline) {
     return (
-      <code className="bg-default-100 text-default-foreground rounded px-1.5 py-0.5 font-mono text-xs break-all">
+      <code className="bg-surface border border-grid font-mono text-[13px] rounded px-1.5 py-0.5 break-all">
         {children}
       </code>
     );
@@ -48,25 +117,17 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
 
   const code = String(children).replace(/\n$/, "");
 
-  const handleCopy = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-    } catch {
-      // clipboard unavailable
-    }
-  }, [code]);
-
   return (
-    <CodeBlockWrapper language={language} onCopy={handleCopy}>
+    <CodeBlockWrapper language={language} code={code}>
       <SyntaxHighlighter
-        style={(isDark ? oneDark : oneLight) as Record<string, CSSProperties>}
+        style={(isDark ? prismDark : prismLight) as Record<string, CSSProperties>}
         language={language ?? "text"}
         PreTag="div"
         customStyle={{
           margin: 0,
           borderRadius: 0,
           background: "transparent",
-          fontSize: "0.75rem",
+          fontSize: "0.8125rem",
           lineHeight: "1.5",
         }}
         codeTagProps={{ style: { fontFamily: "inherit" } }}
@@ -79,36 +140,40 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
 
 function CodeBlockWrapper({
   language,
-  onCopy,
+  code,
   children,
 }: {
   language: string | undefined;
-  onCopy: () => void;
+  code: string;
   children: React.ReactNode;
 }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = async () => {
-    await onCopy();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard unavailable
+    }
+  }, [code]);
 
   return (
-    <div className="relative group/code rounded-lg overflow-hidden border border-default-200 my-2">
-      <div className="flex items-center justify-between px-3 py-1.5 bg-default-100/80 border-b border-default-200">
-        <span className="text-xs text-muted font-mono">
+    <div className="rounded-lg overflow-hidden border border-grid my-2">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-surface/60 border-b border-grid">
+        <span className="text-[11px] text-graphite font-mono font-medium uppercase tracking-[0.08em]">
           {language ?? "text"}
         </span>
         <button
           type="button"
           onClick={handleCopy}
-          className="text-xs text-muted hover:text-foreground transition-colors"
+          className="text-[11px] text-graphite hover:text-cobalt transition-colors"
         >
-          {copied ? "Copied!" : "Copy"}
+          {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <div className="max-h-96 overflow-auto bg-default-50 dark:bg-default-900">
+      <div className="max-h-96 overflow-auto bg-paper dark:bg-[#1a1d24] p-3">
         {children}
       </div>
     </div>
@@ -119,7 +184,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   if (!content) return null;
 
   return (
-    <div className="text-sm leading-relaxed">
+    <div className="text-[14px] leading-relaxed">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -154,13 +219,13 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             <li className="mb-0.5 last:mb-0" {...props}>{children}</li>
           ),
           a: ({ children, ...props }) => (
-            <a className="text-accent underline break-all" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+            <a className="text-cobalt underline break-all" target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
           ),
           blockquote: ({ children, ...props }) => (
-            <blockquote className="border-l-2 border-default-300 pl-3 italic text-muted mb-3 last:mb-0" {...props}>{children}</blockquote>
+            <blockquote className="border-l-2 border-grid pl-3 italic text-graphite mb-3 last:mb-0" {...props}>{children}</blockquote>
           ),
           hr: (props) => (
-            <hr className="my-3 border-default-200" {...props} />
+            <hr className="my-3 border-grid" {...props} />
           ),
           table: ({ children, ...props }) => (
             <div className="overflow-x-auto mb-3 last:mb-0">
@@ -168,13 +233,13 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
             </div>
           ),
           thead: ({ children, ...props }) => (
-            <thead className="border-b border-default-300" {...props}>{children}</thead>
+            <thead className="border-b border-grid" {...props}>{children}</thead>
           ),
           tbody: ({ children, ...props }) => (
             <tbody {...props}>{children}</tbody>
           ),
           tr: ({ children, ...props }) => (
-            <tr className="border-b border-default-200 last:border-0" {...props}>{children}</tr>
+            <tr className="border-b border-grid last:border-0" {...props}>{children}</tr>
           ),
           th: ({ children, ...props }) => (
             <th className="px-3 py-1.5 font-semibold" {...props}>{children}</th>
