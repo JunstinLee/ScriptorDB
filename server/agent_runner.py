@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import json as json_mod
+import logging
 import traceback
 import uuid
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from typing import Any
 
 from pydantic_ai import Agent, RunContext
@@ -23,6 +25,9 @@ from config.models import fuzzy_match_model
 from tools.tool_result import ToolResult
 
 from server.run_tracker import RunTracker, utc_now_iso
+
+
+logger = logging.getLogger("scriptordb.agent_runner")
 
 
 async def run_agent_stream(
@@ -55,7 +60,8 @@ async def run_agent_stream(
     full_output = ""
     run_id = tracker.run_id if tracker else ""
     trace_step = 0
-    queue: asyncio.Queue[dict | None] = asyncio.Queue()
+    handler_calls = 0
+    queue: asyncio.Queue[dict] = asyncio.Queue()
     local_tracker = tracker or RunTracker()
 
     yield {
@@ -65,9 +71,22 @@ async def run_agent_stream(
     }
 
     async def event_stream_handler(ctx: RunContext[AppConfig], events: Any) -> None:
-        nonlocal full_output, trace_step
+        nonlocal full_output, trace_step, handler_calls
+        handler_calls += 1
+        handler_call = handler_calls
+        logger.info(
+            "event_stream_handler enter run_id=%s call=%s",
+            local_tracker.run_id,
+            handler_call,
+        )
         try:
             async for event in events:
+                logger.debug(
+                    "event_stream_handler event run_id=%s call=%s event_class=%s",
+                    local_tracker.run_id,
+                    handler_call,
+                    type(event).__name__,
+                )
                 if isinstance(event, FunctionToolCallEvent):
                     call_id = event.part.tool_call_id
                     local_tracker.start_tool(call_id)
@@ -80,6 +99,13 @@ async def run_agent_stream(
                     args_dict = args if isinstance(args, dict) else {"raw": str(args)}
                     local_tracker.add_tool_invocation(
                         call_id, event.part.tool_name, args_dict
+                    )
+                    logger.info(
+                        "tool_call queued run_id=%s call=%s call_id=%s tool=%s",
+                        local_tracker.run_id,
+                        handler_call,
+                        call_id,
+                        event.part.tool_name,
                     )
                     await queue.put({
                         "type": "tool_call",
@@ -120,6 +146,15 @@ async def run_agent_stream(
                     local_tracker.complete_tool(
                         call_id, success, output, error_code, duration_ms
                     )
+                    logger.info(
+                        "tool_result queued run_id=%s call=%s call_id=%s tool=%s success=%s duration_ms=%s",
+                        local_tracker.run_id,
+                        handler_call,
+                        call_id,
+                        tool_name,
+                        success,
+                        duration_ms,
+                    )
 
                     await queue.put({
                         "type": "tool_result",
@@ -157,7 +192,11 @@ async def run_agent_stream(
                                 })
 
         finally:
-            await queue.put(None)
+            logger.info(
+                "event_stream_handler exit run_id=%s call=%s",
+                local_tracker.run_id,
+                handler_call,
+            )
 
     async def run_agent() -> Any:
         return await agent.run(
@@ -171,9 +210,34 @@ async def run_agent_stream(
 
     try:
         while True:
-            ev = await queue.get()
-            if ev is None:
+            if run_task.done() and queue.empty():
+                logger.info(
+                    "agent event queue drained run_id=%s handler_calls=%s",
+                    local_tracker.run_id,
+                    handler_calls,
+                )
                 break
+
+            if queue.empty():
+                get_task = asyncio.create_task(queue.get())
+                done, _pending = await asyncio.wait(
+                    {get_task, run_task},
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if get_task not in done:
+                    get_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await get_task
+                    continue
+                ev = get_task.result()
+            else:
+                ev = queue.get_nowait()
+
+            logger.debug(
+                "agent event yield run_id=%s type=%s",
+                local_tracker.run_id,
+                ev.get("type"),
+            )
             yield ev
 
         result = await run_task
@@ -200,6 +264,13 @@ async def run_agent_stream(
         }
 
         local_tracker.finish()
+        logger.info(
+            "agent run finished run_id=%s handler_calls=%s tools=%s final_output_len=%s",
+            local_tracker.run_id,
+            handler_calls,
+            len(local_tracker.tool_invocations),
+            len(full_output),
+        )
         yield {
             "type": "metadata",
             "run_id": local_tracker.run_id,
@@ -213,8 +284,8 @@ async def run_agent_stream(
     except Exception as e:
         error_id = uuid.uuid4().hex[:12]
         from tools.errors import _get_error_logger
-        logger = _get_error_logger()
-        logger.error(
+        error_logger = _get_error_logger()
+        error_logger.error(
             "[%s] run_error exception=%s\n%s",
             error_id,
             repr(e),

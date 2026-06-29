@@ -13,6 +13,19 @@ from config.workspace import workspace_sessions_dir
 from server.routes import api_keys, chat, health, models, schema, sessions, settings as settings_routes, workspaces
 from server.sessions import _DefaultSessionStore, get_session_store
 
+
+def _configure_app_logging() -> None:
+    app_logger = logging.getLogger("scriptordb")
+    if not app_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
+        app_logger.addHandler(handler)
+    app_logger.setLevel(logging.INFO)
+    app_logger.propagate = False
+
+
+_configure_app_logging()
+
 logger = logging.getLogger("scriptordb.workspace")
 
 

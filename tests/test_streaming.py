@@ -182,7 +182,7 @@ async def test_stream_emits_tool_call_and_result():
 
 @pytest.mark.asyncio
 async def test_stream_fallback_to_result_output(test_settings):
-    """当 LLM 没有以 delta 方式返回文本时，full_output 应回退到 result.output。"""
+    """工具事件跨多次 handler 调用时仍应被流式发出。"""
 
     agent = Agent(
         model=TestModel(call_tools=['get_schema'], custom_output_text='fallback response'),
@@ -193,6 +193,11 @@ async def test_stream_fallback_to_result_output(test_settings):
     chunks: list[str] = []
     async for sse in stream_agent_response("fallback test", [], test_settings, agent=agent):
         chunks.append(sse)
+
+    events = _parse_events(chunks)
+    event_types = [e["type"] for e in events]
+    assert "tool_call" in event_types
+    assert "tool_result" in event_types
 
     _, metadata = _parse_sse(chunks)
     assert metadata.get("full_output") == "fallback response"
