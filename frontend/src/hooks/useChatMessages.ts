@@ -40,10 +40,17 @@ export function useChatMessages() {
         if (last && last.role === "assistant") {
           return [
             ...prev.slice(0, -1),
-            { ...last, content: fullOutput },
+            { ...last, content: fullOutput || last.content },
           ];
         }
-        return prev;
+        return [
+          ...prev,
+          {
+            role: "assistant" as const,
+            content: fullOutput,
+            timestamp: new Date().toISOString(),
+          },
+        ];
       });
     },
     [],

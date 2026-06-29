@@ -37,6 +37,7 @@ export function streamChat(
       const decoder = new TextDecoder();
       let buffer = "";
       let currentEvent = "message";
+      let doneCalled = false;
 
       const processLines = (lines: string[]) => {
         for (const line of lines) {
@@ -59,8 +60,10 @@ export function streamChat(
                 const obj = JSON.parse(data) as StreamRunEvent;
                 onEvent(obj);
                 if (obj.type === "metadata") {
+                  doneCalled = true;
                   onDone(obj.full_output ?? "");
                 } else if (obj.type === "error") {
+                  doneCalled = true;
                   onError(new Error(obj.message));
                 }
               } catch {
@@ -86,7 +89,7 @@ export function streamChat(
       buffer += decoder.decode();
       processLines(buffer.split("\n"));
 
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && !doneCalled) {
         onDone("");
       }
     } catch (err) {
