@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  fetchDefaultModel,
   fetchModelsWithCanonical,
   fetchRecommendedModels,
-  health,
+  fetchSettings,
 } from "../api/client";
 import type { ModelEntry } from "../types";
 
@@ -13,13 +12,15 @@ export function useModelSelector(settingsChanged: number, onSelectionChange: (mo
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const fetchedProvider = useRef("");
+  const savedModelRef = useRef("");
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
 
   useEffect(() => {
-    health()
-      .then((h) => {
-        setProvider(h.provider);
+    fetchSettings()
+      .then((s) => {
+        setProvider(s.llm_provider);
+        savedModelRef.current = s.llm_model || "";
       })
       .catch(() => {
         setProvider("");
@@ -65,15 +66,13 @@ export function useModelSelector(settingsChanged: number, onSelectionChange: (mo
             (id) => map.get(id) ?? canonicalize([id])[0],
           );
           setModels(entries);
-          return fetchDefaultModel(provider).then((def) => {
-            if (fetchedProvider.current !== provider) return;
-            const selectedModel =
-              def.model && entries.some((e) => e.provider_specific_id === def.model)
-                ? def.model
-                : entries[0]?.provider_specific_id ?? "";
-            setModel(selectedModel);
-            onSelectionChangeRef.current(selectedModel, provider);
-          });
+          const savedModel = savedModelRef.current;
+          const selectedModel =
+            savedModel && entries.some((e) => e.provider_specific_id === savedModel)
+              ? savedModel
+              : entries[0]?.provider_specific_id ?? "";
+          setModel(selectedModel);
+          onSelectionChangeRef.current(selectedModel, provider);
         });
       })
       .catch(() => {
