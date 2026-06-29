@@ -3,12 +3,19 @@ from __future__ import annotations
 from pathlib import Path
 
 from config.app_config import AppConfig
+from config.global_settings import (
+    GlobalSettings,
+    apply_global_defaults,
+    load_global_settings,
+    save_global_settings,
+)
 from config.workspace import (
     WorkspaceSettings,
     WorkspaceRegistry,
     get_last_active_workspace,
     migrate_legacy,
 )
+from config.workspace_paths import GLOBAL_SETTINGS_FILE
 
 
 Settings = AppConfig
@@ -17,6 +24,8 @@ Settings = AppConfig
 def _persist(config: AppConfig) -> None:
     if not config.workspace_path or not config.workspace_id:
         return
+    # TODO: 当支持"单个工作区覆盖全局默认"时，llm_provider / llm_model / default_models
+    # 应只在 ws_settings.use_global_defaults == False 时写入工作区 settings
     ws_settings = WorkspaceSettings(
         workspace_id=config.workspace_id,
         name=config.workspace_name or "",
@@ -26,12 +35,19 @@ def _persist(config: AppConfig) -> None:
         llm_model=config.llm_model,
         default_models=dict(config.default_models),
         auto_restore_sessions=config.auto_restore_sessions,
+        use_global_defaults=True,
     )
     ws_settings.save()
 
 
 def set_default_model(config: AppConfig, provider: str, model: str) -> None:
     config.require_workspace()
+    gs = load_global_settings()
+    gs.default_models[provider] = model
+    if gs.llm_provider == provider:
+        gs.llm_model = model
+    save_global_settings(gs)
+
     config.default_models[provider] = model
     if config.llm_provider == provider:
         config.llm_model = model
@@ -40,6 +56,12 @@ def set_default_model(config: AppConfig, provider: str, model: str) -> None:
 
 def set_provider(config: AppConfig, provider: str) -> None:
     config.require_workspace()
+    gs = load_global_settings()
+    gs.llm_provider = provider
+    if provider in gs.default_models:
+        gs.llm_model = gs.default_models[provider]
+    save_global_settings(gs)
+
     config.llm_provider = provider
     if provider in config.default_models:
         config.llm_model = config.default_models[provider]
@@ -57,6 +79,16 @@ def load_for_workspace(config: AppConfig, workspace_id: str) -> None:
     rec = registry.get(workspace_id)
     ws_path = Path(rec.path)
     ws_settings = WorkspaceSettings.load(ws_path, rec.id, rec.name)
+    # 首次加载时（global_settings.json 不存在），用当前工作区设置作为全局默认的种子
+    if not GLOBAL_SETTINGS_FILE.exists():
+        save_global_settings(GlobalSettings(
+            llm_provider=ws_settings.llm_provider,
+            llm_model=ws_settings.llm_model,
+            default_models=dict(ws_settings.default_models),
+        ))
+    # 应用全局默认覆盖
+    # TODO: 当支持"单个工作区覆盖"时，先检查 ws_settings.use_global_defaults
+    apply_global_defaults(ws_settings)
     config.workspace_id = rec.id
     config.workspace_name = rec.name
     config.workspace_path = ws_path

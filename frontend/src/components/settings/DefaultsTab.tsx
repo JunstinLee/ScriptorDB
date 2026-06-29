@@ -86,8 +86,10 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
         }}
         name="defaults-provider"
       />
+      {/* TODO: 当支持"单个工作区覆盖全局默认"时，增加 "Use workspace-specific override" 开关，
+          控制 use_global_defaults。当前所有工作区共享此全局默认设置。 */}
       <p className="text-xs text-muted">
-        Current default model:{" "}
+        Global default model:{" "}
         <span className="font-mono text-foreground">
           {currentDefault || "(none)"}
         </span>
@@ -95,7 +97,7 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
 
       <div className="flex flex-col gap-1.5">
         <Label id="defaults-model-label" className="text-xs text-graphite">
-          Set default model for {selectedProvider}
+          Set global default model for {selectedProvider}
         </Label>
         {loading ? (
           <div className="py-3 text-sm text-muted">Loading models…</div>

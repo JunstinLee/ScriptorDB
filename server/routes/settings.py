@@ -11,6 +11,7 @@ from server.schemas import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
+from config.global_settings import load_global_settings, save_global_settings
 from config.settings import (
     set_auto_restore_sessions,
     set_default_model,
@@ -63,6 +64,13 @@ async def update_settings(req: SettingsUpdateRequest):
                 del config.default_models[provider]
             if provider == config.llm_provider:
                 config.llm_model = None
+            # 同步从全局设置中移除
+            gs = load_global_settings()
+            if provider in gs.default_models:
+                del gs.default_models[provider]
+            if provider == gs.llm_provider:
+                gs.llm_model = None
+            save_global_settings(gs)
         else:
             set_default_model(config, provider, req.default_model)
     if req.auto_restore_sessions is not None:

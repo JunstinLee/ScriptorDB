@@ -20,6 +20,9 @@ class WorkspaceSettings:
     llm_model: Optional[str] = None
     default_models: dict[str, str] = field(default_factory=dict)
     auto_restore_sessions: bool = True
+    # TODO: 当 UI 支持"单个工作区覆盖全局默认"时，此字段由前端控制
+    # 当前版本始终为 True，所有工作区使用全局默认设置
+    use_global_defaults: bool = True
 
     def __post_init__(self) -> None:
         if not self.db_url:
@@ -48,6 +51,9 @@ class WorkspaceSettings:
             auto_restore_sessions=bool(
                 payload.get("auto_restore_sessions", defaults.auto_restore_sessions)
             ),
+            use_global_defaults=bool(
+                payload.get("use_global_defaults", defaults.use_global_defaults)
+            ),
         )
         if not ws.llm_model:
             ws.llm_model = ws.default_models.get(ws.llm_provider)
@@ -65,6 +71,7 @@ class WorkspaceSettings:
             "llm_model": self.llm_model,
             "default_models": self.default_models,
             "auto_restore_sessions": self.auto_restore_sessions,
+            "use_global_defaults": self.use_global_defaults,
         }
         try:
             cfg_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))

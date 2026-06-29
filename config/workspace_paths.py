@@ -22,6 +22,7 @@ class WorkspaceNotSelectedError(WorkspaceError):
 GLOBAL_CONFIG_DIR = Path.home() / ".config" / "scriptordb"
 DEFAULT_WORKSPACES_DIR = GLOBAL_CONFIG_DIR / "workspaces"
 REGISTRY_FILE = GLOBAL_CONFIG_DIR / "workspaces.json"
+GLOBAL_SETTINGS_FILE = GLOBAL_CONFIG_DIR / "global_settings.json"
 LEGACY_CONFIG_FILE = GLOBAL_CONFIG_DIR / "config.json"
 LEGACY_SESSIONS_DIR = GLOBAL_CONFIG_DIR / "sessions"
 LEGACY_SESSIONS_FILE = GLOBAL_CONFIG_DIR / "sessions.json"

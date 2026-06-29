@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from config.global_settings import apply_global_defaults
 from config.workspace_paths import (
     DEFAULT_WORKSPACES_DIR,
     GLOBAL_CONFIG_DIR,
@@ -185,6 +186,9 @@ class WorkspaceRegistry:
         ws_settings = WorkspaceSettings.load(resolved, ws_id, rec.name)
         if db_url:
             ws_settings.db_url = db_url
+        # 新工作区继承全局默认模型
+        # TODO: 当支持"单个工作区覆盖"时，保留 use_global_defaults=True
+        apply_global_defaults(ws_settings)
         ws_settings.save()
         return rec
 

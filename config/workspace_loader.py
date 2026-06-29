@@ -5,6 +5,10 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 
+from config.global_settings import (
+    GlobalSettings,
+    save_global_settings,
+)
 from config.workspace_paths import (
     GLOBAL_CONFIG_DIR,
     LEGACY_CONFIG_FILE,
@@ -106,6 +110,13 @@ def migrate_legacy(current_dir: Path | None = None) -> WorkspaceRecord | None:
         auto_restore_sessions=auto_restore,
     )
     ws_settings.save()
+
+    # 将 legacy 配置中的 provider/model 迁移到全局设置
+    save_global_settings(GlobalSettings(
+        llm_provider=llm_provider,
+        llm_model=default_models.get(llm_provider),
+        default_models=dict(default_models),
+    ))
     return rec
 
 
