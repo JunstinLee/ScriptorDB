@@ -14,7 +14,7 @@ class AppConfig:
     `load_default(...)` 之后才能访问 db_url / llm_api_key 等字段。
     """
 
-    llm_provider: str = "openai"
+    llm_provider: str = ""
     db_url: str = ""
     llm_model: str | None = None
     default_models: dict[str, str] = field(default_factory=dict)
@@ -44,7 +44,7 @@ class AppConfig:
         self.workspace_name = None
         self.workspace_path = None
         self.db_url = ""
-        self.llm_provider = "openai"
+        self.llm_provider = ""
         self.llm_model = None
         self.default_models = {}
         self.auto_restore_sessions = True

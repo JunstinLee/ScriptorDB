@@ -43,14 +43,14 @@ def _persist(config: AppConfig) -> None:
 def set_default_model(config: AppConfig, provider: str, model: str) -> None:
     config.require_workspace()
     gs = load_global_settings()
+    gs.llm_provider = provider
     gs.default_models[provider] = model
-    if gs.llm_provider == provider:
-        gs.llm_model = model
+    gs.llm_model = model
     save_global_settings(gs)
 
+    config.llm_provider = provider
     config.default_models[provider] = model
-    if config.llm_provider == provider:
-        config.llm_model = model
+    config.llm_model = model
     _persist(config)
 
 
@@ -58,13 +58,11 @@ def set_provider(config: AppConfig, provider: str) -> None:
     config.require_workspace()
     gs = load_global_settings()
     gs.llm_provider = provider
-    if provider in gs.default_models:
-        gs.llm_model = gs.default_models[provider]
+    gs.llm_model = gs.default_models.get(provider)
     save_global_settings(gs)
 
     config.llm_provider = provider
-    if provider in config.default_models:
-        config.llm_model = config.default_models[provider]
+    config.llm_model = config.default_models.get(provider)
     _persist(config)
 
 

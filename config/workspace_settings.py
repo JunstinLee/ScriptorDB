@@ -16,7 +16,7 @@ class WorkspaceSettings:
     name: str
     path: Path
     db_url: str = ""
-    llm_provider: str = "openai"
+    llm_provider: str = ""
     llm_model: Optional[str] = None
     default_models: dict[str, str] = field(default_factory=dict)
     auto_restore_sessions: bool = True
