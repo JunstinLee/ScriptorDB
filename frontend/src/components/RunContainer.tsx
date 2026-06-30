@@ -1,3 +1,5 @@
+import { Spinner } from "@heroui/react";
+import { Loader2 } from "lucide-react";
 import type { Run } from "../types";
 import MarkdownRenderer from "./common/MarkdownRenderer";
 
@@ -6,6 +8,11 @@ interface RunContainerProps {
 }
 
 export default function RunContainer({ run }: RunContainerProps) {
+  const isRunning = run.status === "running";
+  const hasRunningTool = run.tool_invocations.some(
+    (t) => t.status === "running",
+  );
+
   return (
     <div>
       {run.final_output && (
@@ -20,24 +27,27 @@ export default function RunContainer({ run }: RunContainerProps) {
         </div>
       )}
 
-      {run.status === "running" && !run.final_output && (
+      {isRunning && (
         <div className="px-4 py-3">
           <div className="flex items-center gap-2 text-sm text-graphite">
-            <span>Assistant is working</span>
-            <span className="flex gap-0.5">
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
-                style={{ animationDelay: "0ms" }}
-              />
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
-                style={{ animationDelay: "150ms" }}
-              />
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
-                style={{ animationDelay: "300ms" }}
-              />
-            </span>
+            {hasRunningTool ? (
+              <>
+                <Loader2
+                  className="h-4 w-4 text-cobalt animate-spin"
+                  aria-label="Calling tools"
+                />
+                <span>Calling tools…</span>
+              </>
+            ) : (
+              <>
+                <Spinner
+                  size="sm"
+                  className="text-cobalt"
+                  aria-label="Working"
+                />
+                <span>Assistant is working</span>
+              </>
+            )}
           </div>
         </div>
       )}
