@@ -41,3 +41,5 @@ export {
   deleteWorkspace,
   type WorkspaceItem,
 } from "./workspaces";
+
+export { getImageUrl, downloadImage } from "./files";

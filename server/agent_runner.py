@@ -133,10 +133,12 @@ async def run_agent_stream(
                     success = True
                     output: Any = None
                     error_code: str | None = None
+                    data: dict[str, Any] | None = None
                     content = event.part.content if event.part else None
                     if isinstance(content, ToolResult):
                         success = content.success
                         output = content.output
+                        data = content.data
                         if content.error:
                             error_code = content.error.category
                             output = content.error.message
@@ -144,7 +146,7 @@ async def run_agent_stream(
                         output = content
 
                     local_tracker.complete_tool(
-                        call_id, success, output, error_code, duration_ms
+                        call_id, success, output, error_code, duration_ms, data=data
                     )
                     logger.info(
                         "tool_result queued run_id=%s call=%s call_id=%s tool=%s success=%s duration_ms=%s",
@@ -165,6 +167,7 @@ async def run_agent_stream(
                         "output": output,
                         "error_code": error_code,
                         "duration_ms": duration_ms,
+                        "data": data,
                         "timestamp": utc_now_iso(),
                     })
 

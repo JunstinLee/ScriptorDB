@@ -24,6 +24,7 @@ class StoredToolInvocation(BaseModel):
     output: str | None = None
     error_code: str | None = None
     duration_ms: int | None = None
+    data: dict[str, Any] | None = None
     started_at: str
     ended_at: str | None = None
 
@@ -196,6 +197,7 @@ class ToolResultEvent(BaseModel):
     output: str | None = None
     error_code: str | None = None
     duration_ms: int | None = None
+    data: dict[str, Any] | None = None
     timestamp: str
 
 

@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import os
-
 from uuid import uuid4
 from pydantic_ai import RunContext
 
 from config.settings import Settings
+from config.workspace import workspace_outputs_dir
 from tools.errors import _to_tool_error
 from tools.tool_result import ToolErrorInfo, ToolResult
 
@@ -60,16 +59,34 @@ def plot_chart(
             ax.set_ylabel(y_label)
         ax.set_title(title)
 
-        path = output_file or f"chart_{uuid4().hex[:8]}.png"
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        fig.savefig(path, dpi=150, bbox_inches="tight")
+        workspace_path = ctx.deps.workspace_path if ctx.deps else None
+        if workspace_path is None:
+            return ToolResult(
+                success=False,
+                error=ToolErrorInfo(
+                    category="parameter_error",
+                    message="No active workspace. Select a workspace before generating charts.",
+                ),
+            )
+
+        outputs_dir = workspace_outputs_dir(workspace_path)
+        outputs_dir.mkdir(parents=True, exist_ok=True)
+
+        file_id = f"chart_{uuid4().hex[:8]}.png"
+        output_path = outputs_dir / file_id
+        fig.savefig(output_path, dpi=150, bbox_inches="tight")
         plt.close(fig)
 
-        abs_path = os.path.abspath(path)
+        del output_file
+
         return ToolResult(
             success=True,
-            output=f"图表已生成: {abs_path}",
-            data={"file": abs_path, "chart_type": chart_type},
+            output=f"图表已生成: {file_id}",
+            data={
+                "file": file_id,
+                "chart_type": chart_type,
+                "title": title,
+            },
         )
     except Exception as e:
         return _to_tool_error(e)

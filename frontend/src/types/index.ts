@@ -211,6 +211,7 @@ export interface ToolResultRunEvent {
   output?: string;
   error_code?: string;
   duration_ms?: number;
+  data?: Record<string, unknown>;
   timestamp: string;
 }
 
@@ -254,6 +255,7 @@ export interface ToolInvocation {
   output?: string;
   error_code?: string;
   duration_ms?: number;
+  data?: Record<string, unknown>;
   started_at: string;
   ended_at?: string;
 }

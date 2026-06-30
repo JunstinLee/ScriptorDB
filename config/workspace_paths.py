@@ -41,3 +41,7 @@ def workspace_settings_file(workspace_path: Path) -> Path:
 
 def workspace_sessions_dir(workspace_path: Path) -> Path:
     return workspace_dir(workspace_path) / "sessions"
+
+
+def workspace_outputs_dir(workspace_path: Path) -> Path:
+    return workspace_dir(workspace_path) / "outputs"

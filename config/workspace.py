@@ -26,6 +26,7 @@ from config.workspace_paths import (
     WorkspaceNotFoundError,
     WorkspaceNotSelectedError,
     workspace_dir,
+    workspace_outputs_dir,
     workspace_sessions_dir,
     workspace_settings_file,
 )
@@ -64,6 +65,7 @@ __all__ = [
     "migrate_legacy",
     "save_global_settings",
     "workspace_dir",
+    "workspace_outputs_dir",
     "workspace_sessions_dir",
     "workspace_settings_file",
 ]

@@ -63,6 +63,7 @@ class RunTracker:
         output: Any,
         error_code: str | None,
         duration_ms: int | None,
+        data: dict[str, Any] | None = None,
     ) -> None:
         for inv in self.tool_invocations:
             if inv["call_id"] == call_id:
@@ -70,6 +71,7 @@ class RunTracker:
                 inv["output"] = output
                 inv["error_code"] = error_code
                 inv["duration_ms"] = duration_ms
+                inv["data"] = data
                 inv["ended_at"] = utc_now_iso()
                 return
 
