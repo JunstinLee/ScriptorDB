@@ -9,6 +9,30 @@ from tools.errors import _to_tool_error
 from tools.tool_result import ToolErrorInfo, ToolResult
 
 
+_CHINESE_FONT_CANDIDATES = [
+    "PingFang SC",
+    "Hiragino Sans GB",
+    "STHeiti Medium",
+    "STHeiti Light",
+    "Hiragino Mincho ProN",
+]
+
+
+def _configure_chinese_font(plt) -> str | None:
+    try:
+        from matplotlib import font_manager
+
+        available = {f.name for f in font_manager.fontManager.ttflist}
+    except Exception:
+        return None
+
+    chosen = next((name for name in _CHINESE_FONT_CANDIDATES if name in available), None)
+    if chosen is not None:
+        plt.rcParams["font.sans-serif"] = [chosen, "DejaVu Sans"]
+        plt.rcParams["axes.unicode_minus"] = False
+    return chosen
+
+
 def plot_chart(
     ctx: RunContext[Settings],
     chart_type: str,
@@ -31,6 +55,8 @@ def plot_chart(
                 message="matplotlib is not installed. Run: uv sync",
             ),
         )
+
+    _configure_chinese_font(plt)
 
     valid_types = {"line", "bar", "scatter", "pie"}
     if chart_type not in valid_types:
