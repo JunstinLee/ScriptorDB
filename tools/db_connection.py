@@ -1,69 +1,78 @@
 from __future__ import annotations
 
-import sqlite3
+import threading
 from typing import Any
 
+from sqlalchemy import Engine, Connection, create_engine, inspect, text
+from sqlalchemy.pool import StaticPool
 
-def get_connection(db_url: str) -> sqlite3.Connection:
-    if db_url.startswith("sqlite:///"):
-        path = db_url.replace("sqlite:///", "")
-    else:
-        path = db_url
-    conn = sqlite3.connect(path)
-    conn.row_factory = sqlite3.Row
-    return conn
+_engine_cache: dict[str, Engine] = {}
+_cache_lock = threading.Lock()
+
+
+def _create_engine(db_url: str) -> Engine:
+    kwargs: dict[str, Any] = {}
+    if db_url.startswith("sqlite"):
+        kwargs.update(
+            {
+                "poolclass": StaticPool,
+                "connect_args": {"check_same_thread": False},
+            }
+        )
+    return create_engine(db_url, **kwargs)
+
+
+def get_engine(db_url: str) -> Engine:
+    with _cache_lock:
+        if db_url not in _engine_cache:
+            _engine_cache[db_url] = _create_engine(db_url)
+        return _engine_cache[db_url]
+
+
+def get_connection(db_url: str) -> Connection:
+    return get_engine(db_url).connect()
 
 
 def get_all_tables(db_url: str) -> list[dict[str, Any]]:
-    """公共 API：列出所有表名 + CREATE SQL。"""
-    conn = get_connection(db_url)
-    try:
+    with get_connection(db_url) as conn:
         return _get_all_tables(conn, db_url)
-    finally:
-        conn.close()
 
 
 def get_single_table_schema(db_url: str, table: str) -> dict[str, Any]:
-    """公共 API：获取单个表的 schema + create_sql。"""
-    conn = get_connection(db_url)
-    try:
+    with get_connection(db_url) as conn:
         return _get_single_table_schema(conn, db_url, table)
-    finally:
-        conn.close()
 
 
-def _get_all_tables(conn: sqlite3.Connection, db_url: str) -> list[dict[str, Any]]:
-    cursor = conn.execute(
-        "SELECT name, sql FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
-    )
-    return [{"name": row["name"], "sql": row["sql"]} for row in cursor.fetchall()]
+def _get_all_tables(conn: Connection, db_url: str) -> list[dict[str, Any]]:
+    insp = inspect(conn)
+    return [{"name": name, "sql": None} for name in insp.get_table_names()]
 
 
 def _get_single_table_schema(
-    conn: sqlite3.Connection, db_url: str, table: str
+    conn: Connection, db_url: str, table: str
 ) -> dict[str, Any]:
-    cursor = conn.execute(
-        f"PRAGMA table_info('{table.replace(chr(39), chr(39)+chr(39))}')"
-    )
-    info = cursor.fetchall()
-    if not info:
+    insp = inspect(conn)
+    if table not in insp.get_table_names():
         raise ValueError(f"Table '{table}' not found")
-    cursor2 = conn.execute(
-        "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
-        (table,),
-    )
-    create_sql = cursor2.fetchone()
-    columns = [
-        {
-            "name": row["name"],
-            "type": row["type"],
-            "nullable": not row["notnull"],
-            "default": row["dflt_value"],
-            "pk": bool(row["pk"]),
-        }
-        for row in info
-    ]
-    return {
-        "columns": columns,
-        "create_sql": create_sql["sql"] if create_sql else None,
-    }
+    col_info = insp.get_columns(table)
+    pk_info = insp.get_pk_constraint(table)
+    pk_columns = set(pk_info.get("constrained_columns", []))
+
+    columns = []
+    for col in col_info:
+        col_type = col.get("type")
+        type_str = str(col_type) if col_type is not None else "TEXT"
+        default_val = col.get("default")
+        if default_val is not None:
+            default_val = str(default_val)
+        columns.append(
+            {
+                "name": col["name"],
+                "type": type_str,
+                "nullable": col.get("nullable", True),
+                "default": default_val,
+                "pk": col["name"] in pk_columns,
+            }
+        )
+
+    return {"columns": columns, "create_sql": None}

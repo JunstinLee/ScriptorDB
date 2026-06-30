@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import re
-import sqlite3
 from typing import Any
 
 from pydantic import BaseModel, Field
 from pydantic_ai import ModelRetry, RunContext
+from sqlalchemy import text
 
 from config.settings import Settings
 from tools.db_connection import _get_all_tables, _get_single_table_schema, get_connection
@@ -32,10 +31,9 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
             limit = 1
         if limit > 10000:
             limit = 10000
-        cursor = conn.cursor()
-        cursor.execute(sql)
-        rows = cursor.fetchmany(limit + 1)
-        columns = [d[0] for d in cursor.description] if cursor.description else []
+        result = conn.execute(text(sql))
+        rows = result.fetchmany(limit + 1)
+        columns = list(result.keys())
         truncated = len(rows) > limit
         if truncated:
             rows = rows[:limit]
@@ -151,7 +149,7 @@ def create_table(
         all_parts = cols_sql + foreign_keys
         exists_kw = "IF NOT EXISTS " if if_not_exists else ""
         sql = f'CREATE TABLE {exists_kw}"{table_name}" (\n  {", ".join(all_parts)}\n)'
-        conn.execute(sql)
+        conn.execute(text(sql))
         conn.commit()
 
         schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table_name)
@@ -187,7 +185,7 @@ def execute_ddl(
 
     conn = get_connection(ctx.deps.db_url)
     try:
-        conn.execute(sql)
+        conn.execute(text(sql))
         conn.commit()
         return ToolResult(
             success=True,
@@ -218,10 +216,9 @@ def write_data(
 
     conn = get_connection(ctx.deps.db_url)
     try:
-        cursor = conn.cursor()
-        cursor.execute(sql, params or [])
+        result = conn.execute(text(sql), params or {})
         conn.commit()
-        rows_affected = cursor.rowcount
+        rows_affected = result.rowcount
         return ToolResult(
             success=True,
             output=f"数据写入成功，影响 {rows_affected} 行",

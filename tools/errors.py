@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 import subprocess
 import traceback
 import uuid
@@ -9,6 +8,8 @@ from contextvars import ContextVar
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING
+
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 
 if TYPE_CHECKING:
     from tools.tool_result import ToolResult, ToolErrorInfo
@@ -77,12 +78,15 @@ def _to_tool_error(e: Exception, error_id: str = "") -> ToolResult:
     category = ErrorCategory.internal_error
     message = f"内部错误（ID: {error_id}），请联系管理员" if error_id else "内部错误"
 
-    if isinstance(e, sqlite3.OperationalError):
+    if isinstance(e, OperationalError):
         category = ErrorCategory.parameter_error
         message = f"SQL 错误: {_sanitize_sql_error(e)}"
-    elif isinstance(e, sqlite3.IntegrityError):
+    elif isinstance(e, IntegrityError):
         category = ErrorCategory.parameter_error
         message = f"SQL 约束错误: {_sanitize_sql_error(e)}"
+    elif isinstance(e, ProgrammingError):
+        category = ErrorCategory.parameter_error
+        message = f"SQL 语法错误: {_sanitize_sql_error(e)}"
     elif isinstance(e, FileNotFoundError):
         category = ErrorCategory.resource_not_found
         filename = e.filename if e.filename else str(e).replace("[Errno 2] ", "").replace("No such file or directory: ", "").strip("'\"")

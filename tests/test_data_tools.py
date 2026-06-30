@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -11,6 +10,7 @@ from pydantic_ai import Agent, RunContext
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models.test import TestModel as PydanticTestModel
 from pydantic_ai.usage import RunUsage
+from sqlalchemy import create_engine, text
 
 from config.settings import Settings
 from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
@@ -76,11 +76,12 @@ class TestErrorCategory:
 
 
 class TestToToolError:
-    def test_sqlite_error(self):
+    def test_sql_error(self):
         result = None
         try:
-            conn = sqlite3.connect(":memory:")
-            conn.execute("INVALID SQL")
+            engine = create_engine("sqlite:///:memory:")
+            with engine.connect() as conn:
+                conn.execute(text("INVALID SQL"))
         except Exception as e:
             result = _to_tool_error(e)
         assert result is not None
@@ -125,9 +126,18 @@ class TestToToolError:
             assert "secret_detail" in str(call_args)
 
     def test_user_visible_error_preserves_message(self):
-        result = _to_tool_error(
-            sqlite3.OperationalError("no such column: secret_data")
-        )
+        engine = create_engine("sqlite:///:memory:")
+        with engine.connect() as conn:
+            conn.execute(text("CREATE TABLE t (id INTEGER PRIMARY KEY)"))
+            conn.commit()
+        result = None
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT secret_data FROM t"))
+        except Exception as e:
+            result = _to_tool_error(e)
+        assert result is not None
+        assert result.error is not None
         assert result.error.category == ErrorCategory.parameter_error
         assert "secret_data" in result.error.message
 

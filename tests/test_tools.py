@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import csv
 import json
-import sqlite3
 import subprocess
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import create_engine, text
+
 from tools.errors import ErrorCategory, _to_tool_error, current_error_id
 from tools.tool_result import ToolErrorInfo, ToolResult
 
@@ -55,6 +56,7 @@ class TestErrorCategory:
             ErrorCategory.resource_not_found,
             ErrorCategory.execution_timeout,
             ErrorCategory.output_limit_exceeded,
+            ErrorCategory.resource_exhausted,
             ErrorCategory.external_service_error,
             ErrorCategory.internal_error,
         }
@@ -62,11 +64,12 @@ class TestErrorCategory:
 
 
 class TestToToolError:
-    def test_sqlite_error(self):
+    def test_sql_error(self):
         result = None
         try:
-            conn = sqlite3.connect(":memory:")
-            conn.execute("INVALID SQL")
+            engine = create_engine("sqlite:///:memory:")
+            with engine.connect() as conn:
+                conn.execute(text("INVALID SQL"))
         except Exception as e:
             result = _to_tool_error(e)
         assert result is not None
@@ -119,9 +122,18 @@ class TestToToolError:
             assert "secret_detail" in str(call_args)
 
     def test_user_visible_error_preserves_message(self):
-        result = _to_tool_error(
-            sqlite3.OperationalError("no such column: secret_data")
-        )
+        engine = create_engine("sqlite:///:memory:")
+        with engine.connect() as conn:
+            conn.execute(text("CREATE TABLE t (id INTEGER PRIMARY KEY)"))
+            conn.commit()
+        result = None
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT secret_data FROM t"))
+        except Exception as e:
+            result = _to_tool_error(e)
+        assert result is not None
+        assert result.error is not None
         assert result.error.category == ErrorCategory.parameter_error
         assert "secret_data" in result.error.message
 
