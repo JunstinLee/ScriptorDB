@@ -17,7 +17,6 @@ import WorkspacesTab from "./settings/WorkspacesTab";
 interface SettingsModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  onSessionsChanged?: () => void;
   showSessionIdHover: boolean;
   setShowSessionIdHover: (v: boolean) => void;
   showSchemaSql: boolean;
@@ -31,7 +30,6 @@ interface SettingsModalProps {
 export default function SettingsModal({
   isOpen,
   onOpenChange,
-  onSessionsChanged,
   showSessionIdHover,
   setShowSessionIdHover,
   showSchemaSql,
@@ -65,7 +63,7 @@ export default function SettingsModal({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog className="sm:max-w-[640px] max-h-[85vh] bg-surface">
+        <Modal.Dialog className="sm:max-w-[640px] max-h-[85vh] min-w-[480px] min-h-[360px] bg-surface">
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
@@ -121,7 +119,6 @@ export default function SettingsModal({
                   <SessionsTab
                     settings={settings}
                     onSettingsChange={setSettings}
-                    onSessionsChanged={onSessionsChanged}
                     showSessionIdHover={showSessionIdHover}
                     setShowSessionIdHover={setShowSessionIdHover}
                     showSchemaSql={showSchemaSql}

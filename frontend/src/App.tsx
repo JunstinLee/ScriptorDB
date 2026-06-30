@@ -150,7 +150,6 @@ function MainApp({
     finalizeAssistantMessage,
     setLoading,
     refreshSessionTitle,
-    refreshSessions,
   } = useSessions(handleRunsLoaded, workspace?.id);
 
   const runs = activeSessionId ? getRuns(activeSessionId) : [];
@@ -337,7 +336,6 @@ function MainApp({
             setSettingsChanged((v) => v + 1);
           }
         }}
-        onSessionsChanged={() => void refreshSessions()}
         showSessionIdHover={showSessionIdHover}
         setShowSessionIdHover={setShowSessionIdHover}
         showSchemaSql={showSchemaSql}
