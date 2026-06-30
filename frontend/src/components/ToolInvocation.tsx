@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { Chip, Spinner } from "@heroui/react";
 import { ChevronDown, Check, X, Clock, Copy } from "lucide-react";
 import type { ToolInvocation as ToolInvocationType } from "../types";
-import ImageArtifact from "./common/ImageArtifact";
 
 interface ToolInvocationProps {
   invocation: ToolInvocationType;
@@ -142,12 +141,6 @@ function isInternalError(error_code: string | undefined): boolean {
   );
 }
 
-function hasImageArtifact(inv: ToolInvocationType): boolean {
-  if (inv.tool_name !== "plot_chart") return false;
-  const file = inv.data?.file;
-  return typeof file === "string" && file.length > 0;
-}
-
 export default function ToolInvocation({ invocation }: ToolInvocationProps) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -227,30 +220,11 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
 
       <div
         className={`tool-expand ${
-          expanded && (output || error_code || hasImageArtifact(invocation))
+          expanded && (output || error_code)
             ? "tool-expand-open"
             : "tool-expand-collapsed"
         }`}
       >
-        {hasImageArtifact(invocation) && (
-          <div className="border-t border-grid px-3 py-2">
-            <ImageArtifact
-              fileId={String(invocation.data!.file)}
-              title={
-                typeof invocation.args.title === "string"
-                  ? invocation.args.title
-                  : undefined
-              }
-              chartType={
-                typeof invocation.data!.chart_type === "string"
-                  ? invocation.data!.chart_type
-                  : typeof invocation.args.chart_type === "string"
-                    ? invocation.args.chart_type
-                    : undefined
-              }
-            />
-          </div>
-        )}
         {(output || error_code) && (
           <div className="border-t border-grid px-3 py-2">
             {error_code && (

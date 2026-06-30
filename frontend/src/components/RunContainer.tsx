@@ -2,6 +2,7 @@ import { Spinner } from "@heroui/react";
 import { Loader2 } from "lucide-react";
 import type { Run } from "../types";
 import MarkdownRenderer from "./common/MarkdownRenderer";
+import ImageArtifact from "./common/ImageArtifact";
 
 interface RunContainerProps {
   run: Run;
@@ -20,6 +21,35 @@ export default function RunContainer({ run }: RunContainerProps) {
           <MarkdownRenderer content={run.final_output} />
         </div>
       )}
+
+      {run.tool_invocations.map((inv) => {
+        const invData = inv.data;
+        if (
+          inv.tool_name !== "plot_chart" ||
+          inv.status !== "success" ||
+          typeof invData?.file !== "string"
+        ) {
+          return null;
+        }
+        const fileId = invData.file;
+        const chartType =
+          typeof invData.chart_type === "string"
+            ? invData.chart_type
+            : typeof inv.args.chart_type === "string"
+              ? inv.args.chart_type
+              : undefined;
+        const title =
+          typeof inv.args.title === "string" ? inv.args.title : undefined;
+        return (
+          <div key={inv.call_id} className="px-4 py-2 border-t border-grid">
+            <ImageArtifact
+              fileId={fileId}
+              title={title}
+              chartType={chartType}
+            />
+          </div>
+        );
+      })}
 
       {run.status === "error" && run.error_message && (
         <div className="border-l-[3px] border-l-vermilion bg-vermilion/5 px-4 py-3">
