@@ -24,6 +24,9 @@ async def chat(session_id: str, req: ChatRequest):
 
     session.add_user_message(req.prompt)
 
+    config.chat_session_id = session_id
+    config.chat_prompt = req.prompt
+
     model_messages = session.get_model_messages()
     run_collector: dict[str, Any] = {}
     new_messages_collector: list[ModelMessage] = []

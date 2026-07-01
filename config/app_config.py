@@ -20,6 +20,9 @@ class AppConfig:
     default_models: dict[str, str] = field(default_factory=dict)
     auto_restore_sessions: bool = True
 
+    chat_session_id: str | None = None
+    chat_prompt: str | None = None
+
     workspace_id: str | None = field(default=None, init=False)
     workspace_name: str | None = field(default=None, init=False)
     workspace_path: Path | None = field(default=None, init=False)

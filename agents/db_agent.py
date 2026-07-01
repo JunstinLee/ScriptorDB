@@ -5,7 +5,7 @@ from pydantic_ai.capabilities import HandleDeferredToolCalls
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
-from agents.capabilities import build_audit_hooks
+from agents.capabilities import build_audit_hooks, build_undo_hooks
 from config.app_config import AppConfig
 from config.models import resolve_model
 from config.secrets import SUPPORTED_PROVIDERS, get_api_key
@@ -27,6 +27,7 @@ def _auto_approve_handler(
 
 def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings]:
     audit_hooks = build_audit_hooks()
+    undo_hooks = build_undo_hooks()
     approval = HandleDeferredToolCalls(handler=_auto_approve_handler)
 
     active_provider = config.llm_provider
@@ -41,14 +42,14 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings]:
             ),
             deps_type=Settings,
             toolsets=[read_toolset, write_toolset, viz_toolset],
-            capabilities=[audit_hooks, approval],
+            capabilities=[audit_hooks, undo_hooks, approval],
         )
 
     return Agent(
         model=resolved_model,
         deps_type=Settings,
         toolsets=[read_toolset, write_toolset, viz_toolset],
-        capabilities=[audit_hooks, approval],
+        capabilities=[audit_hooks, undo_hooks, approval],
     )
 
 

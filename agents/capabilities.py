@@ -89,3 +89,42 @@ def build_audit_hooks() -> Hooks[Settings]:
         return result
 
     return hooks
+
+
+def build_undo_hooks() -> Hooks[Settings]:
+    hooks = Hooks[Settings]()
+
+    @hooks.on.before_run
+    async def undo_before_run(ctx: RunContext[Settings]) -> None:
+        if not ctx.deps.db_url:
+            return
+        from uuid import uuid4 as _uuid4
+
+        from tools.db_connection import get_engine
+        from tools.undo_log import ensure_undo_tables
+
+        engine = get_engine(ctx.deps.db_url)
+        ensure_undo_tables(engine)
+
+        if ctx.metadata is None:
+            ctx.metadata = {}
+        ctx.metadata["session_id"] = ctx.deps.chat_session_id or _uuid4().hex[:12]
+        ctx.metadata["run_id"] = _uuid4().hex[:12]
+        ctx.metadata["prompt"] = ctx.deps.chat_prompt or ""
+
+    @hooks.on.after_run
+    async def undo_after_run(ctx: RunContext[Settings], result: Any) -> Any:
+        group_id = None
+        if ctx.metadata is not None:
+            group_id = ctx.metadata.pop("undo_group_id", None)
+        if group_id is None:
+            return result
+        from tools.db_connection import get_engine
+        from tools.undo_log import finalize_group
+
+        engine = get_engine(ctx.deps.db_url)
+        with engine.connect() as conn:
+            finalize_group(conn, group_id)
+        return result
+
+    return hooks

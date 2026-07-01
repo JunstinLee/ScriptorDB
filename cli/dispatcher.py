@@ -26,6 +26,8 @@ COMMAND_MAP = {
     "serve": serve,
     "7": "workspace",
     "workspace": "workspace",
+    "8": "undo",
+    "undo": "undo",
 }
 
 
@@ -38,6 +40,7 @@ def show_help():
     typer.echo("  5. interactive — 进入交互式查询")
     typer.echo("  6. serve       — 启动 API server")
     typer.echo("  7. workspace   — 切换/新建工作区")
+    typer.echo("  8. undo        — 撤销操作（list / revert <id>）")
     typer.echo("  help           — 显示帮助")
     typer.echo("  exit / quit    — 退出")
 
@@ -161,6 +164,10 @@ def run_dispatcher():
             _print_workspace_banner()
             continue
 
+        if COMMAND_MAP.get(cmd_name) == "undo":
+            _dispatch_undo(args)
+            continue
+
         command = COMMAND_MAP.get(cmd_name)
         if not command:
             typer.echo(f"未知命令: {cmd_name}，输入 help 查看列表", err=True)
@@ -220,6 +227,29 @@ def _dispatch_workspace(args: list[str]) -> None:
         workspace_cli.workspace_migrate()
     else:
         typer.echo(f"未知子命令: {sub}", err=True)
+
+
+def _dispatch_undo(args: list[str]) -> None:
+    from cli.commands import undo_list, undo_revert
+
+    if not args:
+        typer.echo("用法: undo list | undo revert <group_id>", err=True)
+        return
+    sub = args[0]
+    if sub == "list":
+        undo_list()
+    elif sub == "revert":
+        if len(args) < 2:
+            typer.echo("用法: undo revert <group_id>", err=True)
+            return
+        try:
+            gid = int(args[1])
+        except ValueError:
+            typer.echo("group_id 必须是整数", err=True)
+            return
+        undo_revert(gid)
+    else:
+        typer.echo(f"未知子命令: {sub}，可用: list, revert <id>", err=True)
 
 
 def _handle_ask(args: list[str]) -> None:

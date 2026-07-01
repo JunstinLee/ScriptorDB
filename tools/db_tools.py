@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -10,6 +12,7 @@ from config.settings import Settings
 from tools.db_connection import _get_all_tables, _get_single_table_schema, get_connection
 from tools.errors import _to_tool_error
 from tools.tool_result import ToolResult
+from tools.undo_log import add_entry, create_group
 
 
 class ColumnDef(BaseModel):
@@ -198,6 +201,171 @@ def execute_ddl(
         conn.close()
 
 
+def _normalize_params(sql: str, params: list | dict | None) -> tuple[str, dict | None]:
+    if params is None or isinstance(params, dict):
+        return sql, params
+    if not isinstance(params, list):
+        return sql, params
+    named_params: dict[str, Any] = {}
+    param_idx = -1
+
+    def _repl(_match: re.Match) -> str:
+        nonlocal param_idx
+        param_idx += 1
+        name = f"p{param_idx}"
+        named_params[name] = params[param_idx] if param_idx < len(params) else None
+        return f":{name}"
+
+    if sql.count("?") > 0:
+        new_sql = re.sub(r"\?", _repl, sql)
+    elif "%s" in sql:
+        new_sql = re.sub(r"%s", _repl, sql)
+    else:
+        return sql, None
+    return new_sql, named_params
+
+
+def _parse_dml_table_name(sql: str) -> str | None:
+    m = re.match(
+        r"(?i)\s*(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"
+        r"[\"`]?(\w+)[\"`]?",
+        sql.strip(),
+    )
+    if m:
+        return m.group(2)
+    return None
+
+
+def _get_pk_columns(conn, table: str) -> list[str]:
+    from sqlalchemy import inspect as sa_inspect
+
+    insp = sa_inspect(conn)
+    pk = insp.get_pk_constraint(table)
+    return list(pk.get("constrained_columns", [])) if pk else []
+
+
+def _extract_where_clause(sql: str) -> str:
+    m = re.search(r"(?i)\bWHERE\b\s+(.+)", sql, re.DOTALL)
+    if m:
+        return m.group(1).rstrip(";").strip()
+    return ""
+
+
+def _build_insert_undo(
+    conn, sql: str, params: list | dict | None, table_name: str
+) -> tuple[int, list[tuple[str, dict]]]:
+    named_sql, named_params = _normalize_params(sql, params)
+    returning_sql = named_sql.rstrip(";").rstrip() + " RETURNING *"
+    try:
+        result = conn.execute(text(returning_sql), named_params or {})
+    except Exception:
+        result = conn.execute(text(named_sql), named_params or {})
+        return result.rowcount, []
+    rows = result.fetchall()
+    columns = list(result.keys())
+    if not rows:
+        return result.rowcount or 0, []
+
+    pk_cols = _get_pk_columns(conn, table_name)
+    if not pk_cols:
+        return len(rows), []
+
+    undo_entries: list[tuple[str, dict]] = []
+    for row in rows:
+        row_dict = dict(zip(columns, row))
+        pk_conditions = " AND ".join(
+            f'"{col}" = :undo_{col}' for col in pk_cols
+        )
+        undo_sql = f'DELETE FROM "{table_name}" WHERE {pk_conditions}'
+        undo_params = {f"undo_{col}": row_dict[col] for col in pk_cols}
+        undo_entries.append((undo_sql, undo_params))
+
+    return len(rows), undo_entries
+
+
+def _build_update_undo(
+    conn, sql: str, params: list | dict | None, table_name: str
+) -> tuple[int, list[tuple[str, dict]]]:
+    named_sql, named_params = _normalize_params(sql, params)
+    where_clause = _extract_where_clause(named_sql)
+
+    select_sql = f'SELECT * FROM "{table_name}" WHERE {where_clause}'
+    old_result = conn.execute(text(select_sql), named_params or {})
+    old_rows = old_result.fetchall()
+    columns = list(old_result.keys())
+
+    result = conn.execute(text(named_sql), named_params or {})
+    rows_affected = result.rowcount
+
+    if not old_rows:
+        return rows_affected, []
+
+    pk_cols = _get_pk_columns(conn, table_name)
+    if not pk_cols:
+        return rows_affected, []
+
+    undo_entries: list[tuple[str, dict]] = []
+    for row in old_rows:
+        row_dict = dict(zip(columns, row))
+        set_clauses = [
+            f'"{col}" = :undo_{col}'
+            for col in columns
+            if col not in pk_cols
+        ]
+        pk_conditions = [
+            f'"{col}" = :undo_pk_{col}' for col in pk_cols
+        ]
+        if not set_clauses or not pk_conditions:
+            continue
+        undo_sql = (
+            f'UPDATE "{table_name}" SET {", ".join(set_clauses)}'
+            f' WHERE {" AND ".join(pk_conditions)}'
+        )
+        undo_params = {
+            f"undo_{col}": row_dict[col]
+            for col in columns
+            if col not in pk_cols
+        }
+        undo_params.update(
+            {f"undo_pk_{col}": row_dict[col] for col in pk_cols}
+        )
+        undo_entries.append((undo_sql, undo_params))
+
+    return rows_affected, undo_entries
+
+
+def _build_delete_undo(
+    conn, sql: str, params: list | dict | None, table_name: str
+) -> tuple[int, list[tuple[str, dict]]]:
+    named_sql, named_params = _normalize_params(sql, params)
+    where_clause = _extract_where_clause(named_sql)
+
+    select_sql = f'SELECT * FROM "{table_name}" WHERE {where_clause}'
+    old_result = conn.execute(text(select_sql), named_params or {})
+    old_rows = old_result.fetchall()
+    columns = list(old_result.keys())
+
+    result = conn.execute(text(named_sql), named_params or {})
+    rows_affected = result.rowcount
+
+    if not old_rows:
+        return rows_affected, []
+
+    undo_entries: list[tuple[str, dict]] = []
+    for row in old_rows:
+        row_dict = dict(zip(columns, row))
+        col_list = [f'"{col}"' for col in columns]
+        val_placeholders = [f":undo_{col}" for col in columns]
+        undo_sql = (
+            f'INSERT INTO "{table_name}" ({", ".join(col_list)})'
+            f' VALUES ({", ".join(val_placeholders)})'
+        )
+        undo_params = {f"undo_{col}": row_dict[col] for col in columns}
+        undo_entries.append((undo_sql, undo_params))
+
+    return rows_affected, undo_entries
+
+
 _DML_PREFIXES = ("INSERT", "UPDATE", "DELETE")
 
 
@@ -216,9 +384,62 @@ def write_data(
 
     conn = get_connection(ctx.deps.db_url)
     try:
-        result = conn.execute(text(sql), params or {})
+        table_name = _parse_dml_table_name(sql)
+
+        undo_entries: list[tuple[str, dict]] = []
+        undo_group_id: int | None = None
+        undo_seq = 0
+
+        ctx.metadata = ctx.metadata or {}
+        session_id = ctx.metadata.get("session_id")
+        run_id = ctx.metadata.get("run_id", "")
+
+        if session_id and table_name:
+            undo_group_id = ctx.metadata.get("undo_group_id")
+            if undo_group_id is None:
+                undo_group_id = create_group(
+                    conn, session_id, run_id, ctx.metadata.get("prompt", "")
+                )
+                ctx.metadata["undo_group_id"] = undo_group_id
+            else:
+                prev_row = conn.execute(
+                    text(
+                        "SELECT COALESCE(MAX(seq_in_group), 0) FROM _scriptordb_undo_entries WHERE group_id = :gid"
+                    ),
+                    {"gid": undo_group_id},
+                ).fetchone()
+                undo_seq = prev_row[0] if prev_row is not None else 0
+
+        if upper.startswith("INSERT") and table_name:
+            rows_affected, undo_entries = _build_insert_undo(
+                conn, sql, params, table_name
+            )
+        elif upper.startswith("UPDATE") and table_name:
+            rows_affected, undo_entries = _build_update_undo(
+                conn, sql, params, table_name
+            )
+        elif upper.startswith("DELETE") and table_name:
+            rows_affected, undo_entries = _build_delete_undo(
+                conn, sql, params, table_name
+            )
+        else:
+            result = conn.execute(text(sql), params or {})
+            rows_affected = result.rowcount
+
+        if undo_group_id is not None and table_name:
+            for i, (undo_sql, undo_params) in enumerate(undo_entries):
+                undo_seq += 1
+                add_entry(
+                    conn,
+                    undo_group_id,
+                    undo_seq,
+                    upper.split()[0],
+                    table_name,
+                    undo_sql,
+                    undo_params,
+                )
+
         conn.commit()
-        rows_affected = result.rowcount
         return ToolResult(
             success=True,
             output=f"数据写入成功，影响 {rows_affected} 行",
