@@ -54,6 +54,9 @@ export default function ChatMessages({
 
         const run = runs[runIndex++];
         if (run) {
+          const undoGroup = undoGroups.find(
+            (g) => g.run_id === run.run_id && g.status === "completed",
+          );
           return (
             <div key={`run-${run.run_id}`} className="flex flex-col gap-1.5 message-enter">
               <div className="flex items-center gap-1.5 text-graphite">
@@ -79,23 +82,18 @@ export default function ChatMessages({
                 >
                   <Wrench className="h-3.5 w-3.5" />
                 </button>
-                {(() => {
-                  const group = undoGroups.find(
-                    (g) => g.run_id === run.run_id && g.status === "completed",
-                  );
-                  if (!group) return null;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => onRevertToHere(group.id)}
-                      title="撤销"
-                      className="rounded-md px-1.5 py-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors flex items-center gap-1"
-                    >
-                      <Undo2 className="h-3.5 w-3.5" />
-                      <span className="text-[11px]">撤销</span>
-                    </button>
-                  );
-                })()}
+                {undoGroup ? (
+                  <button
+                    type="button"
+                    onClick={() => onRevertToHere(undoGroup.id)}
+                    title="撤销"
+                    className="rounded-md px-1.5 py-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors flex items-center gap-1"
+                  >
+                    <Undo2 className="h-3.5 w-3.5" />
+                    <span className="text-[11px]">撤销</span>
+                  </button>
+                ) : null}
+              </div>
             </div>
           );
         }
