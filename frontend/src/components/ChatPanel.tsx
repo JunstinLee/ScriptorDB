@@ -2,7 +2,7 @@ import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
 import ModelProviderBar from "./ModelProviderBar";
 import WelcomeScreen from "./WelcomeScreen";
-import type { ChatMessage, Run, SchemaTable, WorkspaceDetail } from "../types";
+import type { ChatMessage, Run, SchemaTable, UndoGroup, WorkspaceDetail } from "../types";
 
 interface ChatPanelProps {
   activeSessionId: string | null;
@@ -12,8 +12,10 @@ interface ChatPanelProps {
   settingsChanged: number;
   workspace: WorkspaceDetail | null;
   tables: SchemaTable[];
+  undoGroups: UndoGroup[];
   onSend: (prompt: string) => void;
   onNewSession: () => void;
+  onRevertToHere: (groupId: number) => void;
   onHighlightRun: (runId: string) => void;
   onSelectionChange: (model: string, provider: string) => void;
 }
@@ -26,8 +28,10 @@ export default function ChatPanel({
   settingsChanged,
   workspace,
   tables,
+  undoGroups,
   onSend,
   onNewSession,
+  onRevertToHere,
   onHighlightRun,
   onSelectionChange,
 }: ChatPanelProps) {
@@ -39,6 +43,8 @@ export default function ChatPanel({
             messages={messages}
             runs={runs}
             isLoading={isLoading}
+            undoGroups={undoGroups}
+            onRevertToHere={onRevertToHere}
             onHighlightRun={onHighlightRun}
           />
         ) : (

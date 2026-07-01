@@ -43,3 +43,9 @@ export {
 } from "./workspaces";
 
 export { getImageUrl, downloadImage } from "./files";
+export {
+  type UndoGroup,
+  listUndoGroups,
+  revertUndoGroup,
+  revertAndTrimSession,
+} from "./undo";

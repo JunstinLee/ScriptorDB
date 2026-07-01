@@ -127,6 +127,20 @@ export function useSessions(
     [updateSessionTitle],
   );
 
+  const reloadActiveSession = useCallback(
+    async (sessionId: string) => {
+      setMessages([]);
+      try {
+        const { messages, runs } = await loadSessionData(sessionId);
+        setMessages(messages);
+        onRunsLoaded?.(sessionId, runs);
+      } catch {
+        setMessages([]);
+      }
+    },
+    [setMessages, onRunsLoaded],
+  );
+
   return {
     sessions,
     activeSessionId,
@@ -142,5 +156,6 @@ export function useSessions(
     setLoading,
     refreshSessionTitle,
     refreshSessions,
+    reloadActiveSession,
   };
 }

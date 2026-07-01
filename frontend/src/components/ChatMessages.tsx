@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { Sparkles, User, Wrench } from "lucide-react";
-import type { ChatMessage, Run } from "../types";
+import { Sparkles, Undo2, User, Wrench } from "lucide-react";
+import type { ChatMessage, Run, UndoGroup } from "../types";
 import RunContainer from "./RunContainer";
 import MarkdownRenderer from "./common/MarkdownRenderer";
 
@@ -8,6 +8,8 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   runs: Run[];
   isLoading: boolean;
+  undoGroups: UndoGroup[];
+  onRevertToHere: (groupId: number) => void;
   onHighlightRun: (runId: string) => void;
 }
 
@@ -15,6 +17,8 @@ export default function ChatMessages({
   messages,
   runs,
   isLoading,
+  undoGroups,
+  onRevertToHere,
   onHighlightRun,
 }: ChatMessagesProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -61,7 +65,7 @@ export default function ChatMessages({
               <div className="rounded-lg border border-grid bg-surface overflow-hidden">
                 <RunContainer run={run} />
               </div>
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-1">
                 <button
                   type="button"
                   onClick={() => onHighlightRun(run.run_id)}
@@ -75,7 +79,23 @@ export default function ChatMessages({
                 >
                   <Wrench className="h-3.5 w-3.5" />
                 </button>
-              </div>
+                {(() => {
+                  const group = undoGroups.find(
+                    (g) => g.run_id === run.run_id && g.status === "completed",
+                  );
+                  if (!group) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => onRevertToHere(group.id)}
+                      title="撤销"
+                      className="rounded-md px-1.5 py-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors flex items-center gap-1"
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      <span className="text-[11px]">撤销</span>
+                    </button>
+                  );
+                })()}
             </div>
           );
         }

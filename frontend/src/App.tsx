@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ChatPanel from "./components/ChatPanel";
+import ConfirmDialog from "./components/common/ConfirmDialog";
 import SchemaSidebar from "./components/SchemaSidebar";
 import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
@@ -8,6 +9,7 @@ import { useAppSettings } from "./hooks/useAppSettings";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
 import { useRuns } from "./hooks/useRuns";
+import { useUndo } from "./hooks/useUndo";
 import { useWorkspaces } from "./hooks/useWorkspaces";
 import {
   deleteWorkspace as apiDeleteWorkspace,
@@ -129,6 +131,7 @@ function MainApp({
 }: MainAppProps) {
   const { getRuns, appendEvent, setRuns, clearRuns } = useRuns();
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [undoConfirmGroupId, setUndoConfirmGroupId] = useState<number | null>(null);
 
   const handleRunsLoaded = useCallback(
     (_sessionId: string, loadedRuns: Run[]) => {
@@ -150,6 +153,7 @@ function MainApp({
     finalizeAssistantMessage,
     setLoading,
     refreshSessionTitle,
+    reloadActiveSession,
   } = useSessions(handleRunsLoaded, workspace?.id);
 
   const runs = activeSessionId ? getRuns(activeSessionId) : [];
@@ -166,6 +170,7 @@ function MainApp({
     showSchemaSql,
     setShowSchemaSql,
   } = useAppSettings();
+  const { groups: undoGroups, refresh: refreshUndo, revertAndTrim } = useUndo();
   const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -261,6 +266,31 @@ function MainApp({
     });
   }, []);
 
+  const handleRevertToHere = useCallback((groupId: number) => {
+    setUndoConfirmGroupId(groupId);
+  }, []);
+
+  const handleRevertConfirm = useCallback(async () => {
+    if (undoConfirmGroupId === null) return;
+    const groupId = undoConfirmGroupId;
+    setUndoConfirmGroupId(null);
+    try {
+      await revertAndTrim(groupId);
+      await refreshUndo();
+      if (activeSessionId) {
+        await reloadActiveSession(activeSessionId);
+      }
+    } catch {
+      // error handled in useUndo
+    }
+  }, [undoConfirmGroupId, revertAndTrim, refreshUndo, activeSessionId, reloadActiveSession]);
+
+  useEffect(() => {
+    if (activeSessionId || workspace?.id) {
+      void refreshUndo();
+    }
+  }, [activeSessionId, workspace?.id, refreshUndo]);
+
   const handleOpenWorkspacePicker = useCallback(() => {
     setPickerOpen(true);
   }, []);
@@ -308,8 +338,10 @@ function MainApp({
           settingsChanged={settingsChanged}
           workspace={workspace}
           tables={tables}
+          undoGroups={undoGroups}
           onSend={handleSend}
           onNewSession={handleNewSession}
+          onRevertToHere={handleRevertToHere}
           onHighlightRun={handleHighlightRun}
           onSelectionChange={(model, provider) => {
             setSelectedModel(model);
@@ -344,6 +376,15 @@ function MainApp({
         workspacesCount={workspaces.length}
         onWorkspaceChanged={onRefreshWorkspaces}
         onOpenWorkspacePicker={handleOpenWorkspacePicker}
+      />
+
+      <ConfirmDialog
+        isOpen={undoConfirmGroupId !== null}
+        onClose={() => setUndoConfirmGroupId(null)}
+        onConfirm={handleRevertConfirm}
+        title="撤销到此处"
+        message="此操作将保留当前轮次，撤销之后所有的数据库更改并删除之后的聊天记录。"
+        confirmLabel="撤销"
       />
 
       <WorkspacePicker

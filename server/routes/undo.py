@@ -53,11 +53,10 @@ async def undo_revert_and_trim_session(group_id: int):
                         run_index = i
                         break
                 if run_index is not None:
-                    turn_index = run_index
-                    msg_start = turn_index * 2
+                    msg_start = (run_index + 1) * 2
                     if msg_start < len(session.messages):
                         del session.messages[msg_start:]
-                    del session.runs[run_index:]
+                    del session.runs[run_index + 1:]
                     store.save()
                     trimmed = True
                 if trimmed:
