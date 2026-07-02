@@ -212,6 +212,7 @@ function MainApp({
             finalizeAssistantMessage(fullOutput);
             setLoading(false);
             void refreshSessionTitle(sid);
+            void refreshUndo();
           },
         );
       };
@@ -236,6 +237,7 @@ function MainApp({
       finalizeAssistantMessage,
       handleWorkspaceMissing,
       refreshSessionTitle,
+      refreshUndo,
       setLoading,
       selectedModel,
       selectedProvider,

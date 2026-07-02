@@ -57,6 +57,11 @@ export default function ChatMessages({
           const undoGroup = undoGroups.find(
             (g) => g.run_id === run.run_id && g.status === "completed",
           );
+          console.log(
+            "[ChatMessages] run_id:", run.run_id,
+            "undoGroups count:", undoGroups.length,
+            "matched:", undoGroup,
+          );
           return (
             <div key={`run-${run.run_id}`} className="flex flex-col gap-1.5 message-enter">
               <div className="flex items-center gap-1.5 text-graphite">

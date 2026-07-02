@@ -12,8 +12,10 @@ export function useUndo() {
     setError(null);
     try {
       const data = await listUndoGroups();
+      console.log("[useUndo] groups count:", data.groups.length, "groups:", data.groups);
       setGroups(data.groups);
     } catch (e) {
+      console.error("[useUndo] error:", e);
       setError(e instanceof Error ? e.message : "Failed to load undo groups");
     } finally {
       setLoading(false);

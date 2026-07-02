@@ -54,3 +54,4 @@ Most CLI commands require an active workspace. Without one they exit with an err
 - `main.py` with no args enters the dispatcher (text menu); with any arg delegates directly to the Typer CLI
 - `npm run dev` passes `--no-reload` to uvicorn to avoid reloader conflicts with concurrently; `npm run dev:api` does not
 - If there are any backend changes, prompt the user to restart the backend
+- Do not make unnecessary assumptions or perform extra troubleshooting steps that the user has not asked for; when asked for a cause, give the most direct one based on available information and do not investigate unrelated angles.

@@ -107,16 +107,19 @@ def build_undo_hooks() -> Hooks[Settings]:
         engine = get_engine(ctx.deps.db_url)
         ensure_undo_tables(engine)
 
-        if ctx.metadata is None:
-            ctx.metadata = {}
         session_id = ctx.deps.chat_session_id or _uuid4().hex[:12]
         run_id = ctx.deps.run_id or _uuid4().hex[:12]
         prompt = ctx.deps.chat_prompt or ""
-        ctx.metadata["session_id"] = session_id
-        ctx.metadata["run_id"] = run_id
-        ctx.metadata["prompt"] = prompt
+        ctx.deps.chat_session_id = session_id
+        ctx.deps.run_id = run_id
+        ctx.deps.chat_prompt = prompt
+        ctx.deps.current_undo_group_id = None
         _UNDO_LOGGER.info(
-            "undo_before_run session_id=%s run_id=%s prompt_preview=%r",
+            "undo_before_run deps.run_id=%s deps.db_url=%s chat_session_id=%s chat_prompt=%r",
+            ctx.deps.run_id, ctx.deps.db_url, ctx.deps.chat_session_id, ctx.deps.chat_prompt,
+        )
+        _UNDO_LOGGER.info(
+            "undo_before_run deps set session_id=%s run_id=%s prompt_preview=%r",
             session_id,
             run_id,
             prompt[:200],
@@ -124,10 +127,15 @@ def build_undo_hooks() -> Hooks[Settings]:
 
     @hooks.on.after_run
     async def undo_after_run(ctx: RunContext[Settings], result: Any) -> Any:
-        group_id = None
-        if ctx.metadata is not None:
-            group_id = ctx.metadata.pop("undo_group_id", None)
+        group_id = ctx.deps.current_undo_group_id
+        ctx.deps.current_undo_group_id = None
+        _UNDO_LOGGER.info(
+            "undo_after_run group_id=%s run_id=%s",
+            group_id,
+            ctx.deps.run_id,
+        )
         if group_id is None:
+            _UNDO_LOGGER.info("undo_after_run no group to finalize")
             return result
         from tools.db_connection import get_engine
         from tools.undo_log import finalize_group
@@ -136,11 +144,6 @@ def build_undo_hooks() -> Hooks[Settings]:
         with engine.connect() as conn:
             finalize_group(conn, group_id)
             conn.commit()
-        _UNDO_LOGGER.info(
-            "undo_after_run group_id=%s run_id=%s",
-            group_id,
-            ctx.deps.run_id,
-        )
         return result
 
     return hooks

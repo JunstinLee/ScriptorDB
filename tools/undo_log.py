@@ -8,6 +8,16 @@ from sqlalchemy import Column, Connection, Engine, ForeignKey, Integer, MetaData
 
 
 logger = logging.getLogger("scriptordb.undo")
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s [%(levelname)s] scriptordb.undo %(message)s",
+            datefmt="%Y-%m-%dT%H:%M:%S",
+        )
+    )
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
 
 _metadata = MetaData()
 
@@ -108,7 +118,7 @@ def create_group(conn: Connection, session_id: str, run_id: str, prompt: str) ->
         raise RuntimeError("Failed to retrieve primary key for undo group")
     group_id = pk[0]
     logger.info(
-        "create_undo_group group_id=%s session_id=%s run_id=%s sequence=%s prompt_preview=%r",
+        "create_group group_id=%s session_id=%s run_id=%s sequence=%s prompt_preview=%r status=pending",
         group_id,
         session_id,
         run_id,
@@ -124,7 +134,7 @@ def finalize_group(conn: Connection, group_id: int) -> None:
         .where(_undo_groups.c.id == group_id)
         .values(status="completed", ended_at=_now_iso())
     )
-    logger.info("finalize_undo_group group_id=%s", group_id)
+    logger.info("finalize_group group_id=%s status=completed", group_id)
 
 
 def add_entry(
@@ -147,8 +157,8 @@ def add_entry(
             created_at=_now_iso(),
         )
     )
-    logger.debug(
-        "add_undo_entry group_id=%s seq=%s operation=%s table=%s",
+    logger.info(
+        "add_entry group_id=%s seq=%s operation=%s table=%s",
         group_id,
         seq,
         operation,
@@ -162,6 +172,7 @@ def list_all_groups(engine: Engine) -> list[dict]:
             select(_undo_groups).order_by(_undo_groups.c.sequence.asc())
         )
         rows = result.fetchall()
+    logger.info("list_all_groups row_count=%s", len(rows))
     return [
         {
             "id": row.id,
