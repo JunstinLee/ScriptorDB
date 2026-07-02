@@ -1,6 +1,6 @@
 # ScriptorDB
 
-[![GitHub Stars](https://img.shields.io/github/stars/yourname/scriptordb?style=social)](https://github.com/yourname/scriptordb)
+[![GitHub Stars](https://img.shields.io/github/stars/JunstinLee/scriptordb?style=social)](https://github.com/JunstinLee/ScriptorDB)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 
@@ -96,15 +96,6 @@ Use `uv run python main.py models` to see the live model list for a provider, or
 
 ---
 
-## 🤝 Commercial Partners / API Providers Wanted
-
-ScriptorDB is designed to route users to API providers and relays. If you operate a stable API relay, token-resale platform, or self-hosted model endpoint, we are open to revenue-sharing partnerships.
-
-- Telegram: `@your_telegram_handle`
-- WeChat: `your_wechat_id`
-- Email: `partnerships@yourdomain.com`
-
----
 
 ## Architecture
 
@@ -134,8 +125,6 @@ ScriptorDB/
 - [ ] Fine-grained permission model per workspace
 - [ ] Query result diffing and rollback snapshots
 - [ ] Built-in prompt-injection test harness
-- [ ] Production deployment template (Docker + reverse proxy)
-
 ---
 
 ## License
