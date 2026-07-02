@@ -155,17 +155,10 @@ function runsReducer(
     }
     case "set": {
       const { sessionId, runs } = action;
-      const existing = state[sessionId] ?? [];
-      const existingIds = new Set(existing.map((r) => r.run_id));
-      // Merge server-fetched runs with locally-streamed runs.
-      // Local runs take precedence because they hold the latest streaming state.
-      const merged = [
-        ...runs.filter((r) => !existingIds.has(r.run_id)),
-        ...existing,
-      ];
+      // Server-fetched runs are authoritative when loading/reloading a session.
       return {
         ...state,
-        [sessionId]: merged,
+        [sessionId]: runs,
       };
     }
     case "clear": {
