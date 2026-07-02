@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
@@ -13,6 +14,9 @@ from tools.db_connection import _get_all_tables, _get_single_table_schema, get_c
 from tools.errors import _to_tool_error
 from tools.tool_result import ToolResult
 from tools.undo_log import add_entry, create_group
+
+
+_undo_logger = logging.getLogger("scriptordb.undo")
 
 
 class ColumnDef(BaseModel):
@@ -438,6 +442,13 @@ def write_data(
                     undo_sql,
                     undo_params,
                 )
+            _undo_logger.info(
+                "write_data undo_group_id=%s entries=%s operation=%s table=%s",
+                undo_group_id,
+                len(undo_entries),
+                upper.split()[0],
+                table_name,
+            )
 
         conn.commit()
         return ToolResult(

@@ -74,11 +74,6 @@ async def run_agent_stream(
         nonlocal full_output, trace_step, handler_calls
         handler_calls += 1
         handler_call = handler_calls
-        logger.info(
-            "event_stream_handler enter run_id=%s call=%s",
-            local_tracker.run_id,
-            handler_call,
-        )
         try:
             async for event in events:
                 logger.debug(
@@ -99,13 +94,6 @@ async def run_agent_stream(
                     args_dict = args if isinstance(args, dict) else {"raw": str(args)}
                     local_tracker.add_tool_invocation(
                         call_id, event.part.tool_name, args_dict
-                    )
-                    logger.info(
-                        "tool_call queued run_id=%s call=%s call_id=%s tool=%s",
-                        local_tracker.run_id,
-                        handler_call,
-                        call_id,
-                        event.part.tool_name,
                     )
                     await queue.put({
                         "type": "tool_call",
@@ -148,15 +136,6 @@ async def run_agent_stream(
                     local_tracker.complete_tool(
                         call_id, success, output, error_code, duration_ms, data=data
                     )
-                    logger.info(
-                        "tool_result queued run_id=%s call=%s call_id=%s tool=%s success=%s duration_ms=%s",
-                        local_tracker.run_id,
-                        handler_call,
-                        call_id,
-                        tool_name,
-                        success,
-                        duration_ms,
-                    )
 
                     await queue.put({
                         "type": "tool_result",
@@ -195,11 +174,7 @@ async def run_agent_stream(
                                 })
 
         finally:
-            logger.info(
-                "event_stream_handler exit run_id=%s call=%s",
-                local_tracker.run_id,
-                handler_call,
-            )
+            pass
 
     async def run_agent() -> Any:
         config.run_id = local_tracker.run_id
@@ -215,11 +190,6 @@ async def run_agent_stream(
     try:
         while True:
             if run_task.done() and queue.empty():
-                logger.info(
-                    "agent event queue drained run_id=%s handler_calls=%s",
-                    local_tracker.run_id,
-                    handler_calls,
-                )
                 break
 
             if queue.empty():
@@ -268,13 +238,6 @@ async def run_agent_stream(
         }
 
         local_tracker.finish()
-        logger.info(
-            "agent run finished run_id=%s handler_calls=%s tools=%s final_output_len=%s",
-            local_tracker.run_id,
-            handler_calls,
-            len(local_tracker.tool_invocations),
-            len(full_output),
-        )
         yield {
             "type": "metadata",
             "run_id": local_tracker.run_id,

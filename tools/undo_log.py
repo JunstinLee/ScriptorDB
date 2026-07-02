@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, Connection, Engine, ForeignKey, Integer, MetaData, String, Table, Text, inspect, select, text
+
+
+logger = logging.getLogger("scriptordb.undo")
 
 _metadata = MetaData()
 
@@ -77,6 +81,7 @@ def ensure_undo_tables(engine: Engine) -> None:
             conn.commit()
         return
     _metadata.create_all(engine, checkfirst=True)
+    logger.info("ensure_undo_tables dialect=%s", dialect_name)
 
 
 def create_group(conn: Connection, session_id: str, run_id: str, prompt: str) -> int:
@@ -101,7 +106,16 @@ def create_group(conn: Connection, session_id: str, run_id: str, prompt: str) ->
     pk = result.inserted_primary_key
     if pk is None:
         raise RuntimeError("Failed to retrieve primary key for undo group")
-    return pk[0]
+    group_id = pk[0]
+    logger.info(
+        "create_undo_group group_id=%s session_id=%s run_id=%s sequence=%s prompt_preview=%r",
+        group_id,
+        session_id,
+        run_id,
+        next_seq,
+        prompt[:200] if prompt else "",
+    )
+    return group_id
 
 
 def finalize_group(conn: Connection, group_id: int) -> None:
@@ -110,6 +124,7 @@ def finalize_group(conn: Connection, group_id: int) -> None:
         .where(_undo_groups.c.id == group_id)
         .values(status="completed", ended_at=_now_iso())
     )
+    logger.info("finalize_undo_group group_id=%s", group_id)
 
 
 def add_entry(
@@ -131,6 +146,13 @@ def add_entry(
             params_json=json.dumps(params) if params else None,
             created_at=_now_iso(),
         )
+    )
+    logger.debug(
+        "add_undo_entry group_id=%s seq=%s operation=%s table=%s",
+        group_id,
+        seq,
+        operation,
+        table_name,
     )
 
 
@@ -184,8 +206,14 @@ def revert_to_group(engine: Engine, target_group_id: int) -> list[int]:
         )
         target_row = target_result.fetchone()
         if target_row is None:
+            logger.warning("revert_to_group target_group_id=%s not found", target_group_id)
             raise ValueError(f"Undo group {target_group_id} not found")
         target_sequence = target_row[0]
+        logger.info(
+            "revert_to_group start target_group_id=%s target_sequence=%s",
+            target_group_id,
+            target_sequence,
+        )
 
         groups_result = conn.execute(
             select(_undo_groups.c.id, _undo_groups.c.sequence)
@@ -201,6 +229,7 @@ def revert_to_group(engine: Engine, target_group_id: int) -> list[int]:
 
         for group_id, _ in affected_groups:
             entries = get_entries(conn, group_id)
+            logger.info("revert_group group_id=%s entries=%s", group_id, len(entries))
             for entry in reversed(entries):
                 params = json.loads(entry["params_json"]) if entry.get("params_json") else {}
                 conn.execute(text(entry["undo_sql"]), params)
@@ -212,4 +241,8 @@ def revert_to_group(engine: Engine, target_group_id: int) -> list[int]:
             reverted_ids.append(group_id)
 
         conn.commit()
+        logger.info(
+            "revert_to_group complete reverted_group_ids=%s",
+            reverted_ids,
+        )
         return reverted_ids

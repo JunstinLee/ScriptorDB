@@ -17,6 +17,7 @@ from tools.errors import current_error_id
 
 
 _LOGGER = logging.getLogger("scriptordb.audit")
+_UNDO_LOGGER = logging.getLogger("scriptordb.undo")
 _LOG_DIR = Path.home() / ".config" / "scriptordb"
 _LOG_FILE = _LOG_DIR / "scriptordb.log"
 _call_audit_map: dict[str, tuple[str, Any]] = {}
@@ -108,9 +109,18 @@ def build_undo_hooks() -> Hooks[Settings]:
 
         if ctx.metadata is None:
             ctx.metadata = {}
-        ctx.metadata["session_id"] = ctx.deps.chat_session_id or _uuid4().hex[:12]
-        ctx.metadata["run_id"] = ctx.deps.run_id or _uuid4().hex[:12]
-        ctx.metadata["prompt"] = ctx.deps.chat_prompt or ""
+        session_id = ctx.deps.chat_session_id or _uuid4().hex[:12]
+        run_id = ctx.deps.run_id or _uuid4().hex[:12]
+        prompt = ctx.deps.chat_prompt or ""
+        ctx.metadata["session_id"] = session_id
+        ctx.metadata["run_id"] = run_id
+        ctx.metadata["prompt"] = prompt
+        _UNDO_LOGGER.info(
+            "undo_before_run session_id=%s run_id=%s prompt_preview=%r",
+            session_id,
+            run_id,
+            prompt[:200],
+        )
 
     @hooks.on.after_run
     async def undo_after_run(ctx: RunContext[Settings], result: Any) -> Any:
@@ -125,6 +135,12 @@ def build_undo_hooks() -> Hooks[Settings]:
         engine = get_engine(ctx.deps.db_url)
         with engine.connect() as conn:
             finalize_group(conn, group_id)
+            conn.commit()
+        _UNDO_LOGGER.info(
+            "undo_after_run group_id=%s run_id=%s",
+            group_id,
+            ctx.deps.run_id,
+        )
         return result
 
     return hooks
