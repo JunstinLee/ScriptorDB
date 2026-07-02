@@ -54,64 +54,14 @@ Every project lives in its own workspace — a self-contained bundle of database
 ## Quick Start
 
 ```bash
-# 1. Install backend dependencies
-uv sync
-
-# 2. Create a workspace for your project
-uv run python main.py workspace create /path/to/your/project --name my-project
-
-# 3. Configure your LLM provider and API key
-uv run python main.py setup
-
-# 4. Ask your database a question
-uv run python main.py ask "show me the top 10 customers by total spend"
-```
-
-Run with no arguments to open the interactive menu:
-
-```bash
-uv run python main.py
-```
-
-Launch the full stack (backend + frontend together):
-
-```bash
-npm install                 # root only installs `concurrently`
-cd frontend && npm install  # UI dependencies
+uv sync                              # backend
+npm install                          # concurrently
+cd frontend && npm install && cd ..  # UI
 
 npm run dev
 ```
 
-Backend runs at `http://localhost:8000`. Frontend runs at `http://localhost:5173`.
-
----
-
-## Everyday CLI Commands
-
-```bash
-# Workspace management
-uv run python main.py workspace list
-uv run python main.py workspace switch <id_or_name>
-uv run python main.py workspace current
-uv run python main.py workspace rename <id_or_name> <new_name>
-uv run python main.py workspace remove <id_or_name> [--delete-files]
-
-# Provider / model management
-uv run python main.py setup
-uv run python main.py forget
-uv run python main.py models --provider openai
-
-# Query modes
-uv run python main.py ask "..."
-uv run python main.py interactive
-
-# Server
-uv run python main.py serve [--host 0.0.0.0] [--port 8000]
-
-# Undo
-uv run python main.py undo list
-uv run python main.py undo revert <group_id>
-```
+That's it. Backend at `http://localhost:8000`, UI at `http://localhost:5173`. Create workspaces, plug in your API key, and start asking — all from the web interface. A CLI is available for scripting; run `uv run python main.py --help` to see it.
 
 ---
 
