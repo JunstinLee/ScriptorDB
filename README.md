@@ -46,6 +46,9 @@ Read-only queries run through dedicated read tools. When the agent needs to modi
 ### ↩️ Undo & Session History
 Every run that changes data is grouped into an undo log. From the CLI or the web UI you can list those groups and revert the database to a previous state. Sessions persist with a 24-hour TTL, so you can close the app and pick up where you left off.
 
+### 📁 Workspace Isolation Out Of The Box
+Every project lives in its own workspace — a self-contained bundle of database path, LLM provider, model, API key, and session history. Run five SQLite projects side by side and switch between them with one command. The agent only ever sees the active workspace's database, so nothing crosses the line.
+
 ---
 
 ## Quick Start
@@ -70,11 +73,12 @@ Run with no arguments to open the interactive menu:
 uv run python main.py
 ```
 
-Launch the web UI:
+Launch the full stack (backend + frontend together):
 
 ```bash
-npm install                 # root installs concurrently
-npm install --prefix frontend
+npm install                 # root only installs `concurrently`
+cd frontend && npm install  # UI dependencies
+
 npm run dev
 ```
 
@@ -127,12 +131,6 @@ OpenAI, Anthropic, Google, Groq, Mistral, OpenRouter, NVIDIA NIM, Together — o
 | Together | `openai:gpt-5.5` |
 
 Use `uv run python main.py models` to see the live model list for a provider, or pass a substring like `--model gpt-5.5` and the agent will fuzzy-match it.
-
----
-
-## Project Isolation Without the Hassle
-
-Each project gets its own **workspace** — a self-contained configuration that bundles the database path, LLM provider, model, API key, and session history. Manage five SQLite projects at once without worrying about cross-contamination. Switch between them in one command.
 
 ---
 
