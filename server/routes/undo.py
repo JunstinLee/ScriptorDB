@@ -6,7 +6,7 @@ from config.settings import settings
 from server.dependencies import require_workspace
 from server.sessions import get_session_store
 from tools.db_connection import get_engine
-from tools.undo_log import list_all_groups, revert_to_group
+from tools.undo_log import ensure_undo_tables, list_all_groups, revert_to_group
 
 router = APIRouter(prefix="/api/undo", tags=["undo"])
 
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/undo", tags=["undo"])
 async def undo_list():
     require_workspace()
     engine = get_engine(settings.db_url)
+    ensure_undo_tables(engine)
     groups = list_all_groups(engine)
     return {"groups": groups}
 
@@ -23,6 +24,7 @@ async def undo_list():
 async def undo_revert(group_id: int):
     require_workspace()
     engine = get_engine(settings.db_url)
+    ensure_undo_tables(engine)
     try:
         reverted_ids = revert_to_group(engine, group_id)
     except ValueError as e:
@@ -34,6 +36,7 @@ async def undo_revert(group_id: int):
 async def undo_revert_and_trim_session(group_id: int):
     require_workspace()
     engine = get_engine(settings.db_url)
+    ensure_undo_tables(engine)
     try:
         reverted_ids = revert_to_group(engine, group_id)
     except ValueError as e:

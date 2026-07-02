@@ -22,6 +22,7 @@ class AppConfig:
 
     chat_session_id: str | None = None
     chat_prompt: str | None = None
+    run_id: str = ""
 
     workspace_id: str | None = field(default=None, init=False)
     workspace_name: str | None = field(default=None, init=False)

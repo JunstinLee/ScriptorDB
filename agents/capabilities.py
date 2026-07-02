@@ -109,7 +109,7 @@ def build_undo_hooks() -> Hooks[Settings]:
         if ctx.metadata is None:
             ctx.metadata = {}
         ctx.metadata["session_id"] = ctx.deps.chat_session_id or _uuid4().hex[:12]
-        ctx.metadata["run_id"] = _uuid4().hex[:12]
+        ctx.metadata["run_id"] = ctx.deps.run_id or _uuid4().hex[:12]
         ctx.metadata["prompt"] = ctx.deps.chat_prompt or ""
 
     @hooks.on.after_run

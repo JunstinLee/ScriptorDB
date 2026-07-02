@@ -202,6 +202,7 @@ async def run_agent_stream(
             )
 
     async def run_agent() -> Any:
+        config.run_id = local_tracker.run_id
         return await agent.run(
             prompt,
             message_history=message_history if message_history else None,
