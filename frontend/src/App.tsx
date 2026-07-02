@@ -384,9 +384,9 @@ function MainApp({
         isOpen={undoConfirmGroupId !== null}
         onClose={() => setUndoConfirmGroupId(null)}
         onConfirm={handleRevertConfirm}
-        title="撤销到此处"
-        message="此操作将保留当前轮次，撤销之后所有的数据库更改并删除之后的聊天记录。"
-        confirmLabel="撤销"
+        title="Undo to here"
+        message="This action will keep the current turn, undo all database changes made after it, and delete the subsequent chat history."
+        confirmLabel="Undo"
       />
 
       <WorkspacePicker

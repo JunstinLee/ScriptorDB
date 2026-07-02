@@ -91,11 +91,11 @@ export default function ChatMessages({
                   <button
                     type="button"
                     onClick={() => onRevertToHere(undoGroup.id)}
-                    title="撤销"
+                    title="Undo"
                     className="rounded-md px-1.5 py-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors flex items-center gap-1"
                   >
                     <Undo2 className="h-3.5 w-3.5" />
-                    <span className="text-[11px]">撤销</span>
+                    <span className="text-[11px]">Undo</span>
                   </button>
                 ) : null}
               </div>
