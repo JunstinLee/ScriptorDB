@@ -385,7 +385,7 @@ function MainApp({
         onClose={() => setUndoConfirmGroupId(null)}
         onConfirm={handleRevertConfirm}
         title="Undo to here"
-        message="This action will keep the current turn, undo all database changes made after it, and delete the subsequent chat history."
+        message="This action will undo all database changes made from the current turn onward and delete the current turn and all subsequent chat history."
         confirmLabel="Undo"
       />
 

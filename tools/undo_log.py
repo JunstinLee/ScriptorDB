@@ -229,7 +229,7 @@ def revert_to_group(engine: Engine, target_group_id: int) -> list[int]:
         groups_result = conn.execute(
             select(_undo_groups.c.id, _undo_groups.c.sequence)
             .where(
-                _undo_groups.c.sequence > target_sequence,
+                _undo_groups.c.sequence >= target_sequence,
                 _undo_groups.c.status == "completed",
             )
             .order_by(_undo_groups.c.sequence.desc())
