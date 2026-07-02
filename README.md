@@ -34,15 +34,24 @@ Agent: "Based on your orders and products tables, here are the 3 products
 ### 📊 Analyzes & Visualizes Data
 Beyond SQL, the agent can run Python code in a sandbox to compute statistics, generate charts with matplotlib, or export results to Excel — all from natural language requests.
 
-### 🔒 Won't Destroy Your Data
-Destructive commands (`DROP`, `DELETE`, `ALTER`) are blocked by default. The agent can query and analyze, but it cannot modify or wipe your database unless you explicitly allow it.
+### 🛡️ Guardrails Around Writes
+Read-only queries run through dedicated read tools. When the agent needs to modify data, it routes through write tools that enforce validation rules:
+
+- `DELETE` and `UPDATE` must include a `WHERE` clause.
+- `DROP` operations require `confirm_drop=True`.
+- `DROP DATABASE` and dangerous Python patterns (`os.system`, `subprocess`, `eval`, etc.) are rejected.
+- Every tool call is logged with a trace ID.
+- Write operations are recorded in an undo log and can be reverted.
+
+### ↩️ Undo & Session History
+Every run that changes data is grouped into an undo log. From the CLI or the web UI you can list those groups and revert the database to a previous state. Sessions persist with a 24-hour TTL, so you can close the app and pick up where you left off.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
+# 1. Install backend dependencies
 uv sync
 
 # 2. Create a workspace for your project
@@ -55,13 +64,50 @@ uv run python main.py setup
 uv run python main.py ask "show me the top 10 customers by total spend"
 ```
 
+Run with no arguments to open the interactive menu:
+
+```bash
+uv run python main.py
+```
+
 Launch the web UI:
 
 ```bash
+npm install                 # root installs concurrently
+npm install --prefix frontend
 npm run dev
 ```
 
 Backend runs at `http://localhost:8000`. Frontend runs at `http://localhost:5173`.
+
+---
+
+## Everyday CLI Commands
+
+```bash
+# Workspace management
+uv run python main.py workspace list
+uv run python main.py workspace switch <id_or_name>
+uv run python main.py workspace current
+uv run python main.py workspace rename <id_or_name> <new_name>
+uv run python main.py workspace remove <id_or_name> [--delete-files]
+
+# Provider / model management
+uv run python main.py setup
+uv run python main.py forget
+uv run python main.py models --provider openai
+
+# Query modes
+uv run python main.py ask "..."
+uv run python main.py interactive
+
+# Server
+uv run python main.py serve [--host 0.0.0.0] [--port 8000]
+
+# Undo
+uv run python main.py undo list
+uv run python main.py undo revert <group_id>
+```
 
 ---
 
@@ -71,14 +117,16 @@ OpenAI, Anthropic, Google, Groq, Mistral, OpenRouter, NVIDIA NIM, Together — o
 
 | Provider | Example model string |
 |----------|----------------------|
-| OpenAI | `openai:gpt-4o` |
-| Anthropic | `anthropic:claude-sonnet-4-20250514` |
-| Google | `google:gemini-2.5-pro` |
-| Groq | `groq:llama-3.3-70b-versatile` |
-| Mistral | `mistral:mistral-large-latest` |
-| OpenRouter | `openrouter:anthropic/claude-sonnet-4` |
-| NVIDIA NIM | `openai:meta/llama-3.3-70b-instruct` |
-| Together | `openai:meta-llama/Llama-3.3-70B-Instruct-Turbo` |
+| OpenAI | `openai:gpt-5.5` |
+| Anthropic | `anthropic:claude-sonnet-4-6` |
+| Google | `google:gemini-3.5-flash` |
+| Groq | `groq:kimi-2.6` |
+| Mistral | `mistral:mistral-medium-3.5` |
+| OpenRouter | `openrouter:deepseek-v4-pro` |
+| NVIDIA NIM | `openai:kimi-k2.6` |
+| Together | `openai:gpt-5.5` |
+
+Use `uv run python main.py models` to see the live model list for a provider, or pass a substring like `--model gpt-5.5` and the agent will fuzzy-match it.
 
 ---
 
@@ -92,10 +140,11 @@ Each project gets its own **workspace** — a self-contained configuration that 
 
 | Fear | Plain-English Meaning | How You're Protected |
 |------|----------------------|---------------------|
-| **AI turns into a backstabber** | A clever prompt tricks it into leaking data or deleting tables | Destructive commands are blocked. All tool calls are logged. |
-| **AI formats your hard drive** | It runs code outside its lane and wrecks files | Python execution is restricted to a sandbox. |
+| **AI turns into a backstabber** | A clever prompt tricks it into leaking data or deleting tables | Read/write tools are separate; validators reject dangerous SQL/DDL. All tool calls are logged. |
+| **AI formats your hard drive** | It runs code outside its lane and wrecks files | Python execution is restricted to a sandbox and dangerous patterns are blocked. File paths cannot escape the workspace outputs directory. |
 | **Your API keys get stolen** | Keys accidentally end up in logs, git, or screenshots | Keys live in the OS keychain. Never in repo files or `.env`. |
 | **Locked into one LLM vendor** | You can't switch providers without rewriting everything | `provider:model` naming means one-line swaps. |
+| **You can't take back a bad change** | The agent modifies data and you need to recover | Every write run is recorded in an undo log and can be reverted from the CLI or web UI. |
 
 ---
 
@@ -113,12 +162,12 @@ ScriptorDB is designed to route users to API providers and relays. If you operat
 
 ```
 ScriptorDB/
-├── agents/              # Pydantic AI agent + tool registration
-├── cli/                 # Typer commands: setup, ask, interactive, serve, workspace
-├── config/              # Settings, workspace registry, model resolution, secrets
-├── frontend/            # React 19 + Vite + TypeScript + HeroUI
-├── server/              # FastAPI routes: chat (SSE), schema, sessions, settings
-├── tools/               # SQLite queries, Python sandbox, export, visualization
+├── agents/              # Pydantic AI agent, toolsets, audit/undo hooks
+├── cli/                 # Typer commands: setup, ask, interactive, serve, workspace, undo
+├── config/              # Settings, workspace registry, model resolution, secrets, global defaults
+├── frontend/            # React 19 + Vite + TypeScript + HeroUI + Tailwind CSS v4
+├── server/              # FastAPI app + routers: chat (SSE), sessions, schema, models, settings, files, undo
+├── tools/               # SQLite queries, DDL/DML validators, Python sandbox, export, visualization, undo log
 ├── tests/               # pytest suite using TestModel (zero real LLM calls)
 ├── main.py              # Entry point: no args → menu; args → Typer CLI
 ├── pyproject.toml       # uv project config
@@ -133,6 +182,7 @@ ScriptorDB/
 - [x] Workspace-based config and key isolation
 - [x] CLI, FastAPI backend, and React frontend
 - [x] Session persistence with TTL
+- [x] Undo log for write operations
 - [ ] Fine-grained permission model per workspace
 - [ ] Query result diffing and rollback snapshots
 - [ ] Built-in prompt-injection test harness
