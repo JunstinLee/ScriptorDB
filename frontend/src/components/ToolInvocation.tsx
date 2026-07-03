@@ -211,12 +211,7 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
         />
       </button>
 
-      <div className="px-3 py-1.5 bg-default/10 border-t border-grid">
-        <span className="text-xs text-muted">{summary}</span>
-        {status !== "running" && statusText && (
-          <span className="text-xs text-muted ml-2">— {statusText}</span>
-        )}
-      </div>
+
 
       <div
         className={`tool-expand ${
