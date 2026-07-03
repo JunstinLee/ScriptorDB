@@ -14,8 +14,11 @@ interface SchemaMapProps {
 }
 
 const TABLE_RADIUS = 6;
-const HEADER_HEIGHT = 32;
-const COL_ROW_HEIGHT = 16;
+const HEADER_HEIGHT = 28;
+const COL_ROW_HEIGHT = 8;
+const COL_NAME_FONT_SIZE = 8;
+const COL_TYPE_FONT_SIZE = 7;
+const HEADER_FONT_SIZE = 10;
 const FONT_MONO = "JetBrains Mono, ui-monospace, monospace";
 
 export default function SchemaMap({
@@ -164,9 +167,9 @@ export default function SchemaMap({
 
               <text
                 x={lo.x + 10}
-                y={lo.y + 20}
+                y={lo.y + 18}
                 fontFamily={FONT_MONO}
-                fontSize={11}
+                fontSize={HEADER_FONT_SIZE}
                 fontWeight={600}
                 fill="var(--ink)"
               >
@@ -175,14 +178,14 @@ export default function SchemaMap({
 
               {displayColumns.map((col, i) => {
                 const colY =
-                  lo.y + HEADER_HEIGHT + 10 + i * COL_ROW_HEIGHT + 10;
+                  lo.y + HEADER_HEIGHT + 8 + i * COL_ROW_HEIGHT;
                 return (
                   <g key={col.name}>
                     {col.pk && (
                       <circle
-                        cx={lo.x + 8}
-                        cy={colY - 4}
-                        r={3}
+                        cx={lo.x + 7}
+                        cy={colY - 3}
+                        r={2.5}
                         fill="var(--cobalt)"
                       />
                     )}
@@ -193,26 +196,26 @@ export default function SchemaMap({
                           e.fromCol === col.name.toLowerCase(),
                       ) && (
                         <circle
-                          cx={lo.x + 8}
-                          cy={colY - 4}
-                          r={3}
+                          cx={lo.x + 7}
+                          cy={colY - 3}
+                          r={2.5}
                           fill="var(--amber)"
                         />
                       )}
                     <text
-                      x={lo.x + 16}
+                      x={lo.x + 14}
                       y={colY}
                       fontFamily={FONT_MONO}
-                      fontSize={9}
+                      fontSize={COL_NAME_FONT_SIZE}
                       fill="var(--graphite)"
                     >
                       {col.name}
                     </text>
                     <text
-                      x={lo.x + lo.width - 8}
+                      x={lo.x + lo.width - 6}
                       y={colY}
                       fontFamily={FONT_MONO}
-                      fontSize={8}
+                      fontSize={COL_TYPE_FONT_SIZE}
                       fill="var(--graphite)"
                       textAnchor="end"
                       opacity={0.6}
@@ -225,18 +228,17 @@ export default function SchemaMap({
 
               {hasMore && (
                 <text
-                  x={lo.x + 16}
+                  x={lo.x + 14}
                   y={
                     lo.y +
                     HEADER_HEIGHT +
-                    10 +
-                    displayColumns.length * COL_ROW_HEIGHT +
-                    10
+                    8 +
+                    displayColumns.length * COL_ROW_HEIGHT
                   }
                   fontFamily={FONT_MONO}
-                    fontSize={8}
-                    fill="var(--graphite)"
-                    opacity={0.5}
+                    fontSize={COL_TYPE_FONT_SIZE}
+                  fill="var(--graphite)"
+                  opacity={0.5}
                 >
                   +{table.columns.length - 8} more…
                 </text>

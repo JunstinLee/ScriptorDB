@@ -66,10 +66,10 @@ export interface SchemaMapLayout {
   height: number;
 }
 
-const TABLE_WIDTH = 220;
-const COL_ROW_HEIGHT = 16;
-const TABLE_HEADER_HEIGHT = 32;
-const TABLE_PADDING = 10;
+const TABLE_WIDTH = 180;
+const COL_ROW_HEIGHT = 8;
+const TABLE_HEADER_HEIGHT = 28;
+const TABLE_PADDING = 4;
 const VERTICAL_GAP = 60;
 const HORIZONTAL_GAP = 40;
 
