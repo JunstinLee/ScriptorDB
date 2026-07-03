@@ -47,7 +47,7 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
 
         return ToolResult(
             success=True,
-            output=f"查询返回 {len(rows)} 行{'（已截断）' if truncated else ''}，{len(columns)} 列",
+            output=f"Query returned {len(rows)} row{'s' if len(rows) != 1 else ''}{' (truncated)' if truncated else ''}, {len(columns)} column{'s' if len(columns) != 1 else ''}",
             data={
                 "columns": columns,
                 "rows": [[str(v) if v is not None else None for v in row] for row in rows],
@@ -68,14 +68,14 @@ def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResul
             schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table)
             return ToolResult(
                 success=True,
-                output=f"表 {table}: {len(schema_info['columns'])} 列",
+                output=f"Table {table}: {len(schema_info['columns'])} column{'s' if len(schema_info['columns']) != 1 else ''}",
                 data={"table": table, "columns": schema_info["columns"], "create_sql": schema_info.get("create_sql")},
             )
 
         tables = _get_all_tables(conn, ctx.deps.db_url)
         return ToolResult(
             success=True,
-            output=f"{len(tables)} 个表",
+            output=f"{len(tables)} table{'s' if len(tables) != 1 else ''}",
             data={"tables": tables},
         )
     except Exception as e:
@@ -97,7 +97,7 @@ def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
     if result.exit_code == 0:
         return ToolResult(
             success=True,
-            output=f"代码执行成功: {len(result.stdout)} bytes 输出",
+            output=f"Code executed successfully: {len(result.stdout)} bytes of output",
             data={
                 "stdout": result.stdout,
                 "execution_time_ms": result.elapsed_ms,
@@ -116,9 +116,9 @@ def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
         category = ErrorCategory.parameter_error
 
     if category == ErrorCategory.resource_exhausted:
-        message = "代码执行时内存超过 4GB 限制，请减少数据量或优化代码"
+        message = "Code execution exceeded the 4GB memory limit. Please reduce data size or optimize the code."
     else:
-        message = result.stderr.strip() or "代码执行失败"
+        message = result.stderr.strip() or "Code execution failed"
 
     return ToolResult(
         success=False,
@@ -162,7 +162,7 @@ def create_table(
         schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table_name)
         return ToolResult(
             success=True,
-            output=f"表 {table_name} 创建成功",
+            output=f"Table {table_name} created successfully",
             data={
                 "table": table_name,
                 "columns": schema_info["columns"],
@@ -196,7 +196,7 @@ def execute_ddl(
         conn.commit()
         return ToolResult(
             success=True,
-            output="DDL 执行成功",
+            output="DDL executed successfully",
             data={"sql": sql},
         )
     except Exception as e:
@@ -474,7 +474,7 @@ def write_data(
         conn.commit()
         return ToolResult(
             success=True,
-            output=f"数据写入成功，影响 {rows_affected} 行",
+            output=f"Data written successfully, {rows_affected} row{'s' if rows_affected != 1 else ''} affected",
             data={"rows_affected": rows_affected, "sql": sql},
         )
     except Exception as e:

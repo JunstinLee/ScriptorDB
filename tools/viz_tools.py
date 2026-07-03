@@ -107,7 +107,7 @@ def plot_chart(
 
         return ToolResult(
             success=True,
-            output=f"图表已生成: {file_id}",
+            output=f"Chart generated: {file_id}",
             data={
                 "file": file_id,
                 "chart_type": chart_type,

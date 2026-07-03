@@ -43,7 +43,7 @@ def read_csv(
 
         return ToolResult(
             success=True,
-            output=f"读取 {os.path.basename(filepath)}: {row_count} 行, {len(headers)} 列",
+            output=f"Read {os.path.basename(filepath)}: {row_count} row{'s' if row_count != 1 else ''}, {len(headers)} column{'s' if len(headers) != 1 else ''}",
             data={
                 "file": filepath,
                 "columns": headers,
@@ -79,7 +79,7 @@ def write_csv(
 
         return ToolResult(
             success=True,
-            output=f"写入 {len(data)} 行到 {os.path.basename(filepath)}",
+            output=f"Wrote {len(data)} row{'s' if len(data) != 1 else ''} to {os.path.basename(filepath)}",
             data={"file": filepath, "rows_written": len(data)},
         )
     except Exception as e:
@@ -116,12 +116,12 @@ def read_file(
                 parsed = json.loads(content)
                 extra["parsed"] = True
                 extra["json_keys"] = list(parsed.keys()) if isinstance(parsed, dict) else None
-                output = f"JSON 文件 {os.path.basename(filepath)}{'（已截断）' if truncated else ''}"
+                output = f"JSON file {os.path.basename(filepath)}{' (truncated)' if truncated else ''}"
                 return ToolResult(success=True, output=output, data=extra)
             except json.JSONDecodeError:
                 pass
 
-        output = f"文件 {os.path.basename(filepath)}: {size} bytes{'（已截断）' if truncated else ''}"
+        output = f"File {os.path.basename(filepath)}: {size} bytes{' (truncated)' if truncated else ''}"
         return ToolResult(success=True, output=output, data=extra | {"content": content})
     except Exception as e:
         return _to_tool_error(e)
@@ -140,7 +140,7 @@ def write_file(
 
         return ToolResult(
             success=True,
-            output=f"写入 {len(content)} 字符到 {os.path.basename(filepath)}",
+            output=f"Wrote {len(content)} character{'s' if len(content) != 1 else ''} to {os.path.basename(filepath)}",
             data={"file": filepath, "chars_written": len(content)},
         )
     except Exception as e:
@@ -169,7 +169,7 @@ def list_files(
 
         return ToolResult(
             success=True,
-            output=f"{len(files)} 个文件/目录匹配 {pattern}",
+            output=f"{len(files)} file{'s' if len(files) != 1 else ''}/director{'ies' if len(files) != 1 else 'y'} matching {pattern}",
             data={
                 "directory": directory,
                 "pattern": pattern,

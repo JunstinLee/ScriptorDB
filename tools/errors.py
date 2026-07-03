@@ -76,31 +76,31 @@ def _to_tool_error(e: Exception, error_id: str = "") -> ToolResult:
     from tools.tool_result import ToolErrorInfo, ToolResult
 
     category = ErrorCategory.internal_error
-    message = f"内部错误（ID: {error_id}），请联系管理员" if error_id else "内部错误"
+    message = f"Internal error (ID: {error_id}). Please contact an administrator." if error_id else "Internal error"
 
     if isinstance(e, OperationalError):
         category = ErrorCategory.parameter_error
-        message = f"SQL 错误: {_sanitize_sql_error(e)}"
+        message = f"SQL error: {_sanitize_sql_error(e)}"
     elif isinstance(e, IntegrityError):
         category = ErrorCategory.parameter_error
-        message = f"SQL 约束错误: {_sanitize_sql_error(e)}"
+        message = f"SQL constraint error: {_sanitize_sql_error(e)}"
     elif isinstance(e, ProgrammingError):
         category = ErrorCategory.parameter_error
-        message = f"SQL 语法错误: {_sanitize_sql_error(e)}"
+        message = f"SQL syntax error: {_sanitize_sql_error(e)}"
     elif isinstance(e, FileNotFoundError):
         category = ErrorCategory.resource_not_found
         filename = e.filename if e.filename else str(e).replace("[Errno 2] ", "").replace("No such file or directory: ", "").strip("'\"")
-        message = f"文件不存在: {filename}"
+        message = f"File not found: {filename}"
     elif isinstance(e, PermissionError):
         category = ErrorCategory.permission_error
         filename = e.filename if e.filename else str(e).replace("[Errno 13] ", "").replace("Permission denied: ", "").strip("'\"")
-        message = f"权限不足: {filename}"
+        message = f"Permission denied: {filename}"
     elif isinstance(e, subprocess.TimeoutExpired):
         category = ErrorCategory.execution_timeout
-        message = f"执行超时（{e.timeout}s），请简化代码或分批执行"
+        message = f"Execution timed out ({e.timeout}s). Please simplify the code or split into smaller batches."
     elif isinstance(e, TimeoutError):
         category = ErrorCategory.execution_timeout
-        message = "执行超时，请简化代码或分批执行"
+        message = "Execution timed out. Please simplify the code or split into smaller batches."
 
     if not error_id:
         error_id = current_error_id.get() or uuid.uuid4().hex[:12]
@@ -114,7 +114,7 @@ def _to_tool_error(e: Exception, error_id: str = "") -> ToolResult:
             repr(e),
             traceback.format_exc(),
         )
-        message = f"内部错误（ID: {error_id}），请联系管理员"
+        message = f"Internal error (ID: {error_id}). Please contact an administrator."
 
     return ToolResult(
         success=False,

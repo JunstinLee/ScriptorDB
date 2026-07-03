@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { Chip, Spinner } from "@heroui/react";
 import { ChevronDown, Check, X, Clock, Copy } from "lucide-react";
 import type { ToolInvocation as ToolInvocationType } from "../types";
+import { t } from "../i18n";
 
 interface ToolInvocationProps {
   invocation: ToolInvocationType;
@@ -12,68 +13,83 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
+function previewSql(sql: string): string {
+  return sql.length > 30 ? sql.slice(0, 27) + t("tool.preview_ellipsis") : sql;
+}
+
 function getToolSummary(toolName: string, args: Record<string, unknown>): string {
   switch (toolName) {
     case "run_python_code":
-      return "Ran Python code";
+      return t("tool.summary.ran_python_code");
 
     case "write_csv": {
       const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `Created CSV: ${filename || "output.csv"}`;
+      return t("tool.summary.created_csv", {
+        filename: filename || t("tool.default_csv_filename"),
+      });
     }
 
     case "write_file": {
       const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `Created file: ${filename || "file"}`;
+      return t("tool.summary.created_file", {
+        filename: filename || t("tool.default_filename"),
+      });
     }
 
     case "export_excel": {
       const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `Exported Excel: ${filename || "file"}`;
+      return t("tool.summary.exported_excel", {
+        filename: filename || t("tool.default_filename"),
+      });
     }
 
     case "read_csv": {
       const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `Read CSV: ${filename || "output.csv"}`;
+      return t("tool.summary.read_csv", {
+        filename: filename || t("tool.default_csv_filename"),
+      });
     }
 
     case "read_file": {
       const path = (args.filepath as string) || "";
       const filename = path.split("/").pop() || path;
-      return `Read file: ${filename || "file"}`;
+      return t("tool.summary.read_file", {
+        filename: filename || t("tool.default_filename"),
+      });
     }
 
     case "list_files": {
       const dir = (args.directory as string) || ".";
-      return `Listed directory: ${dir}`;
+      return t("tool.summary.listed_directory", { directory: dir });
     }
 
     case "query_database": {
       const sql = ((args.sql as string) || "").trim();
-      if (!sql) return "Queried database";
+      if (!sql) return t("tool.summary.queried_database");
       const upper = sql.toUpperCase();
       if (upper.startsWith("SELECT") || upper.startsWith("WITH")) {
-        const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
-        return `Queried database: ${preview}`;
+        return t("tool.summary.queried_database_with_sql", { preview: previewSql(sql) });
       }
-      return "Queried database";
+      return t("tool.summary.queried_database");
     }
 
     case "get_schema": {
       const table = args.table as string;
-      return table ? `Fetched schema: ${table}` : "Fetched all table schemas";
+      return table
+        ? t("tool.summary.fetched_schema", { table })
+        : t("tool.summary.fetched_all_schemas");
     }
 
     case "plot_chart": {
-      const type = (args.chart_type as string) || "chart";
+      const type = (args.chart_type as string) || t("tool.default_chart_type");
       const title = (args.title as string) || "";
       return title
-        ? `Generated ${type} chart: ${title}`
-        : `Generated ${type} chart`;
+        ? t("tool.summary.generated_chart_titled", { type, title })
+        : t("tool.summary.generated_chart", { type });
     }
 
     case "create_table": {
@@ -81,34 +97,32 @@ function getToolSummary(toolName: string, args: Record<string, unknown>): string
       const columns = args.columns as Array<{ name: string }> | undefined;
       const colCount = columns?.length || 0;
       return tableName
-        ? `Created table ${tableName} (${colCount} columns)`
-        : "Created table";
+        ? t("tool.summary.created_table_named", { tableName, colCount })
+        : t("tool.summary.created_table");
     }
 
     case "execute_ddl": {
       const sql = ((args.sql as string) || "").trim();
-      if (!sql) return "Executed DDL";
-      const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
-      return `Executed DDL: ${preview}`;
+      if (!sql) return t("tool.summary.executed_ddl");
+      return t("tool.summary.executed_ddl_with_sql", { preview: previewSql(sql) });
     }
 
     case "write_data": {
       const sql = ((args.sql as string) || "").trim();
-      if (!sql) return "Wrote data";
+      if (!sql) return t("tool.summary.wrote_data");
       const upper = sql.toUpperCase();
-      const op = upper.startsWith("INSERT")
-        ? "Inserted"
+      const opKey = upper.startsWith("INSERT")
+        ? "tool.summary.inserted_data"
         : upper.startsWith("UPDATE")
-          ? "Updated"
+          ? "tool.summary.updated_data"
           : upper.startsWith("DELETE")
-            ? "Deleted"
-            : "Wrote";
-      const preview = sql.length > 30 ? sql.slice(0, 27) + "..." : sql;
-      return `${op}: ${preview}`;
+            ? "tool.summary.deleted_data"
+            : "tool.summary.wrote_data_with_sql";
+      return t(opKey, { preview: previewSql(sql) });
     }
 
     default:
-      return "Executed";
+      return t("tool.summary.executed");
   }
 }
 
@@ -117,11 +131,11 @@ function getStatusText(
   output: string | undefined,
   error_code: string | undefined,
 ): string {
-  if (status === "running") return "Running";
-  if (status === "error") return error_code || "Failed";
+  if (status === "running") return t("tool.status_text.running");
+  if (status === "error") return error_code || t("tool.status_text.error_no_code");
   if (status === "success") {
-    if (!output) return "Done";
-    if (output.length > 50) return output.slice(0, 47) + "...";
+    if (!output) return t("tool.status_text.success_empty");
+    if (output.length > 50) return output.slice(0, 47) + t("tool.preview_ellipsis");
     return output;
   }
   return "";
@@ -201,7 +215,11 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
                 : "warning"
           }
         >
-          {status === "running" ? "Running" : status === "success" ? "OK" : "Error"}
+          {status === "running"
+            ? t("tool.status.running")
+            : status === "success"
+              ? t("tool.status.success")
+              : t("tool.status.error")}
         </Chip>
 
         <ChevronDown
@@ -232,20 +250,20 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
                     type="button"
                     onClick={handleCopyErrorId}
                     className="text-xs text-muted hover:text-foreground transition-colors flex items-center gap-1"
-                    title="Copy error ID"
-                  >
+                    title={t("tool.copy_error_id")}
+                    >
                     {copied ? (
                       <Check className="h-3 w-3 text-sage" />
                     ) : (
                       <Copy className="h-3 w-3" />
                     )}
-                    <span>{copied ? "Copied" : "Copy"}</span>
+                    <span>{copied ? t("tool.copied") : t("tool.copy")}</span>
                   </button>
                 )}
               </div>
             )}
             <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto font-mono">
-              {output || "(no output)"}
+              {output || t("tool.no_output")}
             </pre>
           </div>
         )}

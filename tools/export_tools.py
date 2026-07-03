@@ -48,7 +48,7 @@ def export_excel(
         abs_path = os.path.abspath(filepath)
         return ToolResult(
             success=True,
-            output=f"导出 {len(sheets)} 个工作表, {total_rows} 行到 {os.path.basename(filepath)}",
+            output=f"Exported {len(sheets)} sheet{'s' if len(sheets) != 1 else ''}, {total_rows} row{'s' if total_rows != 1 else ''} to {os.path.basename(filepath)}",
             data={"file": abs_path, "sheets": len(sheets), "total_rows": total_rows},
         )
     except Exception as e:
