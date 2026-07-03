@@ -12,11 +12,16 @@ from tools.db_connection import get_all_tables, get_single_table_schema
 
 router = APIRouter(tags=["schema"])
 
+HIDDEN_TABLES = {"_scriptordb_undo_groups", "_scriptordb_undo_entries"}
+
 
 @router.get("/api/schema", response_model=SchemaResponse)
 async def get_schema():
     config = require_workspace()
-    tables_meta = get_all_tables(config.db_url)
+    tables_meta = [
+        meta for meta in get_all_tables(config.db_url)
+        if meta["name"] not in HIDDEN_TABLES
+    ]
     tables: list[SchemaTable] = []
     for meta in tables_meta:
         table_name = meta["name"]
