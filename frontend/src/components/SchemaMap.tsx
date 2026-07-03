@@ -97,12 +97,12 @@ export default function SchemaMap({
   }
 
   return (
-    <div className="overflow-auto max-h-[320px] border-b border-grid pb-2">
+    <div className="flex-1 min-h-0 overflow-auto border-b border-grid pb-2">
       <svg
         width={svgWidth}
         height={svgHeight}
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-        className="block"
+        className="block h-full w-auto"
         style={{ minWidth: svgWidth }}
       >
         <defs>
@@ -166,7 +166,7 @@ export default function SchemaMap({
                 x={lo.x + 10}
                 y={lo.y + 20}
                 fontFamily={FONT_MONO}
-                fontSize={13}
+                fontSize={11}
                 fontWeight={600}
                 fill="var(--ink)"
               >
@@ -203,7 +203,7 @@ export default function SchemaMap({
                       x={lo.x + 16}
                       y={colY}
                       fontFamily={FONT_MONO}
-                      fontSize={11}
+                      fontSize={9}
                       fill="var(--graphite)"
                     >
                       {col.name}
@@ -212,7 +212,7 @@ export default function SchemaMap({
                       x={lo.x + lo.width - 8}
                       y={colY}
                       fontFamily={FONT_MONO}
-                      fontSize={10}
+                      fontSize={8}
                       fill="var(--graphite)"
                       textAnchor="end"
                       opacity={0.6}
@@ -234,9 +234,9 @@ export default function SchemaMap({
                     10
                   }
                   fontFamily={FONT_MONO}
-                  fontSize={10}
-                  fill="var(--graphite)"
-                  opacity={0.5}
+                    fontSize={8}
+                    fill="var(--graphite)"
+                    opacity={0.5}
                 >
                   +{table.columns.length - 8} more…
                 </text>

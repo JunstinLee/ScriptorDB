@@ -83,7 +83,7 @@ export function computeLayout(tables: SchemaTable[]): SchemaMapLayout[] {
     const colCount = Math.min(table.columns.length, 8);
     const height = TABLE_HEADER_HEIGHT + colCount * COL_ROW_HEIGHT + TABLE_PADDING;
 
-    if (currentX > 0 && currentX + TABLE_WIDTH > 640) {
+    if (currentX > 0 && currentX + TABLE_WIDTH > 220) {
       currentX = 0;
       currentY += maxRowHeight + VERTICAL_GAP;
       maxRowHeight = 0;
