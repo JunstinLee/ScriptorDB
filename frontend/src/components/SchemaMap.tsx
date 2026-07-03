@@ -56,7 +56,7 @@ export default function SchemaMap({
   nodeCountRef.current = layout.length;
 
   const svgWidth = Math.max(
-    320,
+    100,
     ...layout.map((l) => l.x + l.width),
   ) + 20;
 
@@ -105,8 +105,7 @@ export default function SchemaMap({
         width={svgWidth}
         height={svgHeight}
         viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-        className="block h-full w-auto"
-        style={{ minWidth: svgWidth }}
+        className="block w-3/4 h-auto mx-auto"
       >
         <defs>
           <marker
