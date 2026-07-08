@@ -33,6 +33,19 @@ def validate_file_path(ctx: RunContext[Settings], filepath: str, *args: object, 
         )
 
 
+def validate_import_args(
+    ctx: RunContext[Settings], filepath: str, table_name: str, *args: object, **kwargs: object
+) -> None:
+    validate_file_path(ctx, filepath, *args, **kwargs)
+    if not table_name or not table_name.strip():
+        raise ModelRetry("table_name cannot be empty.")
+    if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table_name.strip()):
+        raise ModelRetry(
+            f"Invalid table name '{table_name}'. "
+            "Table names must start with a letter or underscore and contain only letters, digits, and underscores."
+        )
+
+
 def validate_python_code(ctx: RunContext[Settings], code: str, *args: object, **kwargs: object) -> None:
     if not code or not code.strip():
         raise ModelRetry("Code cannot be empty.")

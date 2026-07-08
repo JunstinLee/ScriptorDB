@@ -4,6 +4,7 @@ import csv
 import glob as glob_mod
 import json
 import os
+from typing import Any
 
 from pydantic_ai import RunContext
 
@@ -17,6 +18,8 @@ def read_csv(
     filepath: str,
     preview_rows: int = 10,
     encoding: str = "utf-8",
+    return_full: bool = False,
+    max_rows: int | None = None,
 ) -> ToolResult:
     if not os.path.isfile(filepath):
         return ToolResult(
@@ -35,22 +38,37 @@ def read_csv(
             except StopIteration:
                 headers = []
             preview: list[list[str]] = []
+            rows_data: list[list[str]] = []
             row_count = 0
+            truncated = False
             for row in reader:
                 row_count += 1
                 if len(preview) < preview_rows:
                     preview.append(row)
+                if return_full:
+                    if max_rows is None or len(rows_data) < max_rows:
+                        rows_data.append(row)
+                    else:
+                        truncated = True
 
-        return ToolResult(
-            success=True,
-            output=f"Read {os.path.basename(filepath)}: {row_count} row{'s' if row_count != 1 else ''}, {len(headers)} column{'s' if len(headers) != 1 else ''}",
-            data={
-                "file": filepath,
-                "columns": headers,
-                "rows": row_count,
-                "preview": preview,
-            },
+        data: dict[str, Any] = {
+            "file": filepath,
+            "columns": headers,
+            "rows": row_count,
+            "preview": preview,
+        }
+        output = (
+            f"Read {os.path.basename(filepath)}: {row_count} row"
+            f"{'s' if row_count != 1 else ''}, {len(headers)} column"
+            f"{'s' if len(headers) != 1 else ''}"
         )
+        if return_full:
+            data["data"] = rows_data
+            data["truncated"] = truncated
+            if truncated:
+                output += f" (returned {len(rows_data)} of {row_count} rows)"
+
+        return ToolResult(success=True, output=output, data=data)
     except FileNotFoundError:
         return ToolResult(
             success=False,
