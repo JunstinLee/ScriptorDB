@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import re
 from typing import Any
 
@@ -14,9 +13,6 @@ from tools.db_connection import _get_all_tables, _get_single_table_schema, get_c
 from tools.errors import _to_tool_error
 from tools.tool_result import ToolResult
 from tools.undo_log import add_entry, create_group
-
-
-_undo_logger = logging.getLogger("scriptordb.undo")
 
 
 class ColumnDef(BaseModel):
@@ -236,10 +232,6 @@ def _parse_dml_table_name(sql: str) -> str | None:
         sql.strip(),
     )
     parsed = m.group(2) if m else None
-    _undo_logger.info(
-        "_parse_dml_table_name sql_preview=%r parsed=%s",
-        sql[:200], parsed,
-    )
     if m:
         return parsed
     return None
@@ -383,12 +375,6 @@ def write_data(
     sql: str,
     params: list[Any] | dict[str, Any] | None = None,
 ) -> ToolResult:
-    _undo_logger.info(
-        "write_data called session_id=%s run_id=%s sql_preview=%r",
-        ctx.deps.chat_session_id,
-        ctx.deps.run_id,
-        sql[:200],
-    )
     upper = sql.strip().upper()
     if upper.startswith("DELETE") or upper.startswith("UPDATE"):
         if "WHERE" not in upper:
@@ -409,11 +395,6 @@ def write_data(
         run_id = ctx.deps.run_id
         prompt = ctx.deps.chat_prompt or ""
 
-        _undo_logger.info(
-            "write_data preconditions session_id=%s table_name=%s run_id=%s",
-            session_id, table_name, run_id,
-        )
-
         if session_id and table_name:
             undo_group_id = ctx.deps.current_undo_group_id
             if undo_group_id is None:
@@ -429,11 +410,6 @@ def write_data(
                     {"gid": undo_group_id},
                 ).fetchone()
                 undo_seq = prev_row[0] if prev_row is not None else 0
-        else:
-            _undo_logger.info(
-                "write_data skipped group creation: session_id=%s table_name=%s",
-                session_id, table_name,
-            )
 
         if upper.startswith("INSERT") and table_name:
             rows_affected, undo_entries = _build_insert_undo(
@@ -463,13 +439,6 @@ def write_data(
                     undo_sql,
                     undo_params,
                 )
-            _undo_logger.info(
-                "write_data undo_group_id=%s entries=%s operation=%s table=%s",
-                undo_group_id,
-                len(undo_entries),
-                upper.split()[0],
-                table_name,
-            )
 
         conn.commit()
         return ToolResult(

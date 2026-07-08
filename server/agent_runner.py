@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json as json_mod
-import logging
-import traceback
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import suppress
@@ -25,9 +23,6 @@ from config.models import fuzzy_match_model
 from tools.tool_result import ToolResult
 
 from server.run_tracker import RunTracker, utc_now_iso
-
-
-logger = logging.getLogger("scriptordb.agent_runner")
 
 
 async def run_agent_stream(
@@ -76,12 +71,6 @@ async def run_agent_stream(
         handler_call = handler_calls
         try:
             async for event in events:
-                logger.debug(
-                    "event_stream_handler event run_id=%s call=%s event_class=%s",
-                    local_tracker.run_id,
-                    handler_call,
-                    type(event).__name__,
-                )
                 if isinstance(event, FunctionToolCallEvent):
                     call_id = event.part.tool_call_id
                     local_tracker.start_tool(call_id)
@@ -207,11 +196,6 @@ async def run_agent_stream(
             else:
                 ev = queue.get_nowait()
 
-            logger.debug(
-                "agent event yield run_id=%s type=%s",
-                local_tracker.run_id,
-                ev.get("type"),
-            )
             yield ev
 
         result = await run_task
@@ -250,14 +234,6 @@ async def run_agent_stream(
         }
     except Exception as e:
         error_id = uuid.uuid4().hex[:12]
-        from tools.errors import _get_error_logger
-        error_logger = _get_error_logger()
-        error_logger.error(
-            "[%s] run_error exception=%s\n%s",
-            error_id,
-            repr(e),
-            traceback.format_exc(),
-        )
         local_tracker.fail(str(e))
         yield {
             "type": "error",

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -17,7 +16,6 @@ from server.sse_format import sse_done, sse_event
 
 
 _sse_event = sse_event  # 旧名称向后兼容
-logger = logging.getLogger("scriptordb.streaming")
 
 
 async def stream_agent_response(
@@ -70,12 +68,6 @@ async def stream_agent_response(
             }
             yield sse_event("metadata", event_payload)
         else:
-            if ev_type not in {"tool_call", "tool_result", "run_start", "run_end", "error"}:
-                logger.debug(
-                    "stream_agent_response yield_sse run_id=%s type=%s",
-                    tracker.run_id,
-                    ev_type,
-                )
             yield sse_event(ev_type, event)
 
         if ev_type == "run_end":
