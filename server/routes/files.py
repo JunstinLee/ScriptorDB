@@ -7,10 +7,12 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 
 from config.workspace import workspace_outputs_dir
+from logging_setup import get_logger
 from server.dependencies import get_config, require_workspace
 
 
 router = APIRouter(prefix="/api/files", tags=["files"])
+_log = get_logger("server.routes.files")
 
 
 _SAFE_FILE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
@@ -49,11 +51,16 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(status_code=409, detail="No active workspace")
 
     filename = file.filename or "upload"
+    _log.info("upload received: filename=%s content_type=%s", filename, file.content_type)
     if ".." in filename or "/" in filename or "\\" in filename:
+        _log.warning("upload rejected: invalid filename=%s", filename)
         raise HTTPException(status_code=400, detail="Invalid filename")
 
     suffix = Path(filename).suffix.lower()
     if suffix not in _ALLOWED_UPLOAD_EXTENSIONS:
+        _log.warning(
+            "upload rejected: unsupported extension=%s filename=%s", suffix, filename
+        )
         raise HTTPException(
             status_code=400,
             detail=f"Unsupported file type: {suffix}. Allowed: {', '.join(_ALLOWED_UPLOAD_EXTENSIONS)}",
@@ -64,14 +71,22 @@ async def upload_file(file: UploadFile = File(...)):
     try:
         target_path.relative_to(target_dir)
     except ValueError:
+        _log.warning("upload rejected: path traversal attempt filename=%s", filename)
         raise HTTPException(status_code=403, detail="Forbidden")
 
     try:
         contents = await file.read()
         target_path.write_bytes(contents)
     except Exception as e:
+        _log.exception("upload failed: filename=%s error=%s", filename, e)
         raise HTTPException(status_code=500, detail=f"Failed to save file: {e}")
     finally:
         await file.close()
 
+    _log.info(
+        "upload saved: filename=%s path=%s bytes=%d",
+        filename,
+        target_path,
+        len(contents),
+    )
     return {"filename": filename, "path": str(target_path)}
