@@ -142,7 +142,7 @@ def _import_rows_to_db(
         conn.close()
 
 
-def import_csv_to_db(
+def _import_csv_to_db_impl(
     ctx: RunContext[Settings],
     filepath: str,
     table_name: str,
@@ -176,7 +176,21 @@ def import_csv_to_db(
         return _to_tool_error(e)
 
 
-def import_excel_to_db(
+def import_csv_to_db(
+    ctx: RunContext[Settings],
+    filepath: str,
+    table_name: str,
+    encoding: str = "utf-8",
+    if_exists: str = "fail",
+    batch_size: int = 100,
+) -> ToolResult:
+    """Agent-visible entry point: imports a CSV file into the database."""
+    return _import_csv_to_db_impl(
+        ctx, filepath, table_name, encoding, if_exists, batch_size, None, None
+    )
+
+
+def _import_excel_to_db_impl(
     ctx: RunContext[Settings],
     filepath: str,
     table_name: str,
@@ -242,3 +256,26 @@ def import_excel_to_db(
         return _import_rows_to_db(ctx, table_name, headers, rows, if_exists, batch_size)
     except Exception as e:
         return _to_tool_error(e)
+
+
+def import_excel_to_db(
+    ctx: RunContext[Settings],
+    filepath: str,
+    table_name: str,
+    sheet_name: str | int = 0,
+    header_row: int = 1,
+    if_exists: str = "fail",
+    batch_size: int = 100,
+) -> ToolResult:
+    """Agent-visible entry point: imports an Excel file into the database."""
+    return _import_excel_to_db_impl(
+        ctx,
+        filepath,
+        table_name,
+        sheet_name,
+        header_row,
+        if_exists,
+        batch_size,
+        None,
+        None,
+    )

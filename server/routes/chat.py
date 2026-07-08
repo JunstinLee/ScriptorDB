@@ -27,13 +27,21 @@ async def chat(session_id: str, req: ChatRequest):
     config.chat_session_id = session_id
     config.chat_prompt = req.prompt
 
+    augmented_prompt = req.prompt
+    if req.attachments:
+        files_block = "\n".join(f"- {path}" for path in req.attachments)
+        augmented_prompt = (
+            f"The user has attached the following files:\n{files_block}\n\n"
+            f"User request: {req.prompt}"
+        )
+
     model_messages = session.get_model_messages()
     run_collector: dict[str, Any] = {}
     new_messages_collector: list[ModelMessage] = []
 
     async def generate():
         async for sse_event in stream_agent_response(
-            req.prompt,
+            augmented_prompt,
             model_messages,
             config,
             model=req.model,

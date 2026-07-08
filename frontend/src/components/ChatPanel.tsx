@@ -13,7 +13,7 @@ interface ChatPanelProps {
   workspace: WorkspaceDetail | null;
   tables: SchemaTable[];
   undoGroups: UndoGroup[];
-  onSend: (prompt: string) => void;
+  onSend: (prompt: string, attachments: string[]) => void;
   onNewSession: () => void;
   onRevertToHere: (groupId: number) => void;
   onHighlightRun: (runId: string) => void;
