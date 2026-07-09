@@ -34,6 +34,9 @@ Agent: "Based on your orders and products tables, here are the 3 products
 ### 📊 Analyzes & Visualizes Data
 Beyond SQL, the agent can run Python code in a sandbox to compute statistics, generate charts with matplotlib, or export results to Excel — all from natural language requests.
 
+### 📥 Import CSV & Excel
+Read CSV and Excel files and import them directly into the database. All changes can be undone.
+
 ### 🛡️ Guardrails Around Writes
 Read-only queries run through dedicated read tools. When the agent needs to modify data, it routes through write tools that enforce validation rules:
 
