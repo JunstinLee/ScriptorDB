@@ -84,6 +84,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  attachments?: string[];
 }
 
 export interface SessionMeta {

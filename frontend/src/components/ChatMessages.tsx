@@ -43,7 +43,20 @@ export default function ChatMessages({
                   You
                 </span>
               </div>
-              <div className="border-l-[3px] border-l-amber bg-amber/8 px-3 py-2">
+              <div className="border-l-[3px] border-l-amber bg-amber/8 px-3 py-2 space-y-2">
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {msg.attachments.map((path) => (
+                      <span
+                        key={path}
+                        className="inline-flex items-center gap-1 rounded-md border border-grid bg-surface px-2 py-1 text-xs text-ink"
+                        title={path}
+                      >
+                        {path.split("/").pop()}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <div className="text-[14px] text-ink whitespace-pre-wrap break-words leading-relaxed">
                   {msg.content}
                 </div>

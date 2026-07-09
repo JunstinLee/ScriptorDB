@@ -188,7 +188,7 @@ function MainApp({
       const sessionId = activeSessionId;
 
       const sendToSession = (sid: string) => {
-        addUserMessage(prompt);
+        addUserMessage(prompt, attachments);
         setLoading(true);
 
         abortRef.current = streamChat(
