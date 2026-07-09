@@ -184,16 +184,16 @@ function MainApp({
   }, [clearRuns]);
 
   const handleSend = useCallback(
-    (prompt: string) => {
+    (prompt: string, attachments: string[]) => {
       const sessionId = activeSessionId;
 
       const sendToSession = (sid: string) => {
-        addUserMessage(prompt);
+        addUserMessage(prompt, attachments);
         setLoading(true);
 
         abortRef.current = streamChat(
           sid,
-          { prompt, model: selectedModel || null, provider: selectedProvider || null },
+          { prompt, attachments, model: selectedModel || null, provider: selectedProvider || null },
           (event) => {
             appendEvent(sid, event);
             if (event.type === "text_delta") {

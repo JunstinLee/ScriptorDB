@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json as json_mod
-import logging
-import traceback
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import suppress
@@ -22,12 +20,13 @@ from pydantic_ai.messages import (
 from agents.db_agent import get_agent
 from config.app_config import AppConfig
 from config.models import fuzzy_match_model
+from logging_setup import get_logger
 from tools.tool_result import ToolResult
 
 from server.run_tracker import RunTracker, utc_now_iso
 
 
-logger = logging.getLogger("scriptordb.agent_runner")
+_log = get_logger("server.agent_runner")
 
 
 async def run_agent_stream(
@@ -64,6 +63,15 @@ async def run_agent_stream(
     queue: asyncio.Queue[dict] = asyncio.Queue()
     local_tracker = tracker or RunTracker()
 
+    _log.info(
+        "run_agent_stream: start run_id=%s provider=%s model=%s prompt_len=%d history_len=%d",
+        local_tracker.run_id,
+        config.llm_provider,
+        config.llm_model,
+        len(prompt),
+        len(message_history or []),
+    )
+
     yield {
         "type": "run_start",
         "run_id": local_tracker.run_id,
@@ -76,12 +84,6 @@ async def run_agent_stream(
         handler_call = handler_calls
         try:
             async for event in events:
-                logger.debug(
-                    "event_stream_handler event run_id=%s call=%s event_class=%s",
-                    local_tracker.run_id,
-                    handler_call,
-                    type(event).__name__,
-                )
                 if isinstance(event, FunctionToolCallEvent):
                     call_id = event.part.tool_call_id
                     local_tracker.start_tool(call_id)
@@ -94,6 +96,13 @@ async def run_agent_stream(
                     args_dict = args if isinstance(args, dict) else {"raw": str(args)}
                     local_tracker.add_tool_invocation(
                         call_id, event.part.tool_name, args_dict
+                    )
+                    _log.info(
+                        "tool_call: run_id=%s call_id=%s tool=%s args_keys=%s",
+                        local_tracker.run_id,
+                        call_id,
+                        event.part.tool_name,
+                        sorted(args_dict.keys()) if isinstance(args_dict, dict) else None,
                     )
                     await queue.put({
                         "type": "tool_call",
@@ -135,6 +144,15 @@ async def run_agent_stream(
 
                     local_tracker.complete_tool(
                         call_id, success, output, error_code, duration_ms, data=data
+                    )
+                    _log.info(
+                        "tool_result: run_id=%s call_id=%s tool=%s success=%s duration_ms=%s error_code=%s",
+                        local_tracker.run_id,
+                        call_id,
+                        tool_name,
+                        success,
+                        duration_ms,
+                        error_code,
                     )
 
                     await queue.put({
@@ -207,11 +225,6 @@ async def run_agent_stream(
             else:
                 ev = queue.get_nowait()
 
-            logger.debug(
-                "agent event yield run_id=%s type=%s",
-                local_tracker.run_id,
-                ev.get("type"),
-            )
             yield ev
 
         result = await run_task
@@ -248,17 +261,18 @@ async def run_agent_stream(
             "run_id": local_tracker.run_id,
             "timestamp": utc_now_iso(),
         }
+        _log.info(
+            "run_agent_stream: end run_id=%s status=completed output_len=%d tools=%d",
+            local_tracker.run_id,
+            len(full_output),
+            len(local_tracker.tool_invocations),
+        )
     except Exception as e:
         error_id = uuid.uuid4().hex[:12]
-        from tools.errors import _get_error_logger
-        error_logger = _get_error_logger()
-        error_logger.error(
-            "[%s] run_error exception=%s\n%s",
-            error_id,
-            repr(e),
-            traceback.format_exc(),
-        )
         local_tracker.fail(str(e))
+        _log.exception(
+            "run_agent_stream: error run_id=%s error_id=%s", local_tracker.run_id, error_id
+        )
         yield {
             "type": "error",
             "run_id": local_tracker.run_id,

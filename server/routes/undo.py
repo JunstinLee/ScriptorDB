@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, HTTPException
 
 from config.settings import settings
@@ -11,7 +9,6 @@ from tools.db_connection import get_engine
 from tools.undo_log import ensure_undo_tables, list_all_groups, revert_to_group
 
 
-logger = logging.getLogger("scriptordb.undo")
 router = APIRouter(prefix="/api/undo", tags=["undo"])
 
 
@@ -21,10 +18,6 @@ async def undo_list():
     engine = get_engine(settings.db_url)
     ensure_undo_tables(engine)
     groups = list_all_groups(engine)
-    logger.info(
-        "undo_list db_url=%s groups_count=%s",
-        settings.db_url, len(groups),
-    )
     return {"groups": groups}
 
 

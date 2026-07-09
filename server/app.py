@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,30 +13,10 @@ from server.routes import api_keys, chat, files, health, models, schema, session
 from server.sessions import _DefaultSessionStore, get_session_store
 
 
-def _configure_app_logging() -> None:
-    app_logger = logging.getLogger("scriptordb")
-    if not app_logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setFormatter(logging.Formatter("%(levelname)s:%(name)s:%(message)s"))
-        app_logger.addHandler(handler)
-    app_logger.setLevel(logging.INFO)
-    app_logger.propagate = False
-
-
-_configure_app_logging()
-
-logger = logging.getLogger("scriptordb.workspace")
-
-
 def _reload_session_store(workspace_path: Path) -> None:
     import server.sessions as sessions_module
     target = workspace_sessions_dir(workspace_path)
     sessions_module.session_store = _DefaultSessionStore(storage_path=target)
-    logger.info(
-        "session_store reloaded (lifespan): id=%s path=%s",
-        id(sessions_module.session_store),
-        target,
-    )
 
 
 @asynccontextmanager

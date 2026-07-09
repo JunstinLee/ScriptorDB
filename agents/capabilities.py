@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import json
-import logging
 import uuid
-from pathlib import Path
 from typing import Any
 
 from pydantic_ai import RunContext
@@ -16,33 +13,7 @@ from config.settings import Settings
 from tools.errors import current_error_id
 
 
-_LOGGER = logging.getLogger("scriptordb.audit")
-_UNDO_LOGGER = logging.getLogger("scriptordb.undo")
-_LOG_DIR = Path.home() / ".config" / "scriptordb"
-_LOG_FILE = _LOG_DIR / "scriptordb.log"
 _call_audit_map: dict[str, tuple[str, Any]] = {}
-
-
-def _ensure_logger() -> logging.Logger:
-    if not _LOGGER.handlers:
-        _LOG_DIR.mkdir(parents=True, exist_ok=True)
-        handler = logging.FileHandler(str(_LOG_FILE), encoding="utf-8")
-        handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s [%(levelname)s] %(message)s",
-                datefmt="%Y-%m-%dT%H:%M:%S",
-            )
-        )
-        _LOGGER.addHandler(handler)
-        _LOGGER.setLevel(logging.DEBUG)
-    return _LOGGER
-
-
-def _serialize_args(args: ValidatedToolArgs) -> str:
-    try:
-        return json.dumps(args, ensure_ascii=False, default=str)
-    except Exception:
-        return str(args)
 
 
 def build_audit_hooks() -> Hooks[Settings]:
@@ -57,13 +28,6 @@ def build_audit_hooks() -> Hooks[Settings]:
         args: ValidatedToolArgs,
     ) -> ValidatedToolArgs:
         error_id = uuid.uuid4().hex[:12]
-        logger = _ensure_logger()
-        logger.info(
-            "[%s] tool_call_start  tool=%s  args=%s",
-            error_id,
-            call.tool_name,
-            _serialize_args(args),
-        )
         token = current_error_id.set(error_id)
         _call_audit_map[call.tool_call_id] = (error_id, token)
         return args
@@ -80,13 +44,6 @@ def build_audit_hooks() -> Hooks[Settings]:
         error_id, token = _call_audit_map.pop(call.tool_call_id, ("?", None))
         if token is not None:
             current_error_id.reset(token)
-        logger = _ensure_logger()
-        logger.info(
-            "[%s] tool_call_end    tool=%s  success=%s",
-            error_id,
-            call.tool_name,
-            getattr(result, "success", True),
-        )
         return result
 
     return hooks
@@ -114,28 +71,12 @@ def build_undo_hooks() -> Hooks[Settings]:
         ctx.deps.run_id = run_id
         ctx.deps.chat_prompt = prompt
         ctx.deps.current_undo_group_id = None
-        _UNDO_LOGGER.info(
-            "undo_before_run deps.run_id=%s deps.db_url=%s chat_session_id=%s chat_prompt=%r",
-            ctx.deps.run_id, ctx.deps.db_url, ctx.deps.chat_session_id, ctx.deps.chat_prompt,
-        )
-        _UNDO_LOGGER.info(
-            "undo_before_run deps set session_id=%s run_id=%s prompt_preview=%r",
-            session_id,
-            run_id,
-            prompt[:200],
-        )
 
     @hooks.on.after_run
     async def undo_after_run(ctx: RunContext[Settings], result: Any) -> Any:
         group_id = ctx.deps.current_undo_group_id
         ctx.deps.current_undo_group_id = None
-        _UNDO_LOGGER.info(
-            "undo_after_run group_id=%s run_id=%s",
-            group_id,
-            ctx.deps.run_id,
-        )
         if group_id is None:
-            _UNDO_LOGGER.info("undo_after_run no group to finalize")
             return result
         from tools.db_connection import get_engine
         from tools.undo_log import finalize_group

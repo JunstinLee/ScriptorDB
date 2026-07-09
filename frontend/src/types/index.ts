@@ -19,6 +19,7 @@ export interface ChatRequest {
   prompt: string;
   model?: string | null;
   provider?: string | null;
+  attachments?: string[];
 }
 
 export interface SchemaColumn {
@@ -83,6 +84,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  attachments?: string[];
 }
 
 export interface SessionMeta {

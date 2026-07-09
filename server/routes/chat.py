@@ -6,12 +6,14 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
+from logging_setup import get_logger
 from server.dependencies import get_config, require_workspace
 from server.schemas import ChatRequest, StoredRun, StoredToolInvocation
 from server.sessions import get_session_store
 from server.streaming import stream_agent_response
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
+_log = get_logger("server.routes.chat")
 
 
 @router.post("/{session_id}/chat")
@@ -27,13 +29,33 @@ async def chat(session_id: str, req: ChatRequest):
     config.chat_session_id = session_id
     config.chat_prompt = req.prompt
 
+    augmented_prompt = req.prompt
+    if req.attachments:
+        files_block = "\n".join(f"- {path}" for path in req.attachments)
+        augmented_prompt = (
+            f"The user has attached the following files:\n{files_block}\n\n"
+            f"User request: {req.prompt}"
+        )
+
+    _log.info(
+        "chat request: session_id=%s model=%s provider=%s attachments=%d prompt_len=%d augmented_len=%d",
+        session_id,
+        req.model,
+        req.provider,
+        len(req.attachments or []),
+        len(req.prompt),
+        len(augmented_prompt),
+    )
+    for path in req.attachments or []:
+        _log.info("chat attachment: session_id=%s path=%s", session_id, path)
+
     model_messages = session.get_model_messages()
     run_collector: dict[str, Any] = {}
     new_messages_collector: list[ModelMessage] = []
 
     async def generate():
         async for sse_event in stream_agent_response(
-            req.prompt,
+            augmented_prompt,
             model_messages,
             config,
             model=req.model,
@@ -64,6 +86,13 @@ async def chat(session_id: str, req: ChatRequest):
             )
             session.add_run(run)
             get_session_store().save()
+            _log.info(
+                "chat run persisted: session_id=%s run_id=%s status=%s tools=%d",
+                session_id,
+                run.run_id,
+                run.status,
+                len(run.tool_invocations),
+            )
 
     return StreamingResponse(
         generate(),

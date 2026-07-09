@@ -5,10 +5,12 @@ from pydantic_ai.toolsets.function import FunctionToolset
 
 from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
 from tools.db_tools import create_table, execute_ddl, get_schema, query_database, run_python_code, write_data
-from tools.export_tools import export_excel
+from tools.export_tools import export_excel, read_excel
+from tools.import_tools import import_csv_to_db, import_excel_to_db
 from tools.validators import (
     validate_create_table_args,
     validate_file_path,
+    validate_import_args,
     validate_python_code,
     validate_sql_ddl,
     validate_sql_dml,
@@ -41,6 +43,16 @@ _read_tools = [
         read_csv,
         takes_ctx=True,
         name="read_csv",
+        timeout=30,
+        max_retries=1,
+        requires_approval=False,
+        args_validator=validate_file_path,
+        include_return_schema=True,
+    ),
+    Tool(
+        read_excel,
+        takes_ctx=True,
+        name="read_excel",
         timeout=30,
         max_retries=1,
         requires_approval=False,
@@ -98,6 +110,26 @@ _write_tools = [
         max_retries=1,
         requires_approval=True,
         args_validator=validate_file_path,
+        include_return_schema=True,
+    ),
+    Tool(
+        import_csv_to_db,
+        takes_ctx=True,
+        name="import_csv_to_db",
+        timeout=60,
+        max_retries=1,
+        requires_approval=True,
+        args_validator=validate_import_args,
+        include_return_schema=True,
+    ),
+    Tool(
+        import_excel_to_db,
+        takes_ctx=True,
+        name="import_excel_to_db",
+        timeout=60,
+        max_retries=1,
+        requires_approval=True,
+        args_validator=validate_import_args,
         include_return_schema=True,
     ),
     Tool(
@@ -161,7 +193,7 @@ read_toolset = FunctionToolset(
     instructions=(
         "Read-only database and file operations. "
         "Use query_database, get_schema for database queries; "
-        "read_csv, read_file, list_files for file system inspection. "
+        "read_csv, read_excel, read_file, list_files for file system inspection. "
         "All output is returned as structured ToolResult with success/error/data fields."
     ),
     tools=_read_tools,
@@ -173,6 +205,7 @@ write_toolset = FunctionToolset(
         "Write and export operations. ALL operations in this toolset require user approval. "
         "Use write_csv, write_file for file output; "
         "export_excel for .xlsx export; "
+        "import_csv_to_db and import_excel_to_db to load files into the database; "
         "run_python_code for sandboxed Python execution; "
         "create_table to build a table with structured column definitions; "
         "execute_ddl for generic DDL statements (CREATE/ALTER/DROP); "

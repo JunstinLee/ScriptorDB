@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import logging
-
 from fastapi import APIRouter, HTTPException
 
-import server.sessions as sessions_module
-from config.settings import settings
 from server.dependencies import require_workspace
 from server.schemas import (
     SessionCreateResponse,
@@ -14,8 +10,6 @@ from server.schemas import (
     SessionListResponse,
 )
 from server.sessions import get_session_store
-
-logger = logging.getLogger("scriptordb.sessions")
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
@@ -32,12 +26,6 @@ async def list_sessions():
     """List all active sessions (metadata only, no message bodies)."""
     require_workspace()
     store = get_session_store()
-    logger.info(
-        "list_sessions: store_id=%s module_store_id=%s workspace_id=%s",
-        id(store),
-        id(sessions_module.session_store),
-        settings.workspace_id,
-    )
     sessions = store.list_sessions()
     items: list[SessionListItem] = []
     for s in sessions:

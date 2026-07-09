@@ -180,6 +180,28 @@ class TestReadCsv:
         assert result.data is not None
         assert result.data["rows"] == 0
 
+    def test_read_csv_return_full(self, tmp_path):
+        ctx = _make_ctx()
+        filepath = tmp_path / "full.csv"
+        filepath.write_text("a,b\n1,2\n3,4\n5,6\n", encoding="utf-8")
+
+        result = read_csv(ctx, str(filepath), return_full=True)
+        assert result.success
+        assert result.data is not None
+        assert result.data["data"] == [["1", "2"], ["3", "4"], ["5", "6"]]
+        assert result.data["truncated"] is False
+
+    def test_read_csv_return_full_max_rows(self, tmp_path):
+        ctx = _make_ctx()
+        filepath = tmp_path / "full.csv"
+        filepath.write_text("a,b\n1,2\n3,4\n5,6\n", encoding="utf-8")
+
+        result = read_csv(ctx, str(filepath), return_full=True, max_rows=2)
+        assert result.success
+        assert result.data is not None
+        assert len(result.data["data"]) == 2
+        assert result.data["truncated"] is True
+
 
 class TestWriteCsv:
     def test_write_csv_basic(self, tmp_path):
