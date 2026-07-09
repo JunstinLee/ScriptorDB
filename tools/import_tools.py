@@ -11,8 +11,10 @@ from sqlalchemy import text
 from config.settings import Settings
 from logging_setup import get_logger
 from tools.db_connection import get_connection
+from tools.db_tools import _get_pk_columns
 from tools.errors import _to_tool_error
 from tools.tool_result import ToolErrorInfo, ToolResult
+from tools.undo_log import add_entry, create_group
 
 
 _log = get_logger("tools.import_tools")
@@ -28,10 +30,37 @@ def _table_exists(conn, table_name: str) -> bool:
     return table_name in sa_inspect(conn).get_table_names()
 
 
-def _create_table_from_headers(conn, table_name: str, headers: list[str]) -> None:
-    cols_sql = [f"{_quote_identifier(header)} TEXT" for header in headers]
+def _unique_table_name(conn, base_name: str) -> str:
+    counter = 1
+    candidate = f"{base_name}_{counter}"
+    while _table_exists(conn, candidate):
+        counter += 1
+        candidate = f"{base_name}_{counter}"
+    return candidate
+
+
+_PK_COLUMN_BASE = "_scriptordb_id"
+
+
+def _resolve_pk_name_conflict(base: str, headers: list[str]) -> str:
+    candidate = base
+    counter = 1
+    while candidate in headers:
+        candidate = f"{base}_{counter}"
+        counter += 1
+    return candidate
+
+
+def _create_table_from_headers(conn, table_name: str, headers: list[str]) -> str:
+    pk_name = _resolve_pk_name_conflict(_PK_COLUMN_BASE, headers)
+    if conn.dialect.name == "mysql":
+        pk_col = f"{_quote_identifier(pk_name)} INT AUTO_INCREMENT PRIMARY KEY"
+    else:
+        pk_col = f"{_quote_identifier(pk_name)} INTEGER PRIMARY KEY AUTOINCREMENT"
+    cols_sql = [pk_col] + [f"{_quote_identifier(header)} TEXT" for header in headers]
     sql = f"CREATE TABLE {_quote_identifier(table_name)} (\n  {',\n  '.join(cols_sql)}\n)"
     conn.execute(text(sql))
+    return pk_name
 
 
 def _build_insert_sql(table_name: str, headers: list[str]) -> str:
@@ -49,18 +78,74 @@ def _insert_batches(
     headers: list[str],
     rows: list[list[Any]],
     batch_size: int,
-) -> int:
+    capture_rows: bool = False,
+) -> tuple[int, list[dict] | None]:
     sql = _build_insert_sql(table_name, headers)
     total = 0
+    inserted_rows: list[dict] = []
+    pk_cols = _get_pk_columns(conn, table_name) if capture_rows else []
+    dialect = conn.dialect.name
+
     for i in range(0, len(rows), batch_size):
         batch = rows[i : i + batch_size]
         params = [
             {f"p{j}": row[j] for j in range(len(headers))}
             for row in batch
         ]
-        conn.execute(text(sql), params)
-        total += len(batch)
-    return total
+
+        if capture_rows and pk_cols:
+            if dialect == "sqlite":
+                returning_sql = sql.rstrip(";") + " RETURNING *"
+                result = conn.execute(text(returning_sql), params)
+                batch_rows = [dict(row._mapping) for row in result.fetchall()]
+                inserted_rows.extend(batch_rows)
+                total += len(batch_rows)
+            elif dialect == "mysql":
+                conn.execute(text(sql), params)
+                total += len(batch)
+                count = len(batch)
+                last_id_result = conn.execute(text("SELECT LAST_INSERT_ID()"))
+                last_id = last_id_result.scalar()
+                if last_id is not None and pk_cols:
+                    first_id = last_id - count + 1
+                    pk_col = pk_cols[0]
+                    select_sql = (
+                        f"SELECT * FROM {_quote_identifier(table_name)} "
+                        f"WHERE {_quote_identifier(pk_col)} BETWEEN :first AND :last"
+                    )
+                    select_result = conn.execute(
+                        text(select_sql), {"first": first_id, "last": last_id}
+                    )
+                    batch_rows = [dict(row._mapping) for row in select_result.fetchall()]
+                    inserted_rows.extend(batch_rows)
+            else:
+                conn.execute(text(sql), params)
+                total += len(batch)
+        else:
+            conn.execute(text(sql), params)
+            total += len(batch)
+
+    return total, inserted_rows if capture_rows else None
+
+
+def _build_undo_entries_for_inserted_rows(
+    conn,
+    table_name: str,
+    inserted_rows: list[dict],
+) -> list[tuple[str, dict]]:
+    pk_cols = _get_pk_columns(conn, table_name)
+    if not pk_cols or not inserted_rows:
+        return []
+
+    undo_entries: list[tuple[str, dict]] = []
+    for row in inserted_rows:
+        pk_conditions = " AND ".join(
+            f"{_quote_identifier(col)} = :undo_{col}" for col in pk_cols
+        )
+        undo_sql = f"DELETE FROM {_quote_identifier(table_name)} WHERE {pk_conditions}"
+        undo_params = {f"undo_{col}": row[col] for col in pk_cols}
+        undo_entries.append((undo_sql, undo_params))
+    return undo_entries
 
 
 def _normalize_row(row: list[Any], length: int) -> list[Any]:
@@ -102,17 +187,15 @@ def _import_rows_to_db(
         exists = _table_exists(conn, table_name)
         if exists:
             if if_exists == "fail":
-                _log.warning(
-                    "import_rows: table exists and if_exists=fail table=%s", table_name
+                original_name = table_name
+                table_name = _unique_table_name(conn, table_name)
+                _log.info(
+                    "import_rows: table exists, using unique name original=%s new=%s",
+                    original_name,
+                    table_name,
                 )
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Table '{table_name}' already exists",
-                    ),
-                )
-            if if_exists == "replace":
+                _create_table_from_headers(conn, table_name, headers)
+            elif if_exists == "replace":
                 conn.execute(
                     text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}")
                 )
@@ -142,7 +225,52 @@ def _import_rows_to_db(
             len(rows),
             batch_size,
         )
-        total_imported = _insert_batches(conn, table_name, headers, rows, batch_size)
+
+        should_log_undo = bool(ctx.deps.chat_session_id and ctx.deps.run_id)
+        undo_group_id: int | None = None
+        undo_seq = 0
+
+        if should_log_undo:
+            session_id = ctx.deps.chat_session_id or ""
+            run_id = ctx.deps.run_id or ""
+            undo_group_id = ctx.deps.current_undo_group_id
+            if undo_group_id is None:
+                undo_group_id = create_group(
+                    conn,
+                    session_id,
+                    run_id,
+                    ctx.deps.chat_prompt or "",
+                )
+                ctx.deps.current_undo_group_id = undo_group_id
+            else:
+                prev_row = conn.execute(
+                    text(
+                        "SELECT COALESCE(MAX(seq_in_group), 0) FROM _scriptordb_undo_entries WHERE group_id = :gid"
+                    ),
+                    {"gid": undo_group_id},
+                ).fetchone()
+                undo_seq = prev_row[0] if prev_row is not None else 0
+
+        total_imported, inserted_rows = _insert_batches(
+            conn, table_name, headers, rows, batch_size, capture_rows=should_log_undo
+        )
+
+        if undo_group_id is not None and inserted_rows:
+            undo_entries = _build_undo_entries_for_inserted_rows(
+                conn, table_name, inserted_rows
+            )
+            for undo_sql, undo_params in undo_entries:
+                undo_seq += 1
+                add_entry(
+                    conn,
+                    undo_group_id,
+                    undo_seq,
+                    "INSERT",
+                    table_name,
+                    undo_sql,
+                    undo_params,
+                )
+
         conn.commit()
 
         _log.info(
