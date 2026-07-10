@@ -3,6 +3,7 @@ import { Popover } from "@heroui/react";
 import {
   ChevronDown,
   Folder,
+  History,
   MessageSquarePlus,
   PanelLeftClose,
   PanelLeftOpen,
@@ -10,6 +11,7 @@ import {
   Settings as SettingsIcon,
 } from "lucide-react";
 import type { SessionMeta, WorkspaceDetail, WorkspaceItem } from "../types";
+import HistorySearchModal from "./HistorySearchModal";
 import SessionList from "./SessionList";
 import ThemeToggle from "./common/ThemeToggle";
 import WorkspacePath from "./common/WorkspacePath";
@@ -46,6 +48,7 @@ export default function Sidebar({
   onRequestNewWorkspace,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [popoverWidth, setPopoverWidth] = useState(232);
 
@@ -98,6 +101,15 @@ export default function Sidebar({
           title="New session"
         >
           <MessageSquarePlus className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={() => setIsHistoryOpen(true)}
+          aria-label="Search history"
+          title="Search history"
+        >
+          <History className="size-4" />
         </button>
         <div className="flex-1" />
         <ThemeToggle variant="icon" />
@@ -235,17 +247,38 @@ export default function Sidebar({
         />
       </div>
 
-      {/* Bottom section: Theme + Settings */}
+      {/* Bottom section: Theme + History + Settings */}
       <div className="flex items-center justify-between px-4 py-3 border-t border-grid">
         <ThemeToggle variant="switch" />
-        <button
-          className="rounded-lg p-1.5 text-graphite transition-colors hover:bg-surface hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
-          onClick={onOpenSettings}
-          aria-label="Open settings"
-        >
-          <SettingsIcon className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            className="rounded-lg p-1.5 text-graphite transition-colors hover:bg-surface hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+            onClick={() => setIsHistoryOpen(true)}
+            aria-label="Search history"
+            title="Search history"
+          >
+            <History className="h-4 w-4" />
+          </button>
+          <button
+            className="rounded-lg p-1.5 text-graphite transition-colors hover:bg-surface hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+            onClick={onOpenSettings}
+            aria-label="Open settings"
+          >
+            <SettingsIcon className="h-4 w-4" />
+          </button>
+        </div>
       </div>
+
+      {isHistoryOpen && (
+        <HistorySearchModal
+          isOpen={isHistoryOpen}
+          onClose={() => setIsHistoryOpen(false)}
+          onSelectSession={(id) => {
+            onSwitchSession(id);
+            setIsHistoryOpen(false);
+          }}
+        />
+      )}
     </aside>
   );
 }
