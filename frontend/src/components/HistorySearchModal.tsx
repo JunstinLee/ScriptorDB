@@ -147,8 +147,8 @@ export default function HistorySearchModal({
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[70vh] bg-surface">
+      <Modal.Container size="lg">
+        <Modal.Dialog className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-surface">
           <Modal.Header className="border-b border-grid pb-3">
             <div className="flex w-full items-center gap-3">
               <Search className="size-4 shrink-0 text-graphite" />
@@ -170,11 +170,11 @@ export default function HistorySearchModal({
             </div>
           </Modal.Header>
 
-          <Modal.Body className="py-0">
+          <Modal.Body className="min-h-0 flex-1 overflow-hidden p-0">
             <div
               ref={scrollRef}
               onScroll={handleScroll}
-              className="flex max-h-[calc(70vh-5rem)] flex-col gap-2 overflow-y-auto py-3"
+              className="flex h-full max-h-[calc(70vh-5rem)] flex-col gap-2 overflow-y-auto px-4 py-3"
             >
               {results.length === 0 && isLoading && (
                 <div className="flex items-center justify-center py-8 text-sm text-graphite">
