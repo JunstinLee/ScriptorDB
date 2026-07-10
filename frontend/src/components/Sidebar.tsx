@@ -96,20 +96,20 @@ export default function Sidebar({
         <button
           type="button"
           className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
-          onClick={onNewSession}
-          aria-label="New session"
-          title="New session"
-        >
-          <MessageSquarePlus className="size-4" />
-        </button>
-        <button
-          type="button"
-          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={() => setIsHistoryOpen(true)}
           aria-label="Search history"
           title="Search history"
         >
           <Search className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={onNewSession}
+          aria-label="New session"
+          title="New session"
+        >
+          <MessageSquarePlus className="size-4" />
         </button>
         <div className="flex-1" />
         <ThemeToggle variant="icon" />
