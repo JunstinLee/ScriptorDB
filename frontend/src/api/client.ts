@@ -43,6 +43,7 @@ export {
 } from "./workspaces";
 
 export { getImageUrl, downloadImage } from "./files";
+export { searchHistory } from "./history";
 export {
   type UndoGroup,
   listUndoGroups,

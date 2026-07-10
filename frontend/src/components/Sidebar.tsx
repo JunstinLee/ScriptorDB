@@ -7,9 +7,11 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Search,
   Settings as SettingsIcon,
 } from "lucide-react";
 import type { SessionMeta, WorkspaceDetail, WorkspaceItem } from "../types";
+import HistorySearchModal from "./HistorySearchModal";
 import SessionList from "./SessionList";
 import ThemeToggle from "./common/ThemeToggle";
 import WorkspacePath from "./common/WorkspacePath";
@@ -46,6 +48,7 @@ export default function Sidebar({
   onRequestNewWorkspace,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [popoverWidth, setPopoverWidth] = useState(232);
 
@@ -90,6 +93,15 @@ export default function Sidebar({
           <PanelLeftOpen className="size-4" />
         </button>
         <div className="my-1 h-px w-6 bg-grid" aria-hidden />
+        <button
+          type="button"
+          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+          onClick={() => setIsHistoryOpen(true)}
+          aria-label="Search history"
+          title="Search history"
+        >
+          <Search className="size-4" />
+        </button>
         <button
           type="button"
           className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
@@ -225,6 +237,18 @@ export default function Sidebar({
 
       {/* Middle section: Sessions */}
       <div className="flex-1 overflow-y-auto py-2">
+        <div className="px-4 pb-2">
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen(true)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-graphite transition-colors hover:bg-surface hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
+            aria-label="Search history"
+          >
+            <Search className="size-4" />
+            <span>Search history</span>
+          </button>
+        </div>
+
         <SessionList
           sessions={sessions}
           activeSessionId={activeSessionId}
@@ -246,6 +270,17 @@ export default function Sidebar({
           <SettingsIcon className="h-4 w-4" />
         </button>
       </div>
+
+      {isHistoryOpen && (
+        <HistorySearchModal
+          isOpen={isHistoryOpen}
+          onClose={() => setIsHistoryOpen(false)}
+          onSelectSession={(id) => {
+            onSwitchSession(id);
+            setIsHistoryOpen(false);
+          }}
+        />
+      )}
     </aside>
   );
 }
