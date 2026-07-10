@@ -90,7 +90,8 @@ class ApprovalOrchestrator:
         deferred_results: DeferredToolResults | None = None,
     ) -> bool:
         """Run one iteration. Returns True if the run completed, False if paused for approval."""
-        assert self._run_tracker is not None
+        if self._run_tracker is None:
+            self._run_tracker = RunTracker()
         agent = self.agent or self._resolve_agent()
 
         async for event in run_agent_stream_resumable(
@@ -146,6 +147,9 @@ class ApprovalOrchestrator:
             _log.warning("resume_with_approval: request_id=%s not found", request_id)
             return False
 
+        if self._run_tracker is None:
+            self._run_tracker = RunTracker(run_id=pending.run_id)
+
         results = DeferredToolResults()
         for call in pending.deferred_calls:
             call_id = call["tool_call_id"]
@@ -154,7 +158,7 @@ class ApprovalOrchestrator:
             else:
                 results.approvals[call_id] = ToolDenied("User denied the import operation.")
 
-        return await self._run_loop(
+        completed = await self._run_loop(
             "Continue",
             pending.message_history,
             event_callback,
@@ -162,6 +166,20 @@ class ApprovalOrchestrator:
             new_messages_collector=new_messages_collector,
             deferred_results=results,
         )
+
+        all_denied = all(not approved_map.get(call["tool_call_id"], False) for call in pending.deferred_calls)
+        if completed and all_denied and not self._run_tracker.final_output:
+            denial_message = "用户拒绝并暂停流程。"
+            self._run_tracker.final_output = denial_message
+            run_collector["final_output"] = denial_message
+            run_collector["status"] = self._run_tracker.status
+            await event_callback({
+                "type": "text_delta",
+                "run_id": self._run_tracker.run_id,
+                "delta": denial_message,
+            })
+
+        return completed
 
 
 async def run_agent_stream_resumable(
