@@ -3,21 +3,17 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 
 from config.app_config import AppConfig
-from config.canonical_models import get_canonical_by_slug
-from config.models import resolve_canonical_slug
 from logging_setup import get_logger
 
 from server.agent_runner import run_agent_stream
 from server.run_tracker import RunTracker
-from server.sse_format import sse_done, sse_event
+from server.services.sse_presenter import event_to_sse
 
 
 _log = get_logger("server.streaming")
-_sse_event = sse_event  # 旧名称向后兼容
 
 
 async def stream_agent_response(
@@ -63,28 +59,10 @@ async def stream_agent_response(
             if new_messages_collector is not None:
                 new_messages_collector.extend(event.get("messages", []))
             continue
-        if ev_type == "metadata":
-            slug = None
-            display_name = None
-            if config.llm_model:
-                resolved = resolve_canonical_slug(config.llm_provider, config.llm_model)
-                if resolved:
-                    slug = resolved
-                    c = get_canonical_by_slug(slug)
-                    if c:
-                        display_name = c.display_name
-            event_payload = {
-                **event,
-                "canonical_slug": slug,
-                "display_name": display_name,
-                "provider_specific_id": config.llm_model,
-            }
-            yield sse_event("metadata", event_payload)
-        else:
-            yield sse_event(ev_type, event)
+
+        yield event_to_sse(event, config.llm_provider, config.llm_model)
 
         if ev_type == "run_end":
-            yield sse_done()
             _log.info(
                 "stream_agent_response: end run_id=%s status=%s",
                 tracker.run_id,

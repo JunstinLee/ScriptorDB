@@ -14,9 +14,9 @@ from server.dependencies import get_config, require_workspace
 from server.schemas import (
     ApprovalSubmitRequest,
     ChatRequest,
-    StoredRun,
-    StoredToolInvocation,
 )
+from server.services.chat_service import persist_chat_run
+from server.services.sse_presenter import event_to_sse
 from server.sessions import get_session_store
 from server.sse_format import sse_done, sse_event
 
@@ -127,10 +127,10 @@ async def _run_chat_turn(
 
             if ev_type == "approval_request":
                 pending_request_id = event.get("request_id")
-                yield _dict_to_sse(event)
+                yield event_to_sse(event, config.llm_provider, config.llm_model)
                 break
 
-            yield _dict_to_sse(event)
+            yield event_to_sse(event, config.llm_provider, config.llm_model)
 
         summary = await run_task
         run_collector.update(summary)
@@ -148,28 +148,7 @@ async def _run_chat_turn(
     if run_collector.get("status") == "completed" and run_collector.get("final_output"):
         session.add_assistant_message(run_collector["final_output"])
 
-    if run_collector:
-        run = StoredRun(
-            run_id=run_collector["run_id"],
-            status=run_collector["status"],
-            tool_invocations=[
-                StoredToolInvocation(**inv)
-                for inv in run_collector.get("tool_invocations", [])
-            ],
-            final_output=run_collector.get("final_output", ""),
-            started_at=run_collector["started_at"],
-            ended_at=run_collector.get("ended_at"),
-            error_message=run_collector.get("error_message"),
-        )
-        session.add_run(run)
-        get_session_store().save()
-        _log.info(
-            "chat run persisted: session_id=%s run_id=%s status=%s tools=%d",
-            session_id,
-            run.run_id,
-            run.status,
-            len(run.tool_invocations),
-        )
+    persist_chat_run(session_id, new_messages_collector, run_collector)
 
 
 @router.post("/{session_id}/approve")
@@ -212,7 +191,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
                 if run_task.done() and queue.empty():
                     break
                 event = await queue.get()
-                yield _dict_to_sse(event)
+                yield event_to_sse(event, config.llm_provider, config.llm_model)
 
             completed = await run_task
 
@@ -222,28 +201,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
             if run_collector.get("status") == "completed" and run_collector.get("final_output"):
                 session.add_assistant_message(run_collector["final_output"])
 
-            if run_collector:
-                run = StoredRun(
-                    run_id=run_collector["run_id"],
-                    status=run_collector["status"],
-                    tool_invocations=[
-                        StoredToolInvocation(**inv)
-                        for inv in run_collector.get("tool_invocations", [])
-                    ],
-                    final_output=run_collector.get("final_output", ""),
-                    started_at=run_collector["started_at"],
-                    ended_at=run_collector.get("ended_at"),
-                    error_message=run_collector.get("error_message"),
-                )
-                session.add_run(run)
-                get_session_store().save()
-                _log.info(
-                    "approve run persisted: session_id=%s run_id=%s status=%s tools=%d",
-                    session_id,
-                    run.run_id,
-                    run.status,
-                    len(run.tool_invocations),
-                )
+            persist_chat_run(session_id, new_messages_collector, run_collector)
 
             if completed:
                 yield sse_done()
@@ -261,35 +219,3 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
             "X-Accel-Buffering": "no",
         },
     )
-
-
-def _dict_to_sse(event: dict[str, Any]) -> str:
-    ev_type = event.get("type", "")
-    if ev_type == "new_messages":
-        return ""
-    if ev_type == "metadata":
-        from config.canonical_models import get_canonical_by_slug
-        from config.models import resolve_canonical_slug
-
-        config = get_config()
-        slug = None
-        display_name = None
-        if config.llm_model:
-            resolved = resolve_canonical_slug(config.llm_provider, config.llm_model)
-            if resolved:
-                slug = resolved
-                c = get_canonical_by_slug(slug)
-                if c:
-                    display_name = c.display_name
-        return sse_event(
-            "metadata",
-            {
-                **event,
-                "canonical_slug": slug,
-                "display_name": display_name,
-                "provider_specific_id": config.llm_model,
-            },
-        )
-    if ev_type == "run_end":
-        return sse_event(ev_type, event) + sse_done()
-    return sse_event(ev_type, event)

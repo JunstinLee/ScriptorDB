@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
-from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, ToolApproved, ToolDenied
@@ -14,45 +12,18 @@ from config.app_config import AppConfig
 from config.models import fuzzy_match_model
 from logging_setup import get_logger
 from server.agent_runner import run_agent_stream
+from server.approval_policy import (
+    HIGH_RISK_IMPORT_TOOLS,
+    IMPORT_ROW_THRESHOLD,
+    LOW_RISK_WRITE_TOOLS,
+    PendingApproval,
+    get_pending_store,
+)
+from server.import_inspector import count_import_rows
 from server.run_tracker import RunTracker, utc_now_iso
-from tools.validators import count_import_rows
 
 
 _log = get_logger("server.approval_orchestrator")
-
-
-LOW_RISK_WRITE_TOOLS = {
-    "write_csv",
-    "write_file",
-    "export_excel",
-    "create_table",
-    "execute_ddl",
-    "write_data",
-    "run_python_code",
-}
-
-HIGH_RISK_IMPORT_TOOLS = {
-    "import_csv_to_db",
-    "import_excel_to_db",
-}
-
-IMPORT_ROW_THRESHOLD = 100
-
-
-@dataclass
-class _PendingApproval:
-    request_id: str
-    session_id: str
-    run_id: str
-    message_history: list[ModelMessage]
-    deferred_calls: list[dict[str, Any]]
-    event_queue: asyncio.Queue[dict[str, Any]] = field(default_factory=asyncio.Queue)
-    resolved: asyncio.Event = field(default_factory=asyncio.Event)
-    approved_map: dict[str, bool] = field(default_factory=dict)
-
-
-# Module-level registry for pending approvals keyed by request_id.
-_pending_approvals: dict[str, _PendingApproval] = {}
 
 
 class ApprovalOrchestrator:
@@ -170,7 +141,7 @@ class ApprovalOrchestrator:
         new_messages_collector: list[ModelMessage],
     ) -> bool:
         """Resume a previously paused run after the user approved/denied calls."""
-        pending = _pending_approvals.pop(request_id, None)
+        pending = get_pending_store().pop(request_id)
         if pending is None:
             _log.warning("resume_with_approval: request_id=%s not found", request_id)
             return False
@@ -306,14 +277,14 @@ def _process_deferred_requests(
 
     if pending_calls:
         request_id = uuid.uuid4().hex[:12]
-        pending = _PendingApproval(
+        pending = PendingApproval(
             request_id=request_id,
             session_id=session_id,
             run_id=run_id,
             message_history=list(message_history),
             deferred_calls=pending_calls,
         )
-        _pending_approvals[request_id] = pending
+        get_pending_store().add(request_id, pending)
 
         _log.info(
             "approval_request: run_id=%s request_id=%s pending_calls=%d",
@@ -341,14 +312,13 @@ def _auto_approve_all(deferred: DeferredToolRequests) -> DeferredToolResults:
 async def submit_approval(
     request_id: str,
     approved_map: dict[str, bool],
-) -> _PendingApproval | None:
+) -> PendingApproval | None:
     """Used by the approval endpoint to signal user decisions.
 
     The actual resume happens in ApprovalOrchestrator.resume_with_approval.
     """
-    pending = _pending_approvals.get(request_id)
+    pending = get_pending_store().get(request_id)
     if pending is None:
         return None
     pending.approved_map = approved_map
-    pending.resolved.set()
     return pending

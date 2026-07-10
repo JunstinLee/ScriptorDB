@@ -12,6 +12,13 @@ from config.settings import Settings
 from logging_setup import get_logger
 from tools.db_connection import _get_all_tables, _get_single_table_schema, get_connection
 from tools.errors import _to_tool_error
+from tools.schema_helpers import (
+    extract_where_clause,
+    get_pk_columns,
+    normalize_params,
+    parse_dml_table_name,
+    quote_identifier,
+)
 from tools.tool_result import ToolResult
 from tools.undo_log import add_entry, create_group
 
@@ -219,55 +226,10 @@ def execute_ddl(
         conn.close()
 
 
-def _normalize_params(sql: str, params: list | dict | None) -> tuple[str, dict | None]:
-    if params is None or isinstance(params, dict):
-        return sql, params
-    if not isinstance(params, list):
-        return sql, params
-    named_params: dict[str, Any] = {}
-    param_idx = -1
-
-    def _repl(_match: re.Match) -> str:
-        nonlocal param_idx
-        param_idx += 1
-        name = f"p{param_idx}"
-        named_params[name] = params[param_idx] if param_idx < len(params) else None
-        return f":{name}"
-
-    if sql.count("?") > 0:
-        new_sql = re.sub(r"\?", _repl, sql)
-    elif "%s" in sql:
-        new_sql = re.sub(r"%s", _repl, sql)
-    else:
-        return sql, None
-    return new_sql, named_params
-
-
-def _parse_dml_table_name(sql: str) -> str | None:
-    m = re.match(
-        r"(?i)\s*(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"
-        r"[\"`]?(\w+)[\"`]?",
-        sql.strip(),
-    )
-    parsed = m.group(2) if m else None
-    if m:
-        return parsed
-    return None
-
-
-def _get_pk_columns(conn, table: str) -> list[str]:
-    from sqlalchemy import inspect as sa_inspect
-
-    insp = sa_inspect(conn)
-    pk = insp.get_pk_constraint(table)
-    return list(pk.get("constrained_columns", [])) if pk else []
-
-
-def _extract_where_clause(sql: str) -> str:
-    m = re.search(r"(?i)\bWHERE\b\s+(.+)", sql, re.DOTALL)
-    if m:
-        return m.group(1).rstrip(";").strip()
-    return ""
+_normalize_params = normalize_params
+_parse_dml_table_name = parse_dml_table_name
+_get_pk_columns = get_pk_columns
+_extract_where_clause = extract_where_clause
 
 
 def _build_insert_undo(

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from pydantic_ai import Agent, DeferredToolRequests, RunContext
-from pydantic_ai.models.openai import OpenAIChatModel
-from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai import Agent, DeferredToolRequests
 
 from agents.capabilities import build_audit_hooks, build_undo_hooks
 from config.app_config import AppConfig
 from config.models import resolve_model
-from config.secrets import SUPPORTED_PROVIDERS, get_api_key
+from config.provider_adapter import build_model
 from config.settings import Settings
 from logging_setup import get_logger
 from tools.toolsets import read_toolset, viz_toolset, write_toolset
@@ -21,25 +19,7 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str 
     undo_hooks = build_undo_hooks()
 
     active_provider = config.llm_provider
-    if active_provider in ("nim", "together"):
-        api_key = get_api_key(active_provider, config.workspace_id)
-        provider_cfg = SUPPORTED_PROVIDERS[active_provider]
-        model_name = resolved_model.split(":", 1)[-1]
-        _log.info(
-            "build_agent: provider=%s model=%s (OpenAI-compatible) toolsets=3",
-            active_provider,
-            model_name,
-        )
-        return Agent(
-            model=OpenAIChatModel(
-                model_name,
-                provider=OpenAIProvider(base_url=provider_cfg.base_url, api_key=api_key),
-            ),
-            deps_type=Settings,
-            output_type=[str, DeferredToolRequests],
-            toolsets=[read_toolset, write_toolset, viz_toolset],
-            capabilities=[audit_hooks, undo_hooks],
-        )
+    model = build_model(active_provider, resolved_model, config.workspace_id)
 
     _log.info(
         "build_agent: provider=%s model=%s toolsets=3",
@@ -47,7 +27,7 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str 
         resolved_model,
     )
     return Agent(
-        model=resolved_model,
+        model=model,
         deps_type=Settings,
         output_type=[str, DeferredToolRequests],
         toolsets=[read_toolset, write_toolset, viz_toolset],
