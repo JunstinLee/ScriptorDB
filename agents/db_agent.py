@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, RunContext
-from pydantic_ai.capabilities import HandleDeferredToolCalls
+from pydantic_ai import Agent, DeferredToolRequests, RunContext
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -17,22 +16,9 @@ from tools.toolsets import read_toolset, viz_toolset, write_toolset
 _log = get_logger("agents.db_agent")
 
 
-def _auto_approve_handler(
-    ctx: RunContext[Settings],
-    requests: DeferredToolRequests,
-) -> DeferredToolResults:
-    from pydantic_ai import ToolApproved
-
-    results = DeferredToolResults()
-    for call in requests.approvals:
-        results.approvals[call.tool_call_id] = ToolApproved()
-    return results
-
-
-def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings]:
+def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str | DeferredToolRequests]:
     audit_hooks = build_audit_hooks()
     undo_hooks = build_undo_hooks()
-    approval = HandleDeferredToolCalls(handler=_auto_approve_handler)
 
     active_provider = config.llm_provider
     if active_provider in ("nim", "together"):
@@ -50,8 +36,9 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings]:
                 provider=OpenAIProvider(base_url=provider_cfg.base_url, api_key=api_key),
             ),
             deps_type=Settings,
+            output_type=[str, DeferredToolRequests],
             toolsets=[read_toolset, write_toolset, viz_toolset],
-            capabilities=[audit_hooks, undo_hooks, approval],
+            capabilities=[audit_hooks, undo_hooks],
         )
 
     _log.info(
@@ -62,8 +49,9 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings]:
     return Agent(
         model=resolved_model,
         deps_type=Settings,
+        output_type=[str, DeferredToolRequests],
         toolsets=[read_toolset, write_toolset, viz_toolset],
-        capabilities=[audit_hooks, undo_hooks, approval],
+        capabilities=[audit_hooks, undo_hooks],
     )
 
 
@@ -71,7 +59,7 @@ def get_agent(
     model: str | None = None,
     provider: str | None = None,
     config: AppConfig | None = None,
-) -> Agent[Settings]:
+) -> Agent[Settings, str | DeferredToolRequests]:
     if config is None:
         from config.settings import settings as _settings
 

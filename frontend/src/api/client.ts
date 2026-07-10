@@ -14,8 +14,9 @@ export {
   getSession,
   deleteSession,
   getSchema,
+  submitApproval,
 } from "./sessions";
-export { streamChat } from "./stream";
+export { streamApproval, streamChat } from "./stream";
 export {
   health,
   fetchModels,

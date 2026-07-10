@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from contextlib import suppress
 from typing import Any
 
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, RunContext
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -35,8 +35,9 @@ async def run_agent_stream(
     config: AppConfig,
     model: str | None = None,
     provider: str | None = None,
-    agent: Agent[AppConfig] | None = None,
+    agent: Any | None = None,
     tracker: RunTracker | None = None,
+    deferred_results: DeferredToolResults | None = None,
 ) -> AsyncIterator[dict]:
     """纯编排层：启动 agent.run()，通过 asyncio.Queue 收集事件，产出标准化 dict 事件。
 
@@ -72,11 +73,12 @@ async def run_agent_stream(
         len(message_history or []),
     )
 
-    yield {
-        "type": "run_start",
-        "run_id": local_tracker.run_id,
-        "timestamp": utc_now_iso(),
-    }
+    if deferred_results is None:
+        yield {
+            "type": "run_start",
+            "run_id": local_tracker.run_id,
+            "timestamp": utc_now_iso(),
+        }
 
     async def event_stream_handler(ctx: RunContext[AppConfig], events: Any) -> None:
         nonlocal full_output, trace_step, handler_calls
@@ -194,14 +196,19 @@ async def run_agent_stream(
         finally:
             pass
 
+    if agent is None:
+        agent = get_agent(model, provider, config=config)
+
     async def run_agent() -> Any:
         config.run_id = local_tracker.run_id
-        return await agent.run(
-            prompt,
-            message_history=message_history if message_history else None,
-            deps=config,
-            event_stream_handler=event_stream_handler,
-        )
+        kwargs: dict[str, Any] = {
+            "message_history": message_history if message_history else None,
+            "deps": config,
+            "event_stream_handler": event_stream_handler,
+        }
+        if deferred_results is not None:
+            kwargs["deferred_tool_results"] = deferred_results
+        return await agent.run(prompt, **kwargs)
 
     run_task = asyncio.create_task(run_agent())
 
@@ -228,6 +235,15 @@ async def run_agent_stream(
             yield ev
 
         result = await run_task
+
+        if isinstance(result.output, DeferredToolRequests):
+            yield {
+                "type": "_deferred_tool_requests",
+                "run_id": local_tracker.run_id,
+                "deferred": result.output,
+                "all_messages": result.all_messages(),
+            }
+            return
 
         if not full_output and result.output:
             full_output = str(result.output)

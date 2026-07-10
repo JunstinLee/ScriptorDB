@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import os
 import re
 
@@ -10,6 +11,44 @@ from logging_setup import get_logger
 
 
 _log = get_logger("tools.validators")
+
+
+def count_import_rows(filepath: str) -> int | None:
+    """Return the number of data rows in a CSV or Excel file, or None if unreadable."""
+    if not filepath or not os.path.isfile(filepath):
+        return None
+    ext = os.path.splitext(filepath)[1].lower()
+    try:
+        if ext == ".csv":
+            with open(filepath, "r", encoding="utf-8", newline="") as f:
+                reader = csv.reader(f)
+                try:
+                    next(reader)
+                except StopIteration:
+                    return 0
+                return sum(1 for _ in reader)
+        if ext in {".xlsx", ".xls"}:
+            try:
+                from openpyxl import load_workbook
+            except ImportError:
+                return None
+            wb = load_workbook(filepath, data_only=True, read_only=True)
+            ws = wb.active
+            if ws is None:
+                wb.close()
+                return None
+            rows_iter = ws.iter_rows(values_only=True)
+            try:
+                next(rows_iter)
+            except StopIteration:
+                wb.close()
+                return 0
+            count = sum(1 for _ in rows_iter)
+            wb.close()
+            return count
+    except Exception as e:
+        _log.warning("count_import_rows failed for %s: %s", filepath, e)
+    return None
 
 
 def validate_sql_readonly(ctx: RunContext[Settings], sql: str, *args: object, **kwargs: object) -> None:

@@ -26,7 +26,7 @@ async def stream_agent_response(
     config: AppConfig,
     model: str | None = None,
     provider: str | None = None,
-    agent: Agent[AppConfig] | None = None,
+    agent: Any | None = None,
     run_collector: dict[str, Any] | None = None,
     new_messages_collector: list[ModelMessage] | None = None,
 ) -> AsyncIterator[str]:

@@ -239,6 +239,19 @@ export interface RunErrorEvent {
   error_id?: string | null;
 }
 
+export interface ApprovalRequestEvent {
+  type: "approval_request";
+  run_id: string;
+  request_id: string;
+  calls: {
+    tool_call_id: string;
+    tool_name: string;
+    args: Record<string, unknown>;
+    row_count: number;
+    table_name: string;
+  }[];
+}
+
 export type StreamRunEvent =
   | RunStartEvent
   | RunEndEvent
@@ -247,7 +260,8 @@ export type StreamRunEvent =
   | ToolResultRunEvent
   | TextDeltaEvent
   | RunMetadataEvent
-  | RunErrorEvent;
+  | RunErrorEvent
+  | ApprovalRequestEvent;
 
 export interface ToolInvocation {
   call_id: string;
