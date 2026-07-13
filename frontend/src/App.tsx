@@ -297,7 +297,7 @@ function MainApp({
             call_id: call.tool_call_id,
             tool_name: call.tool_name,
             success: false,
-            output: "用户已取消操作",
+            output: "User cancelled the operation",
             timestamp: new Date().toISOString(),
           };
           console.log(
@@ -503,13 +503,13 @@ function MainApp({
         isOpen={approvalRequest !== null}
         onClose={() => handleApprovalSubmit(false)}
         onConfirm={() => handleApprovalSubmit(true)}
-        title="确认执行导入"
+        title="Confirm Import"
         message={
           approvalRequest
-            ? `${approvalRequest.calls[0]?.tool_name ?? "import"} 将把 ${approvalRequest.calls[0]?.row_count ?? ""} 条数据写入表 ${approvalRequest.calls[0]?.table_name ?? ""}，是否确认执行？`
+            ? `${approvalRequest.calls[0]?.tool_name ?? "import"} will write ${approvalRequest.calls[0]?.row_count ?? ""} row(s) into table ${approvalRequest.calls[0]?.table_name ?? ""}. Proceed?`
             : ""
         }
-        confirmLabel="确认"
+        confirmLabel="Confirm"
       />
 
       <WorkspacePicker
