@@ -23,6 +23,7 @@ import type {
   ApprovalRequestEvent,
   Run,
   StreamRunEvent,
+  ToolResultRunEvent,
   WorkspaceCreateRequest,
   WorkspaceDetail,
   WorkspaceItem,
@@ -266,6 +267,21 @@ function MainApp({
       const sid = approvalSessionIdRef.current;
       setApprovalRequest(null);
       if (!request || !sid) return;
+
+      if (!approved) {
+        for (const call of request.calls) {
+          const event: ToolResultRunEvent = {
+            type: "tool_result",
+            run_id: request.run_id,
+            call_id: call.tool_call_id,
+            tool_name: call.tool_name,
+            success: false,
+            output: "用户已取消操作",
+            timestamp: new Date().toISOString(),
+          };
+          appendEvent(sid, event);
+        }
+      }
 
       const approvedMap: Record<string, boolean> = {};
       for (const call of request.calls) {
