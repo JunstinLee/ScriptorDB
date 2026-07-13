@@ -46,6 +46,11 @@ class Session:
         self.last_access = datetime.utcnow()
 
     def add_run(self, run: StoredRun) -> None:
+        for i, r in enumerate(self.runs):
+            if r.run_id == run.run_id:
+                self.runs[i] = run
+                self.last_access = datetime.utcnow()
+                return
         self.runs.append(run)
         self.last_access = datetime.utcnow()
 

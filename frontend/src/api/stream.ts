@@ -150,6 +150,7 @@ export function streamApproval(
   onEvent: (event: StreamRunEvent) => void,
   onError: (error: Error) => void,
   onDone: (fullOutput: string) => void,
+  onApprovalRequest?: (event: Extract<StreamRunEvent, { type: "approval_request" }>) => void,
 ): AbortController {
   const controller = new AbortController();
 
@@ -174,7 +175,14 @@ export function streamApproval(
         return;
       }
 
-      await processSseStream(res, onEvent, onError, onDone, controller.signal);
+      await processSseStream(
+        res,
+        onEvent,
+        onError,
+        onDone,
+        controller.signal,
+        onApprovalRequest,
+      );
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       onError(err instanceof Error ? err : new Error("Unknown error"));

@@ -167,16 +167,19 @@ class ApprovalOrchestrator:
         )
 
         all_denied = all(not approved_map.get(call["tool_call_id"], False) for call in pending.deferred_calls)
-        if completed and all_denied and not self._run_tracker.final_output:
-            denial_message = "用户拒绝并暂停流程。"
-            self._run_tracker.final_output = denial_message
-            run_collector["final_output"] = denial_message
+        if completed and all_denied:
+            if not self._run_tracker.final_output:
+                denial_message = "用户拒绝并暂停流程。"
+                self._run_tracker.final_output = denial_message
+                await event_callback({
+                    "type": "text_delta",
+                    "run_id": self._run_tracker.run_id,
+                    "delta": denial_message,
+                })
+            self._run_tracker.finish()
+            run_collector["final_output"] = self._run_tracker.final_output
             run_collector["status"] = self._run_tracker.status
-            await event_callback({
-                "type": "text_delta",
-                "run_id": self._run_tracker.run_id,
-                "delta": denial_message,
-            })
+            run_collector["ended_at"] = self._run_tracker.ended_at
 
         return completed
 

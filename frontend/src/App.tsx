@@ -337,6 +337,9 @@ function MainApp({
           void refreshSessionTitle(sid);
           void refreshUndo();
         },
+        (event) => {
+          setApprovalRequest(event);
+        },
       );
     },
     [
