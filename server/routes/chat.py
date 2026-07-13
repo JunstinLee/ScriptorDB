@@ -128,12 +128,6 @@ async def _run_chat_turn(
         yield sse_event("run_end", {"type": "run_end", "run_id": "", "timestamp": ""})
         return
 
-    if new_messages_collector:
-        session.add_model_messages(new_messages_collector)
-
-    if run_collector.get("status") == "completed" and run_collector.get("final_output"):
-        session.add_assistant_message(run_collector["final_output"])
-
     persist_chat_run(session_id, new_messages_collector, run_collector)
 
 
@@ -180,12 +174,6 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
                 yield event_to_sse(event, config.llm_provider, config.llm_model)
 
             completed = await run_task
-
-            if new_messages_collector:
-                session.add_model_messages(new_messages_collector)
-
-            if run_collector.get("status") == "completed" and run_collector.get("final_output"):
-                session.add_assistant_message(run_collector["final_output"])
 
             print(f"[chat] post-chat persist: run_collector keys={list(run_collector.keys())} run_id={run_collector.get('run_id')} status={run_collector.get('status')}")
             persist_chat_run(session_id, new_messages_collector, run_collector)
