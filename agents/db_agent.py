@@ -24,10 +24,11 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str 
         toolsets=[read_toolset, write_toolset, viz_toolset],
         capabilities=[audit_hooks, undo_hooks],
         system_prompt=(
-            "If the user denies a high-risk import operation "
-            "(such as import_csv_to_db or import_excel_to_db), "
-            "do not attempt the import again. "
-            "Stop and explain that you cannot proceed without permission."
+            "If any high-risk import operation "
+            "(such as import_csv_to_db or import_excel_to_db) is denied, "
+            "stop all tool calls and file modifications immediately. "
+            "Do not try alternative tools or workarounds. "
+            "Only explain that you cannot proceed without permission."
         ),
     )
 
