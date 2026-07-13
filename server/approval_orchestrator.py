@@ -145,14 +145,18 @@ class ApprovalOrchestrator:
         if self._run_tracker is None:
             self._run_tracker = RunTracker(run_id=pending.run_id)
 
+        print(f"[approval_orchestrator] resume: run_id={pending.run_id} deferred_calls={[c['tool_call_id'] for c in pending.deferred_calls]} approved_map={approved_map}")
         results = DeferredToolResults()
         for call in pending.deferred_calls:
             call_id = call["tool_call_id"]
-            if approved_map.get(call_id, False):
+            approved = approved_map.get(call_id, False)
+            print(f"[approval_orchestrator] call_id={call_id} approved={approved}")
+            if approved:
                 results.approvals[call_id] = ToolApproved()
             else:
                 results.approvals[call_id] = ToolDenied("User denied the import operation.")
 
+        print(f"[approval_orchestrator] entering _run_loop with {len(results.approvals)} results")
         completed = await self._run_loop(
             "Continue",
             pending.message_history,
@@ -234,6 +238,7 @@ async def run_agent_stream_resumable(
                 deferred,
             )
             if approval_event:
+                print(f"[approval_orchestrator] yielding approval_request and PAUSING: request_id={approval_event['request_id']} run_id={approval_event['run_id']}")
                 yield approval_event
                 # Pause; caller will resume after POST /approve.
                 return
@@ -285,11 +290,13 @@ def _process_deferred_requests(
                     "row_count": row_count,
                     "table_name": args.get("table_name", "") if isinstance(args, dict) else "",
                 })
+                print(f"[approval_orchestrator] _process_deferred: PENDING call_id={call.tool_call_id} tool={tool_name} rows={row_count}")
                 continue
             auto_calls.append(call)
+            print(f"[approval_orchestrator] _process_deferred: AUTO (low rows) call_id={call.tool_call_id} tool={tool_name}")
             continue
-        # Unknown tool: default to auto-approve to avoid hanging.
         auto_calls.append(call)
+        print(f"[approval_orchestrator] _process_deferred: AUTO (unknown tool) call_id={call.tool_call_id} tool={tool_name}")
 
     if pending_calls:
         request_id = uuid.uuid4().hex[:12]
@@ -301,6 +308,7 @@ def _process_deferred_requests(
             deferred_calls=pending_calls,
         )
         get_pending_store().add(request_id, pending)
+        print(f"[approval_orchestrator] creating approval_request: request_id={request_id} run_id={run_id} pending_call_ids={[c['tool_call_id'] for c in pending_calls]}")
 
         return {
             "type": "approval_request",
@@ -315,6 +323,7 @@ def _process_deferred_requests(
 def _auto_approve_all(deferred: DeferredToolRequests) -> DeferredToolResults:
     results = DeferredToolResults()
     for call in deferred.approvals:
+        print(f"[approval_orchestrator] _auto_approve_all: call_id={call.tool_call_id}")
         results.approvals[call.tool_call_id] = ToolApproved()
     return results
 

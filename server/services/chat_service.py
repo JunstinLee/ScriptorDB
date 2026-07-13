@@ -36,5 +36,6 @@ def persist_chat_run(
             ended_at=run_collector.get("ended_at"),
             error_message=run_collector.get("error_message"),
         )
+        print(f"[chat_service] persist run: run_id={run.run_id} status={run.status} tools={len(run.tool_invocations)} tool_ids={[t.call_id for t in run.tool_invocations]} tool_statuses={[t.status for t in run.tool_invocations]}")
         session.add_run(run)
         get_session_store().save()

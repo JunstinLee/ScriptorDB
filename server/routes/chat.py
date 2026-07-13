@@ -113,6 +113,7 @@ async def _run_chat_turn(
 
             if ev_type == "approval_request":
                 pending_request_id = event.get("request_id")
+                print(f"[chat] approval_request detected: request_id={pending_request_id} run_id={event.get('run_id')} calls={len(event.get('calls',[]))}")
                 yield event_to_sse(event, config.llm_provider, config.llm_model)
                 break
 
@@ -186,6 +187,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
             if run_collector.get("status") == "completed" and run_collector.get("final_output"):
                 session.add_assistant_message(run_collector["final_output"])
 
+            print(f"[chat] post-chat persist: run_collector keys={list(run_collector.keys())} run_id={run_collector.get('run_id')} status={run_collector.get('status')}")
             persist_chat_run(session_id, new_messages_collector, run_collector)
 
             if completed:

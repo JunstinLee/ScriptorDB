@@ -40,6 +40,11 @@ function processSseStream(
               ) {
                 try {
                   const obj = JSON.parse(data) as StreamRunEvent;
+                  console.log(
+                    "[stream] SSE event: type=%s run_id=%s",
+                    obj.type,
+                    (obj as any).run_id ?? "-",
+                  );
                   onEvent(obj);
                   if (obj.type === "metadata") {
                     doneCalled = true;

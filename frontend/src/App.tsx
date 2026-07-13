@@ -141,6 +141,22 @@ function MainApp({
 
   const handleRunsLoaded = useCallback(
     (_sessionId: string, loadedRuns: Run[]) => {
+      console.log(
+        "[App] setRuns: sessionId=%s runs=%d run_ids=%s",
+        _sessionId,
+        loadedRuns.length,
+        loadedRuns
+          .map(
+            (r) =>
+              r.run_id +
+              "(" +
+              r.status +
+              "," +
+              r.tool_invocations.length +
+              "tools)",
+          )
+          .join(", "),
+      );
       setRuns(_sessionId, loadedRuns);
     },
     [setRuns],
@@ -269,6 +285,11 @@ function MainApp({
       if (!request || !sid) return;
 
       if (!approved) {
+        console.log(
+          "[App] handleApprovalSubmit denied: run_id=%s calls=%s",
+          request.run_id,
+          request.calls.map((c) => c.tool_call_id).join(","),
+        );
         for (const call of request.calls) {
           const event: ToolResultRunEvent = {
             type: "tool_result",
@@ -279,6 +300,10 @@ function MainApp({
             output: "用户已取消操作",
             timestamp: new Date().toISOString(),
           };
+          console.log(
+            "[App] handleApprovalSubmit: emitting local tool_result for call_id=%s",
+            call.tool_call_id,
+          );
           appendEvent(sid, event);
         }
       }

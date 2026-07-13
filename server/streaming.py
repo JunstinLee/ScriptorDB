@@ -40,6 +40,7 @@ async def stream_agent_response(
         tracker=tracker,
     ):
         ev_type = event.get("type", "")
+        print(f"[streaming] yield sse: type={ev_type} run_id={event.get('run_id','-')}")
         if ev_type == "new_messages":
             if new_messages_collector is not None:
                 new_messages_collector.extend(event.get("messages", []))
