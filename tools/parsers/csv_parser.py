@@ -5,10 +5,6 @@ import os
 from collections.abc import Callable
 from typing import Any
 
-from logging_setup import get_logger
-
-_log = get_logger("tools.parsers.csv_parser")
-
 
 def parse_csv(
     filepath: str,

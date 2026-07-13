@@ -8,7 +8,6 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
-from logging_setup import get_logger
 from server.approval_orchestrator import ApprovalOrchestrator, submit_approval
 from server.dependencies import get_config, require_workspace
 from server.schemas import (
@@ -21,7 +20,6 @@ from server.sessions import get_session_store
 from server.sse_format import sse_done, sse_event
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
-_log = get_logger("server.routes.chat")
 
 
 @router.post("/{session_id}/chat")
@@ -44,18 +42,6 @@ async def chat(session_id: str, req: ChatRequest):
             f"The user has attached the following files:\n{files_block}\n\n"
             f"User request: {req.prompt}"
         )
-
-    _log.info(
-        "chat request: session_id=%s model=%s provider=%s attachments=%d prompt_len=%d augmented_len=%d",
-        session_id,
-        req.model,
-        req.provider,
-        len(req.attachments or []),
-        len(req.prompt),
-        len(augmented_prompt),
-    )
-    for path in req.attachments or []:
-        _log.info("chat attachment: session_id=%s path=%s", session_id, path)
 
     model_messages = session.get_model_messages()
 
@@ -137,7 +123,6 @@ async def _run_chat_turn(
         new_messages_collector.extend(summary.get("new_messages", []))
 
     except Exception as e:
-        _log.exception("chat turn error: session_id=%s", session_id)
         yield sse_event("error", {"type": "error", "message": str(e)})
         yield sse_event("run_end", {"type": "run_end", "run_id": "", "timestamp": ""})
         return
@@ -206,7 +191,6 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
             if completed:
                 yield sse_done()
         except Exception as e:
-            _log.exception("approve turn error: session_id=%s", session_id)
             yield sse_event("error", {"type": "error", "message": str(e)})
             yield sse_event("run_end", {"type": "run_end", "run_id": "", "timestamp": ""})
 

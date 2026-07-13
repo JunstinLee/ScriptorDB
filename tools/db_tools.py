@@ -9,7 +9,6 @@ from pydantic_ai import ModelRetry, RunContext
 from sqlalchemy import text
 
 from config.settings import Settings
-from logging_setup import get_logger
 from tools.db_connection import _get_all_tables, _get_single_table_schema, get_connection
 from tools.errors import _to_tool_error
 from tools.schema_helpers import (
@@ -21,9 +20,6 @@ from tools.schema_helpers import (
 )
 from tools.tool_result import ToolResult
 from tools.undo_log import add_entry, create_group
-
-
-_log = get_logger("tools.db_tools")
 
 
 class ColumnDef(BaseModel):
@@ -39,7 +35,6 @@ class ColumnDef(BaseModel):
 
 
 def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> ToolResult:
-    _log.info("query_database: sql=%s limit=%d", sql, limit)
     conn = get_connection(ctx.deps.db_url)
     try:
         if limit < 1:
@@ -53,12 +48,6 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
         if truncated:
             rows = rows[:limit]
 
-        _log.info(
-            "query_database: done rows=%d cols=%d truncated=%s",
-            len(rows),
-            len(columns),
-            truncated,
-        )
         return ToolResult(
             success=True,
             output=f"Query returned {len(rows)} row{'s' if len(rows) != 1 else ''}{' (truncated)' if truncated else ''}, {len(columns)} column{'s' if len(columns) != 1 else ''}",
@@ -76,16 +65,10 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
 
 
 def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResult:
-    _log.info("get_schema: table=%s", table)
     conn = get_connection(ctx.deps.db_url)
     try:
         if table:
             schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table)
-            _log.info(
-                "get_schema: done table=%s cols=%d",
-                table,
-                len(schema_info["columns"]),
-            )
             return ToolResult(
                 success=True,
                 output=f"Table {table}: {len(schema_info['columns'])} column{'s' if len(schema_info['columns']) != 1 else ''}",
@@ -93,7 +76,6 @@ def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResul
             )
 
         tables = _get_all_tables(conn, ctx.deps.db_url)
-        _log.info("get_schema: done tables=%d", len(tables))
         return ToolResult(
             success=True,
             output=f"{len(tables)} table{'s' if len(tables) != 1 else ''}",

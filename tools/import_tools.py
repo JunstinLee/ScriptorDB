@@ -7,7 +7,6 @@ from pydantic_ai import RunContext
 from sqlalchemy import text
 
 from config.settings import Settings
-from logging_setup import get_logger
 from tools.db_connection import get_connection
 from tools.errors import _to_tool_error
 from tools.parsers.csv_parser import parse_csv
@@ -21,9 +20,6 @@ from tools.schema_helpers import (
 )
 from tools.tool_result import ToolErrorInfo, ToolResult
 from tools.undo_log import add_entry, create_group
-
-
-_log = get_logger("tools.import_tools")
 
 
 _quote_identifier = quote_identifier
@@ -132,11 +128,6 @@ def _import_rows_to_db(
             if if_exists == "fail":
                 original_name = table_name
                 table_name = _unique_table_name(conn, table_name)
-                _log.info(
-                    "import_rows: table exists, using unique name original=%s new=%s",
-                    original_name,
-                    table_name,
-                )
                 _create_table_from_headers(conn, table_name, headers)
             elif if_exists == "replace":
                 conn.execute(
@@ -147,9 +138,6 @@ def _import_rows_to_db(
             elif if_exists == "append":
                 pass
             else:
-                _log.warning(
-                    "import_rows: invalid if_exists=%s table=%s", if_exists, table_name
-                )
                 return ToolResult(
                     success=False,
                     error=ToolErrorInfo(
@@ -159,15 +147,6 @@ def _import_rows_to_db(
                 )
         else:
             _create_table_from_headers(conn, table_name, headers)
-
-        _log.info(
-            "import_rows: start table=%s if_exists=%s cols=%d rows=%d batch_size=%d",
-            table_name,
-            if_exists,
-            len(headers),
-            len(rows),
-            batch_size,
-        )
 
         should_log_undo = bool(ctx.deps.chat_session_id and ctx.deps.run_id)
         undo_group_id: int | None = None
@@ -216,9 +195,6 @@ def _import_rows_to_db(
 
         conn.commit()
 
-        _log.info(
-            "import_rows: done table=%s rows_imported=%d", table_name, total_imported
-        )
         return ToolResult(
             success=True,
             output=f"Imported {total_imported} row{'s' if total_imported != 1 else ''} into {table_name}",
@@ -244,15 +220,6 @@ def _import_csv_to_db_impl(
     row_filter: Callable[[dict[str, Any]], bool] | None = None,
     row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
-    _log.info(
-        "import_csv: start filepath=%s table=%s encoding=%s if_exists=%s batch_size=%d",
-        filepath,
-        table_name,
-        encoding,
-        if_exists,
-        batch_size,
-    )
-
     headers, rows, err = parse_csv(filepath, encoding, row_filter, row_transform)
     if err:
         if "not found" in err:
@@ -290,16 +257,6 @@ def _import_excel_to_db_impl(
     row_filter: Callable[[dict[str, Any]], bool] | None = None,
     row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
-    _log.info(
-        "import_excel: start filepath=%s table=%s sheet=%s header_row=%d if_exists=%s batch_size=%d",
-        filepath,
-        table_name,
-        sheet_name,
-        header_row,
-        if_exists,
-        batch_size,
-    )
-
     headers, rows, err = parse_excel(filepath, sheet_name, header_row, row_filter, row_transform)
     if err:
         if "not found" in err:

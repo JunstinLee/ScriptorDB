@@ -5,10 +5,6 @@ import re
 from pydantic_ai import ModelRetry, RunContext
 
 from config.settings import Settings
-from logging_setup import get_logger
-
-
-_log = get_logger("tools.validators")
 
 
 def validate_sql_readonly(ctx: RunContext[Settings], sql: str, *args: object, **kwargs: object) -> None:
@@ -27,12 +23,9 @@ def validate_sql_readonly(ctx: RunContext[Settings], sql: str, *args: object, **
 
 
 def validate_file_path(ctx: RunContext[Settings], filepath: str, *args: object, **kwargs: object) -> None:
-    _log.info("validate_file_path: filepath=%s", filepath)
     if not filepath or not filepath.strip():
-        _log.warning("validate_file_path rejected: empty path")
         raise ModelRetry("File path cannot be empty.")
     if ".." in filepath or filepath.startswith("~") or filepath.startswith("/etc"):
-        _log.warning("validate_file_path rejected: disallowed path=%s", filepath)
         raise ModelRetry(
             f"File path '{filepath}' is not allowed. "
             "Paths must not contain '..' or start with '~' or '/etc'."
@@ -42,13 +35,10 @@ def validate_file_path(ctx: RunContext[Settings], filepath: str, *args: object, 
 def validate_import_args(
     ctx: RunContext[Settings], filepath: str, table_name: str, *args: object, **kwargs: object
 ) -> None:
-    _log.info("validate_import_args: filepath=%s table=%s", filepath, table_name)
     validate_file_path(ctx, filepath, *args, **kwargs)
     if not table_name or not table_name.strip():
-        _log.warning("validate_import_args rejected: empty table_name")
         raise ModelRetry("table_name cannot be empty.")
     if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table_name.strip()):
-        _log.warning("validate_import_args rejected: invalid table_name=%s", table_name)
         raise ModelRetry(
             f"Invalid table name '{table_name}'. "
             "Table names must start with a letter or underscore and contain only letters, digits, and underscores."

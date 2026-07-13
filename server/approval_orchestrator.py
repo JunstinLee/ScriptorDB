@@ -10,7 +10,6 @@ from pydantic_ai.messages import ModelMessage
 from agents.db_agent import get_agent
 from config.app_config import AppConfig
 from config.models import fuzzy_match_model
-from logging_setup import get_logger
 from server.agent_runner import run_agent_stream
 from server.approval_policy import (
     HIGH_RISK_IMPORT_TOOLS,
@@ -21,9 +20,6 @@ from server.approval_policy import (
 )
 from server.import_inspector import count_import_rows
 from server.run_tracker import RunTracker, utc_now_iso
-
-
-_log = get_logger("server.approval_orchestrator")
 
 
 class ApprovalOrchestrator:
@@ -144,7 +140,6 @@ class ApprovalOrchestrator:
         """Resume a previously paused run after the user approved/denied calls."""
         pending = get_pending_store().pop(request_id)
         if pending is None:
-            _log.warning("resume_with_approval: request_id=%s not found", request_id)
             return False
 
         if self._run_tracker is None:
@@ -307,12 +302,6 @@ def _process_deferred_requests(
         )
         get_pending_store().add(request_id, pending)
 
-        _log.info(
-            "approval_request: run_id=%s request_id=%s pending_calls=%d",
-            run_id,
-            request_id,
-            len(pending_calls),
-        )
         return {
             "type": "approval_request",
             "run_id": run_id,
