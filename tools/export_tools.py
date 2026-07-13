@@ -6,12 +6,8 @@ from typing import Any
 from pydantic_ai import RunContext
 
 from config.settings import Settings
-from logging_setup import get_logger
 from tools.errors import _to_tool_error
 from tools.tool_result import ToolErrorInfo, ToolResult
-
-
-_log = get_logger("tools.export_tools")
 
 
 def export_excel(
@@ -70,7 +66,6 @@ def read_excel(
     max_rows: int | None = None,
 ) -> ToolResult:
     if not os.path.isfile(filepath):
-        _log.warning("read_excel: file not found filepath=%s", filepath)
         return ToolResult(
             success=False,
             error=ToolErrorInfo(
@@ -90,20 +85,10 @@ def read_excel(
             ),
         )
 
-    _log.info(
-        "read_excel: start filepath=%s sheet=%s header_row=%d preview_rows=%d return_full=%s",
-        filepath,
-        sheet_name,
-        header_row,
-        preview_rows,
-        return_full,
-    )
-
     try:
         wb = load_workbook(filepath, data_only=True, read_only=True)
         if isinstance(sheet_name, int):
             if sheet_name < 0 or sheet_name >= len(wb.worksheets):
-                _log.warning("read_excel: sheet index out of range index=%d", sheet_name)
                 return ToolResult(
                     success=False,
                     error=ToolErrorInfo(
@@ -114,7 +99,6 @@ def read_excel(
             ws = wb.worksheets[sheet_name]
         else:
             if sheet_name not in wb.sheetnames:
-                _log.warning("read_excel: sheet not found sheet=%s", sheet_name)
                 return ToolResult(
                     success=False,
                     error=ToolErrorInfo(
@@ -165,15 +149,6 @@ def read_excel(
             if truncated:
                 output += f" (returned {len(rows_data)} of {row_count} rows)"
 
-        _log.info(
-            "read_excel: done filepath=%s sheet=%s rows=%d cols=%d return_full=%s truncated=%s",
-            filepath,
-            ws.title,
-            row_count,
-            len(headers),
-            return_full,
-            truncated,
-        )
         return ToolResult(success=True, output=output, data=data)
     except Exception as e:
         return _to_tool_error(e)

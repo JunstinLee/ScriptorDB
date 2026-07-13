@@ -1,11 +1,5 @@
 from __future__ import annotations
 
-from config.global_settings import (
-    GlobalSettings,
-    apply_global_defaults,
-    load_global_settings,
-    save_global_settings,
-)
 from config.workspace_loader import (
     activate_workspace,
     get_last_active_workspace,
@@ -43,7 +37,6 @@ __all__ = [
     "DEFAULT_WORKSPACES_DIR",
     "GLOBAL_CONFIG_DIR",
     "GLOBAL_SETTINGS_FILE",
-    "GlobalSettings",
     "LEGACY_CONFIG_FILE",
     "LEGACY_SESSIONS_BACKUP_FILE",
     "LEGACY_SESSIONS_DIR",
@@ -59,11 +52,8 @@ __all__ = [
     "WorkspaceRegistryData",
     "WorkspaceSettings",
     "activate_workspace",
-    "apply_global_defaults",
     "get_last_active_workspace",
-    "load_global_settings",
     "migrate_legacy",
-    "save_global_settings",
     "workspace_dir",
     "workspace_outputs_dir",
     "workspace_sessions_dir",

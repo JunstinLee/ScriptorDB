@@ -7,7 +7,7 @@ from collections.abc import AsyncIterator
 from contextlib import suppress
 from typing import Any
 
-from pydantic_ai import Agent, RunContext
+from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, RunContext
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -20,13 +20,9 @@ from pydantic_ai.messages import (
 from agents.db_agent import get_agent
 from config.app_config import AppConfig
 from config.models import fuzzy_match_model
-from logging_setup import get_logger
 from tools.tool_result import ToolResult
 
 from server.run_tracker import RunTracker, utc_now_iso
-
-
-_log = get_logger("server.agent_runner")
 
 
 async def run_agent_stream(
@@ -35,8 +31,9 @@ async def run_agent_stream(
     config: AppConfig,
     model: str | None = None,
     provider: str | None = None,
-    agent: Agent[AppConfig] | None = None,
+    agent: Any | None = None,
     tracker: RunTracker | None = None,
+    deferred_results: DeferredToolResults | None = None,
 ) -> AsyncIterator[dict]:
     """纯编排层：启动 agent.run()，通过 asyncio.Queue 收集事件，产出标准化 dict 事件。
 
@@ -63,20 +60,13 @@ async def run_agent_stream(
     queue: asyncio.Queue[dict] = asyncio.Queue()
     local_tracker = tracker or RunTracker()
 
-    _log.info(
-        "run_agent_stream: start run_id=%s provider=%s model=%s prompt_len=%d history_len=%d",
-        local_tracker.run_id,
-        config.llm_provider,
-        config.llm_model,
-        len(prompt),
-        len(message_history or []),
-    )
-
-    yield {
-        "type": "run_start",
-        "run_id": local_tracker.run_id,
-        "timestamp": utc_now_iso(),
-    }
+    if deferred_results is None:
+        print(f"[agent_runner] emit run_start: run_id={local_tracker.run_id}")
+        yield {
+            "type": "run_start",
+            "run_id": local_tracker.run_id,
+            "timestamp": utc_now_iso(),
+        }
 
     async def event_stream_handler(ctx: RunContext[AppConfig], events: Any) -> None:
         nonlocal full_output, trace_step, handler_calls
@@ -96,13 +86,6 @@ async def run_agent_stream(
                     args_dict = args if isinstance(args, dict) else {"raw": str(args)}
                     local_tracker.add_tool_invocation(
                         call_id, event.part.tool_name, args_dict
-                    )
-                    _log.info(
-                        "tool_call: run_id=%s call_id=%s tool=%s args_keys=%s",
-                        local_tracker.run_id,
-                        call_id,
-                        event.part.tool_name,
-                        sorted(args_dict.keys()) if isinstance(args_dict, dict) else None,
                     )
                     await queue.put({
                         "type": "tool_call",
@@ -145,16 +128,7 @@ async def run_agent_stream(
                     local_tracker.complete_tool(
                         call_id, success, output, error_code, duration_ms, data=data
                     )
-                    _log.info(
-                        "tool_result: run_id=%s call_id=%s tool=%s success=%s duration_ms=%s error_code=%s",
-                        local_tracker.run_id,
-                        call_id,
-                        tool_name,
-                        success,
-                        duration_ms,
-                        error_code,
-                    )
-
+                    print(f"[agent_runner] emit tool_result: run_id={local_tracker.run_id} call_id={call_id} tool={tool_name} success={success}")
                     await queue.put({
                         "type": "tool_result",
                         "run_id": local_tracker.run_id,
@@ -194,14 +168,19 @@ async def run_agent_stream(
         finally:
             pass
 
+    if agent is None:
+        agent = get_agent(model, provider, config=config)
+
     async def run_agent() -> Any:
         config.run_id = local_tracker.run_id
-        return await agent.run(
-            prompt,
-            message_history=message_history if message_history else None,
-            deps=config,
-            event_stream_handler=event_stream_handler,
-        )
+        kwargs: dict[str, Any] = {
+            "message_history": message_history if message_history else None,
+            "deps": config,
+            "event_stream_handler": event_stream_handler,
+        }
+        if deferred_results is not None:
+            kwargs["deferred_tool_results"] = deferred_results
+        return await agent.run(prompt, **kwargs)
 
     run_task = asyncio.create_task(run_agent())
 
@@ -228,6 +207,15 @@ async def run_agent_stream(
             yield ev
 
         result = await run_task
+
+        if isinstance(result.output, DeferredToolRequests):
+            yield {
+                "type": "_deferred_tool_requests",
+                "run_id": local_tracker.run_id,
+                "deferred": result.output,
+                "all_messages": result.all_messages(),
+            }
+            return
 
         if not full_output and result.output:
             full_output = str(result.output)
@@ -261,18 +249,9 @@ async def run_agent_stream(
             "run_id": local_tracker.run_id,
             "timestamp": utc_now_iso(),
         }
-        _log.info(
-            "run_agent_stream: end run_id=%s status=completed output_len=%d tools=%d",
-            local_tracker.run_id,
-            len(full_output),
-            len(local_tracker.tool_invocations),
-        )
     except Exception as e:
         error_id = uuid.uuid4().hex[:12]
         local_tracker.fail(str(e))
-        _log.exception(
-            "run_agent_stream: error run_id=%s error_id=%s", local_tracker.run_id, error_id
-        )
         yield {
             "type": "error",
             "run_id": local_tracker.run_id,

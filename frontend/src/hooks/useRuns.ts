@@ -59,6 +59,24 @@ function applyEventToRun(run: Run, event: StreamRunEvent): Run {
     }
     case "tool_result": {
       const tr: ToolResultRunEvent = event;
+      console.log(
+        "[useRuns] tool_result: run_id=%s call_id=%s success=%s output=%s",
+        tr.run_id,
+        tr.call_id,
+        tr.success,
+        (tr.output ?? "").slice(0, 80),
+      );
+      const matched = run.tool_invocations.some(
+        (inv) => inv.call_id === tr.call_id,
+      );
+      if (!matched) {
+        console.warn(
+          "[useRuns] tool_result: call_id=%s NOT found in run.tool_invocations (run_id=%s, tool_invocations=%d)",
+          tr.call_id,
+          run.run_id,
+          run.tool_invocations.length,
+        );
+      }
       return {
         ...run,
         tool_invocations: run.tool_invocations.map((inv) =>
@@ -125,6 +143,13 @@ function runsReducer(
 
       if (event.type === "run_start") {
         const exists = sessionRuns.some((r) => r.run_id === event.run_id);
+        console.log(
+          "[useRuns] run_start: sessionId=%s run_id=%s exists=%s totalRuns=%d",
+          sessionId,
+          event.run_id,
+          exists,
+          sessionRuns.length,
+        );
         if (exists) return state;
         const run = createDefaultRun(event.run_id, event.timestamp);
         return {
@@ -134,6 +159,13 @@ function runsReducer(
       }
 
       const runIndex = sessionRuns.findIndex((r) => r.run_id === event.run_id);
+      console.log(
+        "[useRuns] append event: type=%s run_id=%s runIndex=%d totalRuns=%d",
+        event.type,
+        event.run_id,
+        runIndex,
+        sessionRuns.length,
+      );
       const baseRun =
         runIndex !== -1
           ? sessionRuns[runIndex]
@@ -156,6 +188,12 @@ function runsReducer(
     case "set": {
       const { sessionId, runs } = action;
       // Server-fetched runs are authoritative when loading/reloading a session.
+      console.log(
+        "[useRuns] set: sessionId=%s runsCount=%d run_ids=%s",
+        sessionId,
+        runs.length,
+        runs.map((r) => r.run_id + "(" + r.tool_invocations.length + "tools)").join(", "),
+      );
       return {
         ...state,
         [sessionId]: runs,

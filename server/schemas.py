@@ -252,6 +252,23 @@ class ErrorEvent(BaseModel):
     error_id: str | None = None
 
 
+class ApprovalRequestEvent(BaseModel):
+    """SSE event: agent paused for human approval of high-risk tool calls."""
+    type: Literal["approval_request"] = "approval_request"
+    run_id: str
+    request_id: str
+    calls: list[dict[str, Any]]
+
+
+class ApprovalSubmitRequest(BaseModel):
+    request_id: str
+    approved_map: dict[str, bool]
+
+
+class ApprovalSubmitResponse(BaseModel):
+    ok: bool
+
+
 class WorkspaceCreateRequest(BaseModel):
     name: str | None = None
     path: str | None = None

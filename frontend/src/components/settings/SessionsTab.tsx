@@ -28,8 +28,7 @@ export default function SessionsTab({
       try {
         const updated = await updateSettings({ auto_restore_sessions: next });
         onSettingsChange(updated);
-      } catch (e) {
-        console.error(e);
+      } catch {
       } finally {
         setToggling(false);
       }

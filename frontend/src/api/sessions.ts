@@ -1,4 +1,5 @@
 import type {
+  ApprovalSubmitResponse,
   SchemaResponse,
   SessionCreateResponse,
   SessionInfo,
@@ -28,4 +29,16 @@ export function deleteSession(sessionId: string): Promise<{ ok: boolean }> {
 
 export function getSchema(): Promise<SchemaResponse> {
   return request<SchemaResponse>("/schema");
+}
+
+export function submitApproval(
+  sessionId: string,
+  requestId: string,
+  approvedMap: Record<string, boolean>,
+): Promise<ApprovalSubmitResponse> {
+  return request<ApprovalSubmitResponse>(`/sessions/${sessionId}/approve`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ request_id: requestId, approved_map: approvedMap }),
+  });
 }

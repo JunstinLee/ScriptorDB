@@ -56,6 +56,7 @@ async def get_session(session_id: str):
     session = get_session_store().get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    print(f"[sessions] get_session: session_id={session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]}")
     return SessionInfo(
         session_id=session.session_id,
         messages=session.messages,
