@@ -229,10 +229,13 @@ async def run_agent_stream_resumable(
         if ev_type == "_deferred_tool_requests":
             deferred: DeferredToolRequests = event["deferred"]
             session_id = event.get("session_id", "")
+            # Use the full message history returned by the agent run so that
+            # deferred tool calls are present when the run is resumed.
+            all_messages = event.get("all_messages", message_history)
             approval_event = _process_deferred_requests(
                 session_id,
                 local_tracker.run_id,
-                message_history,
+                all_messages,
                 deferred,
             )
             if approval_event:
