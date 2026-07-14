@@ -1,124 +1,13 @@
 from __future__ import annotations
 
-import json
-import time
-from pathlib import Path
-
-import httpx
-
 from config.canonical_models import (
     CANONICAL_REGISTRY,
     get_canonical_by_slug,
     get_canonical_for_provider,
     get_canonical_for_provider_model,
 )
-
-from config.secrets import SUPPORTED_PROVIDERS, get_api_key
-
-CACHE_TTL_SECONDS = 3600
-
-EXCLUDE_KEYWORDS = [
-    "embedding",
-    "embed",
-    "tts",
-    "speech",
-    "whisper",
-    "audio",
-    "moderation",
-    "rerank",
-]
-
-def _cache_path(provider: str) -> Path:
-    from platformdirs import user_cache_dir
-
-    old_path = Path.home() / ".cache" / "scriptordb"
-    if old_path.exists():
-        cache_dir = old_path
-    else:
-        cache_dir = Path(user_cache_dir("scriptordb", ensure_exists=True))
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / f"models_{provider}.json"
-
-
-def _load_cache(provider: str) -> list[str] | None:
-    path = _cache_path(provider)
-    if not path.exists():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if time.time() - payload.get("ts", 0) > CACHE_TTL_SECONDS:
-        return None
-    models = payload.get("models")
-    return models if isinstance(models, list) else None
-
-
-def _save_cache(provider: str, models: list[str]) -> None:
-    path = _cache_path(provider)
-    try:
-        payload = {"ts": time.time(), "models": models}
-        path.write_text(json.dumps(payload), encoding="utf-8")
-    except OSError:
-        pass
-
-
-def _parse_models(data: dict) -> list[str]:
-    if "data" in data and isinstance(data["data"], list):
-        ids: set[str] = {
-            m["id"] for m in data["data"]
-            if isinstance(m, dict) and m.get("id")
-        }
-        if ids:
-            return sorted(ids)
-    if "models" in data and isinstance(data["models"], list):
-        raw = [
-            m.get("name") or m.get("id")
-            for m in data["models"]
-            if isinstance(m, dict) and (m.get("name") or m.get("id"))
-        ]
-        ids = {x for x in raw if isinstance(x, str)}
-        if ids:
-            return sorted(ids)
-    return []
-
-
-def filter_chat_models(models: list[str]) -> list[str]:
-    result = []
-    for model in models:
-        name = model.lower()
-        if any(k in name for k in EXCLUDE_KEYWORDS):
-            continue
-        result.append(model)
-    return result
-
-
-def list_available_models(provider: str, *, use_cache: bool = True) -> list[str]:
-    if provider not in SUPPORTED_PROVIDERS:
-        raise ValueError(f"Unsupported provider: {provider}")
-
-    if use_cache:
-        cached = _load_cache(provider)
-        if cached is not None:
-            return cached
-
-    config = SUPPORTED_PROVIDERS[provider]
-    api_key = get_api_key(provider)
-    if not api_key:
-        raise RuntimeError(f"No API key for {provider}. Run 'python main.py setup' first.")
-
-    url = f"{config.base_url.rstrip('/')}{config.list_models_path}"
-    headers = {"Authorization": f"Bearer {api_key}"}
-
-    resp = httpx.get(url, headers=headers, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-
-    raw = _parse_models(data)
-    models = filter_chat_models(raw)
-    _save_cache(provider, models)
-    return models
-
+from config.model_client import list_available_models
+from config.secrets import SUPPORTED_PROVIDERS
 
 
 def get_recommended_models(provider: str) -> list[str]:
