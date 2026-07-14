@@ -192,7 +192,10 @@ def interactive(
     model: Annotated[str | None, typer.Option("--model", "-m")] = None,
     workspace: Annotated[Optional[str], typer.Option("--workspace", help="临时工作区 ID")] = None,
 ):
-    import readline
+    try:
+        import readline
+    except ImportError:
+        readline = None
     from rich.console import Console
     from rich.markdown import Markdown
 

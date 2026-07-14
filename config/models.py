@@ -28,7 +28,13 @@ EXCLUDE_KEYWORDS = [
 ]
 
 def _cache_path(provider: str) -> Path:
-    cache_dir = Path.home() / ".cache" / "scriptordb"
+    from platformdirs import user_cache_dir
+
+    old_path = Path.home() / ".cache" / "scriptordb"
+    if old_path.exists():
+        cache_dir = old_path
+    else:
+        cache_dir = Path(user_cache_dir("scriptordb", ensure_exists=True))
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir / f"models_{provider}.json"
 
