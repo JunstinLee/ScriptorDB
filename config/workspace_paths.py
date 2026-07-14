@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from platformdirs import user_config_dir
+
 
 class WorkspaceError(Exception):
     """工作区相关异常的基类。"""
@@ -19,7 +21,14 @@ class WorkspaceNotSelectedError(WorkspaceError):
     pass
 
 
-GLOBAL_CONFIG_DIR = Path.home() / ".config" / "scriptordb"
+def _resolve_config_dir() -> Path:
+    old_path = Path.home() / ".config" / "scriptordb"
+    if old_path.exists():
+        return old_path
+    return Path(user_config_dir("scriptordb", ensure_exists=True))
+
+
+GLOBAL_CONFIG_DIR = _resolve_config_dir()
 DEFAULT_WORKSPACES_DIR = GLOBAL_CONFIG_DIR / "workspaces"
 REGISTRY_FILE = GLOBAL_CONFIG_DIR / "workspaces.json"
 GLOBAL_SETTINGS_FILE = GLOBAL_CONFIG_DIR / "global_settings.json"

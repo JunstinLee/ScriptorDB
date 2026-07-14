@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from server.schemas import MessageItem, SessionCreateResponse
+from server.session_file_store import FileSessionStore
 from server.sessions import (
     _LEGACY_BACKUP_FILE,
     _LEGACY_SESSIONS_FILE,
@@ -21,7 +22,7 @@ def _storage(tmp_path: Path) -> Path:
 
 def test_session_store_create_persists(tmp_path: Path):
     storage = _storage(tmp_path)
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     s = store.create()
     assert s.session_id in store._sessions
     file_path = storage / store._session_relpath(s)
@@ -31,13 +32,13 @@ def test_session_store_create_persists(tmp_path: Path):
 
 def test_session_store_save_load_roundtrip(tmp_path: Path):
     storage = _storage(tmp_path)
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     s = store.create()
     s.add_user_message("hello")
     s.add_assistant_message("hi there")
     store.save()
 
-    store2 = SessionStore(storage_path=storage)
+    store2 = FileSessionStore(storage_path=storage)
     loaded = store2.get(s.session_id)
     assert loaded is not None
     assert len(loaded.messages) == 2
@@ -49,13 +50,13 @@ def test_session_store_save_load_roundtrip(tmp_path: Path):
 
 def test_session_store_delete_persists(tmp_path: Path):
     storage = _storage(tmp_path)
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     s = store.create()
     file_path = storage / store._session_relpath(s)
     assert file_path.exists()
     assert store.delete(s.session_id) is True
     assert not file_path.exists()
-    store2 = SessionStore(storage_path=storage)
+    store2 = FileSessionStore(storage_path=storage)
     assert store2.get(s.session_id) is None
 
 
@@ -82,14 +83,14 @@ def test_session_store_no_ttl_keeps_old_sessions(tmp_path: Path):
         "runs": [],
     }))
     (storage / "_index.json").write_text(json.dumps(payload))
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     assert store.get("old001") is not None
     assert "old001" in store._sessions
 
 
 def test_session_store_list_sorders_by_last_access(tmp_path: Path):
     storage = _storage(tmp_path)
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     s1 = store.create()
     s1.add_user_message("first")
     s1.last_access = datetime.utcnow() - timedelta(hours=2)
@@ -109,7 +110,7 @@ def test_session_store_list_sorders_by_last_access(tmp_path: Path):
 
 def test_session_store_list_sessions_counts_messages(tmp_path: Path):
     storage = _storage(tmp_path)
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     s = store.create()
     s.add_user_message("u1")
     s.add_assistant_message("a1")
@@ -123,7 +124,7 @@ def test_session_store_load_handles_garbage_index(tmp_path: Path):
     storage = _storage(tmp_path)
     storage.mkdir(parents=True)
     (storage / "_index.json").write_text("{not valid json")
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     assert store._sessions == {}
 
 
@@ -138,7 +139,7 @@ def test_session_store_load_rebuilds_index_from_disk(tmp_path: Path):
         "messages": [],
         "runs": [],
     }))
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     assert "abc123456789" in store._sessions
     assert (storage / "_index.json").exists()
     index = json.loads((storage / "_index.json").read_text())
@@ -147,7 +148,7 @@ def test_session_store_load_rebuilds_index_from_disk(tmp_path: Path):
 
 def test_session_store_create_assigns_unique_id(tmp_path: Path):
     storage = _storage(tmp_path)
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     s1 = store.create()
     s2 = store.create()
     assert s1.session_id != s2.session_id
@@ -156,7 +157,7 @@ def test_session_store_create_assigns_unique_id(tmp_path: Path):
 
 def test_session_placed_in_year_month_subdir(tmp_path: Path):
     storage = _storage(tmp_path)
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     s = store.create()
     rel = store._session_relpath(s)
     parts = rel.split("/")
@@ -169,7 +170,7 @@ def test_session_placed_in_year_month_subdir(tmp_path: Path):
 
 def test_session_store_index_tracks_message_count(tmp_path: Path):
     storage = _storage(tmp_path)
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     s = store.create()
     s.add_user_message("u1")
     s.add_assistant_message("a1")
@@ -179,8 +180,8 @@ def test_session_store_index_tracks_message_count(tmp_path: Path):
 
 
 def test_session_store_migrates_legacy_file(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("server.sessions._LEGACY_SESSIONS_FILE", tmp_path / "sessions.json")
-    monkeypatch.setattr("server.sessions._LEGACY_BACKUP_FILE", tmp_path / "sessions.json.bak")
+    monkeypatch.setattr("server.session_file_store.LEGACY_SESSIONS_FILE", tmp_path / "sessions.json")
+    monkeypatch.setattr("server.session_file_store.LEGACY_SESSIONS_BACKUP_FILE", tmp_path / "sessions.json.bak")
     legacy_payload = {
         "version": 1,
         "sessions": [
@@ -197,7 +198,7 @@ def test_session_store_migrates_legacy_file(tmp_path: Path, monkeypatch):
     }
     (tmp_path / "sessions.json").write_text(json.dumps(legacy_payload))
     storage = tmp_path / "sessions"
-    store = SessionStore(storage_path=storage)
+    store = FileSessionStore(storage_path=storage)
     assert store.get("legacy01") is not None
     assert not (tmp_path / "sessions.json").exists()
     assert (tmp_path / "sessions.json.bak").exists()
