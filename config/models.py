@@ -6,70 +6,8 @@ from config.canonical_models import (
     get_canonical_for_provider,
     get_canonical_for_provider_model,
 )
-
-from config.secrets import SUPPORTED_PROVIDERS, get_api_key
-
-CACHE_TTL_SECONDS = 3600
-
-EXCLUDE_KEYWORDS = [
-    "embedding",
-    "embed",
-    "tts",
-    "speech",
-    "whisper",
-    "audio",
-    "moderation",
-    "rerank",
-]
-
-def _cache_path(provider: str) -> Path:
-    from platformdirs import user_cache_dir
-
-    old_path = Path.home() / ".cache" / "scriptordb"
-    if old_path.exists():
-        cache_dir = old_path
-    else:
-        cache_dir = Path(user_cache_dir("scriptordb", ensure_exists=True))
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / f"models_{provider}.json"
-
-
-def filter_chat_models(models: list[str]) -> list[str]:
-    result = []
-    for model in models:
-        name = model.lower()
-        if any(k in name for k in EXCLUDE_KEYWORDS):
-            continue
-        result.append(model)
-    return result
-
-
-def list_available_models(provider: str, *, use_cache: bool = True) -> list[str]:
-    if provider not in SUPPORTED_PROVIDERS:
-        raise ValueError(f"Unsupported provider: {provider}")
-
-    if use_cache:
-        cached = _load_cache(provider)
-        if cached is not None:
-            return cached
-
-    config = SUPPORTED_PROVIDERS[provider]
-    api_key = get_api_key(provider)
-    if not api_key:
-        raise RuntimeError(f"No API key for {provider}. Run 'python main.py setup' first.")
-
-    url = f"{config.base_url.rstrip('/')}{config.list_models_path}"
-    headers = {"Authorization": f"Bearer {api_key}"}
-
-    resp = httpx.get(url, headers=headers, timeout=10)
-    resp.raise_for_status()
-    data = resp.json()
-
-    raw = _parse_models(data)
-    models = filter_chat_models(raw)
-    _save_cache(provider, models)
-    return models
-
+from config.model_client import list_available_models
+from config.secrets import SUPPORTED_PROVIDERS
 
 
 def get_recommended_models(provider: str) -> list[str]:

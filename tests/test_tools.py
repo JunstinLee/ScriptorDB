@@ -75,7 +75,7 @@ class TestToToolError:
         assert result is not None
         assert result.error is not None
         assert result.error.category == ErrorCategory.parameter_error
-        assert "SQL" in result.error.message
+        assert "SQL 错误" in result.error.message
 
     def test_file_not_found(self):
         result = _to_tool_error(FileNotFoundError("missing.txt"))
@@ -96,21 +96,30 @@ class TestToToolError:
         assert result.error is not None
         assert result.error.category == ErrorCategory.internal_error
         assert "test123" in result.error.message
-        assert "Internal error" in result.error.message
+        assert "请联系管理员" in result.error.message
 
     def test_generic_error_generates_error_id(self):
         result = _to_tool_error(ValueError("something"))
         assert not result.success
         assert result.error is not None
         assert result.error.category == ErrorCategory.internal_error
-        assert "Internal error" in result.error.message
+        assert "内部错误" in result.error.message
 
     def test_internal_error_hides_exception_details(self):
         result = _to_tool_error(RuntimeError("db connection failed: host=10.0.0.1"))
         assert not result.success
         assert "10.0.0.1" not in result.error.message
         assert "db connection failed" not in result.error.message
-        assert "Internal error" in result.error.message
+        assert "请联系管理员" in result.error.message
+
+    def test_internal_error_logs_original_exception(self):
+        with patch("tools.errors._get_error_logger") as mock_logger:
+            mock_log = mock_logger.return_value
+            _to_tool_error(ValueError("secret_detail"), error_id="log123")
+            mock_log.error.assert_called_once()
+            call_args = mock_log.error.call_args
+            assert "log123" in call_args[0][1]
+            assert "secret_detail" in str(call_args)
 
     def test_user_visible_error_preserves_message(self):
         engine = create_engine("sqlite:///:memory:")
@@ -139,4 +148,4 @@ class TestToToolError:
     def test_timeout_error_user_visible(self):
         result = _to_tool_error(subprocess.TimeoutExpired(cmd="python", timeout=30))
         assert result.error.category == ErrorCategory.execution_timeout
-        assert "timed out" in result.error.message
+        assert "超时" in result.error.message

@@ -140,13 +140,10 @@ def create_table(
 ) -> ToolResult:
     conn = get_connection(ctx.deps.db_url)
     try:
-        dialect_name = conn.dialect.name
-        q = '"' if dialect_name != "mysql" else '`'
-
         cols_sql = []
         foreign_keys = []
         for col in columns:
-            parts = [f'{q}{col.name}{q}', col.type]
+            parts = [f'"{col.name}"', col.type]
             if col.pk:
                 parts.append("PRIMARY KEY")
             elif not col.nullable:
@@ -156,12 +153,12 @@ def create_table(
             cols_sql.append(" ".join(parts))
             if col.references:
                 foreign_keys.append(
-                    f'FOREIGN KEY ({q}{col.name}{q}) REFERENCES {col.references}'
+                    f'FOREIGN KEY ("{col.name}") REFERENCES {col.references}'
                 )
 
         all_parts = cols_sql + foreign_keys
         exists_kw = "IF NOT EXISTS " if if_not_exists else ""
-        sql = f'CREATE TABLE {exists_kw}{q}{table_name}{q} (\n  {", ".join(all_parts)}\n)'
+        sql = f'CREATE TABLE {exists_kw}"{table_name}" (\n  {", ".join(all_parts)}\n)'
         conn.execute(text(sql))
         conn.commit()
 
@@ -181,7 +178,7 @@ def create_table(
         conn.close()
 
 
-from tools.validators import _DDL_PREFIXES
+_DDL_PREFIXES = ("CREATE", "ALTER", "DROP", "RENAME", "TRUNCATE", "PRAGMA")
 
 
 def execute_ddl(
@@ -220,35 +217,7 @@ _extract_where_clause = extract_where_clause
 def _build_insert_undo(
     conn, sql: str, params: list | dict | None, table_name: str
 ) -> tuple[int, list[tuple[str, dict]]]:
-    dialect_name = conn.dialect.name
-    q = '"' if dialect_name != "mysql" else '`'
     named_sql, named_params = _normalize_params(sql, params)
-
-    if dialect_name == "mysql":
-        result = conn.execute(text(named_sql), named_params or {})
-        row_id = conn.execute(text("SELECT LAST_INSERT_ID()")).scalar()
-        pk_cols = _get_pk_columns(conn, table_name)
-        if pk_cols and row_id:
-            pk_col = pk_cols[0]
-            inserted = conn.execute(
-                text(f"SELECT * FROM {q}{table_name}{q} WHERE {q}{pk_col}{q} = :id"),
-                {"id": row_id},
-            ).mappings().all()
-            undo_data = dict(inserted[0]) if inserted else {}
-        else:
-            undo_data = {}
-        rows_affected = result.rowcount
-        if not undo_data:
-            return rows_affected, []
-        undo_entries: list[tuple[str, dict]] = []
-        pk_conditions = " AND ".join(
-            f'{q}{col}{q} = :undo_{col}' for col in pk_cols
-        )
-        undo_sql = f"DELETE FROM {q}{table_name}{q} WHERE {pk_conditions}"
-        undo_params = {f"undo_{col}": undo_data[col] for col in pk_cols}
-        undo_entries.append((undo_sql, undo_params))
-        return rows_affected, undo_entries
-
     returning_sql = named_sql.rstrip(";").rstrip() + " RETURNING *"
     try:
         result = conn.execute(text(returning_sql), named_params or {})
@@ -268,9 +237,9 @@ def _build_insert_undo(
     for row in rows:
         row_dict = dict(zip(columns, row))
         pk_conditions = " AND ".join(
-            f'{q}{col}{q} = :undo_{col}' for col in pk_cols
+            f'"{col}" = :undo_{col}' for col in pk_cols
         )
-        undo_sql = f"DELETE FROM {q}{table_name}{q} WHERE {pk_conditions}"
+        undo_sql = f'DELETE FROM "{table_name}" WHERE {pk_conditions}'
         undo_params = {f"undo_{col}": row_dict[col] for col in pk_cols}
         undo_entries.append((undo_sql, undo_params))
 
@@ -280,12 +249,10 @@ def _build_insert_undo(
 def _build_update_undo(
     conn, sql: str, params: list | dict | None, table_name: str
 ) -> tuple[int, list[tuple[str, dict]]]:
-    dialect_name = conn.dialect.name
-    q = '"' if dialect_name != "mysql" else '`'
     named_sql, named_params = _normalize_params(sql, params)
     where_clause = _extract_where_clause(named_sql)
 
-    select_sql = f"SELECT * FROM {q}{table_name}{q} WHERE {where_clause}"
+    select_sql = f'SELECT * FROM "{table_name}" WHERE {where_clause}'
     old_result = conn.execute(text(select_sql), named_params or {})
     old_rows = old_result.fetchall()
     columns = list(old_result.keys())
@@ -304,17 +271,17 @@ def _build_update_undo(
     for row in old_rows:
         row_dict = dict(zip(columns, row))
         set_clauses = [
-            f'{q}{col}{q} = :undo_{col}'
+            f'"{col}" = :undo_{col}'
             for col in columns
             if col not in pk_cols
         ]
         pk_conditions = [
-            f'{q}{col}{q} = :undo_pk_{col}' for col in pk_cols
+            f'"{col}" = :undo_pk_{col}' for col in pk_cols
         ]
         if not set_clauses or not pk_conditions:
             continue
         undo_sql = (
-            f"UPDATE {q}{table_name}{q} SET {', '.join(set_clauses)}"
+            f'UPDATE "{table_name}" SET {", ".join(set_clauses)}'
             f' WHERE {" AND ".join(pk_conditions)}'
         )
         undo_params = {
@@ -333,12 +300,10 @@ def _build_update_undo(
 def _build_delete_undo(
     conn, sql: str, params: list | dict | None, table_name: str
 ) -> tuple[int, list[tuple[str, dict]]]:
-    dialect_name = conn.dialect.name
-    q = '"' if dialect_name != "mysql" else '`'
     named_sql, named_params = _normalize_params(sql, params)
     where_clause = _extract_where_clause(named_sql)
 
-    select_sql = f"SELECT * FROM {q}{table_name}{q} WHERE {where_clause}"
+    select_sql = f'SELECT * FROM "{table_name}" WHERE {where_clause}'
     old_result = conn.execute(text(select_sql), named_params or {})
     old_rows = old_result.fetchall()
     columns = list(old_result.keys())
@@ -352,11 +317,11 @@ def _build_delete_undo(
     undo_entries: list[tuple[str, dict]] = []
     for row in old_rows:
         row_dict = dict(zip(columns, row))
-        col_list = [f'{q}{col}{q}' for col in columns]
+        col_list = [f'"{col}"' for col in columns]
         val_placeholders = [f":undo_{col}" for col in columns]
         undo_sql = (
-            f"INSERT INTO {q}{table_name}{q} ({', '.join(col_list)})"
-            f" VALUES ({', '.join(val_placeholders)})"
+            f'INSERT INTO "{table_name}" ({", ".join(col_list)})'
+            f' VALUES ({", ".join(val_placeholders)})'
         )
         undo_params = {f"undo_{col}": row_dict[col] for col in columns}
         undo_entries.append((undo_sql, undo_params))

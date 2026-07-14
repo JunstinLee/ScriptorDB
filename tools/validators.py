@@ -80,10 +80,8 @@ def validate_create_table_args(
         seen.add(n)
 
 
-_DDL_PREFIXES = ("CREATE", "ALTER", "DROP", "RENAME", "TRUNCATE", "PRAGMA")
-
 _SQL_DDL_PATTERN = re.compile(
-    r"^\s*(" + "|".join(_DDL_PREFIXES) + r")\b", re.IGNORECASE
+    r"^\s*(CREATE|ALTER|DROP|RENAME|TRUNCATE|PRAGMA)\b", re.IGNORECASE
 )
 
 _DANGER_DDL = re.compile(
@@ -100,7 +98,7 @@ def validate_sql_ddl(
         raise ModelRetry("DROP DATABASE is not allowed.")
     if not _SQL_DDL_PATTERN.match(sql):
         raise ModelRetry(
-            f"Only DDL statements are allowed: {', '.join(_DDL_PREFIXES)}."
+            "Only DDL statements are allowed: CREATE, ALTER, DROP, RENAME, TRUNCATE, PRAGMA."
         )
 
 

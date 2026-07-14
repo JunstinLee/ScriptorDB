@@ -36,9 +36,6 @@ _VMS_DIAG_MARKER = "__SANDBOX_VMS_DIAG__"
 
 
 def _set_resource_limits() -> None:
-    if sys.platform == "win32":
-        return
-
     import resource
 
     def _try(name: int, target: int) -> None:
@@ -165,7 +162,7 @@ except Exception as e:
     script_path.write_text(sandbox_code, encoding="utf-8")
 
     env: dict[str, str] = {
-        "PATH": os.environ.get("PATH", r"C:\Windows\System32;C:\Windows" if sys.platform == "win32" else "/usr/bin:/bin"),
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
         "HOME": str(work_dir),
         "TMPDIR": str(work_dir),
         "SCRIPTORDB_DB_URL": db_url,

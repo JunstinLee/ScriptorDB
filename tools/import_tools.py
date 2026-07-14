@@ -22,35 +22,17 @@ from tools.tool_result import ToolErrorInfo, ToolResult
 from tools.undo_log import add_entry, create_group
 
 
-
-_log = get_logger("tools.import_tools")
-
-
-def _quote_identifier(name: str, dialect_name: str | None = None) -> str:
-    if dialect_name == "mysql":
-        return '`' + name.replace('`', '``') + '`'
-    return '"' + name.replace('"', '""') + '"'
+_quote_identifier = quote_identifier
+_table_exists = table_exists
+_unique_table_name = unique_table_name
+_create_table_from_headers = create_table_from_headers
 
 
-def _table_exists(conn, table_name: str) -> bool:
-    from sqlalchemy import inspect as sa_inspect
-
-    return table_name in sa_inspect(conn).get_table_names()
-
-
-def _create_table_from_headers(conn, table_name: str, headers: list[str]) -> None:
-    dialect_name = conn.dialect.name
-    cols_sql = [f"{_quote_identifier(header, dialect_name)} TEXT" for header in headers]
-    sql = f"CREATE TABLE {_quote_identifier(table_name, dialect_name)} (\n  {',\n  '.join(cols_sql)}\n)"
-    conn.execute(text(sql))
-
-
-
-def _build_insert_sql(table_name: str, headers: list[str], dialect_name: str | None = None) -> str:
-    cols = [_quote_identifier(header, dialect_name) for header in headers]
+def _build_insert_sql(table_name: str, headers: list[str]) -> str:
+    cols = [_quote_identifier(header) for header in headers]
     placeholders = [f":p{i}" for i in range(len(headers))]
     return (
-        f"INSERT INTO {_quote_identifier(table_name, dialect_name)} "
+        f"INSERT INTO {_quote_identifier(table_name)} "
         f"({', '.join(cols)}) VALUES ({', '.join(placeholders)})"
     )
 
@@ -61,11 +43,9 @@ def _insert_batches(
     headers: list[str],
     rows: list[list[Any]],
     batch_size: int,
-
-) -> int:
-    dialect_name = conn.dialect.name
-    sql = _build_insert_sql(table_name, headers, dialect_name)
-
+    capture_rows: bool = False,
+) -> tuple[int, list[dict] | None]:
+    sql = _build_insert_sql(table_name, headers)
     total = 0
     inserted_rows: list[dict] = []
     pk_cols = get_pk_columns(conn, table_name) if capture_rows else []
@@ -146,22 +126,12 @@ def _import_rows_to_db(
         exists = _table_exists(conn, table_name)
         if exists:
             if if_exists == "fail":
-
-                _log.warning(
-                    "import_rows: table exists and if_exists=fail table=%s", table_name
-                )
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Table '{table_name}' already exists",
-                    ),
-                )
-            if if_exists == "replace":
-                dialect_name = conn.dialect.name
-
+                original_name = table_name
+                table_name = _unique_table_name(conn, table_name)
+                _create_table_from_headers(conn, table_name, headers)
+            elif if_exists == "replace":
                 conn.execute(
-                    text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name, dialect_name)}")
+                    text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}")
                 )
                 conn.commit()
                 _create_table_from_headers(conn, table_name, headers)
