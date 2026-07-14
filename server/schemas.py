@@ -262,3 +262,23 @@ class ActiveWorkspaceResponse(BaseModel):
 class WorkspaceDeleteResponse(BaseModel):
     ok: bool
     deleted_files: bool = False
+
+
+class MySQLConfigRequest(BaseModel):
+    host: str = "127.0.0.1"
+    port: int = 3306
+    user: str = "root"
+    db: str
+    password: str = ""
+    test_first: bool = True
+
+
+class MySQLConfigResponse(BaseModel):
+    ok: bool
+    db_url: str
+    host: str
+    port: int
+    user: str
+    db: str
+    mysql_password_set: bool
+    message: str | None = None

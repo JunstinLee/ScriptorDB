@@ -24,6 +24,13 @@ class WorkspaceSettings:
     # 当前版本始终为 True，所有工作区使用全局默认设置
     use_global_defaults: bool = True
 
+    # MySQL 连接参数（密码由系统密钥环保管）
+    mysql_host: str = "127.0.0.1"
+    mysql_port: int = 3306
+    mysql_user: str = "root"
+    mysql_db: str = ""
+    mysql_password_set: bool = False
+
     def __post_init__(self) -> None:
         if not self.db_url:
             self.db_url = f"sqlite:///{self.path / 'scriptordb.sqlite'}"
@@ -54,6 +61,13 @@ class WorkspaceSettings:
             use_global_defaults=bool(
                 payload.get("use_global_defaults", defaults.use_global_defaults)
             ),
+            mysql_host=str(payload.get("mysql_host") or defaults.mysql_host),
+            mysql_port=int(payload.get("mysql_port") or defaults.mysql_port),
+            mysql_user=str(payload.get("mysql_user") or defaults.mysql_user),
+            mysql_db=str(payload.get("mysql_db") or defaults.mysql_db),
+            mysql_password_set=bool(
+                payload.get("mysql_password_set", defaults.mysql_password_set)
+            ),
         )
         if not ws.llm_model:
             ws.llm_model = ws.default_models.get(ws.llm_provider)
@@ -72,6 +86,11 @@ class WorkspaceSettings:
             "default_models": self.default_models,
             "auto_restore_sessions": self.auto_restore_sessions,
             "use_global_defaults": self.use_global_defaults,
+            "mysql_host": self.mysql_host,
+            "mysql_port": self.mysql_port,
+            "mysql_user": self.mysql_user,
+            "mysql_db": self.mysql_db,
+            "mysql_password_set": self.mysql_password_set,
         }
         try:
             cfg_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))

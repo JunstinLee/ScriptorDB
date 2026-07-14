@@ -4,9 +4,11 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+import pymysql
 from fastapi import APIRouter, HTTPException
 
 from agents.db_agent import reset_agent_cache
+from config.secrets import delete_mysql_password, save_mysql_password
 from config.settings import load_for_workspace, settings
 from config.workspace import (
     DEFAULT_WORKSPACES_DIR,
@@ -16,9 +18,12 @@ from config.workspace import (
     WorkspaceSettings,
     workspace_sessions_dir,
 )
+from database.session import clear_pools
 from server.dependencies import get_config
 from server.schemas import (
     ActiveWorkspaceResponse,
+    MySQLConfigRequest,
+    MySQLConfigResponse,
     WorkspaceActivateRequest,
     WorkspaceCreateRequest,
     WorkspaceDeleteResponse,
@@ -308,3 +313,94 @@ async def import_legacy_sessions(workspace_id: str):
         return {"ok": True, "imported_count": len(sessions_data)}
     except (OSError, json.JSONDecodeError) as e:
         raise HTTPException(status_code=500, detail=f"Failed to import sessions: {str(e)}")
+
+
+@router.post("/{workspace_id}/mysql-config", response_model=MySQLConfigResponse)
+async def configure_mysql(workspace_id: str, req: MySQLConfigRequest):
+    config = get_config()
+    registry = WorkspaceRegistry()
+    try:
+        rec = registry.get(workspace_id)
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if req.test_first:
+        try:
+            with pymysql.connect(
+                host=req.host,
+                port=req.port,
+                user=req.user,
+                password=req.password,
+                database=req.db,
+                charset="utf8mb4",
+                connect_timeout=10,
+            ) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+        except pymysql.Error as e:
+            raise HTTPException(status_code=400, detail=f"MySQL connection test failed: {e}")
+
+    db_url = f"mysql+pymysql://{req.user}@{req.host}:{req.port}/{req.db}"
+    ws_settings = WorkspaceSettings.load(Path(rec.path), rec.id, rec.name)
+    ws_settings.db_url = db_url
+    ws_settings.mysql_host = req.host
+    ws_settings.mysql_port = req.port
+    ws_settings.mysql_user = req.user
+    ws_settings.mysql_db = req.db
+    ws_settings.mysql_password_set = bool(req.password)
+    ws_settings.save()
+
+    save_mysql_password(rec.id, req.password)
+    clear_pools()
+
+    if config.workspace_id == rec.id:
+        load_for_workspace(config, rec.id)
+        reset_agent_cache()
+
+    return MySQLConfigResponse(
+        ok=True,
+        db_url=db_url,
+        host=req.host,
+        port=req.port,
+        user=req.user,
+        db=req.db,
+        mysql_password_set=bool(req.password),
+        message="MySQL configuration saved",
+    )
+
+
+@router.delete("/{workspace_id}/mysql-config", response_model=MySQLConfigResponse)
+async def reset_mysql_config(workspace_id: str):
+    config = get_config()
+    registry = WorkspaceRegistry()
+    try:
+        rec = registry.get(workspace_id)
+    except WorkspaceNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    ws_settings = WorkspaceSettings.load(Path(rec.path), rec.id, rec.name)
+    ws_settings.db_url = f"sqlite:///{Path(rec.path) / 'scriptordb.sqlite'}"
+    ws_settings.mysql_host = "127.0.0.1"
+    ws_settings.mysql_port = 3306
+    ws_settings.mysql_user = "root"
+    ws_settings.mysql_db = ""
+    ws_settings.mysql_password_set = False
+    ws_settings.save()
+
+    delete_mysql_password(rec.id)
+    clear_pools()
+
+    if config.workspace_id == rec.id:
+        load_for_workspace(config, rec.id)
+        reset_agent_cache()
+
+    return MySQLConfigResponse(
+        ok=True,
+        db_url=ws_settings.db_url,
+        host=ws_settings.mysql_host,
+        port=ws_settings.mysql_port,
+        user=ws_settings.mysql_user,
+        db=ws_settings.mysql_db,
+        mysql_password_set=False,
+        message="MySQL configuration removed, workspace reverted to SQLite",
+    )

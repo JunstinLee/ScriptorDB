@@ -3,11 +3,28 @@ from __future__ import annotations
 import threading
 from typing import Any
 
-from sqlalchemy import Engine, Connection, create_engine, inspect, text
+from sqlalchemy import Engine, Connection, create_engine, inspect, make_url, text
 from sqlalchemy.pool import StaticPool
+
+from config.secrets import get_mysql_password
 
 _engine_cache: dict[str, Engine] = {}
 _cache_lock = threading.Lock()
+
+
+def _inject_mysql_password(db_url: str, workspace_id: str | None = None) -> str:
+    """对 mysql 协议 URL，从系统密钥环注入密码。"""
+    if not db_url.startswith("mysql"):
+        return db_url
+    if workspace_id is None:
+        from config.settings import settings
+
+        workspace_id = settings.workspace_id
+    password = get_mysql_password(workspace_id) if workspace_id else None
+    if password is None:
+        return db_url
+    url = make_url(db_url)
+    return str(url.set(password=password))
 
 
 def _create_engine(db_url: str) -> Engine:
@@ -22,15 +39,16 @@ def _create_engine(db_url: str) -> Engine:
     return create_engine(db_url, **kwargs)
 
 
-def get_engine(db_url: str) -> Engine:
+def get_engine(db_url: str, workspace_id: str | None = None) -> Engine:
+    effective_url = _inject_mysql_password(db_url, workspace_id)
     with _cache_lock:
-        if db_url not in _engine_cache:
-            _engine_cache[db_url] = _create_engine(db_url)
-        return _engine_cache[db_url]
+        if effective_url not in _engine_cache:
+            _engine_cache[effective_url] = _create_engine(effective_url)
+        return _engine_cache[effective_url]
 
 
-def get_connection(db_url: str) -> Connection:
-    return get_engine(db_url).connect()
+def get_connection(db_url: str, workspace_id: str | None = None) -> Connection:
+    return get_engine(db_url, workspace_id).connect()
 
 
 def get_all_tables(db_url: str) -> list[dict[str, Any]]:
