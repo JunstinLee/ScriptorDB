@@ -1,40 +1,52 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-import config.settings as settings_module
+from config.settings import settings
+from config.workspace_paths import GLOBAL_SETTINGS_FILE, GLOBAL_CONFIG_DIR
 from server.app import app
 
 
 @pytest.fixture
 def client(tmp_path: Path, monkeypatch):
-    config_file = tmp_path / "config.json"
-    monkeypatch.setattr(settings_module, "_CONFIG_FILE", config_file)
-    from config.settings import Settings
+    settings_file = tmp_path / "global_settings.json"
+    monkeypatch.setattr(
+        "config.workspace_paths.GLOBAL_SETTINGS_FILE", settings_file
+    )
+    monkeypatch.setattr(
+        "config.workspace_paths.GLOBAL_CONFIG_DIR", tmp_path
+    )
 
-    fresh = Settings()
-    fresh.auto_restore_sessions = True
-    fresh.default_models = {}
-    fresh.llm_provider = "openai"
-    fresh.llm_model = None
-    monkeypatch.setattr(settings_module, "settings", fresh)
+    settings.workspace_id = "test-ws-id"
+    settings.workspace_name = "test-ws"
+    settings.workspace_path = tmp_path
+    settings.db_url = "sqlite:///:memory:"
+    settings.llm_provider = "openai"
+    settings.llm_model = None
+    settings.default_models = {}
+    settings.auto_restore_sessions = True
+
     fake_keys: dict[str, str] = {}
     monkeypatch.setattr(
-        "server.app.get_api_key",
-        lambda provider: fake_keys.get(provider),
+        "config.secrets.get_api_key",
+        lambda provider, workspace_id=None: fake_keys.get(provider),
     )
     monkeypatch.setattr(
-        "server.app.save_api_key", lambda provider, key: fake_keys.__setitem__(provider, key)
+        "config.secrets.save_api_key",
+        lambda provider, key, workspace_id=None: fake_keys.__setitem__(provider, key),
     )
     monkeypatch.setattr(
-        "server.app.delete_api_key", lambda provider: fake_keys.pop(provider, None)
+        "config.secrets.delete_api_key",
+        lambda provider, workspace_id=None: fake_keys.pop(provider, None),
     )
-    return TestClient(app)
+
+    yield TestClient(app)
+
+    settings.clear()
 
 
 def test_get_settings_returns_supported_providers(client: TestClient):
@@ -77,9 +89,8 @@ def test_update_settings_toggles_auto_restore(client: TestClient):
 
 def test_update_settings_persists_to_config_file(client: TestClient, tmp_path: Path):
     client.post("/api/settings", json={"llm_provider": "anthropic"})
-    expected_file = tmp_path / "config.json"
-    assert expected_file.exists()
-    raw = json.loads(expected_file.read_text())
+    assert GLOBAL_SETTINGS_FILE.exists()
+    raw = __import__("json").loads(GLOBAL_SETTINGS_FILE.read_text())
     assert raw["llm_provider"] == "anthropic"
 
 
@@ -121,7 +132,7 @@ def test_test_api_key_success(client: TestClient):
     def fake_get(url, headers=None, timeout=None):
         return FakeResp()
 
-    with patch("server.app.httpx.get", side_effect=fake_get):
+    with patch("server.routes.api_keys.httpx.get", side_effect=fake_get):
         resp = client.post(
             "/api/settings/api-key/test",
             json={"provider": "openai", "api_key": "sk-test"},
@@ -141,7 +152,7 @@ def test_test_api_key_failure(client: TestClient):
     def fake_get(url, headers=None, timeout=None):
         return FakeResp()
 
-    with patch("server.app.httpx.get", side_effect=fake_get):
+    with patch("server.routes.api_keys.httpx.get", side_effect=fake_get):
         resp = client.post(
             "/api/settings/api-key/test",
             json={"provider": "openai", "api_key": "sk-bad"},
