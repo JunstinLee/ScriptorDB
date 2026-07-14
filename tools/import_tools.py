@@ -18,7 +18,9 @@ from tools.tool_result import ToolErrorInfo, ToolResult
 _log = get_logger("tools.import_tools")
 
 
-def _quote_identifier(name: str) -> str:
+def _quote_identifier(name: str, dialect_name: str | None = None) -> str:
+    if dialect_name == "mysql":
+        return '`' + name.replace('`', '``') + '`'
     return '"' + name.replace('"', '""') + '"'
 
 
@@ -29,16 +31,17 @@ def _table_exists(conn, table_name: str) -> bool:
 
 
 def _create_table_from_headers(conn, table_name: str, headers: list[str]) -> None:
-    cols_sql = [f"{_quote_identifier(header)} TEXT" for header in headers]
-    sql = f"CREATE TABLE {_quote_identifier(table_name)} (\n  {',\n  '.join(cols_sql)}\n)"
+    dialect_name = conn.dialect.name
+    cols_sql = [f"{_quote_identifier(header, dialect_name)} TEXT" for header in headers]
+    sql = f"CREATE TABLE {_quote_identifier(table_name, dialect_name)} (\n  {',\n  '.join(cols_sql)}\n)"
     conn.execute(text(sql))
 
 
-def _build_insert_sql(table_name: str, headers: list[str]) -> str:
-    cols = [_quote_identifier(header) for header in headers]
+def _build_insert_sql(table_name: str, headers: list[str], dialect_name: str | None = None) -> str:
+    cols = [_quote_identifier(header, dialect_name) for header in headers]
     placeholders = [f":p{i}" for i in range(len(headers))]
     return (
-        f"INSERT INTO {_quote_identifier(table_name)} "
+        f"INSERT INTO {_quote_identifier(table_name, dialect_name)} "
         f"({', '.join(cols)}) VALUES ({', '.join(placeholders)})"
     )
 
@@ -50,7 +53,8 @@ def _insert_batches(
     rows: list[list[Any]],
     batch_size: int,
 ) -> int:
-    sql = _build_insert_sql(table_name, headers)
+    dialect_name = conn.dialect.name
+    sql = _build_insert_sql(table_name, headers, dialect_name)
     total = 0
     for i in range(0, len(rows), batch_size):
         batch = rows[i : i + batch_size]
@@ -113,8 +117,9 @@ def _import_rows_to_db(
                     ),
                 )
             if if_exists == "replace":
+                dialect_name = conn.dialect.name
                 conn.execute(
-                    text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}")
+                    text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name, dialect_name)}")
                 )
                 conn.commit()
                 _create_table_from_headers(conn, table_name, headers)
