@@ -38,7 +38,7 @@ vi.mock("../api/client", () => ({
 
 const sampleWs: import("../types").WorkspaceDetail = {
   id: "ws_abc",
-  name: "测试项目",
+  name: "Test Project",
   path: "/tmp/test-ws",
   created_at: "2026-06-23T00:00:00Z",
   db_url: "sqlite:////tmp/test-ws/db.sqlite",
@@ -125,7 +125,7 @@ describe("useWorkspaces", () => {
     let created: typeof sampleWs | undefined;
     await act(async () => {
       created = await result.current.createAndActivate({
-        name: "测试项目",
+        name: "Test Project",
         path: "/tmp/test-ws",
       });
     });

@@ -1,17 +1,12 @@
 from __future__ import annotations
 
-import json
-import time
-from pathlib import Path
-
-import httpx
-
 from config.canonical_models import (
     CANONICAL_REGISTRY,
     get_canonical_by_slug,
     get_canonical_for_provider,
     get_canonical_for_provider_model,
 )
+
 from config.secrets import SUPPORTED_PROVIDERS, get_api_key
 
 CACHE_TTL_SECONDS = 3600
@@ -74,6 +69,7 @@ def list_available_models(provider: str, *, use_cache: bool = True) -> list[str]
     models = filter_chat_models(raw)
     _save_cache(provider, models)
     return models
+
 
 
 def get_recommended_models(provider: str) -> list[str]:
@@ -146,45 +142,6 @@ def resolve_canonical_slug(provider: str, model_id: str) -> str | None:
     """
     canonical = get_canonical_for_provider_model(provider, model_id)
     return canonical.slug if canonical else None
-
-
-def _parse_models(data: dict) -> list[str]:
-    if "data" in data and isinstance(data["data"], list):
-        ids: set[str] = {m["id"] for m in data["data"] if isinstance(m, dict) and m.get("id")}
-        if ids:
-            return sorted(ids)
-    if "models" in data and isinstance(data["models"], list):
-        raw = [
-            m.get("name") or m.get("id")
-            for m in data["models"]
-            if isinstance(m, dict) and (m.get("name") or m.get("id"))
-        ]
-        ids = {x for x in raw if isinstance(x, str)}
-        if ids:
-            return sorted(ids)
-    return []
-
-
-def _load_cache(provider: str) -> list[str] | None:
-    path = _cache_path(provider)
-    if not path.exists():
-        return None
-    try:
-        payload = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return None
-    if time.time() - payload.get("ts", 0) > CACHE_TTL_SECONDS:
-        return None
-    models = payload.get("models")
-    return models if isinstance(models, list) else None
-
-
-def _save_cache(provider: str, models: list[str]) -> None:
-    path = _cache_path(provider)
-    try:
-        path.write_text(json.dumps({"ts": time.time(), "models": models}))
-    except OSError:
-        pass
 
 
 def resolve_model(provider: str, model: str | None) -> str:

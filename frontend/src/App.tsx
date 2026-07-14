@@ -13,13 +13,17 @@ import { useUndo } from "./hooks/useUndo";
 import { useWorkspaces } from "./hooks/useWorkspaces";
 import {
   deleteWorkspace as apiDeleteWorkspace,
+  streamApproval,
   streamChat,
   updateWorkspace as apiUpdateWorkspace,
   WorkspaceNotSelectedError,
 } from "./api/client";
 import { useOverlayState } from "@heroui/react";
 import type {
+  ApprovalRequestEvent,
   Run,
+  StreamRunEvent,
+  ToolResultRunEvent,
   WorkspaceCreateRequest,
   WorkspaceDetail,
   WorkspaceItem,
@@ -132,9 +136,27 @@ function MainApp({
   const { getRuns, appendEvent, setRuns, clearRuns } = useRuns();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [undoConfirmGroupId, setUndoConfirmGroupId] = useState<number | null>(null);
+  const [approvalRequest, setApprovalRequest] = useState<ApprovalRequestEvent | null>(null);
+  const approvalSessionIdRef = useRef<string | null>(null);
 
   const handleRunsLoaded = useCallback(
     (_sessionId: string, loadedRuns: Run[]) => {
+      console.log(
+        "[App] setRuns: sessionId=%s runs=%d run_ids=%s",
+        _sessionId,
+        loadedRuns.length,
+        loadedRuns
+          .map(
+            (r) =>
+              r.run_id +
+              "(" +
+              r.status +
+              "," +
+              r.tool_invocations.length +
+              "tools)",
+          )
+          .join(", "),
+      );
       setRuns(_sessionId, loadedRuns);
     },
     [setRuns],
@@ -188,31 +210,42 @@ function MainApp({
       const sessionId = activeSessionId;
 
       const sendToSession = (sid: string) => {
-        addUserMessage(prompt);
+        addUserMessage(prompt, attachments);
         setLoading(true);
+        approvalSessionIdRef.current = sid;
+
+        const onEvent = (event: StreamRunEvent) => {
+          appendEvent(sid, event);
+          if (event.type === "text_delta") {
+            appendStreamingText(event.delta);
+          }
+        };
+
+        const onError = (error: Error) => {
+          if (error instanceof WorkspaceNotSelectedError) {
+            handleWorkspaceMissing();
+            return;
+          }
+          appendStreamingText(`\n\nError: ${error.message}`);
+          setLoading(false);
+          setApprovalRequest(null);
+        };
+
+        const onDone = (fullOutput: string) => {
+          finalizeAssistantMessage(fullOutput);
+          setLoading(false);
+          void refreshSessionTitle(sid);
+          void refreshUndo();
+        };
 
         abortRef.current = streamChat(
           sid,
           { prompt, attachments, model: selectedModel || null, provider: selectedProvider || null },
+          onEvent,
+          onError,
+          onDone,
           (event) => {
-            appendEvent(sid, event);
-            if (event.type === "text_delta") {
-              appendStreamingText(event.delta);
-            }
-          },
-          (error) => {
-            if (error instanceof WorkspaceNotSelectedError) {
-              handleWorkspaceMissing();
-              return;
-            }
-            appendStreamingText(`\n\nError: ${error.message}`);
-            setLoading(false);
-          },
-          (fullOutput) => {
-            finalizeAssistantMessage(fullOutput);
-            setLoading(false);
-            void refreshSessionTitle(sid);
-            void refreshUndo();
+            setApprovalRequest(event);
           },
         );
       };
@@ -241,6 +274,83 @@ function MainApp({
       setLoading,
       selectedModel,
       selectedProvider,
+    ],
+  );
+
+  const handleApprovalSubmit = useCallback(
+    (approved: boolean) => {
+      const request = approvalRequest;
+      const sid = approvalSessionIdRef.current;
+      setApprovalRequest(null);
+      if (!request || !sid) return;
+
+      if (!approved) {
+        console.log(
+          "[App] handleApprovalSubmit denied: run_id=%s calls=%s",
+          request.run_id,
+          request.calls.map((c) => c.tool_call_id).join(","),
+        );
+        for (const call of request.calls) {
+          const event: ToolResultRunEvent = {
+            type: "tool_result",
+            run_id: request.run_id,
+            call_id: call.tool_call_id,
+            tool_name: call.tool_name,
+            success: false,
+            output: "User cancelled the operation",
+            timestamp: new Date().toISOString(),
+          };
+          console.log(
+            "[App] handleApprovalSubmit: emitting local tool_result for call_id=%s",
+            call.tool_call_id,
+          );
+          appendEvent(sid, event);
+        }
+      }
+
+      const approvedMap: Record<string, boolean> = {};
+      for (const call of request.calls) {
+        approvedMap[call.tool_call_id] = approved;
+      }
+
+      abortRef.current = streamApproval(
+        sid,
+        request.request_id,
+        approvedMap,
+        (event) => {
+          appendEvent(sid, event);
+          if (event.type === "text_delta") {
+            appendStreamingText(event.delta);
+          }
+        },
+        (error) => {
+          if (error instanceof WorkspaceNotSelectedError) {
+            handleWorkspaceMissing();
+            return;
+          }
+          appendStreamingText(`\n\nError: ${error.message}`);
+          setLoading(false);
+        },
+        (fullOutput) => {
+          finalizeAssistantMessage(fullOutput);
+          setLoading(false);
+          void refreshSessionTitle(sid);
+          void refreshUndo();
+        },
+        (event) => {
+          setApprovalRequest(event);
+        },
+      );
+    },
+    [
+      approvalRequest,
+      appendEvent,
+      appendStreamingText,
+      finalizeAssistantMessage,
+      handleWorkspaceMissing,
+      refreshSessionTitle,
+      refreshUndo,
+      setLoading,
     ],
   );
 
@@ -387,6 +497,19 @@ function MainApp({
         title="Undo to here"
         message="This action will undo all database changes made from the current turn onward and delete the current turn and all subsequent chat history."
         confirmLabel="Undo"
+      />
+
+      <ConfirmDialog
+        isOpen={approvalRequest !== null}
+        onClose={() => handleApprovalSubmit(false)}
+        onConfirm={() => handleApprovalSubmit(true)}
+        title="Confirm Import"
+        message={
+          approvalRequest
+            ? `${approvalRequest.calls[0]?.tool_name ?? "import"} will write ${approvalRequest.calls[0]?.row_count ?? ""} row(s) into table ${approvalRequest.calls[0]?.table_name ?? ""}. Proceed?`
+            : ""
+        }
+        confirmLabel="Confirm"
       />
 
       <WorkspacePicker

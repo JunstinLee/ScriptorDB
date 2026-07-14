@@ -84,6 +84,7 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
+  attachments?: string[];
 }
 
 export interface SessionMeta {
@@ -238,6 +239,19 @@ export interface RunErrorEvent {
   error_id?: string | null;
 }
 
+export interface ApprovalRequestEvent {
+  type: "approval_request";
+  run_id: string;
+  request_id: string;
+  calls: {
+    tool_call_id: string;
+    tool_name: string;
+    args: Record<string, unknown>;
+    row_count: number;
+    table_name: string;
+  }[];
+}
+
 export type StreamRunEvent =
   | RunStartEvent
   | RunEndEvent
@@ -246,7 +260,8 @@ export type StreamRunEvent =
   | ToolResultRunEvent
   | TextDeltaEvent
   | RunMetadataEvent
-  | RunErrorEvent;
+  | RunErrorEvent
+  | ApprovalRequestEvent;
 
 export interface ToolInvocation {
   call_id: string;
@@ -291,4 +306,30 @@ export interface UndoGroup {
 
 export interface UndoListResponse {
   groups: UndoGroup[];
+}
+
+export interface HistoryMatchSegment {
+  text: string;
+  highlight: boolean;
+}
+
+export interface HistorySearchMatch {
+  segments: HistoryMatchSegment[];
+}
+
+export interface HistorySearchResultItem {
+  session_id: string;
+  title: string | null;
+  created_at: string;
+  last_access: string;
+  message_count: number;
+  match_count: number;
+  matches: HistorySearchMatch[];
+}
+
+export interface HistorySearchResponse {
+  results: HistorySearchResultItem[];
+  total: number;
+  offset: number;
+  limit: number;
 }

@@ -6,10 +6,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from config.app_config import AppConfig
-from logging_setup import get_logger
-
-
-_log = get_logger("server.run_tracker")
 
 
 def utc_now_iso() -> str:
@@ -30,6 +26,7 @@ class RunTracker:
     status: str = "running"
 
     def to_run_collector(self) -> dict[str, Any]:
+        print(f"[run_tracker] to_run_collector: run_id={self.run_id} status={self.status} tools={[(t['call_id'],t['status'],t['tool_name']) for t in self.tool_invocations]}")
         return {
             "run_id": self.run_id,
             "status": self.status,
@@ -42,7 +39,6 @@ class RunTracker:
 
     def start_tool(self, call_id: str) -> None:
         self.tool_start_times[call_id] = time.monotonic()
-        _log.debug("start_tool: run_id=%s call_id=%s", self.run_id, call_id)
 
     def tool_duration_ms(self, call_id: str) -> int | None:
         start = self.tool_start_times.pop(call_id, None)
@@ -53,6 +49,7 @@ class RunTracker:
     def add_tool_invocation(
         self, call_id: str, tool_name: str, args: dict
     ) -> None:
+        print(f"[run_tracker] add_tool: run_id={self.run_id} call_id={call_id} tool={tool_name}")
         self.tool_invocations.append({
             "call_id": call_id,
             "tool_name": tool_name,
@@ -60,12 +57,6 @@ class RunTracker:
             "status": "running",
             "started_at": utc_now_iso(),
         })
-        _log.debug(
-            "add_tool_invocation: run_id=%s call_id=%s tool=%s",
-            self.run_id,
-            call_id,
-            tool_name,
-        )
 
     def complete_tool(
         self,
@@ -76,6 +67,7 @@ class RunTracker:
         duration_ms: int | None,
         data: dict[str, Any] | None = None,
     ) -> None:
+        print(f"[run_tracker] complete_tool: run_id={self.run_id} call_id={call_id} success={success} output={str(output)[:80] if output else None}")
         for inv in self.tool_invocations:
             if inv["call_id"] == call_id:
                 inv["status"] = "success" if success else "error"
@@ -84,14 +76,6 @@ class RunTracker:
                 inv["duration_ms"] = duration_ms
                 inv["data"] = data
                 inv["ended_at"] = utc_now_iso()
-                _log.debug(
-                    "complete_tool: run_id=%s call_id=%s tool=%s status=%s duration_ms=%s",
-                    self.run_id,
-                    call_id,
-                    inv["tool_name"],
-                    inv["status"],
-                    duration_ms,
-                )
                 return
 
     def append_text(self, delta: str) -> None:
@@ -100,17 +84,8 @@ class RunTracker:
     def finish(self) -> None:
         self.status = "completed"
         self.ended_at = utc_now_iso()
-        _log.info(
-            "run_tracker.finish: run_id=%s tools=%d final_len=%d",
-            self.run_id,
-            len(self.tool_invocations),
-            len(self.final_output),
-        )
 
     def fail(self, message: str) -> None:
         self.status = "error"
         self.error_message = message
         self.ended_at = utc_now_iso()
-        _log.warning(
-            "run_tracker.fail: run_id=%s message=%s", self.run_id, message
-        )

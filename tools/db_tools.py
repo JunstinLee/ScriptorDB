@@ -9,14 +9,17 @@ from pydantic_ai import ModelRetry, RunContext
 from sqlalchemy import text
 
 from config.settings import Settings
-from logging_setup import get_logger
 from tools.db_connection import _get_all_tables, _get_single_table_schema, get_connection
 from tools.errors import _to_tool_error
+from tools.schema_helpers import (
+    extract_where_clause,
+    get_pk_columns,
+    normalize_params,
+    parse_dml_table_name,
+    quote_identifier,
+)
 from tools.tool_result import ToolResult
 from tools.undo_log import add_entry, create_group
-
-
-_log = get_logger("tools.db_tools")
 
 
 class ColumnDef(BaseModel):
@@ -32,7 +35,6 @@ class ColumnDef(BaseModel):
 
 
 def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> ToolResult:
-    _log.info("query_database: sql=%s limit=%d", sql, limit)
     conn = get_connection(ctx.deps.db_url)
     try:
         if limit < 1:
@@ -46,12 +48,6 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
         if truncated:
             rows = rows[:limit]
 
-        _log.info(
-            "query_database: done rows=%d cols=%d truncated=%s",
-            len(rows),
-            len(columns),
-            truncated,
-        )
         return ToolResult(
             success=True,
             output=f"Query returned {len(rows)} row{'s' if len(rows) != 1 else ''}{' (truncated)' if truncated else ''}, {len(columns)} column{'s' if len(columns) != 1 else ''}",
@@ -69,16 +65,10 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
 
 
 def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResult:
-    _log.info("get_schema: table=%s", table)
     conn = get_connection(ctx.deps.db_url)
     try:
         if table:
             schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table)
-            _log.info(
-                "get_schema: done table=%s cols=%d",
-                table,
-                len(schema_info["columns"]),
-            )
             return ToolResult(
                 success=True,
                 output=f"Table {table}: {len(schema_info['columns'])} column{'s' if len(schema_info['columns']) != 1 else ''}",
@@ -86,7 +76,6 @@ def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResul
             )
 
         tables = _get_all_tables(conn, ctx.deps.db_url)
-        _log.info("get_schema: done tables=%d", len(tables))
         return ToolResult(
             success=True,
             output=f"{len(tables)} table{'s' if len(tables) != 1 else ''}",
@@ -222,55 +211,10 @@ def execute_ddl(
         conn.close()
 
 
-def _normalize_params(sql: str, params: list | dict | None) -> tuple[str, dict | None]:
-    if params is None or isinstance(params, dict):
-        return sql, params
-    if not isinstance(params, list):
-        return sql, params
-    named_params: dict[str, Any] = {}
-    param_idx = -1
-
-    def _repl(_match: re.Match) -> str:
-        nonlocal param_idx
-        param_idx += 1
-        name = f"p{param_idx}"
-        named_params[name] = params[param_idx] if param_idx < len(params) else None
-        return f":{name}"
-
-    if sql.count("?") > 0:
-        new_sql = re.sub(r"\?", _repl, sql)
-    elif "%s" in sql:
-        new_sql = re.sub(r"%s", _repl, sql)
-    else:
-        return sql, None
-    return new_sql, named_params
-
-
-def _parse_dml_table_name(sql: str) -> str | None:
-    m = re.match(
-        r"(?i)\s*(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+"
-        r"[\"`]?(\w+)[\"`]?",
-        sql.strip(),
-    )
-    parsed = m.group(2) if m else None
-    if m:
-        return parsed
-    return None
-
-
-def _get_pk_columns(conn, table: str) -> list[str]:
-    from sqlalchemy import inspect as sa_inspect
-
-    insp = sa_inspect(conn)
-    pk = insp.get_pk_constraint(table)
-    return list(pk.get("constrained_columns", [])) if pk else []
-
-
-def _extract_where_clause(sql: str) -> str:
-    m = re.search(r"(?i)\bWHERE\b\s+(.+)", sql, re.DOTALL)
-    if m:
-        return m.group(1).rstrip(";").strip()
-    return ""
+_normalize_params = normalize_params
+_parse_dml_table_name = parse_dml_table_name
+_get_pk_columns = get_pk_columns
+_extract_where_clause = extract_where_clause
 
 
 def _build_insert_undo(

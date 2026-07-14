@@ -14,6 +14,17 @@ export default function RunContainer({ run }: RunContainerProps) {
     (t) => t.status === "running",
   );
 
+  console.log(
+    "[RunContainer] run_id=%s status=%s isRunning=%s hasRunningTool=%s tools=%s",
+    run.run_id,
+    run.status,
+    isRunning,
+    hasRunningTool,
+    run.tool_invocations
+      .map((t) => t.call_id + ":" + t.status + ":" + t.tool_name)
+      .join(", "),
+  );
+
   return (
     <div>
       {run.final_output && (

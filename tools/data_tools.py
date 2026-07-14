@@ -9,12 +9,8 @@ from typing import Any
 from pydantic_ai import RunContext
 
 from config.settings import Settings
-from logging_setup import get_logger
 from tools.errors import _to_tool_error
 from tools.tool_result import ToolErrorInfo, ToolResult
-
-
-_log = get_logger("tools.data_tools")
 
 
 def read_csv(
@@ -26,7 +22,6 @@ def read_csv(
     max_rows: int | None = None,
 ) -> ToolResult:
     if not os.path.isfile(filepath):
-        _log.warning("read_csv: file not found filepath=%s", filepath)
         return ToolResult(
             success=False,
             error=ToolErrorInfo(
@@ -34,14 +29,6 @@ def read_csv(
                 message=f"File not found: {filepath}",
             ),
         )
-
-    _log.info(
-        "read_csv: start filepath=%s encoding=%s preview_rows=%d return_full=%s",
-        filepath,
-        encoding,
-        preview_rows,
-        return_full,
-    )
 
     try:
         with open(filepath, "r", encoding=encoding, newline="") as f:
@@ -81,14 +68,6 @@ def read_csv(
             if truncated:
                 output += f" (returned {len(rows_data)} of {row_count} rows)"
 
-        _log.info(
-            "read_csv: done filepath=%s rows=%d cols=%d return_full=%s truncated=%s",
-            filepath,
-            row_count,
-            len(headers),
-            return_full,
-            truncated,
-        )
         return ToolResult(success=True, output=output, data=data)
     except FileNotFoundError:
         return ToolResult(

@@ -34,6 +34,9 @@ Agent: "Based on your orders and products tables, here are the 3 products
 ### 📊 Analyzes & Visualizes Data
 Beyond SQL, the agent can run Python code in a sandbox to compute statistics, generate charts with matplotlib, or export results to Excel — all from natural language requests.
 
+### 📥 Import CSV & Excel
+Read CSV and Excel files and import them directly into the database. All changes can be undone.
+
 ### 🛡️ Guardrails Around Writes
 Read-only queries run through dedicated read tools. When the agent needs to modify data, it routes through write tools that enforce validation rules:
 
@@ -42,6 +45,12 @@ Read-only queries run through dedicated read tools. When the agent needs to modi
 - `DROP DATABASE` and dangerous Python patterns (`os.system`, `subprocess`, `eval`, etc.) are rejected.
 - Every tool call is logged with a trace ID.
 - Write operations are recorded in an undo log and can be reverted.
+
+### 👤 Human Approval for High-Risk Operations
+High-risk mutations — such as importing large CSV/Excel files  — are paused and surfaced in the web UI for explicit approval before execution. You review the pending tool call, choose to approve or deny, and the agent resumes or cancels accordingly.
+
+### 🔍 Search Session History
+Session history is searchable so you can quickly find past questions and results across long-running conversations.
 
 ### ↩️ Undo & Session History
 Every run that changes data is grouped into an undo log. From the CLI or the web UI you can list those groups and revert the database to a previous state. Sessions persist with a 24-hour TTL, so you can close the app and pick up where you left off.

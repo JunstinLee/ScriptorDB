@@ -1,15 +1,7 @@
 from __future__ import annotations
 
-import asyncio
-import getpass
-from pathlib import Path
-from typing import Annotated, Optional
-
-import typer
-
-from agents.db_agent import get_agent
-from cli import app
 from cli import workspace_cli  # noqa: F401
+
 from config.models import fuzzy_match_model, list_available_models
 from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, save_api_key
 from config.settings import load_default_workspace, load_for_workspace, set_default_model, settings
@@ -295,3 +287,4 @@ def serve(
     else:
         typer.echo("No active workspace — endpoints requiring one will return 409.")
     uvicorn.run("server.app:app", host=host, port=port, reload=reload)
+

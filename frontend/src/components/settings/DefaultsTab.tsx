@@ -86,8 +86,8 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
         }}
         name="defaults-provider"
       />
-      {/* TODO: 当支持"单个工作区覆盖全局默认"时，增加 "Use workspace-specific override" 开关，
-          控制 use_global_defaults。当前所有工作区共享此全局默认设置。 */}
+      {/* TODO: When "workspace-specific override" is supported, add a "Use workspace-specific override" toggle
+          to control use_global_defaults. Currently all workspaces share these global defaults. */}
       <p className="text-xs text-muted">
         Global default model:{" "}
         <span className="font-mono text-foreground">
