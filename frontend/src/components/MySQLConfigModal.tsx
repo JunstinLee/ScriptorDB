@@ -247,7 +247,7 @@ export default function MySQLConfigModal({
                 <div className="flex items-start gap-2 rounded-lg border border-sage/30 bg-sage/10 p-3">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-sage" />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-ink">{result.message ?? "Saved"}</span>
+                    <span className="text-sm font-medium text-ink">Connection successful</span>
                     <span className="text-[11px] font-mono text-graphite">{result.db_url}</span>
                   </div>
                 </div>

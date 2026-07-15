@@ -51,13 +51,13 @@ def get_connection(db_url: str, workspace_id: str | None = None) -> Connection:
     return get_engine(db_url, workspace_id).connect()
 
 
-def get_all_tables(db_url: str) -> list[dict[str, Any]]:
-    with get_connection(db_url) as conn:
+def get_all_tables(db_url: str, workspace_id: str | None = None) -> list[dict[str, Any]]:
+    with get_connection(db_url, workspace_id) as conn:
         return _get_all_tables(conn, db_url)
 
 
-def get_single_table_schema(db_url: str, table: str) -> dict[str, Any]:
-    with get_connection(db_url) as conn:
+def get_single_table_schema(db_url: str, table: str, workspace_id: str | None = None) -> dict[str, Any]:
+    with get_connection(db_url, workspace_id) as conn:
         return _get_single_table_schema(conn, db_url, table)
 
 

@@ -248,6 +248,11 @@ class WorkspaceDetail(WorkspaceItem):
     db_url: str
     llm_provider: str
     llm_model: str | None = None
+    mysql_host: str | None = None
+    mysql_port: int | None = None
+    mysql_user: str | None = None
+    mysql_db: str | None = None
+    mysql_password_set: bool = False
 
 
 class WorkspaceListResponse(BaseModel):

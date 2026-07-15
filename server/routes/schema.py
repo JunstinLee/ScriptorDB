@@ -19,13 +19,13 @@ HIDDEN_TABLES = {"_scriptordb_undo_groups", "_scriptordb_undo_entries"}
 async def get_schema():
     config = require_workspace()
     tables_meta = [
-        meta for meta in get_all_tables(config.db_url)
+        meta for meta in get_all_tables(config.db_url, workspace_id=config.workspace_id)
         if meta["name"] not in HIDDEN_TABLES
     ]
     tables: list[SchemaTable] = []
     for meta in tables_meta:
         table_name = meta["name"]
-        schema_info = get_single_table_schema(config.db_url, table_name)
+        schema_info = get_single_table_schema(config.db_url, table_name, workspace_id=config.workspace_id)
         columns = [
             SchemaColumn(
                 name=col["name"],

@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/undo", tags=["undo"])
 @router.get("")
 async def undo_list():
     require_workspace()
-    engine = get_engine(settings.db_url)
+    engine = get_engine(settings.db_url, workspace_id=settings.workspace_id)
     ensure_undo_tables(engine)
     groups = list_all_groups(engine)
     return {"groups": groups}
@@ -24,7 +24,7 @@ async def undo_list():
 @router.post("/{group_id}/revert")
 async def undo_revert(group_id: int):
     require_workspace()
-    engine = get_engine(settings.db_url)
+    engine = get_engine(settings.db_url, workspace_id=settings.workspace_id)
     ensure_undo_tables(engine)
     try:
         reverted_ids = revert_to_group(engine, group_id)
@@ -36,7 +36,7 @@ async def undo_revert(group_id: int):
 @router.delete("/{group_id}/session")
 async def undo_revert_and_trim_session(group_id: int):
     require_workspace()
-    engine = get_engine(settings.db_url)
+    engine = get_engine(settings.db_url, workspace_id=settings.workspace_id)
     ensure_undo_tables(engine)
     try:
         reverted_ids = revert_to_group(engine, group_id)

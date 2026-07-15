@@ -114,6 +114,11 @@ async def get_active_workspace():
             db_url=ws_settings.db_url,
             llm_provider=ws_settings.llm_provider,
             llm_model=ws_settings.llm_model,
+            mysql_host=ws_settings.mysql_host,
+            mysql_port=ws_settings.mysql_port,
+            mysql_user=ws_settings.mysql_user,
+            mysql_db=ws_settings.mysql_db,
+            mysql_password_set=ws_settings.mysql_password_set,
         )
     )
 
@@ -143,6 +148,11 @@ async def get_workspace(workspace_id: str):
         db_url=ws_settings.db_url,
         llm_provider=ws_settings.llm_provider,
         llm_model=ws_settings.llm_model,
+        mysql_host=ws_settings.mysql_host,
+        mysql_port=ws_settings.mysql_port,
+        mysql_user=ws_settings.mysql_user,
+        mysql_db=ws_settings.mysql_db,
+        mysql_password_set=ws_settings.mysql_password_set,
     )
 
 
@@ -171,6 +181,11 @@ async def activate_workspace(workspace_id: str):
         db_url=ws_settings.db_url,
         llm_provider=ws_settings.llm_provider,
         llm_model=ws_settings.llm_model,
+        mysql_host=ws_settings.mysql_host,
+        mysql_port=ws_settings.mysql_port,
+        mysql_user=ws_settings.mysql_user,
+        mysql_db=ws_settings.mysql_db,
+        mysql_password_set=ws_settings.mysql_password_set,
     )
 
 
@@ -365,7 +380,7 @@ async def configure_mysql(workspace_id: str, req: MySQLConfigRequest):
         user=req.user,
         db=req.db,
         mysql_password_set=bool(req.password),
-        message="MySQL configuration saved",
+        message="Connection successful" if req.test_first else "MySQL configuration saved",
     )
 
 
