@@ -8,7 +8,7 @@ import pymysql
 from fastapi import APIRouter, HTTPException
 
 from agents.db_agent import reset_agent_cache
-from config.secrets import delete_mysql_password, save_mysql_password
+from config.secrets import save_mysql_password
 from config.settings import load_for_workspace, settings
 from config.workspace import (
     DEFAULT_WORKSPACES_DIR,
@@ -380,14 +380,8 @@ async def reset_mysql_config(workspace_id: str):
 
     ws_settings = WorkspaceSettings.load(Path(rec.path), rec.id, rec.name)
     ws_settings.db_url = f"sqlite:///{Path(rec.path) / 'scriptordb.sqlite'}"
-    ws_settings.mysql_host = "127.0.0.1"
-    ws_settings.mysql_port = 3306
-    ws_settings.mysql_user = "root"
-    ws_settings.mysql_db = ""
-    ws_settings.mysql_password_set = False
     ws_settings.save()
 
-    delete_mysql_password(rec.id)
     clear_pools()
 
     if config.workspace_id == rec.id:
@@ -401,6 +395,6 @@ async def reset_mysql_config(workspace_id: str):
         port=ws_settings.mysql_port,
         user=ws_settings.mysql_user,
         db=ws_settings.mysql_db,
-        mysql_password_set=False,
-        message="MySQL configuration removed, workspace reverted to SQLite",
+        mysql_password_set=ws_settings.mysql_password_set,
+        message="Switched to SQLite (MySQL configuration preserved)",
     )

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Input, Label, Modal, Switch } from "@heroui/react";
-import { Database, Server, RotateCcw, CheckCircle2, AlertCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Button, Input, Label, ListBox, Modal, Select, Switch } from "@heroui/react";
+import { Database, Server, CheckCircle2, AlertCircle } from "lucide-react";
 import { configureMySQL, resetMySQLConfig } from "../api/workspaces";
 import type { MySQLConfigRequest, MySQLConfigResponse, WorkspaceDetail } from "../types";
 
@@ -33,6 +33,12 @@ function isMySQLUrl(dbUrl: string | undefined): boolean {
   return !!dbUrl && dbUrl.startsWith("mysql+pymysql://");
 }
 
+type Engine = "sqlite" | "mysql";
+
+function getEngineFromUrl(dbUrl: string | undefined): Engine {
+  return isMySQLUrl(dbUrl) ? "mysql" : "sqlite";
+}
+
 export default function MySQLConfigModal({
   workspace,
   isOpen,
@@ -40,12 +46,14 @@ export default function MySQLConfigModal({
   onConfigSaved,
 }: MySQLConfigModalProps) {
   const [form, setForm] = useState<MySQLConfigRequest>(parseInitialValues(workspace));
+  const [engine, setEngine] = useState<Engine>(() => getEngineFromUrl(workspace?.db_url));
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MySQLConfigResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      setEngine(getEngineFromUrl(workspace?.db_url));
       setForm(parseInitialValues(workspace));
       setResult(null);
       setError(null);
@@ -66,44 +74,23 @@ export default function MySQLConfigModal({
       setError(null);
       setResult(null);
       try {
-        const res = await configureMySQL(workspace.id, {
-          ...form,
-          port: Number(form.port) || DEFAULT_PORT,
-        });
+        const res =
+          engine === "sqlite"
+            ? await resetMySQLConfig(workspace.id)
+            : await configureMySQL(workspace.id, {
+                ...form,
+                port: Number(form.port) || DEFAULT_PORT,
+              });
         setResult(res);
         onConfigSaved?.();
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save MySQL configuration");
+        setError(err instanceof Error ? err.message : "Failed to save database configuration");
       } finally {
         setBusy(false);
       }
     },
-    [form, workspace, onConfigSaved],
+    [engine, form, workspace, onConfigSaved],
   );
-
-  const handleReset = useCallback(async () => {
-    if (!workspace) return;
-    setBusy(true);
-    setError(null);
-    setResult(null);
-    try {
-      const res = await resetMySQLConfig(workspace.id);
-      setResult(res);
-      setForm(parseInitialValues(null));
-      onConfigSaved?.();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to reset database configuration");
-    } finally {
-      setBusy(false);
-    }
-  }, [workspace, onConfigSaved]);
-
-  const isMySQL = isMySQLUrl(workspace?.db_url);
-  const currentProtocol = useMemo(() => {
-    if (isMySQL) return "MySQL";
-    if (workspace?.db_url?.startsWith("sqlite")) return "SQLite";
-    return "Unknown";
-  }, [isMySQL, workspace?.db_url]);
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -118,107 +105,140 @@ export default function MySQLConfigModal({
           </Modal.Header>
           <Modal.Body>
             <div className="flex flex-col gap-5">
-              <div className="flex items-center gap-3 rounded-lg border border-grid bg-surface p-3">
-                <div className={`flex size-2 rounded-full ${isMySQL ? "bg-sage" : "bg-cobalt"}`} aria-hidden />
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-xs font-medium text-graphite">Current engine</span>
-                  <span className="text-sm font-medium text-ink">{currentProtocol}</span>
-                </div>
-                {workspace?.db_url && (
-                  <code className="ml-auto max-w-[200px] truncate text-[11px] font-mono text-graphite">
-                    {workspace.db_url}
-                  </code>
-                )}
-              </div>
+              <Select
+                label="Database engine"
+                value={engine}
+                onChange={(v) => {
+                  if (typeof v === "string") {
+                    setEngine(v as Engine);
+                    setResult(null);
+                    setError(null);
+                  }
+                }}
+              >
+                <Select.Trigger>
+                  <Select.Value />
+                  <Select.Indicator />
+                </Select.Trigger>
+                <Select.Popover>
+                  <ListBox>
+                    <ListBox.Item id="sqlite" textValue="SQLite">
+                      SQLite (local file)
+                    </ListBox.Item>
+                    <ListBox.Item id="mysql" textValue="MySQL">
+                      MySQL (remote server)
+                    </ListBox.Item>
+                  </ListBox>
+                </Select.Popover>
+              </Select>
 
               <form id="mysql-config-form" onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2 flex flex-col gap-1.5">
-                    <Label htmlFor="mysql-host" className="text-xs text-graphite">
-                      Host
-                    </Label>
-                    <Input
-                      id="mysql-host"
-                      value={form.host}
-                      placeholder="127.0.0.1"
-                      onChange={(e) => updateField("host", e.target.value)}
-                      disabled={busy}
-                    />
+                {engine === "sqlite" ? (
+                  <div className="rounded-lg border border-grid bg-surface p-4">
+                    <div className="flex items-center gap-2 text-sm font-medium text-ink">
+                      <Database className="size-4 text-cobalt" />
+                      Local SQLite database
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted">
+                      Data is stored in the workspace folder. Your MySQL connection details are preserved and will be restored when you switch back to MySQL.
+                    </p>
+                    {workspace?.db_url && (
+                      <code className="mt-3 block truncate text-[11px] font-mono text-graphite">
+                        {workspace.db_url}
+                      </code>
+                    )}
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="mysql-port" className="text-xs text-graphite">
-                      Port
-                    </Label>
-                    <Input
-                      id="mysql-port"
-                      type="number"
-                      value={String(form.port)}
-                      placeholder="3306"
-                      onChange={(e) => updateField("port", Number(e.target.value))}
-                      disabled={busy}
-                    />
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="col-span-2 flex flex-col gap-1.5">
+                        <Label htmlFor="mysql-host" className="text-xs text-graphite">
+                          Host
+                        </Label>
+                        <Input
+                          id="mysql-host"
+                          value={form.host}
+                          placeholder="127.0.0.1"
+                          onChange={(e) => updateField("host", e.target.value)}
+                          disabled={busy}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="mysql-port" className="text-xs text-graphite">
+                          Port
+                        </Label>
+                        <Input
+                          id="mysql-port"
+                          type="number"
+                          value={String(form.port)}
+                          placeholder="3306"
+                          onChange={(e) => updateField("port", Number(e.target.value))}
+                          disabled={busy}
+                        />
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="mysql-user" className="text-xs text-graphite">
-                      User
-                    </Label>
-                    <Input
-                      id="mysql-user"
-                      value={form.user}
-                      placeholder="root"
-                      onChange={(e) => updateField("user", e.target.value)}
-                      disabled={busy}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="mysql-db" className="text-xs text-graphite">
-                      Database
-                    </Label>
-                    <Input
-                      id="mysql-db"
-                      value={form.db}
-                      placeholder="scriptordb"
-                      onChange={(e) => updateField("db", e.target.value)}
-                      disabled={busy}
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="mysql-user" className="text-xs text-graphite">
+                          User
+                        </Label>
+                        <Input
+                          id="mysql-user"
+                          value={form.user}
+                          placeholder="root"
+                          onChange={(e) => updateField("user", e.target.value)}
+                          disabled={busy}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <Label htmlFor="mysql-db" className="text-xs text-graphite">
+                          Database
+                        </Label>
+                        <Input
+                          id="mysql-db"
+                          value={form.db}
+                          placeholder="scriptordb"
+                          onChange={(e) => updateField("db", e.target.value)}
+                          disabled={busy}
+                        />
+                      </div>
+                    </div>
 
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="mysql-password" className="text-xs text-graphite">
-                    Password
-                  </Label>
-                  <Input
-                    id="mysql-password"
-                    type="password"
-                    value={form.password}
-                    placeholder={workspace?.mysql_password_set ? "•••••••• (leave blank to keep)" : ""}
-                    onChange={(e) => updateField("password", e.target.value)}
-                    disabled={busy}
-                  />
-                  <p className="text-[11px] text-muted">
-                    Stored in the system keyring. Never saved in workspace files.
-                  </p>
-                </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="mysql-password" className="text-xs text-graphite">
+                        Password
+                      </Label>
+                      <Input
+                        id="mysql-password"
+                        type="password"
+                        value={form.password}
+                        placeholder={workspace?.mysql_password_set ? "•••••••• (leave blank to keep)" : ""}
+                        onChange={(e) => updateField("password", e.target.value)}
+                        disabled={busy}
+                      />
+                      <p className="text-[11px] text-muted">
+                        Stored in the system keyring. Never saved in workspace files.
+                      </p>
+                    </div>
 
-                <div className="flex items-center justify-between rounded-md border border-grid px-3 py-2">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-medium text-ink">Test before saving</span>
-                    <span className="text-[11px] text-muted">Run a SELECT 1 check against the database first.</span>
-                  </div>
-                  <Switch
-                    isSelected={form.test_first ?? true}
-                    onChange={(v) => updateField("test_first", v)}
-                    isDisabled={busy}
-                  >
-                    <Switch.Control>
-                      <Switch.Thumb />
-                    </Switch.Control>
-                  </Switch>
-                </div>
+                    <div className="flex items-center justify-between rounded-md border border-grid px-3 py-2">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-xs font-medium text-ink">Test before saving</span>
+                        <span className="text-[11px] text-muted">Run a SELECT 1 check against the database first.</span>
+                      </div>
+                      <Switch
+                        isSelected={form.test_first ?? true}
+                        onChange={(v) => updateField("test_first", v)}
+                        isDisabled={busy}
+                      >
+                        <Switch.Control>
+                          <Switch.Thumb />
+                        </Switch.Control>
+                      </Switch>
+                    </div>
+                  </>
+                )}
               </form>
 
               {result && !error && (
@@ -242,24 +262,15 @@ export default function MySQLConfigModal({
               )}
             </div>
           </Modal.Body>
-          <Modal.Footer className="flex justify-between">
-            <Button
-              type="button"
-              variant="ghost"
-              isDisabled={busy || !isMySQL}
-              onPress={() => void handleReset()}
-            >
-              <RotateCcw className="mr-1.5 size-3.5" />
-              Reset to SQLite
-            </Button>
+          <Modal.Footer className="flex justify-end">
             <Button
               type="submit"
               form="mysql-config-form"
               variant="primary"
-              isDisabled={busy || !workspace || !form.db.trim()}
+              isDisabled={busy || !workspace || (engine === "mysql" && !form.db.trim())}
             >
               <Server className="mr-1.5 size-3.5" />
-              {busy ? "Connecting…" : "Test & Save"}
+              {busy ? "Saving…" : engine === "sqlite" ? "Use SQLite" : "Test & Save"}
             </Button>
           </Modal.Footer>
         </Modal.Dialog>
