@@ -329,6 +329,7 @@ function MainApp({
         onSwitchWorkspace={handleSwitchWorkspace}
         onOpenWorkspacePicker={handleOpenWorkspacePicker}
         onRequestNewWorkspace={handleOpenWorkspacePicker}
+        onDatabaseConfigured={onRefreshWorkspaces}
       />
 
       <div className="flex flex-1 flex-col min-w-0">
