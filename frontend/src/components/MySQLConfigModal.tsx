@@ -105,21 +105,22 @@ export default function MySQLConfigModal({
           </Modal.Header>
           <Modal.Body>
             <div className="flex flex-col gap-5">
-              <Select
-                label="Database engine"
-                value={engine}
-                onChange={(v) => {
-                  if (typeof v === "string") {
-                    setEngine(v as Engine);
-                    setResult(null);
-                    setError(null);
-                  }
-                }}
-              >
-                <Select.Trigger>
-                  <Select.Value />
-                  <Select.Indicator />
-                </Select.Trigger>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-graphite">Database engine</Label>
+                <Select
+                  value={engine}
+                  onChange={(v) => {
+                    if (typeof v === "string") {
+                      setEngine(v as Engine);
+                      setResult(null);
+                      setError(null);
+                    }
+                  }}
+                >
+                  <Select.Trigger>
+                    <Select.Value />
+                    <Select.Indicator />
+                  </Select.Trigger>
                 <Select.Popover>
                   <ListBox>
                     <ListBox.Item id="sqlite" textValue="SQLite">
@@ -131,6 +132,7 @@ export default function MySQLConfigModal({
                   </ListBox>
                 </Select.Popover>
               </Select>
+            </div>
 
               <form id="mysql-config-form" onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-4">
                 {engine === "sqlite" ? (
