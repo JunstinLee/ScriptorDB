@@ -9,13 +9,9 @@ from pydantic_ai import RunContext
 from sqlalchemy import text
 
 from config.settings import Settings
-from logging_setup import get_logger
 from tools.db_connection import get_connection
 from tools.errors import _to_tool_error
 from tools.tool_result import ToolErrorInfo, ToolResult
-
-
-_log = get_logger("tools.import_tools")
 
 
 def _quote_identifier(name: str) -> str:
@@ -102,9 +98,6 @@ def _import_rows_to_db(
         exists = _table_exists(conn, table_name)
         if exists:
             if if_exists == "fail":
-                _log.warning(
-                    "import_rows: table exists and if_exists=fail table=%s", table_name
-                )
                 return ToolResult(
                     success=False,
                     error=ToolErrorInfo(
@@ -121,9 +114,6 @@ def _import_rows_to_db(
             elif if_exists == "append":
                 pass
             else:
-                _log.warning(
-                    "import_rows: invalid if_exists=%s table=%s", if_exists, table_name
-                )
                 return ToolResult(
                     success=False,
                     error=ToolErrorInfo(
@@ -134,20 +124,9 @@ def _import_rows_to_db(
         else:
             _create_table_from_headers(conn, table_name, headers)
 
-        _log.info(
-            "import_rows: start table=%s if_exists=%s cols=%d rows=%d batch_size=%d",
-            table_name,
-            if_exists,
-            len(headers),
-            len(rows),
-            batch_size,
-        )
         total_imported = _insert_batches(conn, table_name, headers, rows, batch_size)
         conn.commit()
 
-        _log.info(
-            "import_rows: done table=%s rows_imported=%d", table_name, total_imported
-        )
         return ToolResult(
             success=True,
             output=f"Imported {total_imported} row{'s' if total_imported != 1 else ''} into {table_name}",
@@ -174,7 +153,6 @@ def _import_csv_to_db_impl(
     row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
     if not os.path.isfile(filepath):
-        _log.warning("import_csv: file not found filepath=%s", filepath)
         return ToolResult(
             success=False,
             error=ToolErrorInfo(
@@ -182,15 +160,6 @@ def _import_csv_to_db_impl(
                 message=f"File not found: {filepath}",
             ),
         )
-
-    _log.info(
-        "import_csv: start filepath=%s table=%s encoding=%s if_exists=%s batch_size=%d",
-        filepath,
-        table_name,
-        encoding,
-        if_exists,
-        batch_size,
-    )
 
     try:
         with open(filepath, "r", encoding=encoding, newline="") as f:
@@ -233,7 +202,6 @@ def _import_excel_to_db_impl(
     row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
     if not os.path.isfile(filepath):
-        _log.warning("import_excel: file not found filepath=%s", filepath)
         return ToolResult(
             success=False,
             error=ToolErrorInfo(
@@ -252,16 +220,6 @@ def _import_excel_to_db_impl(
                 message="openpyxl is not installed. Run: uv sync",
             ),
         )
-
-    _log.info(
-        "import_excel: start filepath=%s table=%s sheet=%s header_row=%d if_exists=%s batch_size=%d",
-        filepath,
-        table_name,
-        sheet_name,
-        header_row,
-        if_exists,
-        batch_size,
-    )
 
     try:
         wb = load_workbook(filepath, data_only=True, read_only=True)
