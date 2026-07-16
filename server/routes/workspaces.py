@@ -4,11 +4,9 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-import pymysql
 from fastapi import APIRouter, HTTPException
 
 from agents.db_agent import reset_agent_cache
-from config.secrets import save_mysql_password
 from config.settings import load_for_workspace, settings
 from config.workspace import (
     DEFAULT_WORKSPACES_DIR,
@@ -18,12 +16,9 @@ from config.workspace import (
     WorkspaceSettings,
     workspace_sessions_dir,
 )
-from database.session import clear_pools
 from server.dependencies import get_config
 from server.schemas import (
     ActiveWorkspaceResponse,
-    MySQLConfigRequest,
-    MySQLConfigResponse,
     WorkspaceActivateRequest,
     WorkspaceCreateRequest,
     WorkspaceDeleteResponse,
@@ -114,11 +109,6 @@ async def get_active_workspace():
             db_url=ws_settings.db_url,
             llm_provider=ws_settings.llm_provider,
             llm_model=ws_settings.llm_model,
-            mysql_host=ws_settings.mysql_host,
-            mysql_port=ws_settings.mysql_port,
-            mysql_user=ws_settings.mysql_user,
-            mysql_db=ws_settings.mysql_db,
-            mysql_password_set=ws_settings.mysql_password_set,
         )
     )
 
@@ -148,11 +138,6 @@ async def get_workspace(workspace_id: str):
         db_url=ws_settings.db_url,
         llm_provider=ws_settings.llm_provider,
         llm_model=ws_settings.llm_model,
-        mysql_host=ws_settings.mysql_host,
-        mysql_port=ws_settings.mysql_port,
-        mysql_user=ws_settings.mysql_user,
-        mysql_db=ws_settings.mysql_db,
-        mysql_password_set=ws_settings.mysql_password_set,
     )
 
 
@@ -181,11 +166,6 @@ async def activate_workspace(workspace_id: str):
         db_url=ws_settings.db_url,
         llm_provider=ws_settings.llm_provider,
         llm_model=ws_settings.llm_model,
-        mysql_host=ws_settings.mysql_host,
-        mysql_port=ws_settings.mysql_port,
-        mysql_user=ws_settings.mysql_user,
-        mysql_db=ws_settings.mysql_db,
-        mysql_password_set=ws_settings.mysql_password_set,
     )
 
 
@@ -328,124 +308,3 @@ async def import_legacy_sessions(workspace_id: str):
         return {"ok": True, "imported_count": len(sessions_data)}
     except (OSError, json.JSONDecodeError) as e:
         raise HTTPException(status_code=500, detail=f"Failed to import sessions: {str(e)}")
-
-
-@router.post("/{workspace_id}/mysql-config", response_model=MySQLConfigResponse)
-async def configure_mysql(workspace_id: str, req: MySQLConfigRequest):
-    config = get_config()
-    registry = WorkspaceRegistry()
-    try:
-        rec = registry.get(workspace_id)
-    except WorkspaceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-    if req.test_first:
-        try:
-            with pymysql.connect(
-                host=req.host,
-                port=req.port,
-                user=req.user,
-                password=req.password,
-                database=req.db,
-                charset="utf8mb4",
-                connect_timeout=10,
-            ) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-        except pymysql.OperationalError as e:
-            return _mysql_error_response(req, *_classify_mysql_operational_error(e))
-        except pymysql.ProgrammingError as e:
-            return _mysql_error_response(req, "programming_error", "programming_error", str(e))
-        except pymysql.InternalError as e:
-            return _mysql_error_response(req, "internal_error", "internal_error", str(e))
-        except pymysql.IntegrityError as e:
-            return _mysql_error_response(req, "integrity_error", "integrity_error", str(e))
-        except pymysql.Error as e:
-            return _mysql_error_response(req, "unknown_error", "unknown_error", str(e))
-
-    db_url = f"mysql+pymysql://{req.user}@{req.host}:{req.port}/{req.db}"
-    ws_settings = WorkspaceSettings.load(Path(rec.path), rec.id, rec.name)
-    ws_settings.db_url = db_url
-    ws_settings.mysql_host = req.host
-    ws_settings.mysql_port = req.port
-    ws_settings.mysql_user = req.user
-    ws_settings.mysql_db = req.db
-    ws_settings.mysql_password_set = bool(req.password)
-    ws_settings.save()
-
-    save_mysql_password(rec.id, req.password)
-    clear_pools()
-
-    if config.workspace_id == rec.id:
-        load_for_workspace(config, rec.id)
-        reset_agent_cache()
-
-    return MySQLConfigResponse(
-        ok=True,
-        db_url=db_url,
-        host=req.host,
-        port=req.port,
-        user=req.user,
-        db=req.db,
-        mysql_password_set=bool(req.password),
-        message="Connection successful" if req.test_first else "MySQL configuration saved",
-    )
-
-
-@router.delete("/{workspace_id}/mysql-config", response_model=MySQLConfigResponse)
-async def reset_mysql_config(workspace_id: str):
-    config = get_config()
-    registry = WorkspaceRegistry()
-    try:
-        rec = registry.get(workspace_id)
-    except WorkspaceNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-
-    ws_settings = WorkspaceSettings.load(Path(rec.path), rec.id, rec.name)
-    ws_settings.db_url = f"sqlite:///{Path(rec.path) / 'scriptordb.sqlite'}"
-    ws_settings.save()
-
-    clear_pools()
-
-    if config.workspace_id == rec.id:
-        load_for_workspace(config, rec.id)
-        reset_agent_cache()
-
-    return MySQLConfigResponse(
-        ok=True,
-        db_url=ws_settings.db_url,
-        host=ws_settings.mysql_host,
-        port=ws_settings.mysql_port,
-        user=ws_settings.mysql_user,
-        db=ws_settings.mysql_db,
-        mysql_password_set=ws_settings.mysql_password_set,
-        message="Switched to SQLite (MySQL configuration preserved)",
-    )
-
-
-def _classify_mysql_operational_error(e: pymysql.OperationalError) -> tuple[str, str, str]:
-    code = e.args[0] if len(e.args) > 0 else None
-    if code in (1045, 1044):
-        return "access_denied", "operational_error", str(e)
-    if code == 1049:
-        return "unknown_database", "operational_error", str(e)
-    if code in (2003, 2005):
-        return "connection_failed", "operational_error", str(e)
-    return "operational_error", "operational_error", str(e)
-
-
-def _mysql_error_response(
-    req: MySQLConfigRequest, error_code: str, error_type: str, message: str
-) -> MySQLConfigResponse:
-    return MySQLConfigResponse(
-        ok=False,
-        db_url="",
-        host=req.host,
-        port=req.port,
-        user=req.user,
-        db=req.db,
-        mysql_password_set=bool(req.password),
-        message=message,
-        error_code=error_code,
-        error_type=error_type,
-    )

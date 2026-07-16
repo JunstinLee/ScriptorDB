@@ -1,6 +1,4 @@
 import type {
-  MySQLConfigRequest,
-  MySQLConfigResponse,
   WorkspaceActivateRequest,
   WorkspaceCreateRequest,
   WorkspaceDetail,
@@ -84,25 +82,6 @@ export function importLegacySessions(
   return request<{ ok: boolean; imported_count: number }>(
     `/workspaces/${encodeURIComponent(workspaceId)}/import-legacy-sessions`,
     { method: "POST" },
-  );
-}
-
-export function configureMySQL(
-  workspaceId: string,
-  body: MySQLConfigRequest,
-): Promise<MySQLConfigResponse> {
-  return request<MySQLConfigResponse>(
-    `/workspaces/${encodeURIComponent(workspaceId)}/mysql-config`,
-    { method: "POST", body: JSON.stringify(body) },
-  );
-}
-
-export function resetMySQLConfig(
-  workspaceId: string,
-): Promise<MySQLConfigResponse> {
-  return request<MySQLConfigResponse>(
-    `/workspaces/${encodeURIComponent(workspaceId)}/mysql-config`,
-    { method: "DELETE" },
   );
 }
 

@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from "react";
 import { Popover } from "@heroui/react";
 import {
   ChevronDown,
-  Database,
   Folder,
   MessageSquarePlus,
   PanelLeftClose,
@@ -14,7 +13,6 @@ import {
 import type { SessionMeta, WorkspaceDetail, WorkspaceItem } from "../types";
 import HistorySearchModal from "./HistorySearchModal";
 import SessionList from "./SessionList";
-import MySQLConfigModal from "./MySQLConfigModal";
 import ThemeToggle from "./common/ThemeToggle";
 import WorkspacePath from "./common/WorkspacePath";
 
@@ -32,7 +30,6 @@ interface SidebarProps {
   onSwitchWorkspace: (id: string) => void;
   onOpenWorkspacePicker: () => void;
   onRequestNewWorkspace: () => void;
-  onDatabaseConfigured?: () => void;
 }
 
 export default function Sidebar({
@@ -49,10 +46,9 @@ export default function Sidebar({
   onSwitchWorkspace,
   onOpenWorkspacePicker,
   onRequestNewWorkspace,
-  onDatabaseConfigured,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
-  const [mysqlOpen, setMysqlOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [popoverWidth, setPopoverWidth] = useState(232);
 
@@ -86,16 +82,6 @@ export default function Sidebar({
           title={activeWorkspace?.name ?? "No workspace"}
         >
           <Folder className="size-4" />
-        </button>
-        <button
-          type="button"
-          className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
-          onClick={() => setMysqlOpen(true)}
-          disabled={!activeWorkspace || switchingWorkspace}
-          aria-label="Configure database connection"
-          title={activeWorkspace?.db_url?.startsWith("mysql") ? "MySQL" : "SQLite"}
-        >
-          <Database className="size-4" />
         </button>
         <button
           type="button"
@@ -235,35 +221,6 @@ export default function Sidebar({
         </Popover>
       </div>
 
-      {/* Database connection card — sits with the workspace controls */}
-      <div className="px-4 pb-3">
-        <button
-          type="button"
-          onClick={() => setMysqlOpen(true)}
-          disabled={!activeWorkspace || switchingWorkspace}
-          className="flex w-full items-center gap-2.5 rounded-lg border border-grid bg-surface px-3 py-2 text-left transition-colors hover:bg-surface/70 focus:outline-2 focus:outline-offset-2 focus:outline-cobalt disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Configure database connection"
-        >
-          <Database className="size-4 shrink-0 text-graphite" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5">
-              <span className="truncate text-[12px] font-medium text-ink">
-                {activeWorkspace ? (activeWorkspace.db_url?.startsWith("mysql") ? "MySQL" : "SQLite") : "No database"}
-              </span>
-              {activeWorkspace && (
-                <span
-                  className={`inline-block size-1.5 rounded-full ${activeWorkspace.db_url?.startsWith("mysql") ? "bg-sage" : "bg-cobalt"}`}
-                  aria-hidden
-                />
-              )}
-            </div>
-            <span className="block truncate text-[11px] text-graphite font-mono">
-              {activeWorkspace?.db_url ?? "Select a workspace first"}
-            </span>
-          </div>
-        </button>
-      </div>
-
       {/* Divider with collapse button — at the end of the workspace area */}
       <div className="flex items-center justify-end gap-1 border-b border-grid px-3 py-1">
         <span className="flex-1" />
@@ -314,12 +271,16 @@ export default function Sidebar({
         </button>
       </div>
 
-      <MySQLConfigModal
-        workspace={activeWorkspace}
-        isOpen={mysqlOpen}
-        onOpenChange={setMysqlOpen}
-        onConfigSaved={onDatabaseConfigured}
-      />
+      {isHistoryOpen && (
+        <HistorySearchModal
+          isOpen={isHistoryOpen}
+          onClose={() => setIsHistoryOpen(false)}
+          onSelectSession={(id) => {
+            onSwitchSession(id);
+            setIsHistoryOpen(false);
+          }}
+        />
+      )}
     </aside>
   );
 }

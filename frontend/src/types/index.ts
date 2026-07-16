@@ -121,33 +121,6 @@ export interface WorkspaceDetail extends WorkspaceItem {
   db_url: string;
   llm_provider: string;
   llm_model: string | null;
-  mysql_host?: string;
-  mysql_port?: number;
-  mysql_user?: string;
-  mysql_db?: string;
-  mysql_password_set?: boolean;
-}
-
-export interface MySQLConfigRequest {
-  host: string;
-  port: number;
-  user: string;
-  db: string;
-  password: string;
-  test_first?: boolean;
-}
-
-export interface MySQLConfigResponse {
-  ok: boolean;
-  db_url: string;
-  host: string;
-  port: number;
-  user: string;
-  db: string;
-  mysql_password_set: boolean;
-  message?: string | null;
-  error_code?: string | null;
-  error_type?: string | null;
 }
 
 export interface ActiveWorkspaceResponse {

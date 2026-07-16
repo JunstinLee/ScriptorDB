@@ -22,20 +22,10 @@ from tools.tool_result import ToolErrorInfo, ToolResult
 from tools.undo_log import add_entry, create_group
 
 
-def _quote_identifier(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
-def _table_exists(conn, table_name: str) -> bool:
-    from sqlalchemy import inspect as sa_inspect
-
-    return table_name in sa_inspect(conn).get_table_names()
-
-
-def _create_table_from_headers(conn, table_name: str, headers: list[str]) -> None:
-    cols_sql = [f"{_quote_identifier(header)} TEXT" for header in headers]
-    sql = f"CREATE TABLE {_quote_identifier(table_name)} (\n  {',\n  '.join(cols_sql)}\n)"
-    conn.execute(text(sql))
+_quote_identifier = quote_identifier
+_table_exists = table_exists
+_unique_table_name = unique_table_name
+_create_table_from_headers = create_table_from_headers
 
 
 def _build_insert_sql(table_name: str, headers: list[str]) -> str:
@@ -136,14 +126,10 @@ def _import_rows_to_db(
         exists = _table_exists(conn, table_name)
         if exists:
             if if_exists == "fail":
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Table '{table_name}' already exists",
-                    ),
-                )
-            if if_exists == "replace":
+                original_name = table_name
+                table_name = _unique_table_name(conn, table_name)
+                _create_table_from_headers(conn, table_name, headers)
+            elif if_exists == "replace":
                 conn.execute(
                     text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}")
                 )
@@ -162,7 +148,51 @@ def _import_rows_to_db(
         else:
             _create_table_from_headers(conn, table_name, headers)
 
-        total_imported = _insert_batches(conn, table_name, headers, rows, batch_size)
+        should_log_undo = bool(ctx.deps.chat_session_id and ctx.deps.run_id)
+        undo_group_id: int | None = None
+        undo_seq = 0
+
+        if should_log_undo:
+            session_id = ctx.deps.chat_session_id or ""
+            run_id = ctx.deps.run_id or ""
+            undo_group_id = ctx.deps.current_undo_group_id
+            if undo_group_id is None:
+                undo_group_id = create_group(
+                    conn,
+                    session_id,
+                    run_id,
+                    ctx.deps.chat_prompt or "",
+                )
+                ctx.deps.current_undo_group_id = undo_group_id
+            else:
+                prev_row = conn.execute(
+                    text(
+                        "SELECT COALESCE(MAX(seq_in_group), 0) FROM _scriptordb_undo_entries WHERE group_id = :gid"
+                    ),
+                    {"gid": undo_group_id},
+                ).fetchone()
+                undo_seq = prev_row[0] if prev_row is not None else 0
+
+        total_imported, inserted_rows = _insert_batches(
+            conn, table_name, headers, rows, batch_size, capture_rows=should_log_undo
+        )
+
+        if undo_group_id is not None and inserted_rows:
+            undo_entries = _build_undo_entries_for_inserted_rows(
+                conn, table_name, inserted_rows
+            )
+            for undo_sql, undo_params in undo_entries:
+                undo_seq += 1
+                add_entry(
+                    conn,
+                    undo_group_id,
+                    undo_seq,
+                    "INSERT",
+                    table_name,
+                    undo_sql,
+                    undo_params,
+                )
+
         conn.commit()
 
         return ToolResult(
@@ -190,28 +220,16 @@ def _import_csv_to_db_impl(
     row_filter: Callable[[dict[str, Any]], bool] | None = None,
     row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
-    if not os.path.isfile(filepath):
-        return ToolResult(
-            success=False,
-            error=ToolErrorInfo(
-                category="resource_not_found",
-                message=f"File not found: {filepath}",
-            ),
-        )
+    headers, rows, err = parse_csv(filepath, encoding, row_filter, row_transform)
+    if err:
+        if "not found" in err:
+            return ToolResult(
+                success=False,
+                error=ToolErrorInfo(category="resource_not_found", message=err),
+            )
+        return _to_tool_error(Exception(err))
 
-    try:
-        with open(filepath, "r", encoding=encoding, newline="") as f:
-            reader = csv.reader(f)
-            try:
-                headers = [str(h) for h in next(reader)]
-            except StopIteration:
-                headers = []
-            raw_rows = [row for row in reader]
-
-        rows = _apply_hooks(raw_rows, headers, row_filter, row_transform)
-        return _import_rows_to_db(ctx, table_name, headers, rows, if_exists, batch_size)
-    except Exception as e:
-        return _to_tool_error(e)
+    return _import_rows_to_db(ctx, table_name, headers, rows, if_exists, batch_size)
 
 
 def import_csv_to_db(
@@ -239,58 +257,19 @@ def _import_excel_to_db_impl(
     row_filter: Callable[[dict[str, Any]], bool] | None = None,
     row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
-    if not os.path.isfile(filepath):
-        return ToolResult(
-            success=False,
-            error=ToolErrorInfo(
-                category="resource_not_found",
-                message=f"File not found: {filepath}",
-            ),
-        )
-
-    try:
-        from openpyxl import load_workbook
-    except ImportError:
+    headers, rows, err = parse_excel(filepath, sheet_name, header_row, row_filter, row_transform)
+    if err:
+        if "not found" in err:
+            return ToolResult(
+                success=False,
+                error=ToolErrorInfo(category="resource_not_found", message=err),
+            )
         return ToolResult(
             success=False,
             error=ToolErrorInfo(category="parameter_error", message=err),
         )
 
-    try:
-        wb = load_workbook(filepath, data_only=True, read_only=True)
-        if isinstance(sheet_name, int):
-            if sheet_name < 0 or sheet_name >= len(wb.worksheets):
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Sheet index {sheet_name} out of range",
-                    ),
-                )
-            ws = wb.worksheets[sheet_name]
-        else:
-            if sheet_name not in wb.sheetnames:
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Sheet '{sheet_name}' not found",
-                    ),
-                )
-            ws = wb[sheet_name]
-
-        rows_iter = ws.iter_rows(min_row=header_row, values_only=True)
-        try:
-            headers = [str(h) if h is not None else "" for h in next(rows_iter)]
-        except StopIteration:
-            headers = []
-        raw_rows = [list(row) for row in rows_iter]
-        wb.close()
-
-        rows = _apply_hooks(raw_rows, headers, row_filter, row_transform)
-        return _import_rows_to_db(ctx, table_name, headers, rows, if_exists, batch_size)
-    except Exception as e:
-        return _to_tool_error(e)
+    return _import_rows_to_db(ctx, table_name, headers, rows, if_exists, batch_size)
 
 
 def import_excel_to_db(

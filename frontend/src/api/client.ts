@@ -40,8 +40,6 @@ export {
   activateWorkspace,
   updateWorkspace,
   deleteWorkspace,
-  configureMySQL,
-  resetMySQLConfig,
   type WorkspaceItem,
 } from "./workspaces";
 

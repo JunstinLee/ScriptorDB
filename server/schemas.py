@@ -291,11 +291,6 @@ class WorkspaceDetail(WorkspaceItem):
     db_url: str
     llm_provider: str
     llm_model: str | None = None
-    mysql_host: str | None = None
-    mysql_port: int | None = None
-    mysql_user: str | None = None
-    mysql_db: str | None = None
-    mysql_password_set: bool = False
 
 
 class WorkspaceListResponse(BaseModel):
@@ -310,25 +305,3 @@ class ActiveWorkspaceResponse(BaseModel):
 class WorkspaceDeleteResponse(BaseModel):
     ok: bool
     deleted_files: bool = False
-
-
-class MySQLConfigRequest(BaseModel):
-    host: str = "127.0.0.1"
-    port: int = 3306
-    user: str = "root"
-    db: str
-    password: str = ""
-    test_first: bool = True
-
-
-class MySQLConfigResponse(BaseModel):
-    ok: bool
-    db_url: str
-    host: str
-    port: int
-    user: str
-    db: str
-    mysql_password_set: bool
-    message: str | None = None
-    error_code: str | None = None
-    error_type: str | None = None

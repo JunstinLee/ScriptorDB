@@ -10,36 +10,12 @@ from config.settings import Settings
 from tools.toolsets import read_toolset, viz_toolset, write_toolset
 
 
-def _auto_approve_handler(
-    ctx: RunContext[Settings],
-    requests: DeferredToolRequests,
-) -> DeferredToolResults:
-    from pydantic_ai import ToolApproved
-
-    results = DeferredToolResults()
-    for call in requests.approvals:
-        results.approvals[call.tool_call_id] = ToolApproved()
-    return results
-
-
-def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings]:
+def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str | DeferredToolRequests]:
     audit_hooks = build_audit_hooks()
     undo_hooks = build_undo_hooks()
 
     active_provider = config.llm_provider
-    if active_provider in ("nim", "together"):
-        api_key = get_api_key(active_provider, config.workspace_id)
-        provider_cfg = SUPPORTED_PROVIDERS[active_provider]
-        model_name = resolved_model.split(":", 1)[-1]
-        return Agent(
-            model=OpenAIChatModel(
-                model_name,
-                provider=OpenAIProvider(base_url=provider_cfg.base_url, api_key=api_key),
-            ),
-            deps_type=Settings,
-            toolsets=[read_toolset, write_toolset, viz_toolset],
-            capabilities=[audit_hooks, undo_hooks, approval],
-        )
+    model = build_model(active_provider, resolved_model, config.workspace_id)
 
     return Agent(
         model=model,

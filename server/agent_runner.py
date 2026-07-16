@@ -60,11 +60,13 @@ async def run_agent_stream(
     queue: asyncio.Queue[dict] = asyncio.Queue()
     local_tracker = tracker or RunTracker()
 
-    yield {
-        "type": "run_start",
-        "run_id": local_tracker.run_id,
-        "timestamp": utc_now_iso(),
-    }
+    if deferred_results is None:
+        print(f"[agent_runner] emit run_start: run_id={local_tracker.run_id}")
+        yield {
+            "type": "run_start",
+            "run_id": local_tracker.run_id,
+            "timestamp": utc_now_iso(),
+        }
 
     async def event_stream_handler(ctx: RunContext[AppConfig], events: Any) -> None:
         nonlocal full_output, trace_step, handler_calls
@@ -126,7 +128,7 @@ async def run_agent_stream(
                     local_tracker.complete_tool(
                         call_id, success, output, error_code, duration_ms, data=data
                     )
-
+                    print(f"[agent_runner] emit tool_result: run_id={local_tracker.run_id} call_id={call_id} tool={tool_name} success={success}")
                     await queue.put({
                         "type": "tool_result",
                         "run_id": local_tracker.run_id,

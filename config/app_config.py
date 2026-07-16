@@ -20,13 +20,6 @@ class AppConfig:
     default_models: dict[str, str] = field(default_factory=dict)
     auto_restore_sessions: bool = True
 
-    # MySQL 连接参数（密码存系统密钥环，这里只存是否已设置）
-    mysql_host: str = "127.0.0.1"
-    mysql_port: int = 3306
-    mysql_user: str = "root"
-    mysql_db: str = ""
-    mysql_password_set: bool = False
-
     chat_session_id: str | None = None
     chat_prompt: str | None = None
     run_id: str = ""
@@ -62,8 +55,3 @@ class AppConfig:
         self.default_models = {}
         self.auto_restore_sessions = True
         self.current_undo_group_id = None
-        self.mysql_host = "127.0.0.1"
-        self.mysql_port = 3306
-        self.mysql_user = "root"
-        self.mysql_db = ""
-        self.mysql_password_set = False
