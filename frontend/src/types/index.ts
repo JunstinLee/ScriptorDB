@@ -145,6 +145,8 @@ export interface MySQLConfigResponse {
   db: string;
   mysql_password_set: boolean;
   message?: string | null;
+  error_code?: string | null;
+  error_type?: string | null;
 }
 
 export interface ActiveWorkspaceResponse {

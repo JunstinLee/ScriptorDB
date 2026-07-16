@@ -4,6 +4,10 @@ from dataclasses import dataclass
 
 import keyring
 
+from logging_setup import get_logger
+
+logger = get_logger("secrets")
+
 LEGACY_SERVICE = "ScriptorDB"
 
 
@@ -45,7 +49,11 @@ MYSQL_PASSWORD_USERNAME = "mysql_password"
 
 
 def get_mysql_password(workspace_id: str) -> str | None:
-    return keyring.get_password(_service(workspace_id), MYSQL_PASSWORD_USERNAME)
+    service = _service(workspace_id)
+    logger.debug("Reading MySQL password from keyring: service=%s", service)
+    password = keyring.get_password(service, MYSQL_PASSWORD_USERNAME)
+    logger.debug("MySQL password %s for service=%s", "found" if password is not None else "not found", service)
+    return password
 
 
 def save_mysql_password(workspace_id: str, password: str) -> None:

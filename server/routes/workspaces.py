@@ -352,8 +352,16 @@ async def configure_mysql(workspace_id: str, req: MySQLConfigRequest):
             ) as conn:
                 with conn.cursor() as cur:
                     cur.execute("SELECT 1")
+        except pymysql.OperationalError as e:
+            return _mysql_error_response(req, *_classify_mysql_operational_error(e))
+        except pymysql.ProgrammingError as e:
+            return _mysql_error_response(req, "programming_error", "programming_error", str(e))
+        except pymysql.InternalError as e:
+            return _mysql_error_response(req, "internal_error", "internal_error", str(e))
+        except pymysql.IntegrityError as e:
+            return _mysql_error_response(req, "integrity_error", "integrity_error", str(e))
         except pymysql.Error as e:
-            raise HTTPException(status_code=400, detail=f"MySQL connection test failed: {e}")
+            return _mysql_error_response(req, "unknown_error", "unknown_error", str(e))
 
     db_url = f"mysql+pymysql://{req.user}@{req.host}:{req.port}/{req.db}"
     ws_settings = WorkspaceSettings.load(Path(rec.path), rec.id, rec.name)
@@ -412,4 +420,32 @@ async def reset_mysql_config(workspace_id: str):
         db=ws_settings.mysql_db,
         mysql_password_set=ws_settings.mysql_password_set,
         message="Switched to SQLite (MySQL configuration preserved)",
+    )
+
+
+def _classify_mysql_operational_error(e: pymysql.OperationalError) -> tuple[str, str, str]:
+    code = e.args[0] if len(e.args) > 0 else None
+    if code in (1045, 1044):
+        return "access_denied", "operational_error", str(e)
+    if code == 1049:
+        return "unknown_database", "operational_error", str(e)
+    if code in (2003, 2005):
+        return "connection_failed", "operational_error", str(e)
+    return "operational_error", "operational_error", str(e)
+
+
+def _mysql_error_response(
+    req: MySQLConfigRequest, error_code: str, error_type: str, message: str
+) -> MySQLConfigResponse:
+    return MySQLConfigResponse(
+        ok=False,
+        db_url="",
+        host=req.host,
+        port=req.port,
+        user=req.user,
+        db=req.db,
+        mysql_password_set=bool(req.password),
+        message=message,
+        error_code=error_code,
+        error_type=error_type,
     )

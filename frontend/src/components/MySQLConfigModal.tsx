@@ -81,8 +81,12 @@ export default function MySQLConfigModal({
                 ...form,
                 port: Number(form.port) || DEFAULT_PORT,
               });
-        setResult(res);
-        onConfigSaved?.();
+        if (!res.ok) {
+          setError(`${res.message || "Connection failed"}${res.error_code ? ` (${res.error_code})` : ""}`);
+        } else {
+          setResult(res);
+          onConfigSaved?.();
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to save database configuration");
       } finally {
@@ -106,8 +110,9 @@ export default function MySQLConfigModal({
           <Modal.Body>
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-graphite">Database engine</Label>
+                <Label id="engine-label" className="text-xs text-graphite">Database engine</Label>
                 <Select
+                  aria-labelledby="engine-label"
                   value={engine}
                   onChange={(v) => {
                     if (typeof v === "string") {
@@ -243,7 +248,7 @@ export default function MySQLConfigModal({
                 )}
               </form>
 
-              {result && !error && (
+              {result?.ok && !error && (
                 <div className="flex items-start gap-2 rounded-lg border border-sage/30 bg-sage/10 p-3">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-sage" />
                   <div className="flex flex-col gap-0.5">

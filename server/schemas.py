@@ -287,3 +287,5 @@ class MySQLConfigResponse(BaseModel):
     db: str
     mysql_password_set: bool
     message: str | None = None
+    error_code: str | None = None
+    error_type: str | None = None
