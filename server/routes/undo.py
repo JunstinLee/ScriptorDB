@@ -3,11 +3,13 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from config.settings import settings
+from logging_setup import get_logger
 from server.dependencies import require_workspace
 from server.sessions import get_session_store
 from tools.db_connection import get_engine
 from tools.undo_log import ensure_undo_tables, list_all_groups, revert_to_group
 
+logger = get_logger("routes.undo")
 
 router = APIRouter(prefix="/api/undo", tags=["undo"])
 
@@ -15,16 +17,22 @@ router = APIRouter(prefix="/api/undo", tags=["undo"])
 @router.get("")
 async def undo_list():
     require_workspace()
-    engine = get_engine(settings.db_url)
-    ensure_undo_tables(engine)
-    groups = list_all_groups(engine)
-    return {"groups": groups}
+    logger.info("GET /api/undo workspace=%s db_url=%s", settings.workspace_id, settings.db_url)
+    try:
+        engine = get_engine(settings.db_url, workspace_id=settings.workspace_id)
+        ensure_undo_tables(engine)
+        groups = list_all_groups(engine)
+        logger.info("GET /api/undo returned %s groups", len(groups))
+        return {"groups": groups}
+    except Exception as e:
+        logger.error("GET /api/undo failed: %s", e)
+        raise
 
 
 @router.post("/{group_id}/revert")
 async def undo_revert(group_id: int):
     require_workspace()
-    engine = get_engine(settings.db_url)
+    engine = get_engine(settings.db_url, workspace_id=settings.workspace_id)
     ensure_undo_tables(engine)
     try:
         reverted_ids = revert_to_group(engine, group_id)
@@ -36,7 +44,7 @@ async def undo_revert(group_id: int):
 @router.delete("/{group_id}/session")
 async def undo_revert_and_trim_session(group_id: int):
     require_workspace()
-    engine = get_engine(settings.db_url)
+    engine = get_engine(settings.db_url, workspace_id=settings.workspace_id)
     ensure_undo_tables(engine)
     try:
         reverted_ids = revert_to_group(engine, group_id)
