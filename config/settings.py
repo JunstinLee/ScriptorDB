@@ -36,6 +36,11 @@ def _persist(config: AppConfig) -> None:
         default_models=dict(config.default_models),
         auto_restore_sessions=config.auto_restore_sessions,
         use_global_defaults=True,
+        mysql_host=config.mysql_host,
+        mysql_port=config.mysql_port,
+        mysql_user=config.mysql_user,
+        mysql_db=config.mysql_db,
+        mysql_password_set=config.mysql_password_set,
     )
     ws_settings.save()
 
@@ -95,6 +100,11 @@ def load_for_workspace(config: AppConfig, workspace_id: str) -> None:
     config.llm_model = ws_settings.llm_model
     config.default_models = dict(ws_settings.default_models)
     config.auto_restore_sessions = ws_settings.auto_restore_sessions
+    config.mysql_host = ws_settings.mysql_host
+    config.mysql_port = ws_settings.mysql_port
+    config.mysql_user = ws_settings.mysql_user
+    config.mysql_db = ws_settings.mysql_db
+    config.mysql_password_set = ws_settings.mysql_password_set
 
 
 def load_default_workspace() -> bool:
