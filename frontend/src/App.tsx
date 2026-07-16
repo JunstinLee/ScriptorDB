@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Toast } from "@heroui/react";
 import ChatPanel from "./components/ChatPanel";
 import ConfirmDialog from "./components/common/ConfirmDialog";
 import SchemaSidebar from "./components/SchemaSidebar";
@@ -158,7 +159,7 @@ function MainApp({
 
   const runs = activeSessionId ? getRuns(activeSessionId) : [];
 
-  const { tables, loading: schemaLoading } = useSchema(workspace?.id);
+  const { tables, loading: schemaLoading, refresh: refreshSchema } = useSchema(workspace?.id);
   const abortRef = useRef<AbortController | null>(null);
   const settingsModal = useOverlayState();
   const [settingsChanged, setSettingsChanged] = useState(0);
@@ -297,6 +298,12 @@ function MainApp({
     setPickerOpen(true);
   }, []);
 
+  const handleDatabaseConfigured = useCallback(async () => {
+    await onRefreshWorkspaces();
+    void refreshSchema();
+    clearRuns();
+  }, [clearRuns, onRefreshWorkspaces, refreshSchema]);
+
   const handleCloseWorkspacePicker = useCallback(() => {
     setPickerOpen(false);
   }, []);
@@ -315,6 +322,7 @@ function MainApp({
 
   return (
     <div className="flex h-screen bg-background text-foreground">
+      <Toast.Provider />
       <Sidebar
         sessions={sessions}
         activeSessionId={activeSessionId}
@@ -329,7 +337,7 @@ function MainApp({
         onSwitchWorkspace={handleSwitchWorkspace}
         onOpenWorkspacePicker={handleOpenWorkspacePicker}
         onRequestNewWorkspace={handleOpenWorkspacePicker}
-        onDatabaseConfigured={onRefreshWorkspaces}
+        onDatabaseConfigured={handleDatabaseConfigured}
       />
 
       <div className="flex flex-1 flex-col min-w-0">

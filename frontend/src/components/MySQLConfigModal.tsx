@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Input, Label, ListBox, Modal, Select, Switch } from "@heroui/react";
+import { Button, Input, Label, ListBox, Modal, Select, Switch, toast } from "@heroui/react";
 import { Database, Server, CheckCircle2, AlertCircle } from "lucide-react";
 import { configureMySQL, resetMySQLConfig } from "../api/workspaces";
 import type { MySQLConfigRequest, MySQLConfigResponse, WorkspaceDetail } from "../types";
@@ -58,7 +58,7 @@ export default function MySQLConfigModal({
       setResult(null);
       setError(null);
     }
-  }, [isOpen, workspace]);
+  }, [isOpen, workspace?.id]);
 
   const updateField = useCallback(<K extends keyof MySQLConfigRequest>(key: K, value: MySQLConfigRequest[K]) => {
     setForm((prev: MySQLConfigRequest) => ({ ...prev, [key]: value }));
@@ -85,6 +85,7 @@ export default function MySQLConfigModal({
           setError(`${res.message || "Connection failed"}${res.error_code ? ` (${res.error_code})` : ""}`);
         } else {
           setResult(res);
+          toast.success(engine === "mysql" ? "Connected to MySQL" : "Switched to SQLite");
           onConfigSaved?.();
         }
       } catch (err) {
