@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Input, Label, ListBox, Modal, Select, Switch, toast } from "@heroui/react";
-import { Database, Server, CheckCircle2, AlertCircle } from "lucide-react";
+import { Database, Server, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { configureMySQL, resetMySQLConfig } from "../api/workspaces";
 import type { MySQLConfigRequest, MySQLConfigResponse, WorkspaceDetail } from "../types";
 
@@ -19,12 +19,13 @@ function parseInitialValues(workspace: WorkspaceDetail | null): MySQLConfigReque
   if (!workspace) {
     return { host: DEFAULT_HOST, port: DEFAULT_PORT, user: DEFAULT_USER, db: "", password: "", test_first: true };
   }
+  const key = `mysql_pwd_${workspace.id}`;
   return {
     host: workspace.mysql_host ?? DEFAULT_HOST,
     port: workspace.mysql_port ?? DEFAULT_PORT,
     user: workspace.mysql_user ?? DEFAULT_USER,
     db: workspace.mysql_db ?? "",
-    password: "",
+    password: localStorage.getItem(key) || "",
     test_first: true,
   };
 }
@@ -50,6 +51,7 @@ export default function MySQLConfigModal({
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<MySQLConfigResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -64,7 +66,15 @@ export default function MySQLConfigModal({
     setForm((prev: MySQLConfigRequest) => ({ ...prev, [key]: value }));
     setResult(null);
     setError(null);
-  }, []);
+    if (key === "password" && workspace) {
+      const key_ = `mysql_pwd_${workspace.id}`;
+      if (value && typeof value === "string" && value.trim()) {
+        localStorage.setItem(key_, value as string);
+      } else {
+        localStorage.removeItem(key_);
+      }
+    }
+  }, [workspace]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -217,14 +227,25 @@ export default function MySQLConfigModal({
                       <Label htmlFor="mysql-password" className="text-xs text-graphite">
                         Password
                       </Label>
-                      <Input
-                        id="mysql-password"
-                        type="password"
-                        value={form.password}
-                        placeholder={workspace?.mysql_password_set ? "•••••••• (leave blank to keep)" : ""}
-                        onChange={(e) => updateField("password", e.target.value)}
-                        disabled={busy}
-                      />
+                      <div className="relative">
+                        <Input
+                          id="mysql-password"
+                          type={showPassword ? "text" : "password"}
+                          value={form.password}
+                          placeholder={workspace?.mysql_password_set ? "•••••••• (leave blank to keep)" : ""}
+                          onChange={(e) => updateField("password", e.target.value)}
+                          disabled={busy}
+                          className="w-full pr-8"
+                        />
+                        <button
+                          type="button"
+                          className="absolute inset-y-0 right-2 flex items-center justify-center text-graphite hover:text-ink"
+                          onClick={() => setShowPassword(!showPassword)}
+                          tabIndex={-1}
+                        >
+                          {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                        </button>
+                      </div>
                       <p className="text-[11px] text-muted">
                         Stored in the system keyring. Never saved in workspace files.
                       </p>
