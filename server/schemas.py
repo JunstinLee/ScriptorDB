@@ -59,6 +59,32 @@ class SessionListResponse(BaseModel):
     sessions: list[SessionListItem]
 
 
+class HistoryMatchSegment(BaseModel):
+    text: str
+    highlight: bool = False
+
+
+class HistorySearchMatch(BaseModel):
+    segments: list[HistoryMatchSegment]
+
+
+class HistorySearchResultItem(BaseModel):
+    session_id: str
+    title: str | None = None
+    created_at: datetime
+    last_access: datetime
+    message_count: int
+    match_count: int = 0
+    matches: list[HistorySearchMatch] = []
+
+
+class HistorySearchResponse(BaseModel):
+    results: list[HistorySearchResultItem]
+    total: int
+    offset: int
+    limit: int
+
+
 class ChatRequest(BaseModel):
     prompt: str
     model: str | None = None
@@ -224,6 +250,23 @@ class ErrorEvent(BaseModel):
     type: Literal["error"] = "error"
     message: str
     error_id: str | None = None
+
+
+class ApprovalRequestEvent(BaseModel):
+    """SSE event: agent paused for human approval of high-risk tool calls."""
+    type: Literal["approval_request"] = "approval_request"
+    run_id: str
+    request_id: str
+    calls: list[dict[str, Any]]
+
+
+class ApprovalSubmitRequest(BaseModel):
+    request_id: str
+    approved_map: dict[str, bool]
+
+
+class ApprovalSubmitResponse(BaseModel):
+    ok: bool
 
 
 class WorkspaceCreateRequest(BaseModel):

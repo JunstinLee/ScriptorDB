@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from pydantic_ai import Agent
 from pydantic_ai.messages import ModelMessage
 
 from config.app_config import AppConfig
@@ -24,7 +23,7 @@ async def stream_agent_response(
     config: AppConfig,
     model: str | None = None,
     provider: str | None = None,
-    agent: Agent[AppConfig] | None = None,
+    agent: Any | None = None,
     run_collector: dict[str, Any] | None = None,
     new_messages_collector: list[ModelMessage] | None = None,
 ) -> AsyncIterator[str]:
@@ -50,25 +49,6 @@ async def stream_agent_response(
             if new_messages_collector is not None:
                 new_messages_collector.extend(event.get("messages", []))
             continue
-        if ev_type == "metadata":
-            slug = None
-            display_name = None
-            if config.llm_model:
-                resolved = resolve_canonical_slug(config.llm_provider, config.llm_model)
-                if resolved:
-                    slug = resolved
-                    c = get_canonical_by_slug(slug)
-                    if c:
-                        display_name = c.display_name
-            event_payload = {
-                **event,
-                "canonical_slug": slug,
-                "display_name": display_name,
-                "provider_specific_id": config.llm_model,
-            }
-            yield sse_event("metadata", event_payload)
-        else:
-            yield sse_event(ev_type, event)
 
         if ev_type == "run_end":
             yield sse_done()

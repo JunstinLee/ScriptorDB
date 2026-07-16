@@ -88,12 +88,13 @@ class FileSessionStore(SessionStore):
                     except ValueError:
                         ts = now
                     session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
-            for r in item.get("runs", []):
-                if isinstance(r, dict):
-                    try:
-                        session.runs.append(StoredRun(**r))
-                    except Exception:
-                        pass
+                for r in item.get("runs", []):
+                    if isinstance(r, dict):
+                        try:
+                            session.runs.append(StoredRun(**r))
+                        except Exception:
+                            pass
+            print(f"[session_file_store] loaded session: session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]}")
             self._write_session_file(session)
         try:
             legacy_file.rename(legacy_backup)
@@ -146,6 +147,7 @@ class FileSessionStore(SessionStore):
                             session.runs.append(StoredRun(**r))
                         except Exception:
                             pass
+                print(f"[session_file_store] _load: session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]}")
                 for m in payload.get("model_messages", []):
                     if isinstance(m, dict):
                         try:
@@ -227,6 +229,7 @@ class FileSessionStore(SessionStore):
                         session.runs.append(StoredRun(**r))
                     except Exception:
                         pass
+            print(f"[session_file_store] _rebuild: session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]}")
             for m in payload.get("model_messages", []):
                 if isinstance(m, dict):
                     try:

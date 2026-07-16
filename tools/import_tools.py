@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import csv
-import os
 from collections.abc import Callable
 from typing import Any
 
@@ -11,7 +9,17 @@ from sqlalchemy import text
 from config.settings import Settings
 from tools.db_connection import get_connection
 from tools.errors import _to_tool_error
+from tools.parsers.csv_parser import parse_csv
+from tools.parsers.excel_parser import parse_excel
+from tools.schema_helpers import (
+    create_table_from_headers,
+    get_pk_columns,
+    quote_identifier,
+    table_exists,
+    unique_table_name,
+)
 from tools.tool_result import ToolErrorInfo, ToolResult
+from tools.undo_log import add_entry, create_group
 
 
 def _quote_identifier(name: str) -> str:
@@ -45,44 +53,74 @@ def _insert_batches(
     headers: list[str],
     rows: list[list[Any]],
     batch_size: int,
-) -> int:
+    capture_rows: bool = False,
+) -> tuple[int, list[dict] | None]:
     sql = _build_insert_sql(table_name, headers)
     total = 0
+    inserted_rows: list[dict] = []
+    pk_cols = get_pk_columns(conn, table_name) if capture_rows else []
+    dialect = conn.dialect.name
+
     for i in range(0, len(rows), batch_size):
         batch = rows[i : i + batch_size]
         params = [
             {f"p{j}": row[j] for j in range(len(headers))}
             for row in batch
         ]
-        conn.execute(text(sql), params)
-        total += len(batch)
-    return total
+
+        if capture_rows and pk_cols:
+            if dialect == "sqlite":
+                returning_sql = sql.rstrip(";") + " RETURNING *"
+                result = conn.execute(text(returning_sql), params)
+                batch_rows = [dict(row._mapping) for row in result.fetchall()]
+                inserted_rows.extend(batch_rows)
+                total += len(batch_rows)
+            elif dialect == "mysql":
+                conn.execute(text(sql), params)
+                total += len(batch)
+                count = len(batch)
+                last_id_result = conn.execute(text("SELECT LAST_INSERT_ID()"))
+                last_id = last_id_result.scalar()
+                if last_id is not None and pk_cols:
+                    first_id = last_id - count + 1
+                    pk_col = pk_cols[0]
+                    select_sql = (
+                        f"SELECT * FROM {_quote_identifier(table_name)} "
+                        f"WHERE {_quote_identifier(pk_col)} BETWEEN :first AND :last"
+                    )
+                    select_result = conn.execute(
+                        text(select_sql), {"first": first_id, "last": last_id}
+                    )
+                    batch_rows = [dict(row._mapping) for row in select_result.fetchall()]
+                    inserted_rows.extend(batch_rows)
+            else:
+                conn.execute(text(sql), params)
+                total += len(batch)
+        else:
+            conn.execute(text(sql), params)
+            total += len(batch)
+
+    return total, inserted_rows if capture_rows else None
 
 
-def _normalize_row(row: list[Any], length: int) -> list[Any]:
-    if len(row) < length:
-        return list(row) + [None] * (length - len(row))
-    if len(row) > length:
-        return row[:length]
-    return list(row)
+def _build_undo_entries_for_inserted_rows(
+    conn,
+    table_name: str,
+    inserted_rows: list[dict],
+) -> list[tuple[str, dict]]:
+    pk_cols = get_pk_columns(conn, table_name)
+    if not pk_cols or not inserted_rows:
+        return []
 
-
-def _apply_hooks(
-    rows: list[list[Any]],
-    headers: list[str],
-    row_filter: Callable[[dict[str, Any]], bool] | None,
-    row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None,
-) -> list[list[Any]]:
-    result: list[list[Any]] = []
-    for row in rows:
-        row = _normalize_row(row, len(headers))
-        row_dict = dict(zip(headers, row))
-        if row_filter is not None and not row_filter(row_dict):
-            continue
-        if row_transform is not None:
-            row_dict = row_transform(row_dict)
-        result.append([row_dict.get(header) for header in headers])
-    return result
+    undo_entries: list[tuple[str, dict]] = []
+    for row in inserted_rows:
+        pk_conditions = " AND ".join(
+            f"{_quote_identifier(col)} = :undo_{col}" for col in pk_cols
+        )
+        undo_sql = f"DELETE FROM {_quote_identifier(table_name)} WHERE {pk_conditions}"
+        undo_params = {f"undo_{col}": row[col] for col in pk_cols}
+        undo_entries.append((undo_sql, undo_params))
+    return undo_entries
 
 
 def _import_rows_to_db(
@@ -215,10 +253,7 @@ def _import_excel_to_db_impl(
     except ImportError:
         return ToolResult(
             success=False,
-            error=ToolErrorInfo(
-                category="parameter_error",
-                message="openpyxl is not installed. Run: uv sync",
-            ),
+            error=ToolErrorInfo(category="parameter_error", message=err),
         )
 
     try:

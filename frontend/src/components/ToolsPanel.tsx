@@ -110,6 +110,22 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
 
   const runsWithTools = runs.filter((r) => r.tool_invocations.length > 0);
 
+  console.log(
+    "[ToolsPanel] runsWithTools: %d runs, run_ids=%s",
+    runsWithTools.length,
+    runsWithTools
+      .map(
+        (r) =>
+          r.run_id +
+          "[" +
+          r.tool_invocations
+            .map((t) => t.call_id + ":" + t.status)
+            .join(",") +
+          "]",
+      )
+      .join(" | "),
+  );
+
   const runsRef = useRef(runs);
   runsRef.current = runs;
   const runsWithToolsRef = useRef(runsWithTools);

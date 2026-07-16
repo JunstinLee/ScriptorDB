@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+from typing import Annotated, Optional
+
+import typer
+
+from agents.db_agent import get_agent
+from cli import app
+from cli.cmd_common import ensure_workspace
+from config.models import fuzzy_match_model
+from config.settings import load_for_workspace, settings
+from config.workspace import WorkspaceNotFoundError
+
+
+@app.command()
+def ask(
+    prompt: Annotated[str, typer.Argument(help="自然语言数据库操作请求")],
+    model: Annotated[str | None, typer.Option("--model", "-m")] = None,
+    provider: Annotated[str | None, typer.Option("--provider", "-p")] = None,
+    workspace: Annotated[Optional[str], typer.Option("--workspace", help="临时工作区 ID")] = None,
+):
+    if workspace:
+        try:
+            load_for_workspace(settings, workspace)
+        except WorkspaceNotFoundError as e:
+            typer.echo(str(e), err=True)
+            raise typer.Exit(1)
+    elif not ensure_workspace():
+        raise typer.Exit(1)
+
+    if provider:
+        settings.llm_provider = provider
+
+    if model:
+        matched = fuzzy_match_model(settings.llm_provider, model)
+        if matched and matched != model and not model.startswith(f"{settings.llm_provider}:"):
+            typer.echo(f"Using model: {matched}")
+            model = matched
+
+    a = get_agent(model) if model else get_agent()
+    result = a.run_sync(prompt, deps=settings)
+    typer.echo(result.output)

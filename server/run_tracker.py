@@ -26,6 +26,7 @@ class RunTracker:
     status: str = "running"
 
     def to_run_collector(self) -> dict[str, Any]:
+        print(f"[run_tracker] to_run_collector: run_id={self.run_id} status={self.status} tools={[(t['call_id'],t['status'],t['tool_name']) for t in self.tool_invocations]}")
         return {
             "run_id": self.run_id,
             "status": self.status,
@@ -48,6 +49,7 @@ class RunTracker:
     def add_tool_invocation(
         self, call_id: str, tool_name: str, args: dict
     ) -> None:
+        print(f"[run_tracker] add_tool: run_id={self.run_id} call_id={call_id} tool={tool_name}")
         self.tool_invocations.append({
             "call_id": call_id,
             "tool_name": tool_name,
@@ -65,6 +67,7 @@ class RunTracker:
         duration_ms: int | None,
         data: dict[str, Any] | None = None,
     ) -> None:
+        print(f"[run_tracker] complete_tool: run_id={self.run_id} call_id={call_id} success={success} output={str(output)[:80] if output else None}")
         for inv in self.tool_invocations:
             if inv["call_id"] == call_id:
                 inv["status"] = "success" if success else "error"

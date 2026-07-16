@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from collections.abc import AsyncIterator
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -7,9 +9,14 @@ from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
 from server.dependencies import get_config, require_workspace
-from server.schemas import ChatRequest, StoredRun, StoredToolInvocation
+from server.schemas import (
+    ApprovalSubmitRequest,
+    ChatRequest,
+)
+from server.services.chat_service import persist_chat_run
+from server.services.sse_presenter import event_to_sse
 from server.sessions import get_session_store
-from server.streaming import stream_agent_response
+from server.sse_format import sse_done, sse_event
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
 
@@ -36,18 +43,15 @@ async def chat(session_id: str, req: ChatRequest):
         )
 
     model_messages = session.get_model_messages()
-    run_collector: dict[str, Any] = {}
-    new_messages_collector: list[ModelMessage] = []
 
     async def generate():
-        async for sse_event in stream_agent_response(
-            augmented_prompt,
-            model_messages,
-            config,
+        async for sse_event_str in _run_chat_turn(
+            session_id=session_id,
+            config=config,
+            prompt=augmented_prompt,
+            message_history=model_messages,
             model=req.model,
             provider=req.provider,
-            run_collector=run_collector,
-            new_messages_collector=new_messages_collector,
         ):
             yield sse_event
 

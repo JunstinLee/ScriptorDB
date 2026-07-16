@@ -30,7 +30,7 @@ export default function ConfirmDialog({
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onPress={onClose}>
-              取消
+              Cancel
             </Button>
             <Button
               onPress={() => {

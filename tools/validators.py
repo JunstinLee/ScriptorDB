@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 
 from pydantic_ai import ModelRetry, RunContext

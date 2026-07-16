@@ -14,8 +14,9 @@ export {
   getSession,
   deleteSession,
   getSchema,
+  submitApproval,
 } from "./sessions";
-export { streamChat } from "./stream";
+export { streamApproval, streamChat } from "./stream";
 export {
   health,
   fetchModels,
@@ -45,6 +46,7 @@ export {
 } from "./workspaces";
 
 export { getImageUrl, downloadImage } from "./files";
+export { searchHistory } from "./history";
 export {
   type UndoGroup,
   listUndoGroups,
