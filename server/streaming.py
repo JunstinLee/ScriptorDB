@@ -51,7 +51,11 @@ async def stream_agent_response(
             continue
 
         if ev_type == "run_end":
+            yield sse_event(ev_type, event)
             yield sse_done()
+            continue
+
+        yield sse_event(ev_type, event)
 
     if run_collector is not None:
         run_collector.update(tracker.to_run_collector())

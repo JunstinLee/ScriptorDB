@@ -9,14 +9,10 @@ from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
 from server.dependencies import get_config, require_workspace
-from server.schemas import (
-    ApprovalSubmitRequest,
-    ChatRequest,
-)
+from server.schemas import ChatRequest
 from server.services.chat_service import persist_chat_run
-from server.services.sse_presenter import event_to_sse
 from server.sessions import get_session_store
-from server.sse_format import sse_done, sse_event
+from server.streaming import stream_agent_response
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
 
@@ -43,39 +39,26 @@ async def chat(session_id: str, req: ChatRequest):
         )
 
     model_messages = session.get_model_messages()
+    run_collector: dict[str, Any] = {}
+    new_messages_collector: list[ModelMessage] = []
 
     async def generate():
-        async for sse_event_str in _run_chat_turn(
-            session_id=session_id,
-            config=config,
+        async for sse_event_str in stream_agent_response(
             prompt=augmented_prompt,
             message_history=model_messages,
+            config=config,
             model=req.model,
             provider=req.provider,
+            run_collector=run_collector,
+            new_messages_collector=new_messages_collector,
         ):
-            yield sse_event
+            yield sse_event_str
 
-        if new_messages_collector:
-            session.add_model_messages(new_messages_collector)
-
-        if run_collector.get("status") == "completed" and run_collector.get("final_output"):
-            session.add_assistant_message(run_collector["final_output"])
-
-        if run_collector:
-            run = StoredRun(
-                run_id=run_collector["run_id"],
-                status=run_collector["status"],
-                tool_invocations=[
-                    StoredToolInvocation(**inv)
-                    for inv in run_collector.get("tool_invocations", [])
-                ],
-                final_output=run_collector.get("final_output", ""),
-                started_at=run_collector["started_at"],
-                ended_at=run_collector.get("ended_at"),
-                error_message=run_collector.get("error_message"),
-            )
-            session.add_run(run)
-            get_session_store().save()
+        persist_chat_run(
+            session_id=session_id,
+            new_messages_collector=new_messages_collector,
+            run_collector=run_collector,
+        )
 
     return StreamingResponse(
         generate(),
