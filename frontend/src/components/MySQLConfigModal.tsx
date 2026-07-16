@@ -99,7 +99,7 @@ export default function MySQLConfigModal({
           onConfigSaved?.();
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to save database configuration");
+        setError(err instanceof Error ? err.message.replace(/^HTTP \d+: /, "") : "Failed to save database configuration");
       } finally {
         setBusy(false);
       }
