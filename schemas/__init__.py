@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from schemas.approval import ApprovalSubmitRequest, ApprovalSubmitResponse
 from schemas.chat import ChatRequest
+from schemas.crawl_models import CrawlRequest, CrawlResult
 from schemas.db import ColumnDef
 from schemas.db_schema import SchemaColumn, SchemaResponse, SchemaTable
 from schemas.health import HealthResponse
