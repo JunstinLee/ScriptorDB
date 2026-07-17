@@ -56,7 +56,7 @@ async def _crawl_url_inner(url: str) -> CrawlResult:
     if len(raw_markdown) > MAX_MARKDOWN_LENGTH:
         raw_markdown = raw_markdown[:MAX_MARKDOWN_LENGTH] + "\n\n[Content truncated — exceeded 50K characters]"
 
-    title = result.title
+    title = getattr(result, "title", None)
     if not title and result.metadata:
         title = getattr(result.metadata, "title", None)
         if title is None and hasattr(result.metadata, "get"):
