@@ -9,6 +9,7 @@ from pydantic_ai import ModelRetry, RunContext
 from sqlalchemy import text
 
 from config.settings import Settings
+from schemas.db import ColumnDef
 from tools.db_connection import _get_all_tables, _get_single_table_schema, get_connection
 from tools.errors import _to_tool_error
 from tools.schema_helpers import (
@@ -20,18 +21,6 @@ from tools.schema_helpers import (
 )
 from tools.tool_result import ToolResult
 from tools.undo_log import add_entry, create_group
-
-
-class ColumnDef(BaseModel):
-    name: str
-    type: str = "TEXT"
-    nullable: bool = True
-    default: str | None = None
-    pk: bool = False
-    references: str | None = Field(
-        default=None,
-        description="Foreign key reference, e.g. 'other_table(id)'",
-    )
 
 
 def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> ToolResult:
