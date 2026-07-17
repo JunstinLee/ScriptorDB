@@ -86,6 +86,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   attachments?: string[];
+  crawl_url?: string | null;
 }
 
 export interface SessionMeta {

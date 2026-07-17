@@ -211,7 +211,7 @@ function MainApp({
       const sessionId = activeSessionId;
 
       const sendToSession = (sid: string) => {
-        addUserMessage(prompt, attachments);
+        addUserMessage(prompt, attachments, crawlUrl);
         setLoading(true);
         approvalSessionIdRef.current = sid;
 
