@@ -20,6 +20,7 @@ export interface ChatRequest {
   model?: string | null;
   provider?: string | null;
   attachments?: string[];
+  crawl_url?: string | null;
 }
 
 export interface SchemaColumn {
