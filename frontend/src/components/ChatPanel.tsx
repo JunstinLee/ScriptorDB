@@ -1,8 +1,10 @@
+import { useCallback, useRef, useState } from "react";
 import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
 import ModelProviderBar from "./ModelProviderBar";
 import WelcomeScreen from "./WelcomeScreen";
 import type { ChatMessage, Run, SchemaTable, UndoGroup, WorkspaceDetail } from "../types";
+import { uploadFile } from "../api/files";
 
 interface ChatPanelProps {
   activeSessionId: string | null;
@@ -35,6 +37,74 @@ export default function ChatPanel({
   onHighlightRun,
   onSelectionChange,
 }: ChatPanelProps) {
+  const [attachments, setAttachments] = useState<string[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [crawlMode, setCrawlMode] = useState(false);
+  const [crawlUrl, setCrawlUrl] = useState("");
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const removeAttachment = useCallback((path: string) => {
+    setAttachments((prev) => prev.filter((p) => p !== path));
+  }, []);
+
+  const handleAttachClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadError(null);
+    setIsUploading(true);
+    try {
+      const res = await uploadFile(file);
+      setAttachments((prev) => [...prev, res.path]);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  }, []);
+
+  const toggleCrawl = useCallback(() => {
+    setCrawlMode((prev) => {
+      if (prev) {
+        setCrawlUrl("");
+        setUrlError(null);
+      }
+      return !prev;
+    });
+  }, []);
+
+  const handleUrlChange = useCallback((value: string) => {
+    setCrawlUrl(value);
+    if (!value.trim()) {
+      setUrlError(null);
+    } else {
+      try {
+        const normalized = value.includes("://") ? value : `https://${value}`;
+        new URL(normalized);
+        setUrlError(null);
+      } catch {
+        // keep current error state
+      }
+    }
+  }, []);
+
+  const wrappedOnSend = useCallback((prompt: string, atts: string[], crawlUrlParam: string | null) => {
+    onSend(prompt, atts, crawlUrlParam);
+    setAttachments([]);
+    setUploadError(null);
+    setUrlError(null);
+    if (crawlMode) {
+      setCrawlMode(false);
+      setCrawlUrl("");
+    }
+  }, [onSend, crawlMode]);
+
   return (
     <div className="flex flex-1 flex-col min-h-0">
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -58,10 +128,27 @@ export default function ChatPanel({
 
       <div className="shrink-0 bg-background px-4 py-3">
         <div className="overflow-hidden rounded-2xl border border-grid bg-surface">
-          <ChatInput onSend={onSend} disabled={isLoading} />
+          <ChatInput
+            onSend={wrappedOnSend}
+            disabled={isLoading}
+            attachments={attachments}
+            removeAttachment={removeAttachment}
+            uploadError={uploadError}
+            crawlMode={crawlMode}
+            crawlUrl={crawlUrl}
+            urlError={urlError}
+            onCrawlUrlChange={handleUrlChange}
+          />
           <ModelProviderBar
             settingsChanged={settingsChanged}
             onSelectionChange={onSelectionChange}
+            onAttachClick={handleAttachClick}
+            onFileChange={handleFileChange}
+            fileInputRef={fileInputRef}
+            isUploading={isUploading}
+            crawlMode={crawlMode}
+            onToggleCrawl={toggleCrawl}
+            disabled={isLoading}
           />
         </div>
       </div>

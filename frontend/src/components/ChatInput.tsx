@@ -1,23 +1,22 @@
 import { useCallback, useRef, useState } from "react";
 import { Button, Input } from "@heroui/react";
-import { ArrowUp, Globe, Paperclip, X } from "lucide-react";
-import { uploadFile } from "../api/files";
+import { ArrowUp, X } from "lucide-react";
 
 interface ChatInputProps {
   onSend: (prompt: string, attachments: string[], crawlUrl: string | null) => void;
   disabled: boolean;
+  attachments: string[];
+  removeAttachment: (path: string) => void;
+  uploadError: string | null;
+  crawlMode: boolean;
+  crawlUrl: string;
+  urlError: string | null;
+  onCrawlUrlChange: (value: string) => void;
 }
 
-export default function ChatInput({ onSend, disabled }: ChatInputProps) {
+export default function ChatInput({ onSend, disabled, attachments, removeAttachment, uploadError, crawlMode, crawlUrl, urlError, onCrawlUrlChange }: ChatInputProps) {
   const [prompt, setPrompt] = useState("");
-  const [attachments, setAttachments] = useState<string[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [crawlMode, setCrawlMode] = useState(false);
-  const [crawlUrl, setCrawlUrl] = useState("");
-  const [urlError, setUrlError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resizeTextarea = useCallback(() => {
     const ta = textareaRef.current;
@@ -31,27 +30,10 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
     return `https://${raw}`;
   };
 
-  const isValidUrl = (url: string): boolean => {
-    if (!url.trim()) return false;
-    try {
-      new URL(normalizeUrl(url.trim()));
-      return true;
-    } catch {
-      return false;
-    }
-  };
-
   const handleSend = useCallback(() => {
     const trimmed = prompt.trim();
     if (!trimmed && attachments.length === 0) return;
-
-    if (crawlMode) {
-      if (!crawlUrl.trim()) return;
-      if (!isValidUrl(crawlUrl.trim())) {
-        setUrlError("Invalid URL");
-        return;
-      }
-    }
+    if (crawlMode && !crawlUrl.trim()) return;
 
     onSend(
       trimmed || (crawlMode ? "Analyze the web page" : ""),
@@ -59,13 +41,6 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
       crawlMode ? normalizeUrl(crawlUrl.trim()) : null,
     );
     setPrompt("");
-    setAttachments([]);
-    setUploadError(null);
-    setUrlError(null);
-    if (crawlMode) {
-      setCrawlMode(false);
-      setCrawlUrl("");
-    }
     requestAnimationFrame(() => {
       const ta = textareaRef.current;
       if (ta) {
@@ -92,68 +67,6 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
     [resizeTextarea],
   );
 
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      setUploadError(null);
-      setIsUploading(true);
-      try {
-        const res = await uploadFile(file);
-        setAttachments((prev) => [...prev, res.path]);
-      } catch (err) {
-        setUploadError(err instanceof Error ? err.message : "Upload failed");
-      } finally {
-        setIsUploading(false);
-        e.target.value = "";
-      }
-    },
-    [],
-  );
-
-  const removeAttachment = useCallback((path: string) => {
-    setAttachments((prev) => prev.filter((p) => p !== path));
-  }, []);
-
-  const handleAttachClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
-
-  const toggleCrawl = useCallback(() => {
-    setCrawlMode((prev) => {
-      if (prev) {
-        setCrawlUrl("");
-        setUrlError(null);
-      }
-      return !prev;
-    });
-  }, []);
-
-  const handleUrlChange = useCallback((value: string) => {
-    setCrawlUrl(value);
-    if (!value.trim()) {
-      setUrlError(null);
-    } else if (urlError) {
-      try {
-        new URL(normalizeUrl(value.trim()));
-        setUrlError(null);
-      } catch {
-        // keep error
-      }
-    }
-  }, [urlError]);
-
-  const handleUrlKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        handleSend();
-      }
-    },
-    [handleSend],
-  );
-
   return (
     <div className="flex flex-col gap-1 px-3 py-2">
       {attachments.length > 0 && (
@@ -178,38 +91,27 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         </div>
       )}
 
+      {crawlMode && (
+        <>
+          <Input
+            value={crawlUrl}
+            onChange={(e) => onCrawlUrlChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Enter URL to crawl..."
+            className={`flex-1 ${urlError ? "border-danger" : ""}`}
+          />
+          {urlError && (
+            <div className="text-xs text-danger">{urlError}</div>
+          )}
+        </>
+      )}
+
       <div className="flex items-end gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={handleAttachClick}
-          disabled={disabled || isUploading}
-          className="shrink-0 rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink disabled:opacity-50"
-          aria-label="Attach CSV or Excel file"
-          title="Attach CSV or Excel file"
-        >
-          <Paperclip className="h-4 w-4" />
-        </button>
-
-        <button
-          type="button"
-          onClick={toggleCrawl}
-          disabled={disabled}
-          className={`shrink-0 rounded-lg p-2 transition-colors hover:bg-default/50 disabled:opacity-50 ${
-            crawlMode ? "text-sapphire bg-default/30" : "text-graphite hover:text-ink"
-          }`}
-          aria-label="Toggle web crawl mode"
-          title="Crawl a web page"
-        >
-          <Globe className="h-4 w-4" />
-        </button>
-
         <textarea
           ref={textareaRef}
           value={prompt}
@@ -232,21 +134,6 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
           <ArrowUp className="h-4 w-4" />
         </Button>
       </div>
-
-      {crawlMode && (
-        <>
-          <Input
-            value={crawlUrl}
-            onChange={(e) => handleUrlChange(e.target.value)}
-            onKeyDown={handleUrlKeyDown}
-            placeholder="Enter URL to crawl..."
-            className={`flex-1 ${urlError ? "border-danger" : ""}`}
-          />
-          {urlError && (
-            <div className="text-xs text-danger">{urlError}</div>
-          )}
-        </>
-      )}
 
       {uploadError && (
         <div className="text-xs text-danger">{uploadError}</div>

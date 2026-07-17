@@ -1,13 +1,33 @@
 from __future__ import annotations
 
 import asyncio
+import traceback
 from urllib.parse import urlparse
 
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 
+from logging_setup import get_logger
 from schemas.crawl_models import CrawlResult
 
+logger = get_logger("crawl")
+
 MAX_MARKDOWN_LENGTH = 50000
+
+
+def _extract_status_code(result: object) -> int | None:
+    for attr in ("status_code", "response_status", "http_status_code"):
+        val = getattr(result, attr, None)
+        if isinstance(val, int):
+            return val
+
+    resp = getattr(result, "response", None)
+    if resp is not None:
+        for attr in ("status_code", "status"):
+            val = getattr(resp, attr, None)
+            if isinstance(val, int):
+                return val
+
+    return None
 
 
 def _normalize_url(url: str) -> str:
@@ -32,21 +52,30 @@ async def _crawl_url_inner(url: str) -> CrawlResult:
     if not result:
         return CrawlResult(url=url, success=False, error="No response from crawler")
 
-    markdown = result.markdown or result.markdown_v2 or ""
-    if len(markdown) > MAX_MARKDOWN_LENGTH:
-        markdown = markdown[:MAX_MARKDOWN_LENGTH] + "\n\n[Content truncated — exceeded 50K characters]"
+    raw_markdown = result.markdown or result.markdown_v2 or ""
+    if len(raw_markdown) > MAX_MARKDOWN_LENGTH:
+        raw_markdown = raw_markdown[:MAX_MARKDOWN_LENGTH] + "\n\n[Content truncated — exceeded 50K characters]"
 
     title = result.title
     if not title and result.metadata:
-        title = getattr(result.metadata, "title", None) or result.metadata.get("title") if hasattr(result.metadata, "get") else None
+        title = getattr(result.metadata, "title", None)
+        if title is None and hasattr(result.metadata, "get"):
+            title = result.metadata.get("title")
 
-    status_code = getattr(result, "status_code", None)
+    status_code = _extract_status_code(result)
     success = status_code is not None and 200 <= status_code < 400
+
+    if not success and raw_markdown.strip():
+        logger.warning(
+            "crawl returned markdown but status_code=%s — treating as success",
+            status_code,
+        )
+        success = True
 
     return CrawlResult(
         url=url,
         title=title,
-        markdown=markdown,
+        markdown=raw_markdown,
         html=getattr(result, "html", "") or "",
         status_code=status_code,
         success=success,
@@ -64,6 +93,7 @@ async def crawl_url(url: str, timeout: int = 30) -> CrawlResult:
     except asyncio.TimeoutError:
         return CrawlResult(url=url, success=False, error="Request timed out")
     except Exception as e:
+        logger.error("Unexpected crawl error for %s: %s\n%s", url, e, traceback.format_exc())
         return CrawlResult(url=url, success=False, error=str(e))
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import traceback
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -8,11 +9,14 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
+from logging_setup import get_logger
 from server.dependencies import get_config, require_workspace
 from server.schemas import ChatRequest
 from server.services.chat_service import persist_chat_run
 from server.sessions import get_session_store
 from server.streaming import stream_agent_response
+
+logger = get_logger("routes.chat")
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
 
@@ -61,6 +65,10 @@ async def chat(session_id: str, req: ChatRequest):
         except HTTPException:
             raise
         except Exception as e:
+            logger.error(
+                "Chat crawl failed for session %s url %s: %s\n%s",
+                session_id, req.crawl_url, e, traceback.format_exc(),
+            )
             raise HTTPException(
                 status_code=502,
                 detail=f"网页抓取异常: {e}",
