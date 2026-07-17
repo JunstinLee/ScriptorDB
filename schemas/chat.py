@@ -8,3 +8,4 @@ class ChatRequest(BaseModel):
     model: str | None = None
     provider: str | None = None
     attachments: list[str] = Field(default_factory=list)
+    crawl_url: str | None = None

@@ -38,6 +38,34 @@ async def chat(session_id: str, req: ChatRequest):
             f"User request: {req.prompt}"
         )
 
+    if req.crawl_url:
+        from services.crawl_service import crawl_url
+
+        try:
+            result = await crawl_url(req.crawl_url)
+            if result.success:
+                crawl_block = (
+                    f"\n\n[网页内容 - 来源: {result.url}]\n"
+                    f"标题: {result.title or '(无标题)'}\n\n"
+                    f"{result.markdown}\n"
+                    f"[网页内容结束]"
+                )
+                augmented_prompt = (
+                    f"{augmented_prompt}{crawl_block}"
+                )
+            else:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"网页抓取失败: {result.error}",
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"网页抓取异常: {e}",
+            )
+
     model_messages = session.get_model_messages()
     run_collector: dict[str, Any] = {}
     new_messages_collector: list[ModelMessage] = []
