@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Sparkles, Undo2, User, Wrench } from "lucide-react";
+import { Globe, Sparkles, Undo2, User, Wrench } from "lucide-react";
 import type { ChatMessage, Run, UndoGroup } from "../types";
 import RunContainer from "./RunContainer";
 import MarkdownRenderer from "./common/MarkdownRenderer";
@@ -55,6 +55,17 @@ export default function ChatMessages({
                         {path.split("/").pop()}
                       </span>
                     ))}
+                  </div>
+                )}
+                {msg.crawl_url && (
+                  <div className="flex flex-wrap gap-2">
+                    <span
+                      className="inline-flex items-center gap-1 rounded-md border border-grid bg-surface px-2 py-1 text-xs text-ink"
+                      title={msg.crawl_url}
+                    >
+                      <Globe className="h-3 w-3 text-cobalt" />
+                      {msg.crawl_url}
+                    </span>
                   </div>
                 )}
                 <div className="text-[14px] text-ink whitespace-pre-wrap break-words leading-relaxed">

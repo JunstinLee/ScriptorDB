@@ -207,11 +207,11 @@ function MainApp({
   }, [clearRuns]);
 
   const handleSend = useCallback(
-    (prompt: string, attachments: string[]) => {
+    (prompt: string, attachments: string[], crawlUrl: string | null) => {
       const sessionId = activeSessionId;
 
       const sendToSession = (sid: string) => {
-        addUserMessage(prompt, attachments);
+        addUserMessage(prompt, attachments, crawlUrl);
         setLoading(true);
         approvalSessionIdRef.current = sid;
 
@@ -241,7 +241,7 @@ function MainApp({
 
         abortRef.current = streamChat(
           sid,
-          { prompt, attachments, model: selectedModel || null, provider: selectedProvider || null },
+          { prompt, attachments, model: selectedModel || null, provider: selectedProvider || null, crawl_url: crawlUrl },
           onEvent,
           onError,
           onDone,

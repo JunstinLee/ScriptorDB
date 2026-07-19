@@ -10,6 +10,7 @@ from config.models import resolve_model
 from config.provider_adapter import build_model
 from config.secrets import SUPPORTED_PROVIDERS, get_api_key
 from config.settings import Settings
+from tools.crawl_toolset import crawl_toolset
 from tools.toolsets import read_toolset, viz_toolset, write_toolset
 
 
@@ -38,7 +39,7 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str 
             ),
             deps_type=Settings,
             output_type=[str, DeferredToolRequests],
-            toolsets=[read_toolset, write_toolset, viz_toolset],
+            toolsets=[read_toolset, write_toolset, viz_toolset, crawl_toolset],
             capabilities=[audit_hooks, undo_hooks],
             system_prompt=_SYSTEM_PROMPT,
         )
@@ -48,7 +49,7 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str 
         model=model,
         deps_type=Settings,
         output_type=[str, DeferredToolRequests],
-        toolsets=[read_toolset, write_toolset, viz_toolset],
+        toolsets=[read_toolset, write_toolset, viz_toolset, crawl_toolset],
         capabilities=[audit_hooks, undo_hooks],
         system_prompt=_SYSTEM_PROMPT,
     )

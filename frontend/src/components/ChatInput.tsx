@@ -1,20 +1,22 @@
 import { useCallback, useRef, useState } from "react";
-import { Button } from "@heroui/react";
-import { ArrowUp, Paperclip, X } from "lucide-react";
-import { uploadFile } from "../api/files";
+import { Button, Input } from "@heroui/react";
+import { ArrowUp, X } from "lucide-react";
 
 interface ChatInputProps {
-  onSend: (prompt: string, attachments: string[]) => void;
+  onSend: (prompt: string, attachments: string[], crawlUrl: string | null) => void;
   disabled: boolean;
+  attachments: string[];
+  removeAttachment: (path: string) => void;
+  uploadError: string | null;
+  crawlMode: boolean;
+  crawlUrl: string;
+  urlError: string | null;
+  onCrawlUrlChange: (value: string) => void;
 }
 
-export default function ChatInput({ onSend, disabled }: ChatInputProps) {
+export default function ChatInput({ onSend, disabled, attachments, removeAttachment, uploadError, crawlMode, crawlUrl, urlError, onCrawlUrlChange }: ChatInputProps) {
   const [prompt, setPrompt] = useState("");
-  const [attachments, setAttachments] = useState<string[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resizeTextarea = useCallback(() => {
     const ta = textareaRef.current;
@@ -23,20 +25,29 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
     ta.style.height = `${Math.min(ta.scrollHeight, 144)}px`;
   }, []);
 
+  const normalizeUrl = (raw: string): string => {
+    if (raw.includes("://")) return raw;
+    return `https://${raw}`;
+  };
+
   const handleSend = useCallback(() => {
     const trimmed = prompt.trim();
-    if (!trimmed) return;
-    onSend(trimmed, attachments);
+    if (!trimmed && attachments.length === 0) return;
+    if (crawlMode && !crawlUrl.trim()) return;
+
+    onSend(
+      trimmed || (crawlMode ? "Analyze the web page" : ""),
+      attachments,
+      crawlMode ? normalizeUrl(crawlUrl.trim()) : null,
+    );
     setPrompt("");
-    setAttachments([]);
-    setUploadError(null);
     requestAnimationFrame(() => {
       const ta = textareaRef.current;
       if (ta) {
         ta.style.height = "auto";
       }
     });
-  }, [prompt, attachments, onSend]);
+  }, [prompt, attachments, crawlMode, crawlUrl, onSend]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -55,34 +66,6 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
     },
     [resizeTextarea],
   );
-
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-
-      setUploadError(null);
-      setIsUploading(true);
-      try {
-        const res = await uploadFile(file);
-        setAttachments((prev) => [...prev, res.path]);
-      } catch (err) {
-        setUploadError(err instanceof Error ? err.message : "Upload failed");
-      } finally {
-        setIsUploading(false);
-        e.target.value = "";
-      }
-    },
-    [],
-  );
-
-  const removeAttachment = useCallback((path: string) => {
-    setAttachments((prev) => prev.filter((p) => p !== path));
-  }, []);
-
-  const handleAttachClick = useCallback(() => {
-    fileInputRef.current?.click();
-  }, []);
 
   return (
     <div className="flex flex-col gap-1 px-3 py-2">
@@ -108,31 +91,33 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         </div>
       )}
 
-      <div className="flex items-end gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv,.xlsx,.xls"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <button
-          type="button"
-          onClick={handleAttachClick}
-          disabled={disabled || isUploading}
-          className="shrink-0 rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink disabled:opacity-50"
-          aria-label="Attach CSV or Excel file"
-          title="Attach CSV or Excel file"
-        >
-          <Paperclip className="h-4 w-4" />
-        </button>
+      {crawlMode && (
+        <>
+          <Input
+            value={crawlUrl}
+            onChange={(e) => onCrawlUrlChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            placeholder="Enter URL to crawl..."
+            className={`flex-1 ${urlError ? "border-danger" : ""}`}
+          />
+          {urlError && (
+            <div className="text-xs text-danger">{urlError}</div>
+          )}
+        </>
+      )}
 
+      <div className="flex items-end gap-2">
         <textarea
           ref={textareaRef}
           value={prompt}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder="Ask about your database..."
+          placeholder={crawlMode ? "Enter a question about the web page..." : "Ask about your database..."}
           disabled={disabled}
           rows={1}
           className="flex-1 resize-none bg-transparent text-[14px] text-ink placeholder:text-graphite outline-none leading-relaxed min-h-[24px] max-h-[144px]"
@@ -142,7 +127,7 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
           isIconOnly
           size="sm"
           onPress={handleSend}
-          isDisabled={disabled || !prompt.trim()}
+          isDisabled={disabled || (!prompt.trim() && !(crawlMode && crawlUrl.trim()))}
           aria-label="Send"
           className="shrink-0"
         >

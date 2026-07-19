@@ -4,12 +4,13 @@ import type { ChatMessage } from "../types";
 export function useChatMessages() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
 
-  const addUserMessage = useCallback((content: string, attachments?: string[]) => {
+  const addUserMessage = useCallback((content: string, attachments?: string[], crawlUrl?: string | null) => {
     const msg: ChatMessage = {
       role: "user",
       content,
       timestamp: new Date().toISOString(),
       attachments,
+      crawl_url: crawlUrl,
     };
     setMessages((prev) => [...prev, msg]);
   }, []);

@@ -1,16 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Globe, Paperclip } from "lucide-react";
 import { PROVIDERS } from "../constants";
 import { useModelSelector } from "../hooks/useModelSelector";
 
 interface ModelProviderBarProps {
   settingsChanged: number;
   onSelectionChange: (model: string, provider: string) => void;
+  onAttachClick: () => void;
+  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  isUploading: boolean;
+  crawlMode: boolean;
+  onToggleCrawl: () => void;
+  disabled: boolean;
 }
 
 export default function ModelProviderBar({
   settingsChanged,
   onSelectionChange,
+  onAttachClick,
+  onFileChange,
+  fileInputRef,
+  isUploading,
+  crawlMode,
+  onToggleCrawl,
+  disabled,
 }: ModelProviderBarProps) {
   const {
     provider,
@@ -111,9 +126,36 @@ export default function ModelProviderBar({
 
   return (
     <div className="relative flex items-center gap-3 px-3 py-2">
-      {/* Left: future attach/image buttons placeholder */}
       <div className="flex items-center gap-1.5">
-        {/* Reserved for future controls */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          onChange={onFileChange}
+          className="hidden"
+        />
+        <button
+          type="button"
+          onClick={onAttachClick}
+          disabled={disabled || isUploading}
+          className="shrink-0 rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink disabled:opacity-50"
+          aria-label="Attach CSV or Excel file"
+          title="Attach CSV or Excel file"
+        >
+          <Paperclip className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleCrawl}
+          disabled={disabled}
+          className={`shrink-0 rounded-lg p-2 transition-colors hover:bg-default/50 disabled:opacity-50 ${
+            crawlMode ? "text-sapphire bg-default/30" : "text-graphite hover:text-ink"
+          }`}
+          aria-label="Toggle web crawl mode"
+          title="Crawl a web page"
+        >
+          <Globe className="h-4 w-4" />
+        </button>
       </div>
 
       {/* Right: engine status */}
