@@ -46,8 +46,24 @@ Read-only queries run through dedicated read tools. When the agent needs to modi
 - Every tool call is logged with a trace ID.
 - Write operations are recorded in an undo log and can be reverted.
 
+### 🗄️ MySQL Support
+
+ScriptorDB works with local SQLite files out of the box, but you can also connect to remote MySQL databases with zero configuration overhead.
+
+- **One-click switch** — Open the Database Connection modal in the sidebar, select MySQL, fill in host/port/user/database/password, and click "Test & Save." The connection is live immediately.
+- **Secure credential storage** — MySQL passwords are stored in the OS system keyring, never in workspace files or logs.
+- **Seamless switching** — Toggle between SQLite and MySQL at any time. Your MySQL connection details are preserved when you switch back to SQLite.
+
 ### 👤 Human Approval for High-Risk Operations
 High-risk mutations — such as importing large CSV/Excel files  — are paused and surfaced in the web UI for explicit approval before execution. You review the pending tool call, choose to approve or deny, and the agent resumes or cancels accordingly.
+
+### 🌐 Web Crawling — Ask Questions About Any Web Page
+
+Paste a URL, and the agent fetches and analyzes the page content alongside your database. No copy-pasting, no switching tabs.
+
+- **URL + question in one prompt** — Type your question, paste a URL, and the agent crawls the page as Markdown, then answers using both the page content and your database context.
+- **Built on crawl4ai** — Pages are rendered and extracted to clean Markdown (up to 50K characters), preserving headings, tables, and text structure.
+
 
 ### 🔍 Search Session History
 Session history is searchable so you can quickly find past questions and results across long-running conversations.
