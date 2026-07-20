@@ -31,6 +31,14 @@ export default function ChatMessages({
 
   let runIndex = 0;
 
+  const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
+  const crawlNotCompleted = !runs.some((run) =>
+    run.tool_invocations.some(
+      (t) => t.tool_name === "crawl_webpage" && (t.status === "success" || t.status === "error"),
+    ),
+  );
+  const isCrawling = lastUserMsg?.crawl_url != null && crawlNotCompleted;
+
   return (
     <div className="px-4 py-4 space-y-4">
       {messages.map((msg, i) => {
@@ -153,7 +161,24 @@ export default function ChatMessages({
           </div>
         ))}
 
-      {isLoading && runs.length === 0 && (
+      {isLoading && isCrawling && !runs.some(r => r.status === "running") && (
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center gap-1.5 text-graphite">
+            <Sparkles className="h-3 w-3" />
+            <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+              Assistant
+            </span>
+          </div>
+          <div className="rounded-lg border border-grid bg-surface px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-graphite">
+              <Globe className="h-4 w-4 text-cobalt animate-pulse" />
+              <span>Fetching web page…</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isLoading && !isCrawling && !runs.some(r => r.status === "running") && (
         <div className="flex flex-col gap-1.5">
           <div className="flex items-center gap-1.5 text-graphite">
             <Sparkles className="h-3 w-3" />
