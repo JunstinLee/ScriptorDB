@@ -5,18 +5,12 @@ from fastapi import APIRouter, HTTPException
 from config.secrets import SUPPORTED_PROVIDERS, get_api_key
 from server.dependencies import get_config, require_workspace
 from server.schemas import (
-    ApiKeyRequest,
-    ApiKeyTestResponse,
     ProviderInfo,
     SettingsResponse,
     SettingsUpdateRequest,
 )
-from config.global_settings import load_global_settings, save_global_settings
-from config.settings import (
-    set_auto_restore_sessions,
-    set_default_model,
-    set_provider,
-)
+from config.settings import set_provider
+from services.settings_service import update_default_model
 
 router = APIRouter(tags=["settings"])
 
@@ -29,7 +23,8 @@ async def get_settings():
         for name, cfg in SUPPORTED_PROVIDERS.items()
     ]
     providers_with_keys = [
-        name for name in SUPPORTED_PROVIDERS.keys()
+        name
+        for name in SUPPORTED_PROVIDERS.keys()
         if get_api_key(name, config.workspace_id)
     ]
     return SettingsResponse(
@@ -59,20 +54,9 @@ async def update_settings(req: SettingsUpdateRequest):
             raise HTTPException(
                 status_code=400, detail=f"Unsupported provider: {provider}"
             )
-        if not req.default_model:
-            if provider in config.default_models:
-                del config.default_models[provider]
-            if provider == config.llm_provider:
-                config.llm_model = None
-            # 同步从全局设置中移除
-            gs = load_global_settings()
-            if provider in gs.default_models:
-                del gs.default_models[provider]
-            if provider == gs.llm_provider:
-                gs.llm_model = None
-            save_global_settings(gs)
-        else:
-            set_default_model(config, provider, req.default_model)
+        update_default_model(config, provider, req.default_model)
     if req.auto_restore_sessions is not None:
+        from config.settings import set_auto_restore_sessions
+
         set_auto_restore_sessions(config, req.auto_restore_sessions)
     return await get_settings()

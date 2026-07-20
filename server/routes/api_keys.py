@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import httpx
 from fastapi import APIRouter, HTTPException
 from typing import Any
 
 from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, save_api_key
 from server.dependencies import get_config
 from server.schemas import ApiKeyRequest, ApiKeyTestResponse
+from services.api_key_service import test_key
 
 router = APIRouter(tags=["api-keys"])
 
@@ -40,7 +40,6 @@ async def delete_provider_key(provider: str):
 
 @router.post("/api/settings/api-key/test", response_model=ApiKeyTestResponse)
 async def test_api_key(req: ApiKeyRequest):
-    """Test an API key by calling the provider's list-models endpoint."""
     if req.provider not in SUPPORTED_PROVIDERS:
         raise HTTPException(
             status_code=400, detail=f"Unsupported provider: {req.provider}"
@@ -48,11 +47,7 @@ async def test_api_key(req: ApiKeyRequest):
     if not req.api_key.strip():
         raise HTTPException(status_code=400, detail="API key cannot be empty")
     cfg: Any = SUPPORTED_PROVIDERS[req.provider]
-    url = f"{cfg.base_url.rstrip('/')}{cfg.list_models_path}"
-    headers = {"Authorization": f"Bearer {req.api_key.strip()}"}
-    try:
-        resp = httpx.get(url, headers=headers, timeout=10)
-        resp.raise_for_status()
-    except Exception as e:
-        return ApiKeyTestResponse(ok=False, error=str(e))
+    ok, error = test_key(cfg, req.api_key)
+    if not ok:
+        return ApiKeyTestResponse(ok=False, error=error)
     return ApiKeyTestResponse(ok=True)

@@ -9,9 +9,9 @@ from rich.markdown import Markdown
 from agents.db_agent import get_agent
 from cli import app
 from cli.cmd_common import ensure_workspace
-from config.models import fuzzy_match_model
 from config.settings import load_for_workspace, settings
 from config.workspace import WorkspaceNotFoundError
+from services.model_service import resolve_user_model
 
 
 @app.command()
@@ -34,7 +34,7 @@ def interactive(
     if provider:
         settings.llm_provider = provider
     if model:
-        matched = fuzzy_match_model(settings.llm_provider, model)
+        matched = resolve_user_model(settings.llm_provider, model)
         if matched:
             settings.llm_model = matched
 

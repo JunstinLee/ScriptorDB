@@ -7,9 +7,9 @@ import typer
 from agents.db_agent import get_agent
 from cli import app
 from cli.cmd_common import ensure_workspace
-from config.models import fuzzy_match_model
 from config.settings import load_for_workspace, settings
 from config.workspace import WorkspaceNotFoundError
+from services.model_service import resolve_user_model
 
 
 @app.command()
@@ -32,10 +32,10 @@ def ask(
         settings.llm_provider = provider
 
     if model:
-        matched = fuzzy_match_model(settings.llm_provider, model)
-        if matched and matched != model and not model.startswith(f"{settings.llm_provider}:"):
+        matched = resolve_user_model(settings.llm_provider, model)
+        if matched and matched != model:
             typer.echo(f"Using model: {matched}")
-            model = matched
+        model = matched
 
     a = get_agent(model) if model else get_agent()
     result = a.run_sync(prompt, deps=settings)
