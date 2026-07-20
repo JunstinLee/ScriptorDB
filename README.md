@@ -120,12 +120,11 @@ Use `uv run python main.py models` to see the live model list for a provider, or
 | **You can't take back a bad change** | The agent modifies data and you need to recover | Every write run is recorded in an undo log and can be reverted from the CLI or web UI. |
 
 ---
-🤝 Commercial Partners / API Providers Wanted 
+🤝 Commercial Partners / API Providers Wanted （Hasn't started yet）
 
 ScriptorDB is designed to route users to API providers and relays. If you operate a stable API relay, token-resale platform, or self-hosted model endpoint, we are open to revenue-sharing partnerships. 
-Telegram: @your_telegram_handle 
-WeChat: your_wechat_id 
-Email: partnerships@yourdomain.com 
+
+Email: justinlee@aivault.dev
 
 ---
 
