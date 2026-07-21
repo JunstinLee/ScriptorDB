@@ -19,9 +19,18 @@ from tools.schema_helpers import (
     parse_dml_table_name,
     quote_identifier,
 )
+from tools.tool_decorators import db_tool
 from tools.tool_result import ToolResult
+from tools.validators import (
+    validate_create_table_args,
+    validate_python_code,
+    validate_sql_ddl,
+    validate_sql_dml,
+    validate_sql_readonly,
+)
 
 
+@db_tool(name="query_database", timeout=10, max_retries=2, validator=validate_sql_readonly)
 def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> ToolResult:
     repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
@@ -52,6 +61,7 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
         return _to_tool_error(e)
 
 
+@db_tool(name="get_schema", timeout=5)
 def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResult:
     repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
@@ -73,6 +83,7 @@ def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResul
         return _to_tool_error(e)
 
 
+@db_tool(name="run_python_code", category="write", timeout=35, max_retries=2, requires_approval=True, validator=validate_python_code, sequential=True)
 def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
     from tools.sandbox import sandbox_execute
 
@@ -118,6 +129,7 @@ def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
     )
 
 
+@db_tool(name="create_table", category="write", timeout=15, requires_approval=True, validator=validate_create_table_args)
 def create_table(
     ctx: RunContext[Settings],
     table_name: str,
@@ -166,6 +178,7 @@ def create_table(
 _DDL_PREFIXES = ("CREATE", "ALTER", "DROP", "RENAME", "TRUNCATE", "PRAGMA")
 
 
+@db_tool(name="execute_ddl", category="write", timeout=15, requires_approval=True, validator=validate_sql_ddl)
 def execute_ddl(
     ctx: RunContext[Settings],
     sql: str,
@@ -314,6 +327,7 @@ def _build_delete_undo(
 _DML_PREFIXES = ("INSERT", "UPDATE", "DELETE")
 
 
+@db_tool(name="write_data", category="write", timeout=15, requires_approval=True, validator=validate_sql_dml)
 def write_data(
     ctx: RunContext[Settings],
     sql: str,

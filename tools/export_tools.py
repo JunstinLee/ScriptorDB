@@ -7,9 +7,12 @@ from pydantic_ai import RunContext
 
 from config.settings import Settings
 from tools.errors import _to_tool_error
+from tools.tool_decorators import db_tool
 from tools.tool_result import ToolErrorInfo, ToolResult
+from tools.validators import validate_file_path
 
 
+@db_tool(name="export_excel", category="write", timeout=60, requires_approval=True, validator=validate_file_path)
 def export_excel(
     ctx: RunContext[Settings],
     filepath: str,
@@ -56,6 +59,7 @@ def export_excel(
         return _to_tool_error(e)
 
 
+@db_tool(name="read_excel", timeout=30, validator=validate_file_path)
 def read_excel(
     ctx: RunContext[Settings],
     filepath: str,

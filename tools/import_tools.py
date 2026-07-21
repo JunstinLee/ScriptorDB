@@ -20,30 +20,16 @@ from tools.schema_helpers import (
     table_exists,
     unique_table_name,
 )
+from tools.tool_decorators import db_tool
 from tools.tool_result import ToolErrorInfo, ToolResult
-
-
-def _quote_identifier(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
-def _table_exists(conn, table_name: str) -> bool:
-    from sqlalchemy import inspect as sa_inspect
-
-    return table_name in sa_inspect(conn).get_table_names()
-
-
-def _create_table_from_headers(conn, table_name: str, headers: list[str]) -> None:
-    cols_sql = [f"{_quote_identifier(header)} TEXT" for header in headers]
-    sql = f"CREATE TABLE {_quote_identifier(table_name)} (\n  {',\n  '.join(cols_sql)}\n)"
-    conn.execute(text(sql))
+from tools.validators import validate_import_args
 
 
 def _build_insert_sql(table_name: str, headers: list[str]) -> str:
-    cols = [_quote_identifier(header) for header in headers]
+    cols = [quote_identifier(header) for header in headers]
     placeholders = [f":p{i}" for i in range(len(headers))]
     return (
-        f"INSERT INTO {_quote_identifier(table_name)} "
+        f"INSERT INTO {quote_identifier(table_name)} "
         f"({', '.join(cols)}) VALUES ({', '.join(placeholders)})"
     )
 
@@ -86,8 +72,8 @@ def _insert_batches(
                     first_id = last_id - count + 1
                     pk_col = pk_cols[0]
                     select_sql = (
-                        f"SELECT * FROM {_quote_identifier(table_name)} "
-                        f"WHERE {_quote_identifier(pk_col)} BETWEEN :first AND :last"
+                        f"SELECT * FROM {quote_identifier(table_name)} "
+                        f"WHERE {quote_identifier(pk_col)} BETWEEN :first AND :last"
                     )
                     select_result = conn.execute(
                         text(select_sql), {"first": first_id, "last": last_id}
@@ -116,9 +102,9 @@ def _build_undo_entries_for_inserted_rows(
     undo_entries: list[tuple[str, dict]] = []
     for row in inserted_rows:
         pk_conditions = " AND ".join(
-            f"{_quote_identifier(col)} = :undo_{col}" for col in pk_cols
+            f"{quote_identifier(col)} = :undo_{col}" for col in pk_cols
         )
-        undo_sql = f"DELETE FROM {_quote_identifier(table_name)} WHERE {pk_conditions}"
+        undo_sql = f"DELETE FROM {quote_identifier(table_name)} WHERE {pk_conditions}"
         undo_params = {f"undo_{col}": row[col] for col in pk_cols}
         undo_entries.append((undo_sql, undo_params))
     return undo_entries
@@ -135,7 +121,7 @@ def _import_rows_to_db(
     repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         with repo.session() as conn:
-            exists = _table_exists(conn, table_name)
+            exists = table_exists(conn, table_name)
             if exists:
                 if if_exists == "fail":
                     return ToolResult(
@@ -147,9 +133,9 @@ def _import_rows_to_db(
                     )
                 if if_exists == "replace":
                     conn.execute(
-                        text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}")
+                        text(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
                     )
-                    _create_table_from_headers(conn, table_name, headers)
+                    create_table_from_headers(conn, table_name, headers)
                 elif if_exists == "append":
                     pass
                 else:
@@ -161,7 +147,7 @@ def _import_rows_to_db(
                         ),
                     )
             else:
-                _create_table_from_headers(conn, table_name, headers)
+                create_table_from_headers(conn, table_name, headers)
 
             total_imported, _ = _insert_batches(conn, table_name, headers, rows, batch_size)
 
@@ -212,6 +198,7 @@ def _import_csv_to_db_impl(
         return _to_tool_error(e)
 
 
+@db_tool(name="import_csv_to_db", category="write", timeout=60, requires_approval=True, validator=validate_import_args)
 def import_csv_to_db(
     ctx: RunContext[Settings],
     filepath: str,
@@ -219,12 +206,10 @@ def import_csv_to_db(
     encoding: str = "utf-8",
     if_exists: str = "fail",
     batch_size: int = 100,
-    row_filter: Callable[[dict[str, Any]], bool] | None = None,
-    row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
     """Agent-visible entry point: imports a CSV file into the database."""
     return _import_csv_to_db_impl(
-        ctx, filepath, table_name, encoding, if_exists, batch_size, row_filter, row_transform
+        ctx, filepath, table_name, encoding, if_exists, batch_size, None, None
     )
 
 
@@ -293,6 +278,7 @@ def _import_excel_to_db_impl(
         return _to_tool_error(e)
 
 
+@db_tool(name="import_excel_to_db", category="write", timeout=60, requires_approval=True, validator=validate_import_args)
 def import_excel_to_db(
     ctx: RunContext[Settings],
     filepath: str,
@@ -301,8 +287,6 @@ def import_excel_to_db(
     header_row: int = 1,
     if_exists: str = "fail",
     batch_size: int = 100,
-    row_filter: Callable[[dict[str, Any]], bool] | None = None,
-    row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
     """Agent-visible entry point: imports an Excel file into the database."""
     return _import_excel_to_db_impl(
@@ -313,6 +297,6 @@ def import_excel_to_db(
         header_row,
         if_exists,
         batch_size,
-        row_filter,
-        row_transform,
+        None,
+        None,
     )
