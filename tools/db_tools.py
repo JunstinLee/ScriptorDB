@@ -341,6 +341,13 @@ def write_data(
                 "to limit the affected rows."
             )
 
+    if isinstance(params, list) and params and any(isinstance(p, (list, dict)) for p in params):
+        raise ModelRetry(
+            "Batch data insertion detected. "
+            "When importing bulk data from files (CSV, Excel), "
+            "use import_csv_to_db or import_excel_to_db instead of write_data."
+        )
+
     repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         with repo.session() as conn:
