@@ -24,7 +24,7 @@ from tools.undo_log import add_entry, create_group
 
 
 def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url)
+    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         if limit < 1:
             limit = 1
@@ -54,7 +54,7 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
 
 
 def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url)
+    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         if table:
             schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table)
@@ -127,7 +127,7 @@ def create_table(
     columns: list[ColumnDef],
     if_not_exists: bool = True,
 ) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url)
+    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         cols_sql = []
         foreign_keys = []
@@ -182,7 +182,7 @@ def execute_ddl(
             "Set confirm_drop to True to confirm you want to drop."
         )
 
-    conn = get_connection(ctx.deps.db_url)
+    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         conn.execute(text(sql))
         conn.commit()
@@ -334,7 +334,7 @@ def write_data(
                 "to limit the affected rows."
             )
 
-    conn = get_connection(ctx.deps.db_url)
+    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         table_name = _parse_dml_table_name(sql)
 

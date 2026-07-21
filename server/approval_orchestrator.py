@@ -127,7 +127,7 @@ class ApprovalOrchestrator:
             matched = fuzzy_match_model(self.config.llm_provider, self.model)
             if matched:
                 self.config.llm_model = matched
-        return get_agent(self.model, self.provider, config=self.config)
+        return get_agent(self.config, self.model, self.provider)
 
     async def resume_with_approval(
         self,

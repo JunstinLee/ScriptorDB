@@ -22,7 +22,7 @@ def _make_ctx() -> RunContext[Settings]:
 
 
 def _query_table(db_url: str, table_name: str):
-    engine = get_engine(db_url)
+    engine = get_engine(db_url, "test_workspace")
     with engine.connect() as conn:
         result = conn.execute(text(f'SELECT * FROM "{table_name}"'))
         columns = list(result.keys())

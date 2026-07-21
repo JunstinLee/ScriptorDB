@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from config.settings import settings
 from logging_setup import get_logger
 from server.sessions import get_session_store
 from tools.db_connection import get_engine
@@ -9,8 +8,8 @@ from tools.undo_log import ensure_undo_tables, list_all_groups, revert_to_group
 logger = get_logger("services.undo")
 
 
-def _ensure_engine():
-    engine = get_engine(settings.db_url, workspace_id=settings.workspace_id)
+def _ensure_engine(db_url: str, workspace_id: str):
+    engine = get_engine(db_url, workspace_id)
     ensure_undo_tables(engine)
     return engine
 

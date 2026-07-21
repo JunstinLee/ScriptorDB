@@ -56,14 +56,10 @@ def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str 
 
 
 def get_agent(
+    config: AppConfig,
     model: str | None = None,
     provider: str | None = None,
-    config: AppConfig | None = None,
 ) -> Agent[Settings, str | DeferredToolRequests]:
-    if config is None:
-        from config.settings import settings as _settings
-
-        config = _settings
     active_provider = provider or config.llm_provider
     resolved = (
         resolve_model(active_provider, model) if model else config.resolved_model

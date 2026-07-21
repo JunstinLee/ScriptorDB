@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -9,7 +11,7 @@ from sqlalchemy import text
 from config.settings import Settings
 from tools.db_connection import get_connection
 from tools.errors import _to_tool_error
-from tools.parsers.csv_parser import parse_csv
+from tools.parsers.csv_parser import _apply_hooks, parse_csv
 from tools.parsers.excel_parser import parse_excel
 from tools.schema_helpers import (
     create_table_from_headers,
@@ -131,7 +133,7 @@ def _import_rows_to_db(
     if_exists: str,
     batch_size: int,
 ) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url)
+    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         exists = _table_exists(conn, table_name)
         if exists:
@@ -221,10 +223,12 @@ def import_csv_to_db(
     encoding: str = "utf-8",
     if_exists: str = "fail",
     batch_size: int = 100,
+    row_filter: Callable[[dict[str, Any]], bool] | None = None,
+    row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
     """Agent-visible entry point: imports a CSV file into the database."""
     return _import_csv_to_db_impl(
-        ctx, filepath, table_name, encoding, if_exists, batch_size, None, None
+        ctx, filepath, table_name, encoding, if_exists, batch_size, row_filter, row_transform
     )
 
 
@@ -250,10 +254,10 @@ def _import_excel_to_db_impl(
 
     try:
         from openpyxl import load_workbook
-    except ImportError:
+    except ImportError as err:
         return ToolResult(
             success=False,
-            error=ToolErrorInfo(category="parameter_error", message=err),
+            error=ToolErrorInfo(category="parameter_error", message=str(err)),
         )
 
     try:
@@ -301,6 +305,8 @@ def import_excel_to_db(
     header_row: int = 1,
     if_exists: str = "fail",
     batch_size: int = 100,
+    row_filter: Callable[[dict[str, Any]], bool] | None = None,
+    row_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
 ) -> ToolResult:
     """Agent-visible entry point: imports an Excel file into the database."""
     return _import_excel_to_db_impl(
@@ -311,6 +317,6 @@ def import_excel_to_db(
         header_row,
         if_exists,
         batch_size,
-        None,
-        None,
+        row_filter,
+        row_transform,
     )

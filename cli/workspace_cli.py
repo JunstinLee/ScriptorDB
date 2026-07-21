@@ -7,7 +7,8 @@ import typer
 
 from agents.db_agent import reset_agent_cache
 from cli import app
-from config.settings import load_default_workspace, load_for_workspace, settings
+from cli.cmd_common import _get_config_ctx
+from config.settings import load_for_workspace
 from config.workspace import (
     WorkspaceAlreadyExistsError,
     WorkspaceNotFoundError,
@@ -26,15 +27,16 @@ def workspace_list():
     migrate_legacy()
     registry = WorkspaceRegistry()
     recs = registry.list()
+    config = _get_config_ctx()
     if not recs:
         typer.echo("还没有任何工作区。使用 'workspace create' 创建一个。")
         return
     typer.echo("工作区列表：\n")
     for i, rec in enumerate(recs, 1):
-        marker = " *" if rec.id == settings.workspace_id else "  "
+        marker = " *" if rec.id == config.workspace_id else "  "
         typer.echo(f"{marker} {i}. {rec.name}  [{rec.id}]")
         typer.echo(f"      path: {rec.path}")
-    if settings.workspace_id:
+    if config.workspace_id:
         typer.echo("\n* = 当前激活")
 
 
@@ -63,9 +65,10 @@ def workspace_switch(
     workspace_id: Annotated[str, typer.Argument(help="工作区 ID 或名称")],
 ):
     """切换当前工作区。"""
+    config = _get_config_ctx()
     registry = WorkspaceRegistry()
     rec = _resolve_workspace(registry, workspace_id)
-    load_for_workspace(settings, rec.id)
+    load_for_workspace(config, rec.id)
     registry.set_last_active(rec.id)
     reset_agent_cache()
     typer.echo(f"已切换到工作区: {rec.name} ({rec.id})")
@@ -74,13 +77,14 @@ def workspace_switch(
 @workspace_app.command("current")
 def workspace_current():
     """显示当前工作区。"""
-    if not settings.workspace_id:
+    config = _get_config_ctx()
+    if not config.workspace_id:
         typer.echo("当前没有激活的工作区。", err=True)
         raise typer.Exit(1)
-    typer.echo(f"工作区: {settings.workspace_name} ({settings.workspace_id})")
-    typer.echo(f"路径:   {settings.workspace_path}")
-    typer.echo(f"DB:     {settings.db_url}")
-    typer.echo(f"LLM:    {settings.llm_provider} / {settings.llm_model or '(default)'}")
+    typer.echo(f"工作区: {config.workspace_name} ({config.workspace_id})")
+    typer.echo(f"路径:   {config.workspace_path}")
+    typer.echo(f"DB:     {config.db_url}")
+    typer.echo(f"LLM:    {config.llm_provider} / {config.llm_model or '(default)'}")
 
 
 @workspace_app.command("rename")
@@ -101,12 +105,13 @@ def workspace_remove(
     delete_files: Annotated[bool, typer.Option("--delete-files")] = False,
 ):
     """从注册表移除工作区（可选同时删除目录下的 .scriptordb/）。"""
+    config = _get_config_ctx()
     registry = WorkspaceRegistry()
     rec = _resolve_workspace(registry, workspace_id)
-    was_active = settings.workspace_id == rec.id
+    was_active = config.workspace_id == rec.id
     registry.remove(rec.id, delete_files=delete_files)
     if was_active:
-        settings.clear()
+        config.clear()
         reset_agent_cache()
     typer.echo(f"已移除工作区: {rec.name} ({rec.id})")
 

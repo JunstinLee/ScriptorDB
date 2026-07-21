@@ -8,7 +8,8 @@ import typer
 from agents.db_agent import reset_agent_cache
 from cli import workspace_cli  # noqa: F401
 from cli.commands import ask, forget, interactive, models, serve, setup
-from config.settings import load_default_workspace, load_for_workspace, settings
+from cli.cmd_common import _get_config_ctx
+from config.settings import load_default_workspace, load_for_workspace
 from config.workspace import WorkspaceRegistry, migrate_legacy
 
 COMMAND_MAP = {
@@ -46,9 +47,10 @@ def show_help():
 
 
 def _print_workspace_banner() -> None:
-    if settings.workspace_id:
+    config = _get_config_ctx()
+    if config.workspace_id:
         typer.echo(
-            f"📁 当前工作区: {settings.workspace_name} ({settings.workspace_id}) @ {settings.workspace_path}\n"
+            f"📁 当前工作区: {config.workspace_name} ({config.workspace_id}) @ {config.workspace_path}\n"
         )
     else:
         typer.echo("📁 当前无激活工作区 — 部分命令会要求先选择/创建。\n")
@@ -56,6 +58,7 @@ def _print_workspace_banner() -> None:
 
 def _workspace_selection_menu() -> None:
     """首次进入：列出已有工作区供选择，或新建。"""
+    config = _get_config_ctx()
     registry = WorkspaceRegistry()
     recs = registry.list()
 
@@ -66,12 +69,12 @@ def _workspace_selection_menu() -> None:
 
     typer.echo("可用工作区：\n")
     for i, rec in enumerate(recs, 1):
-        marker = " *" if rec.id == settings.workspace_id else "  "
+        marker = " *" if rec.id == config.workspace_id else "  "
         typer.echo(f"{marker} {i}. {rec.name}  [{rec.id}]")
         typer.echo(f"      path: {rec.path}")
 
-    if settings.workspace_id:
-        typer.echo(f"\n* = 当前激活 ({settings.workspace_id})")
+    if config.workspace_id:
+        typer.echo(f"\n* = 当前激活 ({config.workspace_id})")
 
     typer.echo("\n选项：")
     typer.echo("  1-{} — 切换到对应工作区".format(len(recs)))
@@ -121,10 +124,11 @@ def _interactive_create_workspace(registry: WorkspaceRegistry) -> None:
 
 
 def _activate(workspace_id: str, registry: WorkspaceRegistry) -> None:
-    load_for_workspace(settings, workspace_id)
+    config = _get_config_ctx()
+    load_for_workspace(config, workspace_id)
     registry.set_last_active(workspace_id)
     reset_agent_cache()
-    typer.echo(f"✅ 已激活: {settings.workspace_name} ({settings.workspace_id})\n")
+    typer.echo(f"✅ 已激活: {config.workspace_name} ({config.workspace_id})\n")
 
 
 def run_dispatcher():

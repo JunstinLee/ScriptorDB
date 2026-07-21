@@ -4,8 +4,7 @@ from typing import Annotated
 
 import typer
 
-from cli.cmd_common import ensure_workspace
-from config.settings import settings
+from cli.cmd_common import _get_config_ctx, ensure_workspace
 from tools.db_connection import get_engine
 from tools.undo_log import list_all_groups, revert_to_group
 
@@ -18,7 +17,8 @@ def undo_list():
     if not ensure_workspace():
         raise typer.Exit(1)
 
-    engine = get_engine(settings.db_url)
+    config = _get_config_ctx()
+    engine = get_engine(config.db_url, config.workspace_id or "")
     groups = list_all_groups(engine)
     if not groups:
         typer.echo("没有可回退的操作记录。")
@@ -39,7 +39,8 @@ def undo_revert(group_id: Annotated[int, typer.Argument(help="回退到的 group
     if not ensure_workspace():
         raise typer.Exit(1)
 
-    engine = get_engine(settings.db_url)
+    config = _get_config_ctx()
+    engine = get_engine(config.db_url, config.workspace_id or "")
     try:
         reverted = revert_to_group(engine, group_id)
     except ValueError as e:

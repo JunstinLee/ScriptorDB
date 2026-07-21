@@ -6,7 +6,7 @@ from tools.db_connection import get_all_tables, get_single_table_schema
 HIDDEN_TABLES = {"_scriptordb_undo_groups", "_scriptordb_undo_entries"}
 
 
-def get_schema(db_url: str | None = None, workspace_id: str | None = None) -> SchemaResponse:
+def get_schema(db_url: str, workspace_id: str) -> SchemaResponse:
     tables_meta = [
         meta
         for meta in get_all_tables(db_url, workspace_id=workspace_id)

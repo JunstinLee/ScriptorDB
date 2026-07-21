@@ -22,6 +22,7 @@ def _reload_session_store(workspace_path: Path) -> None:
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     load_default_workspace()
+    _app.state.config = settings
     if settings.workspace_path is not None:
         _reload_session_store(settings.workspace_path)
     yield

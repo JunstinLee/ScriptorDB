@@ -5,7 +5,8 @@ from typing import Annotated
 import typer
 
 from cli import app
-from config.settings import load_default_workspace, settings
+from cli.cmd_common import _get_config_ctx
+from config.settings import load_default_workspace
 
 
 @app.command()
@@ -16,11 +17,12 @@ def serve(
 ):
     import uvicorn
 
+    config = _get_config_ctx()
     load_default_workspace()
     typer.echo(f"Starting ScriptorDB API server at http://{host}:{port}")
-    if settings.workspace_id:
+    if config.workspace_id:
         typer.echo(
-            f"Active workspace: {settings.workspace_name} ({settings.workspace_id}) @ {settings.workspace_path}"
+            f"Active workspace: {config.workspace_name} ({config.workspace_id}) @ {config.workspace_path}"
         )
     else:
         typer.echo("No active workspace — endpoints requiring one will return 409.")

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from config.settings import settings
 from logging_setup import get_logger
 from server.dependencies import require_workspace
 from services.undo_service import _ensure_engine, revert_and_trim_session
@@ -15,10 +14,10 @@ router = APIRouter(prefix="/api/undo", tags=["undo"])
 
 @router.get("")
 async def undo_list():
-    require_workspace()
-    logger.info("GET /api/undo workspace=%s db_url=%s", settings.workspace_id, settings.db_url)
+    config = require_workspace()
+    logger.info("GET /api/undo workspace=%s db_url=%s", config.workspace_id, config.db_url)
     try:
-        engine = _ensure_engine()
+        engine = _ensure_engine(config.db_url, config.workspace_id or "")
         groups = list_all_groups(engine)
         logger.info("GET /api/undo returned %s groups", len(groups))
         return {"groups": groups}
@@ -29,8 +28,8 @@ async def undo_list():
 
 @router.post("/{group_id}/revert")
 async def undo_revert(group_id: int):
-    require_workspace()
-    engine = _ensure_engine()
+    config = require_workspace()
+    engine = _ensure_engine(config.db_url, config.workspace_id or "")
     try:
         reverted_ids = revert_to_group(engine, group_id)
     except ValueError as e:
@@ -40,8 +39,8 @@ async def undo_revert(group_id: int):
 
 @router.delete("/{group_id}/session")
 async def undo_revert_and_trim_session(group_id: int):
-    require_workspace()
-    engine = _ensure_engine()
+    config = require_workspace()
+    engine = _ensure_engine(config.db_url, config.workspace_id or "")
     try:
         reverted_ids = revert_to_group(engine, group_id)
     except ValueError as e:

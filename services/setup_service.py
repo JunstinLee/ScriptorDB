@@ -7,10 +7,11 @@ import typer
 from config.models import list_available_models
 from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, save_api_key
 from config.settings import set_default_model, settings
-from config.workspace import WorkspaceSettings
 
 
-def configure_setup() -> None:
+def configure_setup(config=None) -> None:
+    if config is None:
+        config = settings
     providers = list(SUPPORTED_PROVIDERS.keys())
     typer.echo("Available LLM providers:\n")
     for i, p in enumerate(providers, 1):
@@ -27,18 +28,19 @@ def configure_setup() -> None:
         typer.echo("API key cannot be empty.", err=True)
         raise typer.Exit(1)
 
-    save_api_key(provider, api_key, settings.workspace_id)
-    settings.llm_provider = provider
-    if settings.workspace_path and settings.workspace_id:
+    save_api_key(provider, api_key, config.workspace_id)
+    config.llm_provider = provider
+    if config.workspace_path and config.workspace_id:
+        from config.workspace import WorkspaceSettings
         ws_settings = WorkspaceSettings(
-            workspace_id=settings.workspace_id,
-            name=settings.workspace_name or "",
-            path=settings.workspace_path,
-            db_url=settings.db_url,
-            llm_provider=settings.llm_provider,
-            llm_model=settings.llm_model,
-            default_models=dict(settings.default_models),
-            auto_restore_sessions=settings.auto_restore_sessions,
+            workspace_id=config.workspace_id,
+            name=config.workspace_name or "",
+            path=config.workspace_path,
+            db_url=config.db_url,
+            llm_provider=config.llm_provider,
+            llm_model=config.llm_model,
+            default_models=dict(config.default_models),
+            auto_restore_sessions=config.auto_restore_sessions,
         )
         ws_settings.save()
     typer.echo(f"\nAPI key for {provider} saved to system keychain.")
@@ -65,16 +67,18 @@ def configure_setup() -> None:
         show_default=False,
     )
     if model_choice and 1 <= model_choice <= len(models):
-        set_default_model(settings, provider, models[model_choice - 1])
+        set_default_model(config, provider, models[model_choice - 1])
         typer.echo(f"Default model set to: {models[model_choice - 1]}")
     else:
         typer.echo("Skipped. You can pass --model at query time.")
 
 
-def forget_key() -> None:
-    provider = settings.llm_provider
+def forget_key(config=None) -> None:
+    if config is None:
+        config = settings
+    provider = config.llm_provider
     try:
-        delete_api_key(provider, settings.workspace_id)
+        delete_api_key(provider, config.workspace_id)
         typer.echo(f"Removed API key for {provider} from keychain.")
     except Exception:
         typer.echo(f"No key found for {provider}.", err=True)

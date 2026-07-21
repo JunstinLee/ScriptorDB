@@ -61,7 +61,7 @@ def build_undo_hooks() -> Hooks[Settings]:
         from tools.db_connection import get_engine
         from tools.undo_log import ensure_undo_tables
 
-        engine = get_engine(ctx.deps.db_url)
+        engine = get_engine(ctx.deps.db_url, ctx.deps.workspace_id or "")
         ensure_undo_tables(engine)
 
         session_id = ctx.deps.chat_session_id or _uuid4().hex[:12]
@@ -81,7 +81,7 @@ def build_undo_hooks() -> Hooks[Settings]:
         from tools.db_connection import get_engine
         from tools.undo_log import finalize_group
 
-        engine = get_engine(ctx.deps.db_url)
+        engine = get_engine(ctx.deps.db_url, ctx.deps.workspace_id or "")
         with engine.connect() as conn:
             finalize_group(conn, group_id)
             conn.commit()
