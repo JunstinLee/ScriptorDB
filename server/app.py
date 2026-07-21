@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import load_default_workspace, settings
 from config.workspace import workspace_sessions_dir
-from server.routes import api_keys, chat, files, health, history, models, schema, sessions, settings as settings_routes, undo, workspaces
+from server.routes import api_keys, approve, chat, files, health, history, models, schema, sessions, settings as settings_routes, undo, workspaces
 from server.sessions import _DefaultSessionStore, get_session_store
 
 
@@ -43,6 +43,7 @@ app.include_router(health.router)
 app.include_router(workspaces.router)
 app.include_router(sessions.router)
 app.include_router(chat.router)
+app.include_router(approve.router)
 app.include_router(schema.router)
 app.include_router(models.router)
 app.include_router(settings_routes.router)
