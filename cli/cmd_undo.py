@@ -5,8 +5,7 @@ from typing import Annotated
 import typer
 
 from cli.cmd_common import _get_config_ctx, ensure_workspace
-from tools.db_connection import get_engine
-from tools.undo_log import list_all_groups, revert_to_group
+from tools.undo_repository import UndoRepository
 
 undo_app = typer.Typer(help="Undo 操作")
 
@@ -18,8 +17,8 @@ def undo_list():
         raise typer.Exit(1)
 
     config = _get_config_ctx()
-    engine = get_engine(config.db_url, config.workspace_id or "")
-    groups = list_all_groups(engine)
+    repo = UndoRepository(config.db_url, config.workspace_id or "")
+    groups = repo.list_all_groups()
     if not groups:
         typer.echo("没有可回退的操作记录。")
         return
@@ -40,9 +39,9 @@ def undo_revert(group_id: Annotated[int, typer.Argument(help="回退到的 group
         raise typer.Exit(1)
 
     config = _get_config_ctx()
-    engine = get_engine(config.db_url, config.workspace_id or "")
+    repo = UndoRepository(config.db_url, config.workspace_id or "")
     try:
-        reverted = revert_to_group(engine, group_id)
+        reverted = repo.revert_to_group(group_id)
     except ValueError as e:
         typer.echo(str(e), err=True)
         raise typer.Exit(1)

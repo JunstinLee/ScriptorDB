@@ -2,24 +2,23 @@ from __future__ import annotations
 
 from logging_setup import get_logger
 from server.sessions import get_session_store
-from tools.db_connection import get_engine
-from tools.undo_log import ensure_undo_tables, list_all_groups, revert_to_group
+from tools.undo_repository import UndoRepository
 
 logger = get_logger("services.undo")
 
 
-def _ensure_engine(db_url: str, workspace_id: str):
-    engine = get_engine(db_url, workspace_id)
-    ensure_undo_tables(engine)
-    return engine
+def _ensure_repo(db_url: str, workspace_id: str) -> UndoRepository:
+    repo = UndoRepository(db_url, workspace_id)
+    repo.ensure_tables()
+    return repo
 
 
-def revert_and_trim_session(engine, group_id: int) -> bool:
+def revert_and_trim_session(repo: UndoRepository, group_id: int) -> bool:
     store = get_session_store()
     sessions = store.list_sessions()
     trimmed = False
 
-    for grp in list_all_groups(engine):
+    for grp in repo.list_all_groups():
         if grp["id"] == group_id:
             target_run_id = grp.get("run_id", "")
             for session in sessions:

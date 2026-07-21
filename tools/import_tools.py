@@ -9,7 +9,7 @@ from pydantic_ai import RunContext
 from sqlalchemy import text
 
 from config.settings import Settings
-from tools.db_connection import get_connection
+from tools.db_repository import DatabaseRepository
 from tools.errors import _to_tool_error
 from tools.parsers.csv_parser import _apply_hooks, parse_csv
 from tools.parsers.excel_parser import parse_excel
@@ -21,7 +21,6 @@ from tools.schema_helpers import (
     unique_table_name,
 )
 from tools.tool_result import ToolErrorInfo, ToolResult
-from tools.undo_log import add_entry, create_group
 
 
 def _quote_identifier(name: str) -> str:
@@ -133,39 +132,38 @@ def _import_rows_to_db(
     if_exists: str,
     batch_size: int,
 ) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
-        exists = _table_exists(conn, table_name)
-        if exists:
-            if if_exists == "fail":
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Table '{table_name}' already exists",
-                    ),
-                )
-            if if_exists == "replace":
-                conn.execute(
-                    text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}")
-                )
-                conn.commit()
-                _create_table_from_headers(conn, table_name, headers)
-            elif if_exists == "append":
-                pass
+        with repo.session() as conn:
+            exists = _table_exists(conn, table_name)
+            if exists:
+                if if_exists == "fail":
+                    return ToolResult(
+                        success=False,
+                        error=ToolErrorInfo(
+                            category="parameter_error",
+                            message=f"Table '{table_name}' already exists",
+                        ),
+                    )
+                if if_exists == "replace":
+                    conn.execute(
+                        text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}")
+                    )
+                    _create_table_from_headers(conn, table_name, headers)
+                elif if_exists == "append":
+                    pass
+                else:
+                    return ToolResult(
+                        success=False,
+                        error=ToolErrorInfo(
+                            category="parameter_error",
+                            message=f"Invalid if_exists value: {if_exists}",
+                        ),
+                    )
             else:
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Invalid if_exists value: {if_exists}",
-                    ),
-                )
-        else:
-            _create_table_from_headers(conn, table_name, headers)
+                _create_table_from_headers(conn, table_name, headers)
 
-        total_imported = _insert_batches(conn, table_name, headers, rows, batch_size)
-        conn.commit()
+            total_imported, _ = _insert_batches(conn, table_name, headers, rows, batch_size)
 
         return ToolResult(
             success=True,
@@ -178,8 +176,6 @@ def _import_rows_to_db(
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
 def _import_csv_to_db_impl(

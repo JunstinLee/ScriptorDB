@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from config.settings import Settings
 from schemas.db import ColumnDef
-from tools.db_connection import _get_all_tables, _get_single_table_schema, get_connection
+from tools.db_repository import DatabaseRepository
 from tools.errors import _to_tool_error
 from tools.schema_helpers import (
     extract_where_clause,
@@ -23,18 +23,20 @@ from tools.tool_result import ToolResult
 
 
 def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         if limit < 1:
             limit = 1
         if limit > 10000:
             limit = 10000
-        result = conn.execute(text(sql))
-        rows = result.fetchmany(limit + 1)
-        columns = list(result.keys())
-        truncated = len(rows) > limit
-        if truncated:
-            rows = rows[:limit]
+
+        with repo.session() as conn:
+            result = conn.execute(text(sql))
+            rows = result.fetchmany(limit + 1)
+            columns = list(result.keys())
+            truncated = len(rows) > limit
+            if truncated:
+                rows = rows[:limit]
 
         return ToolResult(
             success=True,
@@ -48,22 +50,20 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
 def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         if table:
-            schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table)
+            schema_info = repo.get_single_table_schema(table)
             return ToolResult(
                 success=True,
                 output=f"Table {table}: {len(schema_info['columns'])} column{'s' if len(schema_info['columns']) != 1 else ''}",
                 data={"table": table, "columns": schema_info["columns"], "create_sql": schema_info.get("create_sql")},
             )
 
-        tables = _get_all_tables(conn, ctx.deps.db_url)
+        tables = repo.get_all_tables()
         return ToolResult(
             success=True,
             output=f"{len(tables)} table{'s' if len(tables) != 1 else ''}",
@@ -71,8 +71,6 @@ def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResul
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
 def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
@@ -126,7 +124,7 @@ def create_table(
     columns: list[ColumnDef],
     if_not_exists: bool = True,
 ) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         cols_sql = []
         foreign_keys = []
@@ -147,10 +145,11 @@ def create_table(
         all_parts = cols_sql + foreign_keys
         exists_kw = "IF NOT EXISTS " if if_not_exists else ""
         sql = f'CREATE TABLE {exists_kw}"{table_name}" (\n  {", ".join(all_parts)}\n)'
-        conn.execute(text(sql))
-        conn.commit()
 
-        schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table_name)
+        with repo.session() as conn:
+            conn.execute(text(sql))
+
+        schema_info = repo.get_single_table_schema(table_name)
         return ToolResult(
             success=True,
             output=f"Table {table_name} created successfully",
@@ -162,8 +161,6 @@ def create_table(
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
 _DDL_PREFIXES = ("CREATE", "ALTER", "DROP", "RENAME", "TRUNCATE", "PRAGMA")
@@ -181,10 +178,9 @@ def execute_ddl(
             "Set confirm_drop to True to confirm you want to drop."
         )
 
-    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
-        conn.execute(text(sql))
-        conn.commit()
+        repo.execute_ddl(sql)
         return ToolResult(
             success=True,
             output="DDL executed successfully",
@@ -192,8 +188,6 @@ def execute_ddl(
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
 _normalize_params = normalize_params
@@ -333,37 +327,37 @@ def write_data(
                 "to limit the affected rows."
             )
 
-    conn = get_connection(ctx.deps.db_url, ctx.deps.workspace_id or "")
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
-        table_name = _parse_dml_table_name(sql)
+        with repo.session() as conn:
+            table_name = _parse_dml_table_name(sql)
 
-        undo_entries: list[tuple[str, dict]] = []
+            undo_entries: list[tuple[str, dict]] = []
 
-        if upper.startswith("INSERT") and table_name:
-            rows_affected, undo_entries = _build_insert_undo(
-                conn, sql, params, table_name
-            )
-        elif upper.startswith("UPDATE") and table_name:
-            rows_affected, undo_entries = _build_update_undo(
-                conn, sql, params, table_name
-            )
-        elif upper.startswith("DELETE") and table_name:
-            rows_affected, undo_entries = _build_delete_undo(
-                conn, sql, params, table_name
-            )
-        else:
-            result = conn.execute(text(sql), params or {})
-            rows_affected = result.rowcount
-
-        undo_manager = getattr(ctx.deps, "undo_manager", None)
-        if undo_manager is not None and undo_manager.current_group_id is not None and table_name and undo_entries:
-            operation = upper.split()[0]
-            for undo_sql, undo_params in undo_entries:
-                undo_manager.record_undo(
-                    operation, table_name, undo_sql, undo_params
+            if upper.startswith("INSERT") and table_name:
+                rows_affected, undo_entries = _build_insert_undo(
+                    conn, sql, params, table_name
                 )
+            elif upper.startswith("UPDATE") and table_name:
+                rows_affected, undo_entries = _build_update_undo(
+                    conn, sql, params, table_name
+                )
+            elif upper.startswith("DELETE") and table_name:
+                rows_affected, undo_entries = _build_delete_undo(
+                    conn, sql, params, table_name
+                )
+            else:
+                result = conn.execute(text(sql), params or {})
+                rows_affected = result.rowcount
 
-        conn.commit()
+            undo_manager = getattr(ctx.deps, "undo_manager", None)
+            if undo_manager is not None and undo_manager.current_group_id is not None and table_name and undo_entries:
+                operation = upper.split()[0]
+                for undo_sql, undo_params in undo_entries:
+                    undo_manager.record_undo(
+                        operation, table_name, undo_sql, undo_params
+                    )
+
         return ToolResult(
             success=True,
             output=f"Data written successfully, {rows_affected} row{'s' if rows_affected != 1 else ''} affected",
@@ -371,5 +365,3 @@ def write_data(
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()

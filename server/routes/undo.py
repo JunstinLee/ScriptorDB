@@ -4,8 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from logging_setup import get_logger
 from server.dependencies import require_workspace
-from services.undo_service import _ensure_engine, revert_and_trim_session
-from tools.undo_log import list_all_groups, revert_to_group
+from services.undo_service import _ensure_repo, revert_and_trim_session
 
 logger = get_logger("routes.undo")
 
@@ -17,8 +16,8 @@ async def undo_list():
     config = require_workspace()
     logger.info("GET /api/undo workspace=%s db_url=%s", config.workspace_id, config.db_url)
     try:
-        engine = _ensure_engine(config.db_url, config.workspace_id or "")
-        groups = list_all_groups(engine)
+        repo = _ensure_repo(config.db_url, config.workspace_id or "")
+        groups = repo.list_all_groups()
         logger.info("GET /api/undo returned %s groups", len(groups))
         return {"groups": groups}
     except Exception as e:
@@ -29,9 +28,9 @@ async def undo_list():
 @router.post("/{group_id}/revert")
 async def undo_revert(group_id: int):
     config = require_workspace()
-    engine = _ensure_engine(config.db_url, config.workspace_id or "")
+    repo = _ensure_repo(config.db_url, config.workspace_id or "")
     try:
-        reverted_ids = revert_to_group(engine, group_id)
+        reverted_ids = repo.revert_to_group(group_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return {"reverted_group_ids": reverted_ids}
@@ -40,11 +39,11 @@ async def undo_revert(group_id: int):
 @router.delete("/{group_id}/session")
 async def undo_revert_and_trim_session(group_id: int):
     config = require_workspace()
-    engine = _ensure_engine(config.db_url, config.workspace_id or "")
+    repo = _ensure_repo(config.db_url, config.workspace_id or "")
     try:
-        reverted_ids = revert_to_group(engine, group_id)
+        reverted_ids = repo.revert_to_group(group_id)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    trimmed = revert_and_trim_session(engine, group_id)
+    trimmed = revert_and_trim_session(repo, group_id)
     return {"reverted_group_ids": reverted_ids, "session_trimmed": trimmed}

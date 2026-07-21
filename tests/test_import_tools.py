@@ -6,10 +6,8 @@ import pytest
 from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel as PydanticTestModel
 from pydantic_ai.usage import RunUsage
-from sqlalchemy import text
-
 from config.settings import Settings
-from tools.db_connection import get_engine
+from tools.db_repository import DatabaseRepository
 from tools.import_tools import import_csv_to_db, import_excel_to_db
 
 
@@ -22,12 +20,12 @@ def _make_ctx() -> RunContext[Settings]:
 
 
 def _query_table(db_url: str, table_name: str):
-    engine = get_engine(db_url, "test_workspace")
-    with engine.connect() as conn:
-        result = conn.execute(text(f'SELECT * FROM "{table_name}"'))
-        columns = list(result.keys())
-        rows = [list(row) for row in result.fetchall()]
-    return columns, rows
+    repo = DatabaseRepository(db_url, "")
+    rows = repo.execute_query(f'SELECT * FROM "{table_name}"', limit=1000)
+    if not rows:
+        return [], []
+    columns = list(rows[0].keys())
+    return columns, [[row[c] for c in columns] for row in rows]
 
 
 class TestImportCsvToDb:

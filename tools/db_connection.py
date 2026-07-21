@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import threading
 from typing import Any
 
-from sqlalchemy import Engine, Connection, create_engine, inspect, make_url, text
+from sqlalchemy import Engine, Connection, create_engine, inspect, text
 from sqlalchemy.pool import StaticPool
 
 from config.secrets import get_mysql_password
@@ -11,15 +10,12 @@ from logging_setup import get_logger
 
 logger = get_logger("db_connection")
 
-_engine_cache: dict[tuple[str, str | None], Engine] = {}
-_cache_lock = threading.Lock()
-
 
 def _mask_url(db_url: str) -> str:
-    """脱敏日志中的数据库 URL 密码。"""
     if not db_url.startswith("mysql"):
         return db_url
     try:
+        from sqlalchemy import make_url
         url = make_url(db_url)
         if url.password:
             return str(url.set(password="***"))
@@ -29,16 +25,13 @@ def _mask_url(db_url: str) -> str:
 
 
 def _get_mysql_password(db_url: str, workspace_id: str) -> str | None:
-    """对 mysql 协议 URL，从系统密钥环读取密码。"""
-    logger.debug("Read MySQL password: workspace_id=%s db_url=%s", workspace_id, _mask_url(db_url))
     if not db_url.startswith("mysql"):
         return None
     password = get_mysql_password(workspace_id)
-    logger.debug("MySQL password found: %s", password is not None)
     return password
 
 
-def _create_engine(db_url: str, password: str | None = None) -> Engine:
+def _make_engine(db_url: str, workspace_id: str = "") -> Engine:
     logger.debug("Creating SQLAlchemy engine: %s", _mask_url(db_url))
     kwargs: dict[str, Any] = {}
     if db_url.startswith("sqlite"):
@@ -48,21 +41,16 @@ def _create_engine(db_url: str, password: str | None = None) -> Engine:
                 "connect_args": {"check_same_thread": False},
             }
         )
-    elif password is not None:
-        kwargs["connect_args"] = {"password": password}
+    else:
+        password = _get_mysql_password(db_url, workspace_id)
+        if password is not None:
+            kwargs["connect_args"] = {"password": password}
     return create_engine(db_url, **kwargs)
 
 
 def get_engine(db_url: str, workspace_id: str) -> Engine:
-    password = _get_mysql_password(db_url, workspace_id)
-    cache_key = (db_url, password)
-    cached = cache_key in _engine_cache
-    with _cache_lock:
-        if cache_key not in _engine_cache:
-            _engine_cache[cache_key] = _create_engine(db_url, password)
-        engine = _engine_cache[cache_key]
-    logger.debug("get_engine: workspace_id=%s cached=%s url=%s", workspace_id, cached, _mask_url(db_url))
-    return engine
+    logger.debug("get_engine: workspace_id=%s url=%s", workspace_id, _mask_url(db_url))
+    return _make_engine(db_url, workspace_id)
 
 
 def get_connection(db_url: str, workspace_id: str) -> Connection:

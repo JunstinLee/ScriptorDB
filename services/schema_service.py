@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 from server.schemas import SchemaColumn, SchemaResponse, SchemaTable
-from tools.db_connection import get_all_tables, get_single_table_schema
+from tools.db_repository import DatabaseRepository
 
 HIDDEN_TABLES = {"_scriptordb_undo_groups", "_scriptordb_undo_entries"}
 
 
 def get_schema(db_url: str, workspace_id: str) -> SchemaResponse:
+    repo = DatabaseRepository(db_url, workspace_id)
     tables_meta = [
         meta
-        for meta in get_all_tables(db_url, workspace_id=workspace_id)
+        for meta in repo.get_all_tables()
         if meta["name"] not in HIDDEN_TABLES
     ]
     tables: list[SchemaTable] = []
     for meta in tables_meta:
         table_name = meta["name"]
-        schema_info = get_single_table_schema(db_url, table_name, workspace_id=workspace_id)
+        schema_info = repo.get_single_table_schema(table_name)
         columns = [
             SchemaColumn(
                 name=col["name"],
