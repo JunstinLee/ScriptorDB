@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from tools.undo_manager import UndoManager
 
 from config.workspace import WorkspaceNotSelectedError
 
@@ -32,6 +36,7 @@ class AppConfig:
     run_id: str = ""
 
     current_undo_group_id: int | None = field(default=None, init=False)
+    undo_manager: UndoManager | None = field(default=None, init=False)
 
     workspace_id: str | None = field(default=None, init=False)
     workspace_name: str | None = field(default=None, init=False)
@@ -62,6 +67,7 @@ class AppConfig:
         self.default_models = {}
         self.auto_restore_sessions = True
         self.current_undo_group_id = None
+        self.undo_manager = None
         self.mysql_host = "127.0.0.1"
         self.mysql_port = 3306
         self.mysql_user = "root"

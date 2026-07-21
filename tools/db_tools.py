@@ -20,7 +20,6 @@ from tools.schema_helpers import (
     quote_identifier,
 )
 from tools.tool_result import ToolResult
-from tools.undo_log import add_entry, create_group
 
 
 def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> ToolResult:
@@ -339,28 +338,6 @@ def write_data(
         table_name = _parse_dml_table_name(sql)
 
         undo_entries: list[tuple[str, dict]] = []
-        undo_group_id: int | None = None
-        undo_seq = 0
-
-        session_id = ctx.deps.chat_session_id
-        run_id = ctx.deps.run_id
-        prompt = ctx.deps.chat_prompt or ""
-
-        if session_id and table_name:
-            undo_group_id = ctx.deps.current_undo_group_id
-            if undo_group_id is None:
-                undo_group_id = create_group(
-                    conn, session_id, run_id, prompt,
-                )
-                ctx.deps.current_undo_group_id = undo_group_id
-            else:
-                prev_row = conn.execute(
-                    text(
-                        "SELECT COALESCE(MAX(seq_in_group), 0) FROM _scriptordb_undo_entries WHERE group_id = :gid"
-                    ),
-                    {"gid": undo_group_id},
-                ).fetchone()
-                undo_seq = prev_row[0] if prev_row is not None else 0
 
         if upper.startswith("INSERT") and table_name:
             rows_affected, undo_entries = _build_insert_undo(
@@ -378,17 +355,12 @@ def write_data(
             result = conn.execute(text(sql), params or {})
             rows_affected = result.rowcount
 
-        if undo_group_id is not None and table_name:
-            for i, (undo_sql, undo_params) in enumerate(undo_entries):
-                undo_seq += 1
-                add_entry(
-                    conn,
-                    undo_group_id,
-                    undo_seq,
-                    upper.split()[0],
-                    table_name,
-                    undo_sql,
-                    undo_params,
+        undo_manager = getattr(ctx.deps, "undo_manager", None)
+        if undo_manager is not None and undo_manager.current_group_id is not None and table_name and undo_entries:
+            operation = upper.split()[0]
+            for undo_sql, undo_params in undo_entries:
+                undo_manager.record_undo(
+                    operation, table_name, undo_sql, undo_params
                 )
 
         conn.commit()

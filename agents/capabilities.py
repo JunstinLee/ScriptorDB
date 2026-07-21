@@ -54,37 +54,22 @@ def build_undo_hooks() -> Hooks[Settings]:
 
     @hooks.on.before_run
     async def undo_before_run(ctx: RunContext[Settings]) -> None:
-        if not ctx.deps.db_url:
+        if ctx.deps.undo_manager is None:
             return
-        from uuid import uuid4 as _uuid4
 
-        from tools.db_connection import get_engine
-        from tools.undo_log import ensure_undo_tables
-
-        engine = get_engine(ctx.deps.db_url, ctx.deps.workspace_id or "")
-        ensure_undo_tables(engine)
-
-        session_id = ctx.deps.chat_session_id or _uuid4().hex[:12]
-        run_id = ctx.deps.run_id or _uuid4().hex[:12]
+        session_id = ctx.deps.chat_session_id or uuid.uuid4().hex[:12]
+        run_id = ctx.deps.run_id or uuid.uuid4().hex[:12]
         prompt = ctx.deps.chat_prompt or ""
         ctx.deps.chat_session_id = session_id
         ctx.deps.run_id = run_id
         ctx.deps.chat_prompt = prompt
-        ctx.deps.current_undo_group_id = None
+        ctx.deps.undo_manager.on_run_start(session_id, run_id, prompt)
 
     @hooks.on.after_run
     async def undo_after_run(ctx: RunContext[Settings], result: Any) -> Any:
-        group_id = ctx.deps.current_undo_group_id
-        ctx.deps.current_undo_group_id = None
-        if group_id is None:
+        if ctx.deps.undo_manager is None:
             return result
-        from tools.db_connection import get_engine
-        from tools.undo_log import finalize_group
-
-        engine = get_engine(ctx.deps.db_url, ctx.deps.workspace_id or "")
-        with engine.connect() as conn:
-            finalize_group(conn, group_id)
-            conn.commit()
+        ctx.deps.undo_manager.on_run_end()
         return result
 
     return hooks

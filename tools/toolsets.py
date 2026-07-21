@@ -7,6 +7,7 @@ from tools.data_tools import list_files, read_csv, read_file, write_csv, write_f
 from tools.db_tools import create_table, execute_ddl, get_schema, query_database, run_python_code, write_data
 from tools.export_tools import export_excel, read_excel
 from tools.import_tools import import_csv_to_db, import_excel_to_db
+from tools.registry import register_toolset
 from tools.validators import (
     validate_create_table_args,
     validate_file_path,
@@ -189,38 +190,50 @@ _viz_tools = [
 ]
 
 
-read_toolset = FunctionToolset(
-    instructions=(
-        "Read-only database and file operations. "
-        "Use query_database, get_schema for database queries; "
-        "read_csv, read_excel, read_file, list_files for file system inspection. "
-        "All output is returned as structured ToolResult with success/error/data fields."
-    ),
-    tools=_read_tools,
-)
+@register_toolset("read")
+def _create_read_toolset():
+    return [
+        FunctionToolset(
+            instructions=(
+                "Read-only database and file operations. "
+                "Use query_database, get_schema for database queries; "
+                "read_csv, read_excel, read_file, list_files for file system inspection. "
+                "All output is returned as structured ToolResult with success/error/data fields."
+            ),
+            tools=_read_tools,
+        )
+    ]
 
 
-write_toolset = FunctionToolset(
-    instructions=(
-        "Write and export operations. ALL operations in this toolset require user approval. "
-        "Use write_csv, write_file for file output; "
-        "export_excel for .xlsx export; "
-        "import_csv_to_db and import_excel_to_db to load files into the database; "
-        "run_python_code for sandboxed Python execution; "
-        "create_table to build a table with structured column definitions; "
-        "execute_ddl for generic DDL statements (CREATE/ALTER/DROP); "
-        "write_data for parameterized INSERT/UPDATE/DELETE. "
-        "DELETE and UPDATE must include a WHERE clause. DROP requires confirm_drop=True. "
-        "All output is returned as structured ToolResult with success/error/data fields."
-    ),
-    tools=_write_tools,
-)
+@register_toolset("write")
+def _create_write_toolset():
+    return [
+        FunctionToolset(
+            instructions=(
+                "Write and export operations. ALL operations in this toolset require user approval. "
+                "Use write_csv, write_file for file output; "
+                "export_excel for .xlsx export; "
+                "import_csv_to_db and import_excel_to_db to load files into the database; "
+                "run_python_code for sandboxed Python execution; "
+                "create_table to build a table with structured column definitions; "
+                "execute_ddl for generic DDL statements (CREATE/ALTER/DROP); "
+                "write_data for parameterized INSERT/UPDATE/DELETE. "
+                "DELETE and UPDATE must include a WHERE clause. DROP requires confirm_drop=True. "
+                "All output is returned as structured ToolResult with success/error/data fields."
+            ),
+            tools=_write_tools,
+        )
+    ]
 
 
-viz_toolset = FunctionToolset(
-    instructions=(
-        "Visualization tools. Use plot_chart to generate charts (line, bar, scatter, pie). "
-        "Charts are saved as PNG files."
-    ),
-    tools=_viz_tools,
-)
+@register_toolset("viz")
+def _create_viz_toolset():
+    return [
+        FunctionToolset(
+            instructions=(
+                "Visualization tools. Use plot_chart to generate charts (line, bar, scatter, pie). "
+                "Charts are saved as PNG files."
+            ),
+            tools=_viz_tools,
+        )
+    ]
