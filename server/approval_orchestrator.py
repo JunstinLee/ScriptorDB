@@ -149,8 +149,7 @@ class ApprovalOrchestrator:
         all_denied = all(not approved_map.get(call["tool_call_id"], False) for call in pending.deferred_calls)
 
         if all_denied:
-            if self._run_tracker is None:
-                self._run_tracker = RunTracker(run_id=pending.run_id)
+            self._run_tracker = RunTracker(run_id=pending.run_id)
             denial_message = "用户拒绝并暂停流程。"
             self._run_tracker.final_output = denial_message
             await event_callback({
@@ -175,6 +174,11 @@ class ApprovalOrchestrator:
                 "tool_invocations": self._run_tracker.tool_invocations,
                 "started_at": self._run_tracker.started_at,
                 "ended_at": self._run_tracker.ended_at,
+            })
+            await event_callback({
+                "type": "run_end",
+                "run_id": self._run_tracker.run_id,
+                "timestamp": utc_now_iso(),
             })
             print("[approval_orchestrator] all calls denied, skipping _run_loop")
             return True

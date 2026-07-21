@@ -23,6 +23,7 @@ import { useOverlayState } from "@heroui/react";
 import type {
   ApprovalRequestEvent,
   Run,
+  RunEndEvent,
   StreamRunEvent,
   ToolResultRunEvent,
   WorkspaceCreateRequest,
@@ -307,6 +308,13 @@ function MainApp({
           );
           appendEvent(sid, event);
         }
+        const runEndEvent: RunEndEvent = {
+          type: "run_end",
+          run_id: request.run_id,
+          timestamp: new Date().toISOString(),
+        };
+        appendEvent(sid, runEndEvent);
+        setLoading(false);
       }
 
       const approvedMap: Record<string, boolean> = {};

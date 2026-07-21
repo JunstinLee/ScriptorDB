@@ -39,6 +39,17 @@ export default function RunContainer({ run }: RunContainerProps) {
         </div>
       )}
 
+      {run.tool_invocations
+        .filter((inv) => inv.status === "error" && inv.output)
+        .map((inv) => (
+          <div
+            key={inv.call_id}
+            className="border-l-[3px] border-l-vermilion bg-vermilion/5 px-4 py-3"
+          >
+            <p className="text-sm text-vermilion">{inv.output}</p>
+          </div>
+        ))}
+
       {run.tool_invocations.map((inv) => {
         const invData = inv.data;
         if (
