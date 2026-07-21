@@ -37,6 +37,8 @@ export async function loadSessionMessages(sessionId: string): Promise<ChatMessag
     role: m.role,
     content: m.content,
     timestamp: m.timestamp,
+    attachments: m.attachments,
+    crawl_url: m.crawl_url,
   }));
 }
 
@@ -48,6 +50,8 @@ export async function loadSessionData(
     role: m.role,
     content: m.content,
     timestamp: m.timestamp,
+    attachments: m.attachments,
+    crawl_url: m.crawl_url,
   }));
   const runs: Run[] = (info.runs ?? []).map((run) => ({
     ...run,

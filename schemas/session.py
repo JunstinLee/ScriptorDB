@@ -14,6 +14,8 @@ class MessageItem(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    attachments: list[str] = Field(default_factory=list)
+    crawl_url: str | None = None
 
 
 class StoredToolInvocation(BaseModel):

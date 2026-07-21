@@ -33,8 +33,8 @@ class Session:
                 result.append(ModelResponse(parts=[TextPart(content=m.content)]))
         return result
 
-    def add_user_message(self, content: str) -> None:
-        self.messages.append(MessageItem(role="user", content=content))
+    def add_user_message(self, content: str, attachments: list[str] | None = None, crawl_url: str | None = None) -> None:
+        self.messages.append(MessageItem(role="user", content=content, attachments=attachments or [], crawl_url=crawl_url))
         self.last_access = datetime.utcnow()
 
     def add_assistant_message(self, content: str) -> None:

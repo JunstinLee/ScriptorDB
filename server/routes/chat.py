@@ -94,7 +94,7 @@ async def chat(session_id: str, req: ChatRequest):
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    session.add_user_message(req.prompt)
+    session.add_user_message(req.prompt, attachments=req.attachments, crawl_url=req.crawl_url)
 
     config.chat_session_id = session_id
     config.chat_prompt = req.prompt
