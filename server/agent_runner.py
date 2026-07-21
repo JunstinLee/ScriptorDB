@@ -52,7 +52,7 @@ async def run_agent_stream(
         if matched:
             config.llm_model = matched
 
-    agent = agent or get_agent(model, provider, config=config)
+    agent = agent or get_agent(config, model, provider)
     full_output = ""
     run_id = tracker.run_id if tracker else ""
     trace_step = 0
@@ -167,7 +167,7 @@ async def run_agent_stream(
             pass
 
     if agent is None:
-        agent = get_agent(model, provider, config=config)
+        agent = get_agent(config, model, provider)
 
     async def run_agent() -> Any:
         config.run_id = local_tracker.run_id

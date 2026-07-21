@@ -1,24 +1,16 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime
 from pathlib import Path
 
-import pymysql
 from fastapi import APIRouter, HTTPException
 
 from agents.db_agent import reset_agent_cache
-from config.secrets import save_mysql_password
-from config.settings import load_for_workspace, settings
 from config.workspace import (
-    DEFAULT_WORKSPACES_DIR,
     WorkspaceAlreadyExistsError,
     WorkspaceNotFoundError,
     WorkspaceRegistry,
     WorkspaceSettings,
-    workspace_sessions_dir,
 )
-from database.session import clear_pools
 from server.dependencies import get_config
 from server.schemas import (
     ActiveWorkspaceResponse,
@@ -31,17 +23,21 @@ from server.schemas import (
     WorkspaceItem,
     WorkspaceListResponse,
 )
-import server.sessions as sessions_module
-from server.sessions import _DefaultSessionStore
-from config.workspace_paths import LEGACY_SESSIONS_FILE, LEGACY_SESSIONS_BACKUP_FILE
+from services.mysql_service import (
+    build_error_response,
+    configure_mysql,
+    reset_mysql_to_sqlite,
+    test_connection,
+)
+from services.workspace_service import (
+    activate_workspace as _svc_activate,
+    delete_workspace_logic,
+    get_legacy_sessions_summary as _svc_legacy_summary,
+    import_legacy_sessions,
+    reload_session_store,
+)
 
 router = APIRouter(prefix="/api/workspaces", tags=["workspaces"])
-
-
-def _reload_session_store(workspace_path: Path) -> None:
-    target = workspace_sessions_dir(workspace_path)
-    new_store = _DefaultSessionStore(storage_path=target)
-    sessions_module.session_store = new_store
 
 
 @router.get("", response_model=WorkspaceListResponse)
@@ -125,7 +121,6 @@ async def get_active_workspace():
 
 @router.get("/activate", include_in_schema=False)
 async def _placeholder():
-    """避免与 {workspace_id} 路径冲突。实际路由在 main router。"""
     pass
 
 
@@ -164,13 +159,10 @@ async def activate_workspace(workspace_id: str):
         rec = registry.get(workspace_id)
     except WorkspaceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    load_for_workspace(config, rec.id)
-    registry.set_last_active(rec.id)
-    ws_path = config.workspace_path
-    if ws_path is None:
-        raise HTTPException(status_code=500, detail="Workspace path missing")
-    _reload_session_store(ws_path)
-    reset_agent_cache()
+    try:
+        ws_path = _svc_activate(config, workspace_id)
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
     ws_settings = WorkspaceSettings.load(ws_path, config.workspace_id or rec.id, config.workspace_name or rec.name)
     return WorkspaceDetail(
         id=rec.id,
@@ -199,16 +191,10 @@ async def activate_workspace_by_body(req: WorkspaceActivateRequest):
 @router.delete("/{workspace_id}", response_model=WorkspaceDeleteResponse)
 async def delete_workspace(workspace_id: str, delete_files: bool = False):
     config = get_config()
-    registry = WorkspaceRegistry()
     try:
-        registry.get(workspace_id)
+        delete_workspace_logic(config, workspace_id, delete_files=delete_files)
     except WorkspaceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    was_active = config.workspace_id == workspace_id
-    registry.remove(workspace_id, delete_files=delete_files)
-    if was_active:
-        config.clear()
-        reset_agent_cache()
     return WorkspaceDeleteResponse(ok=True, deleted_files=delete_files)
 
 
@@ -217,121 +203,31 @@ async def get_legacy_sessions_summary():
     config = get_config()
     if not config.workspace_path:
         raise HTTPException(status_code=409, detail="No active workspace")
-    
-    if not LEGACY_SESSIONS_FILE.exists():
-        return {"exists": False, "count": 0}
-    
-    try:
-        payload = json.loads(LEGACY_SESSIONS_FILE.read_text())
-        sessions_data = payload.get("sessions", [])
-        if not isinstance(sessions_data, list):
-            return {"exists": True, "count": 0}
-        
-        count = len(sessions_data)
-        dates = []
-        for s in sessions_data:
-            if isinstance(s, dict):
-                created = s.get("created_at")
-                if isinstance(created, str):
-                    try:
-                        dates.append(datetime.fromisoformat(created))
-                    except ValueError:
-                        pass
-        
-        if dates:
-            return {
-                "exists": True,
-                "count": count,
-                "earliest": min(dates).isoformat(),
-                "latest": max(dates).isoformat()
-            }
-        return {"exists": True, "count": count}
-    except (OSError, json.JSONDecodeError):
-        return {"exists": False, "count": 0}
+    summary = _svc_legacy_summary()
+    return {"success": True, **summary}
 
 
 @router.post("/{workspace_id}/import-legacy-sessions")
-async def import_legacy_sessions(workspace_id: str):
+async def import_legacy_sessions_endpoint(workspace_id: str):
     config = get_config()
     registry = WorkspaceRegistry()
     try:
         rec = registry.get(workspace_id)
     except WorkspaceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-    
-    if not LEGACY_SESSIONS_FILE.exists():
-        raise HTTPException(status_code=404, detail="No legacy sessions file found")
-    
     try:
-        payload = json.loads(LEGACY_SESSIONS_FILE.read_text())
-        sessions_data = payload.get("sessions", [])
-        if not isinstance(sessions_data, list):
-            raise HTTPException(status_code=400, detail="Invalid sessions format")
-        
-        ws_path = Path(rec.path)
-        target_dir = workspace_sessions_dir(ws_path)
-        target_dir.mkdir(parents=True, exist_ok=True)
-        
-        session_store = _DefaultSessionStore(storage_path=target_dir)
-        
-        for item in sessions_data:
-            if not isinstance(item, dict):
-                continue
-            sid = item.get("session_id")
-            if not isinstance(sid, str):
-                continue
-            
-            from server.session_model import Session
-            from server.schemas import MessageItem, StoredRun
-            
-            session = Session(session_id=sid)
-            
-            try:
-                session.created_at = datetime.fromisoformat(item["created_at"]) if isinstance(item.get("created_at"), str) else datetime.utcnow()
-            except ValueError:
-                session.created_at = datetime.utcnow()
-            
-            try:
-                session.last_access = datetime.fromisoformat(item["last_access"]) if isinstance(item.get("last_access"), str) else datetime.utcnow()
-            except ValueError:
-                session.last_access = datetime.utcnow()
-            
-            for m in item.get("messages", []):
-                if not isinstance(m, dict):
-                    continue
-                role = m.get("role")
-                content = m.get("content")
-                if role in ("user", "assistant") and isinstance(content, str):
-                    try:
-                        ts = datetime.fromisoformat(m["timestamp"]) if isinstance(m.get("timestamp"), str) else session.created_at
-                    except ValueError:
-                        ts = session.created_at
-                    session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
-            
-            for r in item.get("runs", []):
-                if isinstance(r, dict):
-                    try:
-                        session.runs.append(StoredRun(**r))
-                    except Exception:
-                        pass
-            
-            session_store._sessions[sid] = session
-            session_store._write_session_file(session)
-        
-        session_store._write_index()
-        
-        try:
-            LEGACY_SESSIONS_FILE.rename(LEGACY_SESSIONS_BACKUP_FILE)
-        except OSError:
-            pass
-        
-        return {"ok": True, "imported_count": len(sessions_data)}
-    except (OSError, json.JSONDecodeError) as e:
+        result = import_legacy_sessions(rec.path)
+        return {"success": True, **result}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except (OSError, Exception) as e:
         raise HTTPException(status_code=500, detail=f"Failed to import sessions: {str(e)}")
 
 
 @router.post("/{workspace_id}/mysql-config", response_model=MySQLConfigResponse)
-async def configure_mysql(workspace_id: str, req: MySQLConfigRequest):
+async def configure_mysql_endpoint(workspace_id: str, req: MySQLConfigRequest):
     config = get_config()
     registry = WorkspaceRegistry()
     try:
@@ -340,112 +236,24 @@ async def configure_mysql(workspace_id: str, req: MySQLConfigRequest):
         raise HTTPException(status_code=404, detail=str(e))
 
     if req.test_first:
-        try:
-            with pymysql.connect(
-                host=req.host,
-                port=req.port,
-                user=req.user,
-                password=req.password,
-                database=req.db,
-                charset="utf8mb4",
-                connect_timeout=10,
-            ) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("SELECT 1")
-        except pymysql.OperationalError as e:
-            return _mysql_error_response(req, *_classify_mysql_operational_error(e))
-        except pymysql.ProgrammingError as e:
-            return _mysql_error_response(req, "programming_error", "programming_error", str(e))
-        except pymysql.InternalError as e:
-            return _mysql_error_response(req, "internal_error", "internal_error", str(e))
-        except pymysql.IntegrityError as e:
-            return _mysql_error_response(req, "integrity_error", "integrity_error", str(e))
-        except pymysql.Error as e:
-            return _mysql_error_response(req, "unknown_error", "unknown_error", str(e))
+        success, error_code, msg = test_connection(
+            req.host, req.port, req.user, req.password, req.db
+        )
+        if not success:
+            return build_error_response(
+                req.host, req.port, req.user, req.db, bool(req.password),
+                error_code or "unknown_error", error_code or "unknown_error", msg,
+            )
 
-    db_url = f"mysql+pymysql://{req.user}@{req.host}:{req.port}/{req.db}"
-    ws_settings = WorkspaceSettings.load(Path(rec.path), rec.id, rec.name)
-    ws_settings.db_url = db_url
-    ws_settings.mysql_host = req.host
-    ws_settings.mysql_port = req.port
-    ws_settings.mysql_user = req.user
-    ws_settings.mysql_db = req.db
-    ws_settings.mysql_password_set = bool(req.password)
-    ws_settings.save()
-
-    save_mysql_password(rec.id, req.password)
-    clear_pools()
-
-    if config.workspace_id == rec.id:
-        load_for_workspace(config, rec.id)
-        reset_agent_cache()
-
-    return MySQLConfigResponse(
-        ok=True,
-        db_url=db_url,
-        host=req.host,
-        port=req.port,
-        user=req.user,
-        db=req.db,
-        mysql_password_set=bool(req.password),
-        message="Connection successful" if req.test_first else "MySQL configuration saved",
-    )
+    return configure_mysql(rec, req.host, req.port, req.user, req.password, req.db, config)
 
 
 @router.delete("/{workspace_id}/mysql-config", response_model=MySQLConfigResponse)
-async def reset_mysql_config(workspace_id: str):
+async def reset_mysql_config_endpoint(workspace_id: str):
     config = get_config()
     registry = WorkspaceRegistry()
     try:
         rec = registry.get(workspace_id)
     except WorkspaceNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
-    ws_settings = WorkspaceSettings.load(Path(rec.path), rec.id, rec.name)
-    ws_settings.db_url = f"sqlite:///{Path(rec.path) / 'scriptordb.sqlite'}"
-    ws_settings.save()
-
-    clear_pools()
-
-    if config.workspace_id == rec.id:
-        load_for_workspace(config, rec.id)
-        reset_agent_cache()
-
-    return MySQLConfigResponse(
-        ok=True,
-        db_url=ws_settings.db_url,
-        host=ws_settings.mysql_host,
-        port=ws_settings.mysql_port,
-        user=ws_settings.mysql_user,
-        db=ws_settings.mysql_db,
-        mysql_password_set=ws_settings.mysql_password_set,
-        message="Switched to SQLite (MySQL configuration preserved)",
-    )
-
-
-def _classify_mysql_operational_error(e: pymysql.OperationalError) -> tuple[str, str, str]:
-    code = e.args[0] if len(e.args) > 0 else None
-    if code in (1045, 1044):
-        return "access_denied", "operational_error", str(e)
-    if code == 1049:
-        return "unknown_database", "operational_error", str(e)
-    if code in (2003, 2005):
-        return "connection_failed", "operational_error", str(e)
-    return "operational_error", "operational_error", str(e)
-
-
-def _mysql_error_response(
-    req: MySQLConfigRequest, error_code: str, error_type: str, message: str
-) -> MySQLConfigResponse:
-    return MySQLConfigResponse(
-        ok=False,
-        db_url="",
-        host=req.host,
-        port=req.port,
-        user=req.user,
-        db=req.db,
-        mysql_password_set=bool(req.password),
-        message=message,
-        error_code=error_code,
-        error_type=error_type,
-    )
+    return reset_mysql_to_sqlite(rec, config)

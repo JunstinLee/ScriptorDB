@@ -1,226 +1,37 @@
 from __future__ import annotations
 
-from pydantic_ai import Tool
-from pydantic_ai.toolsets.function import FunctionToolset
+import importlib
+import pkgutil
 
-from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
-from tools.db_tools import create_table, execute_ddl, get_schema, query_database, run_python_code, write_data
-from tools.export_tools import export_excel, read_excel
-from tools.import_tools import import_csv_to_db, import_excel_to_db
-from tools.validators import (
-    validate_create_table_args,
-    validate_file_path,
-    validate_import_args,
-    validate_python_code,
-    validate_sql_ddl,
-    validate_sql_dml,
-    validate_sql_readonly,
-)
-from tools.viz_tools import plot_chart
+import tools as _tools_pkg
+
+from tools.registry import register_toolset
+from tools.tool_decorators import get_all_tool_defs
 
 
-_read_tools = [
-    Tool(
-        query_database,
-        takes_ctx=True,
-        name="query_database",
-        timeout=10,
-        max_retries=2,
-        requires_approval=False,
-        args_validator=validate_sql_readonly,
-        include_return_schema=True,
-    ),
-    Tool(
-        get_schema,
-        takes_ctx=True,
-        name="get_schema",
-        timeout=5,
-        max_retries=1,
-        requires_approval=False,
-        include_return_schema=True,
-    ),
-    Tool(
-        read_csv,
-        takes_ctx=True,
-        name="read_csv",
-        timeout=30,
-        max_retries=1,
-        requires_approval=False,
-        args_validator=validate_file_path,
-        include_return_schema=True,
-    ),
-    Tool(
-        read_excel,
-        takes_ctx=True,
-        name="read_excel",
-        timeout=30,
-        max_retries=1,
-        requires_approval=False,
-        args_validator=validate_file_path,
-        include_return_schema=True,
-    ),
-    Tool(
-        read_file,
-        takes_ctx=True,
-        name="read_file",
-        timeout=10,
-        max_retries=1,
-        requires_approval=False,
-        args_validator=validate_file_path,
-        include_return_schema=True,
-    ),
-    Tool(
-        list_files,
-        takes_ctx=True,
-        name="list_files",
-        timeout=5,
-        max_retries=1,
-        requires_approval=False,
-        include_return_schema=True,
-    ),
-]
+def _discover_and_import_all_tool_modules() -> None:
+    for _, module_name, _ in pkgutil.iter_modules(_tools_pkg.__path__):
+        importlib.import_module(f"tools.{module_name}")
 
 
-_write_tools = [
-    Tool(
-        write_csv,
-        takes_ctx=True,
-        name="write_csv",
-        timeout=30,
-        max_retries=1,
-        requires_approval=True,
-        args_validator=validate_file_path,
-        include_return_schema=True,
-    ),
-    Tool(
-        write_file,
-        takes_ctx=True,
-        name="write_file",
-        timeout=10,
-        max_retries=1,
-        requires_approval=True,
-        args_validator=validate_file_path,
-        include_return_schema=True,
-    ),
-    Tool(
-        export_excel,
-        takes_ctx=True,
-        name="export_excel",
-        timeout=60,
-        max_retries=1,
-        requires_approval=True,
-        args_validator=validate_file_path,
-        include_return_schema=True,
-    ),
-    Tool(
-        import_csv_to_db,
-        takes_ctx=True,
-        name="import_csv_to_db",
-        timeout=60,
-        max_retries=1,
-        requires_approval=True,
-        args_validator=validate_import_args,
-        include_return_schema=True,
-    ),
-    Tool(
-        import_excel_to_db,
-        takes_ctx=True,
-        name="import_excel_to_db",
-        timeout=60,
-        max_retries=1,
-        requires_approval=True,
-        args_validator=validate_import_args,
-        include_return_schema=True,
-    ),
-    Tool(
-        run_python_code,
-        takes_ctx=True,
-        name="run_python_code",
-        timeout=35,
-        max_retries=2,
-        requires_approval=True,
-        args_validator=validate_python_code,
-        sequential=True,
-        include_return_schema=True,
-    ),
-    Tool(
-        create_table,
-        takes_ctx=True,
-        name="create_table",
-        timeout=15,
-        max_retries=1,
-        requires_approval=True,
-        args_validator=validate_create_table_args,
-        include_return_schema=True,
-    ),
-    Tool(
-        execute_ddl,
-        takes_ctx=True,
-        name="execute_ddl",
-        timeout=15,
-        max_retries=1,
-        requires_approval=True,
-        args_validator=validate_sql_ddl,
-        include_return_schema=True,
-    ),
-    Tool(
-        write_data,
-        takes_ctx=True,
-        name="write_data",
-        timeout=15,
-        max_retries=1,
-        requires_approval=True,
-        args_validator=validate_sql_dml,
-        include_return_schema=True,
-    ),
-]
+_discover_and_import_all_tool_modules()
 
 
-_viz_tools = [
-    Tool(
-        plot_chart,
-        takes_ctx=True,
-        name="plot_chart",
-        timeout=30,
-        max_retries=1,
-        requires_approval=False,
-        include_return_schema=True,
-    ),
-]
+@register_toolset("read")
+def _create_read_toolset():
+    return [d.to_tool() for d in get_all_tool_defs() if d.category == "read"]
 
 
-read_toolset = FunctionToolset(
-    instructions=(
-        "Read-only database and file operations. "
-        "Use query_database, get_schema for database queries; "
-        "read_csv, read_excel, read_file, list_files for file system inspection. "
-        "All output is returned as structured ToolResult with success/error/data fields."
-    ),
-    tools=_read_tools,
-)
+@register_toolset("write")
+def _create_write_toolset():
+    return [d.to_tool() for d in get_all_tool_defs() if d.category == "write"]
 
 
-write_toolset = FunctionToolset(
-    instructions=(
-        "Write and export operations. ALL operations in this toolset require user approval. "
-        "Use write_csv, write_file for file output; "
-        "export_excel for .xlsx export; "
-        "import_csv_to_db and import_excel_to_db to load files into the database; "
-        "run_python_code for sandboxed Python execution; "
-        "create_table to build a table with structured column definitions; "
-        "execute_ddl for generic DDL statements (CREATE/ALTER/DROP); "
-        "write_data for parameterized INSERT/UPDATE/DELETE. "
-        "DELETE and UPDATE must include a WHERE clause. DROP requires confirm_drop=True. "
-        "All output is returned as structured ToolResult with success/error/data fields."
-    ),
-    tools=_write_tools,
-)
+@register_toolset("viz")
+def _create_viz_toolset():
+    return [d.to_tool() for d in get_all_tool_defs() if d.category == "viz"]
 
 
-viz_toolset = FunctionToolset(
-    instructions=(
-        "Visualization tools. Use plot_chart to generate charts (line, bar, scatter, pie). "
-        "Charts are saved as PNG files."
-    ),
-    tools=_viz_tools,
-)
+@register_toolset("crawl")
+def _create_crawl_toolset():
+    return [d.to_tool() for d in get_all_tool_defs() if d.category == "crawl"]

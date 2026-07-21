@@ -6,10 +6,8 @@ import pytest
 from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel as PydanticTestModel
 from pydantic_ai.usage import RunUsage
-from sqlalchemy import text
-
 from config.settings import Settings
-from tools.db_connection import get_engine
+from tools.db_repository import DatabaseRepository
 from tools.import_tools import import_csv_to_db, import_excel_to_db
 
 
@@ -22,12 +20,22 @@ def _make_ctx() -> RunContext[Settings]:
 
 
 def _query_table(db_url: str, table_name: str):
-    engine = get_engine(db_url)
-    with engine.connect() as conn:
-        result = conn.execute(text(f'SELECT * FROM "{table_name}"'))
-        columns = list(result.keys())
-        rows = [list(row) for row in result.fetchall()]
-    return columns, rows
+    repo = DatabaseRepository(db_url, "")
+    rows = repo.execute_query(f'SELECT * FROM "{table_name}"', limit=1000)
+    if not rows:
+        return [], []
+    columns = list(rows[0].keys())
+    return columns, [[row[c] for c in columns] for row in rows]
+
+
+def _query_data_columns(db_url: str, table_name: str):
+    columns, rows = _query_table(db_url, table_name)
+    pk_filtered_cols = [c for c in columns if c != "_scriptordb_id"]
+    pk_filtered_rows = [
+        [row[i] for i, c in enumerate(columns) if c != "_scriptordb_id"]
+        for row in rows
+    ]
+    return pk_filtered_cols, pk_filtered_rows
 
 
 class TestImportCsvToDb:
@@ -41,7 +49,7 @@ class TestImportCsvToDb:
         assert result.data is not None
         assert result.data["rows_imported"] == 2
 
-        columns, rows = _query_table(ctx.deps.db_url, "csv_basic")
+        columns, rows = _query_data_columns(ctx.deps.db_url, "csv_basic")
         assert columns == ["name", "age"]
         assert rows == [["Alice", "30"], ["Bob", "25"]]
 
@@ -71,7 +79,7 @@ class TestImportCsvToDb:
         result2 = import_csv_to_db(ctx, str(filepath), "csv_replace", if_exists="replace")
         assert result2.success
 
-        columns, rows = _query_table(ctx.deps.db_url, "csv_replace")
+        columns, rows = _query_data_columns(ctx.deps.db_url, "csv_replace")
         assert rows == [["Bob", "25"]]
 
     def test_import_csv_hooks(self, tmp_path: Path):
@@ -97,7 +105,7 @@ class TestImportCsvToDb:
         assert result.data is not None
         assert result.data["rows_imported"] == 2
 
-        columns, rows = _query_table(ctx.deps.db_url, "csv_hooks")
+        columns, rows = _query_data_columns(ctx.deps.db_url, "csv_hooks")
         assert rows == [["ALICE", "30"], ["CAROL", "25"]]
 
     def test_import_csv_file_not_found(self):
@@ -129,7 +137,7 @@ class TestImportExcelToDb:
         assert result.data is not None
         assert result.data["rows_imported"] == 2
 
-        columns, rows = _query_table(ctx.deps.db_url, "excel_basic")
+        columns, rows = _query_data_columns(ctx.deps.db_url, "excel_basic")
         assert columns == ["name", "age"]
         assert rows == [["Alice", "30"], ["Bob", "25"]]
 
@@ -160,7 +168,7 @@ class TestImportExcelToDb:
         assert result.data is not None
         assert result.data["rows_imported"] == 2
 
-        columns, rows = _query_table(ctx.deps.db_url, "excel_hooks")
+        columns, rows = _query_data_columns(ctx.deps.db_url, "excel_hooks")
         assert rows == [["ALICE", "30"], ["CAROL", "25"]]
 
     def test_import_excel_invalid_sheet(self, tmp_path: Path):

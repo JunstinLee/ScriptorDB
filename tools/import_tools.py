@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import os
 from collections.abc import Callable
 from typing import Any
 
@@ -7,9 +9,9 @@ from pydantic_ai import RunContext
 from sqlalchemy import text
 
 from config.settings import Settings
-from tools.db_connection import get_connection
+from tools.db_repository import DatabaseRepository
 from tools.errors import _to_tool_error
-from tools.parsers.csv_parser import parse_csv
+from tools.parsers.csv_parser import _apply_hooks, parse_csv
 from tools.parsers.excel_parser import parse_excel
 from tools.schema_helpers import (
     create_table_from_headers,
@@ -18,31 +20,16 @@ from tools.schema_helpers import (
     table_exists,
     unique_table_name,
 )
+from tools.tool_decorators import db_tool
 from tools.tool_result import ToolErrorInfo, ToolResult
-from tools.undo_log import add_entry, create_group
-
-
-def _quote_identifier(name: str) -> str:
-    return '"' + name.replace('"', '""') + '"'
-
-
-def _table_exists(conn, table_name: str) -> bool:
-    from sqlalchemy import inspect as sa_inspect
-
-    return table_name in sa_inspect(conn).get_table_names()
-
-
-def _create_table_from_headers(conn, table_name: str, headers: list[str]) -> None:
-    cols_sql = [f"{_quote_identifier(header)} TEXT" for header in headers]
-    sql = f"CREATE TABLE {_quote_identifier(table_name)} (\n  {',\n  '.join(cols_sql)}\n)"
-    conn.execute(text(sql))
+from tools.validators import validate_import_args
 
 
 def _build_insert_sql(table_name: str, headers: list[str]) -> str:
-    cols = [_quote_identifier(header) for header in headers]
+    cols = [quote_identifier(header) for header in headers]
     placeholders = [f":p{i}" for i in range(len(headers))]
     return (
-        f"INSERT INTO {_quote_identifier(table_name)} "
+        f"INSERT INTO {quote_identifier(table_name)} "
         f"({', '.join(cols)}) VALUES ({', '.join(placeholders)})"
     )
 
@@ -85,8 +72,8 @@ def _insert_batches(
                     first_id = last_id - count + 1
                     pk_col = pk_cols[0]
                     select_sql = (
-                        f"SELECT * FROM {_quote_identifier(table_name)} "
-                        f"WHERE {_quote_identifier(pk_col)} BETWEEN :first AND :last"
+                        f"SELECT * FROM {quote_identifier(table_name)} "
+                        f"WHERE {quote_identifier(pk_col)} BETWEEN :first AND :last"
                     )
                     select_result = conn.execute(
                         text(select_sql), {"first": first_id, "last": last_id}
@@ -115,9 +102,9 @@ def _build_undo_entries_for_inserted_rows(
     undo_entries: list[tuple[str, dict]] = []
     for row in inserted_rows:
         pk_conditions = " AND ".join(
-            f"{_quote_identifier(col)} = :undo_{col}" for col in pk_cols
+            f"{quote_identifier(col)} = :undo_{col}" for col in pk_cols
         )
-        undo_sql = f"DELETE FROM {_quote_identifier(table_name)} WHERE {pk_conditions}"
+        undo_sql = f"DELETE FROM {quote_identifier(table_name)} WHERE {pk_conditions}"
         undo_params = {f"undo_{col}": row[col] for col in pk_cols}
         undo_entries.append((undo_sql, undo_params))
     return undo_entries
@@ -131,39 +118,38 @@ def _import_rows_to_db(
     if_exists: str,
     batch_size: int,
 ) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url)
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
-        exists = _table_exists(conn, table_name)
-        if exists:
-            if if_exists == "fail":
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Table '{table_name}' already exists",
-                    ),
-                )
-            if if_exists == "replace":
-                conn.execute(
-                    text(f"DROP TABLE IF EXISTS {_quote_identifier(table_name)}")
-                )
-                conn.commit()
-                _create_table_from_headers(conn, table_name, headers)
-            elif if_exists == "append":
-                pass
+        with repo.session() as conn:
+            exists = table_exists(conn, table_name)
+            if exists:
+                if if_exists == "fail":
+                    return ToolResult(
+                        success=False,
+                        error=ToolErrorInfo(
+                            category="parameter_error",
+                            message=f"Table '{table_name}' already exists",
+                        ),
+                    )
+                if if_exists == "replace":
+                    conn.execute(
+                        text(f"DROP TABLE IF EXISTS {quote_identifier(table_name)}")
+                    )
+                    create_table_from_headers(conn, table_name, headers)
+                elif if_exists == "append":
+                    pass
+                else:
+                    return ToolResult(
+                        success=False,
+                        error=ToolErrorInfo(
+                            category="parameter_error",
+                            message=f"Invalid if_exists value: {if_exists}",
+                        ),
+                    )
             else:
-                return ToolResult(
-                    success=False,
-                    error=ToolErrorInfo(
-                        category="parameter_error",
-                        message=f"Invalid if_exists value: {if_exists}",
-                    ),
-                )
-        else:
-            _create_table_from_headers(conn, table_name, headers)
+                create_table_from_headers(conn, table_name, headers)
 
-        total_imported = _insert_batches(conn, table_name, headers, rows, batch_size)
-        conn.commit()
+            total_imported, _ = _insert_batches(conn, table_name, headers, rows, batch_size)
 
         return ToolResult(
             success=True,
@@ -176,8 +162,6 @@ def _import_rows_to_db(
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
 def _import_csv_to_db_impl(
@@ -214,6 +198,7 @@ def _import_csv_to_db_impl(
         return _to_tool_error(e)
 
 
+@db_tool(name="import_csv_to_db", category="write", timeout=60, requires_approval=True, validator=validate_import_args)
 def import_csv_to_db(
     ctx: RunContext[Settings],
     filepath: str,
@@ -250,10 +235,10 @@ def _import_excel_to_db_impl(
 
     try:
         from openpyxl import load_workbook
-    except ImportError:
+    except ImportError as err:
         return ToolResult(
             success=False,
-            error=ToolErrorInfo(category="parameter_error", message=err),
+            error=ToolErrorInfo(category="parameter_error", message=str(err)),
         )
 
     try:
@@ -293,6 +278,7 @@ def _import_excel_to_db_impl(
         return _to_tool_error(e)
 
 
+@db_tool(name="import_excel_to_db", category="write", timeout=60, requires_approval=True, validator=validate_import_args)
 def import_excel_to_db(
     ctx: RunContext[Settings],
     filepath: str,

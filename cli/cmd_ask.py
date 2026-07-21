@@ -6,10 +6,10 @@ import typer
 
 from agents.db_agent import get_agent
 from cli import app
-from cli.cmd_common import ensure_workspace
-from config.models import fuzzy_match_model
-from config.settings import load_for_workspace, settings
+from cli.cmd_common import _get_config_ctx, ensure_workspace
+from config.settings import load_for_workspace
 from config.workspace import WorkspaceNotFoundError
+from services.model_service import resolve_user_model
 
 
 @app.command()
@@ -19,9 +19,10 @@ def ask(
     provider: Annotated[str | None, typer.Option("--provider", "-p")] = None,
     workspace: Annotated[Optional[str], typer.Option("--workspace", help="临时工作区 ID")] = None,
 ):
+    config = _get_config_ctx()
     if workspace:
         try:
-            load_for_workspace(settings, workspace)
+            load_for_workspace(config, workspace)
         except WorkspaceNotFoundError as e:
             typer.echo(str(e), err=True)
             raise typer.Exit(1)
@@ -29,14 +30,14 @@ def ask(
         raise typer.Exit(1)
 
     if provider:
-        settings.llm_provider = provider
+        config.llm_provider = provider
 
     if model:
-        matched = fuzzy_match_model(settings.llm_provider, model)
-        if matched and matched != model and not model.startswith(f"{settings.llm_provider}:"):
+        matched = resolve_user_model(config.llm_provider, model)
+        if matched and matched != model:
             typer.echo(f"Using model: {matched}")
-            model = matched
+        model = matched
 
-    a = get_agent(model) if model else get_agent()
-    result = a.run_sync(prompt, deps=settings)
+    a = get_agent(config, model=model)
+    result = a.run_sync(prompt, deps=config)
     typer.echo(result.output)

@@ -8,10 +8,10 @@ from rich.markdown import Markdown
 
 from agents.db_agent import get_agent
 from cli import app
-from cli.cmd_common import ensure_workspace
-from config.models import fuzzy_match_model
-from config.settings import load_for_workspace, settings
+from cli.cmd_common import _get_config_ctx, ensure_workspace
+from config.settings import load_for_workspace
 from config.workspace import WorkspaceNotFoundError
+from services.model_service import resolve_user_model
 
 
 @app.command()
@@ -22,9 +22,10 @@ def interactive(
 ):
     import readline
 
+    config = _get_config_ctx()
     if workspace:
         try:
-            load_for_workspace(settings, workspace)
+            load_for_workspace(config, workspace)
         except WorkspaceNotFoundError as e:
             typer.echo(str(e), err=True)
             raise typer.Exit(1)
@@ -32,11 +33,11 @@ def interactive(
         raise typer.Exit(1)
 
     if provider:
-        settings.llm_provider = provider
+        config.llm_provider = provider
     if model:
-        matched = fuzzy_match_model(settings.llm_provider, model)
+        matched = resolve_user_model(config.llm_provider, model)
         if matched:
-            settings.llm_model = matched
+            config.llm_model = matched
 
     console = Console()
     console.print("[bold green]ScriptorDB — 输入 'exit' 退出[/bold green]\n")
@@ -52,6 +53,6 @@ def interactive(
         if not prompt.strip():
             continue
 
-        a = get_agent()
-        result = a.run_sync(prompt, deps=settings)
-        console.print(Markdown(result.output))
+        a = get_agent(config=config)
+        result = a.run_sync(prompt, deps=config)
+        console.print(Markdown(str(result.output)))

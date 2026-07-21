@@ -6,6 +6,7 @@ from pydantic_ai import RunContext
 from config.settings import Settings
 from config.workspace import workspace_outputs_dir
 from tools.errors import _to_tool_error
+from tools.tool_decorators import db_tool
 from tools.tool_result import ToolErrorInfo, ToolResult
 
 
@@ -33,6 +34,7 @@ def _configure_chinese_font(plt) -> str | None:
     return chosen
 
 
+@db_tool(name="plot_chart", category="viz", timeout=30)
 def plot_chart(
     ctx: RunContext[Settings],
     chart_type: str,

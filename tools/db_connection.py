@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import threading
 from typing import Any
 
-from sqlalchemy import Engine, Connection, create_engine, inspect, make_url, text
+from sqlalchemy import Engine, Connection, create_engine, inspect, text
 from sqlalchemy.pool import StaticPool
 
 from config.secrets import get_mysql_password
@@ -11,15 +10,12 @@ from logging_setup import get_logger
 
 logger = get_logger("db_connection")
 
-_engine_cache: dict[tuple[str, str | None], Engine] = {}
-_cache_lock = threading.Lock()
-
 
 def _mask_url(db_url: str) -> str:
-    """脱敏日志中的数据库 URL 密码。"""
     if not db_url.startswith("mysql"):
         return db_url
     try:
+        from sqlalchemy import make_url
         url = make_url(db_url)
         if url.password:
             return str(url.set(password="***"))
@@ -28,22 +24,14 @@ def _mask_url(db_url: str) -> str:
     return db_url
 
 
-def _get_mysql_password(db_url: str, workspace_id: str | None = None) -> str | None:
-    """对 mysql 协议 URL，从系统密钥环读取密码。"""
-    logger.debug("Read MySQL password: workspace_id=%s db_url=%s", workspace_id, _mask_url(db_url))
+def _get_mysql_password(db_url: str, workspace_id: str) -> str | None:
     if not db_url.startswith("mysql"):
         return None
-    if workspace_id is None:
-        from config.settings import settings
-
-        workspace_id = settings.workspace_id
-        logger.debug("Using current workspace_id=%s", workspace_id)
-    password = get_mysql_password(workspace_id) if workspace_id else None
-    logger.debug("MySQL password found: %s", password is not None)
+    password = get_mysql_password(workspace_id)
     return password
 
 
-def _create_engine(db_url: str, password: str | None = None) -> Engine:
+def _make_engine(db_url: str, workspace_id: str = "") -> Engine:
     logger.debug("Creating SQLAlchemy engine: %s", _mask_url(db_url))
     kwargs: dict[str, Any] = {}
     if db_url.startswith("sqlite"):
@@ -53,24 +41,19 @@ def _create_engine(db_url: str, password: str | None = None) -> Engine:
                 "connect_args": {"check_same_thread": False},
             }
         )
-    elif password is not None:
-        kwargs["connect_args"] = {"password": password}
+    else:
+        password = _get_mysql_password(db_url, workspace_id)
+        if password is not None:
+            kwargs["connect_args"] = {"password": password}
     return create_engine(db_url, **kwargs)
 
 
-def get_engine(db_url: str, workspace_id: str | None = None) -> Engine:
-    password = _get_mysql_password(db_url, workspace_id)
-    cache_key = (db_url, password)
-    cached = cache_key in _engine_cache
-    with _cache_lock:
-        if cache_key not in _engine_cache:
-            _engine_cache[cache_key] = _create_engine(db_url, password)
-        engine = _engine_cache[cache_key]
-    logger.debug("get_engine: workspace_id=%s cached=%s url=%s", workspace_id, cached, _mask_url(db_url))
-    return engine
+def get_engine(db_url: str, workspace_id: str) -> Engine:
+    logger.debug("get_engine: workspace_id=%s url=%s", workspace_id, _mask_url(db_url))
+    return _make_engine(db_url, workspace_id)
 
 
-def get_connection(db_url: str, workspace_id: str | None = None) -> Connection:
+def get_connection(db_url: str, workspace_id: str) -> Connection:
     logger.debug("Opening connection: %s", _mask_url(db_url))
     try:
         conn = get_engine(db_url, workspace_id).connect()
@@ -81,13 +64,13 @@ def get_connection(db_url: str, workspace_id: str | None = None) -> Connection:
         raise
 
 
-def get_all_tables(db_url: str, workspace_id: str | None = None) -> list[dict[str, Any]]:
+def get_all_tables(db_url: str, workspace_id: str) -> list[dict[str, Any]]:
     logger.debug("Listing all tables for %s", _mask_url(db_url))
     with get_connection(db_url, workspace_id) as conn:
         return _get_all_tables(conn, db_url)
 
 
-def get_single_table_schema(db_url: str, table: str, workspace_id: str | None = None) -> dict[str, Any]:
+def get_single_table_schema(db_url: str, table: str, workspace_id: str) -> dict[str, Any]:
     logger.debug("Getting schema for table=%s db_url=%s", table, _mask_url(db_url))
     with get_connection(db_url, workspace_id) as conn:
         return _get_single_table_schema(conn, db_url, table)

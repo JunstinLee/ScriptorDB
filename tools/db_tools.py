@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from config.settings import Settings
 from schemas.db import ColumnDef
-from tools.db_connection import _get_all_tables, _get_single_table_schema, get_connection
+from tools.db_repository import DatabaseRepository
 from tools.errors import _to_tool_error
 from tools.schema_helpers import (
     extract_where_clause,
@@ -19,23 +19,33 @@ from tools.schema_helpers import (
     parse_dml_table_name,
     quote_identifier,
 )
+from tools.tool_decorators import db_tool
 from tools.tool_result import ToolResult
-from tools.undo_log import add_entry, create_group
+from tools.validators import (
+    validate_create_table_args,
+    validate_python_code,
+    validate_sql_ddl,
+    validate_sql_dml,
+    validate_sql_readonly,
+)
 
 
+@db_tool(name="query_database", timeout=10, max_retries=2, validator=validate_sql_readonly)
 def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url)
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         if limit < 1:
             limit = 1
         if limit > 10000:
             limit = 10000
-        result = conn.execute(text(sql))
-        rows = result.fetchmany(limit + 1)
-        columns = list(result.keys())
-        truncated = len(rows) > limit
-        if truncated:
-            rows = rows[:limit]
+
+        with repo.session() as conn:
+            result = conn.execute(text(sql))
+            rows = result.fetchmany(limit + 1)
+            columns = list(result.keys())
+            truncated = len(rows) > limit
+            if truncated:
+                rows = rows[:limit]
 
         return ToolResult(
             success=True,
@@ -49,22 +59,21 @@ def query_database(ctx: RunContext[Settings], sql: str, limit: int = 100) -> Too
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
+@db_tool(name="get_schema", timeout=5)
 def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url)
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         if table:
-            schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table)
+            schema_info = repo.get_single_table_schema(table)
             return ToolResult(
                 success=True,
                 output=f"Table {table}: {len(schema_info['columns'])} column{'s' if len(schema_info['columns']) != 1 else ''}",
                 data={"table": table, "columns": schema_info["columns"], "create_sql": schema_info.get("create_sql")},
             )
 
-        tables = _get_all_tables(conn, ctx.deps.db_url)
+        tables = repo.get_all_tables()
         return ToolResult(
             success=True,
             output=f"{len(tables)} table{'s' if len(tables) != 1 else ''}",
@@ -72,10 +81,9 @@ def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResul
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
+@db_tool(name="run_python_code", category="write", timeout=35, max_retries=2, requires_approval=True, validator=validate_python_code, sequential=True)
 def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
     from tools.sandbox import sandbox_execute
 
@@ -121,13 +129,14 @@ def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
     )
 
 
+@db_tool(name="create_table", category="write", timeout=15, requires_approval=True, validator=validate_create_table_args)
 def create_table(
     ctx: RunContext[Settings],
     table_name: str,
     columns: list[ColumnDef],
     if_not_exists: bool = True,
 ) -> ToolResult:
-    conn = get_connection(ctx.deps.db_url)
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
         cols_sql = []
         foreign_keys = []
@@ -148,10 +157,11 @@ def create_table(
         all_parts = cols_sql + foreign_keys
         exists_kw = "IF NOT EXISTS " if if_not_exists else ""
         sql = f'CREATE TABLE {exists_kw}"{table_name}" (\n  {", ".join(all_parts)}\n)'
-        conn.execute(text(sql))
-        conn.commit()
 
-        schema_info = _get_single_table_schema(conn, ctx.deps.db_url, table_name)
+        with repo.session() as conn:
+            conn.execute(text(sql))
+
+        schema_info = repo.get_single_table_schema(table_name)
         return ToolResult(
             success=True,
             output=f"Table {table_name} created successfully",
@@ -163,13 +173,12 @@ def create_table(
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
 _DDL_PREFIXES = ("CREATE", "ALTER", "DROP", "RENAME", "TRUNCATE", "PRAGMA")
 
 
+@db_tool(name="execute_ddl", category="write", timeout=15, requires_approval=True, validator=validate_sql_ddl)
 def execute_ddl(
     ctx: RunContext[Settings],
     sql: str,
@@ -182,10 +191,9 @@ def execute_ddl(
             "Set confirm_drop to True to confirm you want to drop."
         )
 
-    conn = get_connection(ctx.deps.db_url)
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
-        conn.execute(text(sql))
-        conn.commit()
+        repo.execute_ddl(sql)
         return ToolResult(
             success=True,
             output="DDL executed successfully",
@@ -193,8 +201,6 @@ def execute_ddl(
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()
 
 
 _normalize_params = normalize_params
@@ -321,6 +327,7 @@ def _build_delete_undo(
 _DML_PREFIXES = ("INSERT", "UPDATE", "DELETE")
 
 
+@db_tool(name="write_data", category="write", timeout=15, requires_approval=True, validator=validate_sql_dml)
 def write_data(
     ctx: RunContext[Settings],
     sql: str,
@@ -334,64 +341,44 @@ def write_data(
                 "to limit the affected rows."
             )
 
-    conn = get_connection(ctx.deps.db_url)
+    if isinstance(params, list) and params and any(isinstance(p, (list, dict)) for p in params):
+        raise ModelRetry(
+            "Batch data insertion detected. "
+            "When importing bulk data from files (CSV, Excel), "
+            "use import_csv_to_db or import_excel_to_db instead of write_data."
+        )
+
+    repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")
     try:
-        table_name = _parse_dml_table_name(sql)
+        with repo.session() as conn:
+            table_name = _parse_dml_table_name(sql)
 
-        undo_entries: list[tuple[str, dict]] = []
-        undo_group_id: int | None = None
-        undo_seq = 0
+            undo_entries: list[tuple[str, dict]] = []
 
-        session_id = ctx.deps.chat_session_id
-        run_id = ctx.deps.run_id
-        prompt = ctx.deps.chat_prompt or ""
-
-        if session_id and table_name:
-            undo_group_id = ctx.deps.current_undo_group_id
-            if undo_group_id is None:
-                undo_group_id = create_group(
-                    conn, session_id, run_id, prompt,
+            if upper.startswith("INSERT") and table_name:
+                rows_affected, undo_entries = _build_insert_undo(
+                    conn, sql, params, table_name
                 )
-                ctx.deps.current_undo_group_id = undo_group_id
+            elif upper.startswith("UPDATE") and table_name:
+                rows_affected, undo_entries = _build_update_undo(
+                    conn, sql, params, table_name
+                )
+            elif upper.startswith("DELETE") and table_name:
+                rows_affected, undo_entries = _build_delete_undo(
+                    conn, sql, params, table_name
+                )
             else:
-                prev_row = conn.execute(
-                    text(
-                        "SELECT COALESCE(MAX(seq_in_group), 0) FROM _scriptordb_undo_entries WHERE group_id = :gid"
-                    ),
-                    {"gid": undo_group_id},
-                ).fetchone()
-                undo_seq = prev_row[0] if prev_row is not None else 0
+                result = conn.execute(text(sql), params or {})
+                rows_affected = result.rowcount
 
-        if upper.startswith("INSERT") and table_name:
-            rows_affected, undo_entries = _build_insert_undo(
-                conn, sql, params, table_name
-            )
-        elif upper.startswith("UPDATE") and table_name:
-            rows_affected, undo_entries = _build_update_undo(
-                conn, sql, params, table_name
-            )
-        elif upper.startswith("DELETE") and table_name:
-            rows_affected, undo_entries = _build_delete_undo(
-                conn, sql, params, table_name
-            )
-        else:
-            result = conn.execute(text(sql), params or {})
-            rows_affected = result.rowcount
+            undo_manager = getattr(ctx.deps, "undo_manager", None)
+            if undo_manager is not None and undo_manager.current_group_id is not None and table_name and undo_entries:
+                operation = upper.split()[0]
+                for undo_sql, undo_params in undo_entries:
+                    undo_manager.record_undo(
+                        operation, table_name, undo_sql, undo_params
+                    )
 
-        if undo_group_id is not None and table_name:
-            for i, (undo_sql, undo_params) in enumerate(undo_entries):
-                undo_seq += 1
-                add_entry(
-                    conn,
-                    undo_group_id,
-                    undo_seq,
-                    upper.split()[0],
-                    table_name,
-                    undo_sql,
-                    undo_params,
-                )
-
-        conn.commit()
         return ToolResult(
             success=True,
             output=f"Data written successfully, {rows_affected} row{'s' if rows_affected != 1 else ''} affected",
@@ -399,5 +386,3 @@ def write_data(
         )
     except Exception as e:
         return _to_tool_error(e)
-    finally:
-        conn.close()

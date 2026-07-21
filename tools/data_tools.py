@@ -10,9 +10,12 @@ from pydantic_ai import RunContext
 
 from config.settings import Settings
 from tools.errors import _to_tool_error
+from tools.tool_decorators import db_tool
 from tools.tool_result import ToolErrorInfo, ToolResult
+from tools.validators import validate_file_path
 
 
+@db_tool(name="read_csv", timeout=30, validator=validate_file_path)
 def read_csv(
     ctx: RunContext[Settings],
     filepath: str,
@@ -81,6 +84,7 @@ def read_csv(
         return _to_tool_error(e)
 
 
+@db_tool(name="write_csv", category="write", timeout=30, requires_approval=True, validator=validate_file_path)
 def write_csv(
     ctx: RunContext[Settings],
     filepath: str,
@@ -104,6 +108,7 @@ def write_csv(
         return _to_tool_error(e)
 
 
+@db_tool(name="read_file", timeout=10, validator=validate_file_path)
 def read_file(
     ctx: RunContext[Settings],
     filepath: str,
@@ -145,6 +150,7 @@ def read_file(
         return _to_tool_error(e)
 
 
+@db_tool(name="write_file", category="write", timeout=10, requires_approval=True, validator=validate_file_path)
 def write_file(
     ctx: RunContext[Settings],
     filepath: str,
@@ -165,6 +171,7 @@ def write_file(
         return _to_tool_error(e)
 
 
+@db_tool(name="list_files", timeout=5)
 def list_files(
     ctx: RunContext[Settings],
     directory: str = ".",

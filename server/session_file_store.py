@@ -87,7 +87,7 @@ class FileSessionStore(SessionStore):
                         ts = datetime.fromisoformat(m["timestamp"]) if isinstance(m.get("timestamp"), str) else now
                     except ValueError:
                         ts = now
-                    session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
+                    session.messages.append(MessageItem(role=role, content=content, timestamp=ts, attachments=m.get("attachments", []), crawl_url=m.get("crawl_url")))
                 for r in item.get("runs", []):
                     if isinstance(r, dict):
                         try:
@@ -140,7 +140,7 @@ class FileSessionStore(SessionStore):
                             ts = datetime.fromisoformat(m["timestamp"]) if isinstance(m.get("timestamp"), str) else datetime.utcnow()
                         except ValueError:
                             ts = datetime.utcnow()
-                        session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
+                        session.messages.append(MessageItem(role=role, content=content, timestamp=ts, attachments=m.get("attachments", []), crawl_url=m.get("crawl_url")))
                 for r in payload.get("runs", []):
                     if isinstance(r, dict):
                         try:
@@ -222,7 +222,7 @@ class FileSessionStore(SessionStore):
                         ts = datetime.fromisoformat(m["timestamp"]) if isinstance(m.get("timestamp"), str) else now
                     except ValueError:
                         ts = now
-                    session.messages.append(MessageItem(role=role, content=content, timestamp=ts))
+                    session.messages.append(MessageItem(role=role, content=content, timestamp=ts, attachments=m.get("attachments", []), crawl_url=m.get("crawl_url")))
             for r in payload.get("runs", []):
                 if isinstance(r, dict):
                     try:
@@ -283,6 +283,8 @@ class FileSessionStore(SessionStore):
                         "role": m.role,
                         "content": m.content,
                         "timestamp": m.timestamp.isoformat(),
+                        "attachments": m.attachments,
+                        "crawl_url": m.crawl_url,
                     }
                     for m in session.messages
                 ],

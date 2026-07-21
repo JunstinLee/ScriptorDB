@@ -120,4 +120,6 @@ def load_default_workspace() -> bool:
     return True
 
 
+# DEPRECATED: Global singleton retained only for bootstrapping (main.py callback, server/dependencies.py).
+# All other modules should receive config via parameter / DI (ctx.obj, Depends(require_workspace), RunContext[Settings]).
 settings = AppConfig()

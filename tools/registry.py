@@ -1,24 +1,31 @@
 from __future__ import annotations
 
-from pydantic_ai.toolsets.function import FunctionToolset
-
-_registry: dict[str, FunctionToolset] = {}
+from collections.abc import Callable
 
 
-def register(name: str, toolset: FunctionToolset) -> None:
-    _registry[name] = toolset
+class _ToolsetRegistry:
+    def __init__(self):
+        self._factories: dict[str, Callable[[], list]] = {}
+
+    def register(self, name: str, factory: Callable):
+        self._factories[name] = factory
+
+    def discover(self) -> list:
+        result = []
+        for factory in self._factories.values():
+            result.extend(factory())
+        return result
 
 
-def get(name: str) -> FunctionToolset:
-    ts = _registry.get(name)
-    if ts is None:
-        raise KeyError(f"Toolset '{name}' not registered")
-    return ts
+registry = _ToolsetRegistry()
 
 
-def get_all() -> list[FunctionToolset]:
-    return list(_registry.values())
+def register_toolset(name: str):
+    def decorator(fn):
+        registry.register(name, fn)
+        return fn
+    return decorator
 
 
-def list_names() -> list[str]:
-    return list(_registry.keys())
+def get_all_tools() -> list:
+    return registry.discover()
