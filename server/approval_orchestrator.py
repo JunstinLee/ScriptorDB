@@ -191,7 +191,6 @@ class ApprovalOrchestrator:
             print("[CANCEL_TRACE] ALL_DENIED_RETURNING_TRUE")
             session = get_session_store().get(self.session_id)
             if session is not None:
-                session.add_assistant_message(run_collector.get("final_output", ""))
                 run = StoredRun(
                     run_id=run_collector["run_id"],
                     status=run_collector["status"],
