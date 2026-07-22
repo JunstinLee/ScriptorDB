@@ -94,7 +94,7 @@ class FileSessionStore(SessionStore):
                             session.runs.append(StoredRun(**r))
                         except Exception:
                             pass
-            print(f"[session_file_store] loaded session: session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]}")
+            print(f"[CANCEL_TRACE] STORE_LOAD_LEGACY session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]} msg_count={len(session.messages)}")
             self._write_session_file(session)
         try:
             legacy_file.rename(legacy_backup)
@@ -147,7 +147,7 @@ class FileSessionStore(SessionStore):
                             session.runs.append(StoredRun(**r))
                         except Exception:
                             pass
-                print(f"[session_file_store] _load: session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]}")
+                print(f"[CANCEL_TRACE] STORE_LOAD session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]} msg_count={len(session.messages)}")
                 for m in payload.get("model_messages", []):
                     if isinstance(m, dict):
                         try:
@@ -229,7 +229,7 @@ class FileSessionStore(SessionStore):
                         session.runs.append(StoredRun(**r))
                     except Exception:
                         pass
-            print(f"[session_file_store] _rebuild: session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]}")
+            print(f"[CANCEL_TRACE] STORE_REBUILD session_id={session.session_id} runs={[(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]} msg_count={len(session.messages)}")
             for m in payload.get("model_messages", []):
                 if isinstance(m, dict):
                     try:
@@ -315,6 +315,8 @@ class FileSessionStore(SessionStore):
 
     def save(self) -> None:
         for session in self._sessions.values():
+            run_ids = [(r.run_id, r.status, len(r.tool_invocations)) for r in session.runs]
+            print(f"[CANCEL_TRACE] STORE_SAVE session_id={session.session_id} runs={run_ids} msgs={len(session.messages)}")
             self._write_session_file(session)
         self._write_index()
 

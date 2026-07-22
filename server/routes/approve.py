@@ -37,6 +37,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
     async def event_callback(event: dict[str, Any]) -> None:
         await event_queue.put(event)
 
+    print(f"[CANCEL_TRACE] APPROVE_ENTRY session_id={session_id} request_id={req.request_id} approved_map={req.approved_map}")
     run_task = asyncio.create_task(
         orchestrator.resume_with_approval(
             req.request_id,
@@ -53,6 +54,16 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
         try:
             while True:
                 if run_task.done() and event_queue.empty():
+                    completed = await run_task
+                    print(f"[CANCEL_TRACE] APPROVE_EARLY_EXIT completed={completed} run_collector_keys={list(run_collector.keys())} tool_count={len(run_collector.get('tool_invocations',[]))}")
+                    if completed:
+                        persist_chat_run(
+                            session_id=session_id,
+                            new_messages_collector=new_messages_collector,
+                            run_collector=run_collector,
+                        )
+                        from server.routes.chat import remove_orchestrator
+                        remove_orchestrator(session_id)
                     break
 
                 event = await event_queue.get()
@@ -70,15 +81,17 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
                 if ev_type == "approval_request":
                     return
                 if ev_type == "run_end":
+                    completed = await run_task
+                    print(f"[CANCEL_TRACE] APPROVE_FINALLY completed={completed} run_collector_keys={list(run_collector.keys())} tool_count={len(run_collector.get('tool_invocations',[]))}")
+                    if completed:
+                        persist_chat_run(
+                            session_id=session_id,
+                            new_messages_collector=new_messages_collector,
+                            run_collector=run_collector,
+                        )
+                        from server.routes.chat import remove_orchestrator
+                        remove_orchestrator(session_id)
                     yield sse_done()
                     break
         finally:
-            completed = await run_task
-            if completed:
-                persist_chat_run(
-                    session_id=session_id,
-                    new_messages_collector=new_messages_collector,
-                    run_collector=run_collector,
-                )
-                from server.routes.chat import remove_orchestrator
-                remove_orchestrator(session_id)
+            pass
