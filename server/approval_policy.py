@@ -35,6 +35,7 @@ class PendingApproval:
     message_history: list[Any]
     deferred_calls: list[dict[str, Any]]
     approved_map: dict[str, bool] = field(default_factory=dict)
+    tool_invocations: list[dict[str, Any]] = field(default_factory=list)
 
 
 class PendingApprovalStore:

@@ -74,6 +74,17 @@ async def _stream_orchestrator_events(
                     new_messages_collector=new_messages_collector,
                     run_collector=summary,
                 )
+            elif summary["status"] == "running":
+                # Paused for deferred-tool approval: checkpoint the user message
+                # and this turn's model messages (incl. the deferred tool calls)
+                # so a backend restart does not lose the turn.
+                session = get_session_store().get(session_id)
+                if session is not None:
+                    if summary.get("new_messages"):
+                        session.add_model_messages(summary["new_messages"])
+                    if summary.get("final_output"):
+                        session.add_assistant_message(summary["final_output"])
+                    get_session_store().save()
 
     return StreamingResponse(
         generate(),

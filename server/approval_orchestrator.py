@@ -144,14 +144,30 @@ class ApprovalOrchestrator:
 
         if self._run_tracker is None:
             self._run_tracker = RunTracker(run_id=pending.run_id)
+            self._run_tracker.tool_invocations = list(pending.tool_invocations)
 
         print(f"[approval_orchestrator] resume: run_id={pending.run_id} deferred_calls={[c['tool_call_id'] for c in pending.deferred_calls]} approved_map={approved_map}")
         all_denied = all(not approved_map.get(call["tool_call_id"], False) for call in pending.deferred_calls)
 
         if all_denied:
-            self._run_tracker = RunTracker(run_id=pending.run_id)
+            for call in pending.deferred_calls:
+                self._run_tracker.add_tool_invocation(
+                    call["tool_call_id"], call["tool_name"], call["args"]
+                )
+                self._run_tracker.complete_tool(
+                    call["tool_call_id"],
+                    False,
+                    "User cancelled the operation",
+                    None,
+                    None,
+                )
             denial_message = "用户拒绝并暂停流程。"
-            self._run_tracker.final_output = denial_message
+            if not self._run_tracker.final_output:
+                self._run_tracker.final_output = denial_message
+            else:
+                self._run_tracker.final_output = (
+                    self._run_tracker.final_output + "\n\n" + denial_message
+                )
             await event_callback({
                 "type": "text_delta",
                 "run_id": self._run_tracker.run_id,
@@ -191,6 +207,9 @@ class ApprovalOrchestrator:
             if approved:
                 results.approvals[call_id] = ToolApproved()
             else:
+                self._run_tracker.add_tool_invocation(
+                    call_id, call["tool_name"], call["args"]
+                )
                 results.approvals[call_id] = ToolDenied("User denied the import operation.")
 
         print(f"[approval_orchestrator] entering _run_loop with {len(results.approvals)} results")
@@ -261,6 +280,7 @@ async def run_agent_stream_resumable(
                 local_tracker.run_id,
                 all_messages,
                 deferred,
+                tracker=local_tracker,
             )
             if approval_event:
                 print(f"[approval_orchestrator] yielding approval_request and PAUSING: request_id={approval_event['request_id']} run_id={approval_event['run_id']}")
@@ -290,6 +310,7 @@ def _process_deferred_requests(
     run_id: str,
     message_history: list[ModelMessage],
     deferred: DeferredToolRequests,
+    tracker: RunTracker | None = None,
 ) -> dict[str, Any] | None:
     """Split deferred calls into auto-approved and human-approval groups.
 
@@ -331,6 +352,7 @@ def _process_deferred_requests(
             run_id=run_id,
             message_history=list(message_history),
             deferred_calls=pending_calls,
+            tool_invocations=list(tracker.tool_invocations) if tracker else [],
         )
         get_pending_store().add(request_id, pending)
         print(f"[approval_orchestrator] creating approval_request: request_id={request_id} run_id={run_id} pending_call_ids={[c['tool_call_id'] for c in pending_calls]}")

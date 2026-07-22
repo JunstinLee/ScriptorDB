@@ -207,12 +207,29 @@ async def run_agent_stream(
         result = await run_task
 
         if isinstance(result.output, DeferredToolRequests):
+            deferred_new_messages = result.new_messages()
+            if (
+                deferred_new_messages
+                and isinstance(deferred_new_messages[0], ModelRequest)
+                and all(
+                    isinstance(p, UserPromptPart)
+                    for p in deferred_new_messages[0].parts
+                )
+            ):
+                deferred_new_messages = deferred_new_messages[1:]
+            if deferred_new_messages:
+                yield {
+                    "type": "new_messages",
+                    "run_id": local_tracker.run_id,
+                    "messages": deferred_new_messages,
+                }
             yield {
                 "type": "_deferred_tool_requests",
                 "run_id": local_tracker.run_id,
                 "deferred": result.output,
                 "all_messages": result.all_messages(),
             }
+            local_tracker.final_output = full_output
             return
 
         if not full_output and result.output:
