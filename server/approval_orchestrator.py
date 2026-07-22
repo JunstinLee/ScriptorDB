@@ -199,6 +199,12 @@ class ApprovalOrchestrator:
                 "timestamp": utc_now_iso(),
             })
             print("[CANCEL_TRACE] ALL_DENIED_RETURNING_TRUE")
+            from services.chat_service import persist_chat_run
+            persist_chat_run(
+                session_id=self.session_id,
+                new_messages_collector=new_messages_collector,
+                run_collector=run_collector,
+            )
             return True
 
         results = DeferredToolResults()

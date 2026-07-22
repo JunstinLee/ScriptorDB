@@ -33,6 +33,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
     event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     run_collector: dict[str, Any] = {}
     new_messages_collector: list[ModelMessage] = []
+    persisted = False
 
     async def event_callback(event: dict[str, Any]) -> None:
         await event_queue.put(event)
@@ -49,7 +50,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
     )
 
     async def generate():
-        nonlocal run_collector, new_messages_collector
+        nonlocal run_collector, new_messages_collector, persisted
 
         try:
             while True:
@@ -64,6 +65,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
                         )
                         from server.routes.chat import remove_orchestrator
                         remove_orchestrator(session_id)
+                        persisted = True
                     break
 
                 event = await event_queue.get()
@@ -76,10 +78,6 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
                 if ev_type == "metadata":
                     continue
 
-                yield sse_event(ev_type, event)
-
-                if ev_type == "approval_request":
-                    return
                 if ev_type == "run_end":
                     completed = await run_task
                     print(f"[CANCEL_TRACE] APPROVE_FINALLY completed={completed} run_collector_keys={list(run_collector.keys())} tool_count={len(run_collector.get('tool_invocations',[]))}")
@@ -91,7 +89,25 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
                         )
                         from server.routes.chat import remove_orchestrator
                         remove_orchestrator(session_id)
+                        persisted = True
+                    yield sse_event(ev_type, event)
                     yield sse_done()
                     break
+
+                yield sse_event(ev_type, event)
+
+                if ev_type == "approval_request":
+                    return
         finally:
-            pass
+            if not persisted and run_task.done():
+                try:
+                    if run_task.result() and run_collector.get("run_id"):
+                        persist_chat_run(
+                            session_id=session_id,
+                            new_messages_collector=new_messages_collector,
+                            run_collector=run_collector,
+                        )
+                        from server.routes.chat import remove_orchestrator
+                        remove_orchestrator(session_id)
+                except Exception:
+                    pass
