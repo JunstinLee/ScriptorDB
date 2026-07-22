@@ -20,6 +20,8 @@ from server.approval_policy import (
 )
 from server.import_inspector import count_import_rows
 from server.run_tracker import RunTracker, utc_now_iso
+from server.schemas import StoredRun, StoredToolInvocation
+from server.sessions import get_session_store
 
 
 class ApprovalOrchestrator:
@@ -162,18 +164,6 @@ class ApprovalOrchestrator:
                     None,
                 )
             print(f"[CANCEL_TRACE] POST_COMPLETE tracker_tools={[(t['call_id'],t['tool_name'],t['status']) for t in self._run_tracker.tool_invocations]}")
-            denial_message = "用户拒绝并暂停流程。"
-            if not self._run_tracker.final_output:
-                self._run_tracker.final_output = denial_message
-            else:
-                self._run_tracker.final_output = (
-                    self._run_tracker.final_output + "\n\n" + denial_message
-                )
-            await event_callback({
-                "type": "text_delta",
-                "run_id": self._run_tracker.run_id,
-                "delta": denial_message,
-            })
             self._run_tracker.finish()
             run_collector.update({
                 "run_id": self._run_tracker.run_id,
@@ -199,12 +189,22 @@ class ApprovalOrchestrator:
                 "timestamp": utc_now_iso(),
             })
             print("[CANCEL_TRACE] ALL_DENIED_RETURNING_TRUE")
-            from services.chat_service import persist_chat_run
-            persist_chat_run(
-                session_id=self.session_id,
-                new_messages_collector=new_messages_collector,
-                run_collector=run_collector,
-            )
+            session = get_session_store().get(self.session_id)
+            if session is not None:
+                session.add_assistant_message(run_collector.get("final_output", ""))
+                run = StoredRun(
+                    run_id=run_collector["run_id"],
+                    status=run_collector["status"],
+                    tool_invocations=[
+                        StoredToolInvocation(**inv)
+                        for inv in run_collector.get("tool_invocations", [])
+                    ],
+                    final_output=run_collector.get("final_output", ""),
+                    started_at=run_collector["started_at"],
+                    ended_at=run_collector.get("ended_at"),
+                )
+                session.add_run(run)
+                get_session_store().save()
             return True
 
         results = DeferredToolResults()
