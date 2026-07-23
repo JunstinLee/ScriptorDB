@@ -35,3 +35,8 @@ def _create_viz_toolset():
 @register_toolset("crawl")
 def _create_crawl_toolset():
     return [d.to_tool() for d in get_all_tool_defs() if d.category == "crawl"]
+
+
+@register_toolset("browser")
+def _create_browser_toolset():
+    return [d.to_tool() for d in get_all_tool_defs() if d.category == "browser"]
