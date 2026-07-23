@@ -27,6 +27,9 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "slow: integration tests that require real external services (browser, network)",
+]
 
 [tool.pylance]
 venvPath = "."
