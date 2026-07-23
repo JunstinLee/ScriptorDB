@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from browser import get_manager
 from tools.browser import (
-    _reset_browser,
     browser_get_text,
     browser_launch,
     browser_navigate,
@@ -15,9 +15,9 @@ from tools.browser import (
 
 @pytest.fixture(autouse=True)
 def _cleanup_browser():
-    _reset_browser()
+    get_manager().reset()
     yield
-    _reset_browser()
+    get_manager().reset()
 
 
 class TestBrowserLaunch:
@@ -37,7 +37,7 @@ class TestBrowserLaunch:
     @pytest.mark.asyncio
     async def test_launch_already_running(self):
         mock_browser = AsyncMock()
-        with patch("tools.browser._browser", mock_browser):
+        with patch.object(get_manager(), "_browser", mock_browser):
             result = await browser_launch(None)
             assert "already launched" in result.lower()
 
@@ -54,8 +54,9 @@ class TestBrowserLaunch:
         mock_ap = AsyncMock()
         mock_ap.start.return_value = mock_playwright
 
-        with patch("tools.browser._browser", None), \
-             patch("tools.browser._playwright", None), \
+        mgr = get_manager()
+        with patch.object(mgr, "_browser", None), \
+             patch.object(mgr, "_playwright", None), \
              patch("playwright.async_api.async_playwright", return_value=mock_ap):
             result = await browser_launch(None)
             assert "launched successfully" in result.lower()
@@ -64,7 +65,7 @@ class TestBrowserLaunch:
 class TestBrowserNavigate:
     @pytest.mark.asyncio
     async def test_navigate_without_launch(self):
-        with patch("tools.browser._page", None):
+        with patch.object(get_manager(), "_page", None):
             result = await browser_navigate(None, "http://example.com")
             assert "not launched" in result.lower()
 
@@ -72,7 +73,7 @@ class TestBrowserNavigate:
     async def test_navigate_success(self):
         mock_page = AsyncMock()
         mock_page.goto = AsyncMock()
-        with patch("tools.browser._page", mock_page):
+        with patch.object(get_manager(), "_page", mock_page):
             result = await browser_navigate(None, "http://example.com")
             assert "navigated to" in result.lower()
             mock_page.goto.assert_awaited_once_with("http://example.com", wait_until="domcontentloaded")
@@ -81,7 +82,7 @@ class TestBrowserNavigate:
 class TestBrowserGetText:
     @pytest.mark.asyncio
     async def test_get_text_without_launch(self):
-        with patch("tools.browser._page", None):
+        with patch.object(get_manager(), "_page", None):
             result = await browser_get_text(None)
             assert "not launched" in result.lower()
 
@@ -90,7 +91,7 @@ class TestBrowserGetText:
         mock_page = AsyncMock()
         mock_page.title.return_value = "Example Domain"
         mock_page.inner_text.return_value = "This domain is for use in documentation examples"
-        with patch("tools.browser._page", mock_page):
+        with patch.object(get_manager(), "_page", mock_page):
             result = await browser_get_text(None)
             assert "# Example Domain" in result
             assert "documentation examples" in result
