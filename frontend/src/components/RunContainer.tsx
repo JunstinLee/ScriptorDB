@@ -1,5 +1,5 @@
 import { Spinner } from "@heroui/react";
-import { Globe, Loader2 } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import type { Run } from "../types";
 import MarkdownRenderer from "./common/MarkdownRenderer";
 import ImageArtifact from "./common/ImageArtifact";
@@ -90,7 +90,7 @@ export default function RunContainer({ run }: RunContainerProps) {
           <div className="flex items-center gap-2 text-sm text-graphite">
             {hasRunningCrawl ? (
               <>
-                <Globe className="h-4 w-4 text-cobalt animate-pulse" />
+                <Search className="h-4 w-4 text-cobalt animate-pulse" />
                 <span>Fetching web page…</span>
               </>
             ) : hasRunningOtherTool ? (

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Globe, Paperclip } from "lucide-react";
+import { Search, Paperclip } from "lucide-react";
 import { PROVIDERS } from "../constants";
 import { useModelSelector } from "../hooks/useModelSelector";
 
@@ -154,7 +154,7 @@ export default function ModelProviderBar({
           aria-label="Toggle web crawl mode"
           title="Crawl a web page"
         >
-          <Globe className="h-4 w-4" />
+          <Search className="h-4 w-4" />
         </button>
       </div>
 

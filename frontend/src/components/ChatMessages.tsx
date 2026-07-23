@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Globe, Sparkles, Undo2, User, Wrench } from "lucide-react";
+import { Search, Sparkles, Undo2, User, Wrench } from "lucide-react";
 import type { ChatMessage, Run, UndoGroup } from "../types";
 import RunContainer from "./RunContainer";
 import MarkdownRenderer from "./common/MarkdownRenderer";
@@ -71,7 +71,7 @@ export default function ChatMessages({
                       className="inline-flex items-center gap-1 rounded-md border border-grid bg-surface px-2 py-1 text-xs text-ink"
                       title={msg.crawl_url}
                     >
-                      <Globe className="h-3 w-3 text-cobalt" />
+                      <Search className="h-3 w-3 text-cobalt" />
                       {msg.crawl_url}
                     </span>
                   </div>
@@ -171,7 +171,7 @@ export default function ChatMessages({
           </div>
           <div className="rounded-lg border border-grid bg-surface px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-graphite">
-              <Globe className="h-4 w-4 text-cobalt animate-pulse" />
+              <Search className="h-4 w-4 text-cobalt animate-pulse" />
               <span>Fetching web page…</span>
             </div>
           </div>
