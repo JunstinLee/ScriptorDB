@@ -115,3 +115,51 @@ async def browser_screenshot(ctx: RunContext[Settings], path: str = "") -> str:
         return "Browser not launched. Please call browser_launch first."
 
     return await _screenshot(page, path if path else None)
+
+
+@db_tool(name="browser_wait_for_selector", category="browser", timeout=15, sequential=True)
+async def browser_wait_for_selector(
+    ctx: RunContext[Settings],
+    selector: str,
+    state: str = "visible",
+) -> str:
+    from browser.context import wait_for_selector as _wait
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _wait(page, selector, state)  # type: ignore[arg-type]
+
+
+@db_tool(name="browser_click", category="browser", timeout=15, sequential=True)
+async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
+    from browser.actions import click as _click
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _click(page, selector)
+
+
+@db_tool(name="browser_fill", category="browser", timeout=15, sequential=True)
+async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> str:
+    from browser.actions import fill as _fill
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _fill(page, selector, text)
+
+
+@db_tool(name="browser_press_key", category="browser", timeout=15, sequential=True)
+async def browser_press_key(ctx: RunContext[Settings], key: str) -> str:
+    from browser.actions import press_key as _press
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _press(page, key)
