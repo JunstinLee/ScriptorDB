@@ -8,7 +8,11 @@ from config.models import resolve_model
 from config.provider_adapter import build_model
 from config.settings import Settings
 from tools.registry import get_all_tools
-from tools.toolsets import _create_read_toolset as _, _create_crawl_toolset as _
+from tools.toolsets import (
+    _create_read_toolset as _,
+    _create_crawl_toolset as _,
+    _create_browser_toolset as _,
+)
 from tools.undo_manager import UndoManager
 
 
