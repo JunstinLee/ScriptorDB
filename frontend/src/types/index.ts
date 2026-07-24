@@ -366,3 +366,30 @@ export interface HistorySearchResponse {
   offset: number;
   limit: number;
 }
+
+// ==================== Browser Workspace ====================
+
+/** 浏览器单次操作记录 */
+export interface BrowserAction {
+  tool: string;
+  detail: string;
+  timestamp: string;
+  success: boolean;
+}
+
+/** 浏览器页面历史条目 */
+export interface BrowserHistoryEntry {
+  url: string;
+  title: string;
+  timestamp: string;
+}
+
+/** 浏览器完整状态快照（对应 GET /api/browser/state 返回值） */
+export interface BrowserState {
+  launched: boolean;
+  url: string | null;
+  title: string | null;
+  screenshot_available: boolean;
+  actions: BrowserAction[];
+  history: BrowserHistoryEntry[];
+}
