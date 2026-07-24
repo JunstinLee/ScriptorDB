@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import time
+
 from datetime import datetime, timezone
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
+
+SCREENSHOT_TTL = 30
 
 
 class BrowserManager:
@@ -15,6 +19,7 @@ class BrowserManager:
         self._history: list[dict[str, str]] = []
         self._actions: list[dict] = []
         self._last_screenshot: str | None = None
+        self._last_screenshot_time: float = 0
         self._launched_at: float | None = None
 
     def record_navigate(self, url: str, title: str = "") -> None:
@@ -34,11 +39,13 @@ class BrowserManager:
 
     def record_screenshot(self, path: str) -> None:
         self._last_screenshot = path
+        self._last_screenshot_time = time.monotonic()
 
     def reset_state(self) -> None:
         self._history.clear()
         self._actions.clear()
         self._last_screenshot = None
+        self._last_screenshot_time = 0
         self._launched_at = None
 
     async def get_state(self) -> dict:
@@ -61,7 +68,10 @@ class BrowserManager:
             "launched": launched,
             "url": url,
             "title": title,
-            "screenshot_available": self._last_screenshot is not None,
+            "screenshot_available": (
+                self._last_screenshot is not None
+                and (time.monotonic() - self._last_screenshot_time) < SCREENSHOT_TTL
+            ),
             "screenshot_path": self._last_screenshot,
             "launched_at": self._launched_at,
             "actions": list(self._actions),

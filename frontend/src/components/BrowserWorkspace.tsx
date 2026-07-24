@@ -114,7 +114,7 @@ function BrowserViewport({ state, loading }: { state: BrowserState | null; loadi
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-3 p-4">
+    <div className="flex flex-1 flex-col gap-3 p-4 min-w-0">
       <div className="relative flex-1 overflow-hidden rounded-xl border border-grid bg-surface">
         {state.screenshot_available ? (
           <img
@@ -216,7 +216,7 @@ export function BrowserWorkspace({ state, loading, error }: BrowserWorkspaceProp
   }
 
   return (
-    <div className="flex flex-1 min-h-0">
+    <div className="flex flex-1 min-h-0 min-w-0">
       <BrowserViewport state={state} loading={loading} />
       <ExecutionTimeline state={state} loading={loading} />
     </div>
