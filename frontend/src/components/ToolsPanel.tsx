@@ -4,8 +4,9 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import type { Run, ToolInvocation as TI } from "../types";
+import type { BrowserState, Run, ToolInvocation as TI } from "../types";
 import ToolInvocation from "./ToolInvocation";
+import { BrowserContextCard } from "./BrowserContextCard";
 
 interface OperationItem {
   icon: React.ReactNode;
@@ -98,9 +99,12 @@ function getCollapsedSummary(invocations: TI[]): string {
 interface ToolsPanelProps {
   runs: Run[];
   highlightedRunId: string | null;
+  browserState: BrowserState | null;
+  browserLoading: boolean;
+  onViewBrowser: () => void;
 }
 
-export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) {
+export default function ToolsPanel({ runs, highlightedRunId, browserState, browserLoading, onViewBrowser }: ToolsPanelProps) {
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
   );
@@ -199,6 +203,11 @@ export default function ToolsPanel({ runs, highlightedRunId }: ToolsPanelProps) 
 
   return (
     <div className="flex flex-col gap-2.5">
+      <BrowserContextCard
+        state={browserState}
+        loading={browserLoading}
+        onViewInMain={onViewBrowser}
+      />
       {runsWithTools.map((run) => {
         const runIndex = runsWithTools.findIndex((r) => r.run_id === run.run_id);
         const runNumber = runIndex + 1;

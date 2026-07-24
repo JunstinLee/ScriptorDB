@@ -1,24 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Toast } from "@heroui/react";
+import { Monitor, MessageSquare } from "lucide-react";
 import ChatPanel from "./components/ChatPanel";
 import ConfirmDialog from "./components/common/ConfirmDialog";
 import SchemaSidebar from "./components/SchemaSidebar";
 import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
 import WorkspacePicker from "./components/WorkspacePicker";
+import { BrowserWorkspace } from "./components/BrowserWorkspace";
 import { useAppSettings } from "./hooks/useAppSettings";
+import { useBrowser } from "./hooks/useBrowser";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
 import { useRuns } from "./hooks/useRuns";
 import { useUndo } from "./hooks/useUndo";
 import { useWorkspaces } from "./hooks/useWorkspaces";
 import {
-  deleteWorkspace as apiDeleteWorkspace,
   streamApproval,
   streamChat,
-  updateWorkspace as apiUpdateWorkspace,
   WorkspaceNotSelectedError,
 } from "./api/client";
+import { fetchSettings } from "./api/settings";
 import { useOverlayState } from "@heroui/react";
 import type {
   ApprovalRequestEvent,
@@ -198,6 +200,12 @@ function MainApp({
   const [highlightedRunId, setHighlightedRunId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [browserActive, setBrowserActive] = useState(false);
+  const [activeMainTab, setActiveMainTab] = useState<"chat" | "browser">("chat");
+  const [browserEnabled, setBrowserEnabled] = useState(false);
+  const { state: browserState, loading: browserLoading, error: browserError } =
+    useBrowser(browserEnabled, workspace?.id ?? null);
+
   const handleNewSession = useCallback(() => {
     void createNewSession();
   }, [createNewSession]);
@@ -220,6 +228,11 @@ function MainApp({
           appendEvent(sid, event);
           if (event.type === "text_delta") {
             appendStreamingText(event.delta);
+          }
+          if (event.type === "tool_call" && event.tool_name?.startsWith("browser_")) {
+            setBrowserActive(true);
+            setBrowserEnabled(true);
+            setActiveMainTab("browser");
           }
         };
 
@@ -412,6 +425,16 @@ function MainApp({
     }
   }, [activeSessionId, workspace?.id, refreshUndo]);
 
+  useEffect(() => {
+    setBrowserActive(false);
+    setActiveMainTab("chat");
+  }, [activeSessionId]);
+
+  useEffect(() => {
+    if (!workspace?.id) return;
+    fetchSettings().then((s) => setBrowserEnabled(s.browser_enabled)).catch((e) => { console.error("fetchSettings failed:", e); });
+  }, [settingsChanged, workspace?.id]);
+
   const handleOpenWorkspacePicker = useCallback(() => {
     setPickerOpen(true);
   }, []);
@@ -459,24 +482,65 @@ function MainApp({
       />
 
       <div className="flex flex-1 flex-col min-w-0">
-        <ChatPanel
-          activeSessionId={activeSessionId}
-          messages={messages}
-          runs={runs}
-          isLoading={isLoading}
-          settingsChanged={settingsChanged}
-          workspace={workspace}
-          tables={tables}
-          undoGroups={undoGroups}
-          onSend={handleSend}
-          onNewSession={handleNewSession}
-          onRevertToHere={handleRevertToHere}
-          onHighlightRun={handleHighlightRun}
-          onSelectionChange={(model, provider) => {
-            setSelectedModel(model);
-            setSelectedProvider(provider);
-          }}
-        />
+        {(browserActive || browserState?.launched) && (
+          <div className="flex shrink-0 items-center border-b border-grid bg-background px-4">
+            <button
+              onClick={() => setActiveMainTab("chat")}
+              className={`relative flex items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                activeMainTab === "chat"
+                  ? "border-accent text-accent"
+                  : "border-transparent text-muted hover:text-foreground"
+              }`}
+            >
+              <MessageSquare className="size-3.5" />
+              Chat
+            </button>
+
+            <button
+              onClick={() => setActiveMainTab("browser")}
+              className={`relative flex items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                activeMainTab === "browser"
+                  ? "border-accent text-accent"
+                  : "border-transparent text-muted hover:text-foreground"
+              }`}
+            >
+              <Monitor className="size-3.5" />
+              Browser
+              {browserLoading && (
+                <span className="ml-0.5 size-1.5 rounded-full bg-accent" />
+              )}
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-1 min-h-0">
+          {activeMainTab === "browser" ? (
+            <BrowserWorkspace
+              state={browserState}
+              loading={browserLoading}
+              error={browserError}
+            />
+          ) : (
+            <ChatPanel
+              activeSessionId={activeSessionId}
+              messages={messages}
+              runs={runs}
+              isLoading={isLoading}
+              settingsChanged={settingsChanged}
+              workspace={workspace}
+              tables={tables}
+              undoGroups={undoGroups}
+              onSend={handleSend}
+              onNewSession={handleNewSession}
+              onRevertToHere={handleRevertToHere}
+              onHighlightRun={handleHighlightRun}
+              onSelectionChange={(model, provider) => {
+                setSelectedModel(model);
+                setSelectedProvider(provider);
+              }}
+            />
+          )}
+        </div>
       </div>
 
       <SchemaSidebar
@@ -486,6 +550,9 @@ function MainApp({
         activeSessionId={activeSessionId}
         highlightedRunId={highlightedRunId}
         showSchemaSql={showSchemaSql}
+        browserState={browserState}
+        browserLoading={browserLoading}
+        onViewBrowser={() => setActiveMainTab("browser")}
       />
 
       <SettingsModal
