@@ -70,7 +70,7 @@ keyring==25.7.0
 logfire-api==4.36.0
 logfire==4.36.0
 markdown-it-py==4.2.0
-mcp==1.27.2
+mcp==1.28.1
 mdurl==0.1.2
 mistralai==2.4.9
 more-itertools==11.1.0
