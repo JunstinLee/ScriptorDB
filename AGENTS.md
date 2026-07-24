@@ -30,15 +30,21 @@ cd frontend && npm run build       # tsc -b && vite build
 cd frontend && npm run lint        # ESLint
 cd frontend && npm run test        # vitest run
 cd frontend && npm run test:watch  # vitest watch
+cd frontend && npm run test:ui     # vitest --ui
+cd frontend && npm run preview     # vite preview (production build preview)
 ```
 
 ## Architecture
 - Run everything from repo root. Imports are top-level (`from config...`, `from cli...`); there is no `src` package.
 - `config/`: `AppConfig` runtime settings, `secrets` (keyring), `models` (provider model listing/resolution), `canonical_models`, workspace registry/settings/loader.
-- `agents/db_agent.py`: `get_agent()` builds a `pydantic_ai.Agent[Settings]` with `read_toolset`, `write_toolset`, `viz_toolset` and auto-approved deferred tool calls.
-- `tools/`: SQLite schema/query, CSV/files, Excel export, matplotlib viz, Python sandbox, undo log.
-- `cli/`: Typer app (`cli/__init__.py`), command handlers (`cli/commands.py`), workspace subcommands (`cli/workspace_cli.py`), text dispatcher (`cli/dispatcher.py`).
-- `server/`: FastAPI app (`server/app.py`) mounting routers from `server/routes/` for health, workspaces, sessions, chat (SSE), schema, models, settings, api_keys, files, undo.
+- `agents/db_agent.py`: `get_agent()` builds a `pydantic_ai.Agent[Settings, str | DeferredToolRequests]` with all registered tools. Deferred tool calls (those needing approval) are handled by `ApprovalOrchestrator` at the server layer — low-risk writes are auto-approved; high-risk imports pause for human approval via SSE.
+- `tools/`: SQLite schema/query, CSV/files, Excel export, matplotlib viz, Python sandbox, undo log. Five tool categories auto-discovered by `tools/toolsets.py`: `read`, `write`, `viz`, `crawl`, `browser`. The `@db_tool` decorator registers each tool with its category.
+- `cli/`: Typer app (`cli/__init__.py`), command handlers, workspace subcommands (`cli/workspace_cli.py`), text dispatcher (`cli/dispatcher.py`).
+- `server/`: FastAPI app (`server/app.py`) mounting 12 routers: health, workspaces, sessions, chat (SSE), approve, schema, models, settings, api_keys, files, undo, history. `ApprovalOrchestrator` intercepts deferred tool calls for human-in-the-loop approval.
+- `services/`: backend API service modules consumed by server routes (chat, settings, workspaces, etc.).
+- `schemas/`: Pydantic request/response models shared between server routes and services.
+- `browser/`: browser automation support (actions, context, manager, Playwright runtime).
+- `database/`: SQLAlchemy connection/pool management (`database/session.py`).
 - `frontend/`: separate npm project — React 19 + Vite + TypeScript + HeroUI v3 + Tailwind CSS v4.
 
 ## Workspaces (critical)
@@ -73,6 +79,7 @@ Most CLI commands and server endpoints require an active workspace. Without one,
 - The `/api` directory is gitignored; `fastmcp` is in `requirements.txt` but unused in-tree.
 - `npm run dev` passes `--no-reload` to uvicorn to avoid reloader conflicts with `concurrently`; `npm run dev:api` does not.
 - The Vite dev server proxies `/api` to `http://localhost:8000`; backend CORS allows all origins.
+- Server stdout/stderr is redirected to `logs/run_<timestamp>.log` by `log_to_file.py`. Set `SCRIPTORDB_LOG_LEVEL` (env var) for `logging_setup.py` verbosity.
 
 ## Operating conventions
 - Do NOT fix TypeScript / TSX type errors without explicit instruction — the user will inspect the files and provide the specific errors to address; do not modify `.ts` / `.tsx` files on your own initiative to resolve type issues.
