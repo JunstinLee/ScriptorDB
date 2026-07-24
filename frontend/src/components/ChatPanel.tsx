@@ -43,6 +43,7 @@ export default function ChatPanel({
   const [crawlMode, setCrawlMode] = useState(false);
   const [crawlUrl, setCrawlUrl] = useState("");
   const [urlError, setUrlError] = useState<string | null>(null);
+  const [globeMode, setGlobeMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const removeAttachment = useCallback((path: string) => {
@@ -77,6 +78,10 @@ export default function ChatPanel({
       }
       return !prev;
     });
+  }, []);
+
+  const toggleGlobe = useCallback(() => {
+    setGlobeMode((prev) => !prev);
   }, []);
 
   const handleUrlChange = useCallback((value: string) => {
@@ -148,6 +153,8 @@ export default function ChatPanel({
             isUploading={isUploading}
             crawlMode={crawlMode}
             onToggleCrawl={toggleCrawl}
+            globeMode={globeMode}
+            onToggleGlobe={toggleGlobe}
             disabled={isLoading}
           />
         </div>

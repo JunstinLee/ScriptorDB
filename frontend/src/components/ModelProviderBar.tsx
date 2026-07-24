@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Globe, Paperclip } from "lucide-react";
+import { Globe, Search, Paperclip } from "lucide-react";
+import { Switch } from "@heroui/react";
 import { PROVIDERS } from "../constants";
 import { useModelSelector } from "../hooks/useModelSelector";
 
@@ -13,6 +14,8 @@ interface ModelProviderBarProps {
   isUploading: boolean;
   crawlMode: boolean;
   onToggleCrawl: () => void;
+  globeMode: boolean;
+  onToggleGlobe: () => void;
   disabled: boolean;
 }
 
@@ -25,6 +28,8 @@ export default function ModelProviderBar({
   isUploading,
   crawlMode,
   onToggleCrawl,
+  globeMode,
+  onToggleGlobe,
   disabled,
 }: ModelProviderBarProps) {
   const {
@@ -154,8 +159,22 @@ export default function ModelProviderBar({
           aria-label="Toggle web crawl mode"
           title="Crawl a web page"
         >
-          <Globe className="h-4 w-4" />
+          <Search className="h-4 w-4" />
         </button>
+        <span className="shrink-0 rounded-lg p-2 flex items-center gap-1.5">
+          <Globe className="h-4 w-4 text-graphite" />
+          <Switch
+            isSelected={globeMode}
+            onChange={onToggleGlobe}
+            isDisabled={disabled}
+            size="sm"
+            aria-label="Toggle globe mode"
+          >
+            <Switch.Control>
+              <Switch.Thumb />
+            </Switch.Control>
+          </Switch>
+        </span>
       </div>
 
       {/* Right: engine status */}
