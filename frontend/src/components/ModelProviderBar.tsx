@@ -10,7 +10,7 @@ interface ModelProviderBarProps {
   onSelectionChange: (model: string, provider: string) => void;
   onAttachClick: () => void;
   onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   isUploading: boolean;
   crawlMode: boolean;
   onToggleCrawl: () => void;

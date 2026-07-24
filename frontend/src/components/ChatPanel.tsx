@@ -6,6 +6,7 @@ import WelcomeScreen from "./WelcomeScreen";
 import type { ChatMessage, Run, SchemaTable, UndoGroup, WorkspaceDetail } from "../types";
 import { uploadFile } from "../api/files";
 import { fetchSettings, updateSettings } from "../api/settings";
+import { toast } from "@heroui/react";
 
 interface ChatPanelProps {
   activeSessionId: string | null;
@@ -46,14 +47,20 @@ export default function ChatPanel({
   const [urlError, setUrlError] = useState<string | null>(null);
   const [globeMode, setGlobeMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    fetchSettings().then((s) => setGlobeMode(s.browser_enabled)).catch(() => {});
+    fetchSettings().then((s) => {
+      if (mountedRef.current) setGlobeMode(s.browser_enabled);
+    }).catch(() => {});
+    return () => { mountedRef.current = false; };
   }, []);
 
   useEffect(() => {
     if (settingsChanged > 0) {
-      fetchSettings().then((s) => setGlobeMode(s.browser_enabled)).catch(() => {});
+      fetchSettings().then((s) => {
+        if (mountedRef.current) setGlobeMode(s.browser_enabled);
+      }).catch(() => {});
     }
   }, [settingsChanged]);
 
@@ -92,12 +99,14 @@ export default function ChatPanel({
   }, []);
 
   const toggleGlobe = useCallback(() => {
-    setGlobeMode((prev) => {
-      const next = !prev;
-      updateSettings({ browser_enabled: next }).catch(() => {});
-      return next;
-    });
-  }, []);
+    const next = !globeMode;
+    setGlobeMode(next);
+    updateSettings({ browser_enabled: next })
+      .then(() => {
+        toast.success(next ? "Browser control enabled" : "Browser control disabled");
+      })
+      .catch(() => {});
+  }, [globeMode]);
 
   const handleUrlChange = useCallback((value: string) => {
     setCrawlUrl(value);

@@ -148,7 +148,7 @@ export default function HistorySearchModal({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Modal.Container size="lg">
-        <Modal.Dialog className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-surface">
+        <Modal.Dialog aria-label="Search history" className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-surface">
           <Modal.Header className="border-b border-grid pb-3">
             <div className="flex w-full items-center gap-3">
               <Search className="size-4 shrink-0 text-graphite" />
