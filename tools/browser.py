@@ -163,3 +163,69 @@ async def browser_press_key(ctx: RunContext[Settings], key: str) -> str:
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     return await _press(page, key)
+
+
+@db_tool(name="browser_get_cookies", category="browser", timeout=10, sequential=False)
+async def browser_get_cookies(ctx: RunContext[Settings]) -> str:
+    from browser.context import get_cookies as _get
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _get(page)
+
+
+@db_tool(name="browser_set_cookies", category="browser", timeout=15, sequential=True)
+async def browser_set_cookies(ctx: RunContext[Settings], cookies_json: str) -> str:
+    from browser.context import set_cookies as _set
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _set(page, cookies_json)
+
+
+@db_tool(name="browser_clear_cookies", category="browser", timeout=10, sequential=True)
+async def browser_clear_cookies(ctx: RunContext[Settings]) -> str:
+    from browser.context import clear_cookies as _clear
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _clear(page)
+
+
+@db_tool(name="browser_get_url", category="browser", timeout=5, sequential=False)
+async def browser_get_url(ctx: RunContext[Settings]) -> str:
+    from browser.actions import get_url as _get
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return _get(page)
+
+
+@db_tool(name="browser_go_back", category="browser", timeout=15, sequential=True)
+async def browser_go_back(ctx: RunContext[Settings]) -> str:
+    from browser.actions import go_back as _back
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _back(page)
+
+
+@db_tool(name="browser_go_forward", category="browser", timeout=15, sequential=True)
+async def browser_go_forward(ctx: RunContext[Settings]) -> str:
+    from browser.actions import go_forward as _forward
+
+    manager = get_manager()
+    page = manager.page()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    return await _forward(page)

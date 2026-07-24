@@ -51,3 +51,23 @@ async def screenshot(page: Page, path: str | None = None) -> str:
         return f"Screenshot saved to {path}"
     except Exception as e:
         return f"Screenshot failed: {e}"
+
+
+def get_url(page: Page) -> str:
+    return page.url
+
+
+async def go_back(page: Page) -> str:
+    try:
+        await page.go_back()
+        return f"Navigated back. Current URL: {page.url}"
+    except Exception as e:
+        return f"Go back failed: {e}"
+
+
+async def go_forward(page: Page) -> str:
+    try:
+        await page.go_forward()
+        return f"Navigated forward. Current URL: {page.url}"
+    except Exception as e:
+        return f"Go forward failed: {e}"
