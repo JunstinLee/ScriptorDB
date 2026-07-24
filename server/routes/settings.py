@@ -9,7 +9,7 @@ from server.schemas import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
-from config.settings import set_provider
+from config.settings import set_provider, set_browser_enabled
 from services.settings_service import update_default_model
 
 router = APIRouter(tags=["settings"])
@@ -33,6 +33,7 @@ async def get_settings():
         llm_model=config.llm_model,
         default_models=dict(config.default_models),
         auto_restore_sessions=config.auto_restore_sessions,
+        browser_enabled=config.browser_enabled,
         providers=providers,
         providers_with_keys=providers_with_keys,
         workspace_id=config.workspace_id,
@@ -59,4 +60,6 @@ async def update_settings(req: SettingsUpdateRequest):
         from config.settings import set_auto_restore_sessions
 
         set_auto_restore_sessions(config, req.auto_restore_sessions)
+    if req.browser_enabled is not None:
+        set_browser_enabled(config, req.browser_enabled)
     return await get_settings()

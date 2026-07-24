@@ -183,6 +183,7 @@ export interface SettingsResponse {
   llm_model: string | null;
   default_models: Record<string, string>;
   auto_restore_sessions: boolean;
+  browser_enabled: boolean;
   providers: ProviderInfo[];
   providers_with_keys: string[];
 }
@@ -192,6 +193,7 @@ export interface SettingsUpdateRequest {
   default_model?: string | null;
   default_model_provider?: string;
   auto_restore_sessions?: boolean;
+  browser_enabled?: boolean;
 }
 
 export interface ApiKeyRequest {

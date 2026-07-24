@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
 import ModelProviderBar from "./ModelProviderBar";
 import WelcomeScreen from "./WelcomeScreen";
 import type { ChatMessage, Run, SchemaTable, UndoGroup, WorkspaceDetail } from "../types";
 import { uploadFile } from "../api/files";
+import { fetchSettings, updateSettings } from "../api/settings";
 
 interface ChatPanelProps {
   activeSessionId: string | null;
@@ -46,6 +47,16 @@ export default function ChatPanel({
   const [globeMode, setGlobeMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    fetchSettings().then((s) => setGlobeMode(s.browser_enabled)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (settingsChanged > 0) {
+      fetchSettings().then((s) => setGlobeMode(s.browser_enabled)).catch(() => {});
+    }
+  }, [settingsChanged]);
+
   const removeAttachment = useCallback((path: string) => {
     setAttachments((prev) => prev.filter((p) => p !== path));
   }, []);
@@ -81,7 +92,11 @@ export default function ChatPanel({
   }, []);
 
   const toggleGlobe = useCallback(() => {
-    setGlobeMode((prev) => !prev);
+    setGlobeMode((prev) => {
+      const next = !prev;
+      updateSettings({ browser_enabled: next }).catch(() => {});
+      return next;
+    });
   }, []);
 
   const handleUrlChange = useCallback((value: string) => {

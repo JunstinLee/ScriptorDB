@@ -25,15 +25,18 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _build_agent(config: AppConfig, resolved_model: str) -> Agent[Settings, str | DeferredToolRequests]:
+def _build_agent(config: AppConfig, resolved_model: str, browser_enabled: bool = False) -> Agent[Settings, str | DeferredToolRequests]:
     audit_hooks = build_audit_hooks()
     undo_hooks = build_undo_hooks()
     model = build_model(config.llm_provider, resolved_model, config.workspace_id)
+    exclude = None
+    if not browser_enabled:
+        exclude = {"browser"}
     return Agent(
         model=model,
         deps_type=Settings,
         output_type=[str, DeferredToolRequests],
-        tools=get_all_tools(),
+        tools=get_all_tools(exclude_categories=exclude),
         capabilities=[audit_hooks, undo_hooks],
         system_prompt=_SYSTEM_PROMPT,
     )
@@ -50,7 +53,7 @@ def get_agent(
     )
     if config.db_url:
         config.undo_manager = UndoManager(config.db_url, config.workspace_id or "")
-    return _build_agent(config, resolved)
+    return _build_agent(config, resolved, browser_enabled=config.browser_enabled)
 
 
 def reset_agent_cache() -> None:
