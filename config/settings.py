@@ -35,6 +35,7 @@ def _persist(config: AppConfig) -> None:
         llm_model=config.llm_model,
         default_models=dict(config.default_models),
         auto_restore_sessions=config.auto_restore_sessions,
+        browser_enabled=config.browser_enabled,
         use_global_defaults=True,
         mysql_host=config.mysql_host,
         mysql_port=config.mysql_port,
@@ -77,6 +78,12 @@ def set_auto_restore_sessions(config: AppConfig, value: bool) -> None:
     _persist(config)
 
 
+def set_browser_enabled(config: AppConfig, value: bool) -> None:
+    config.require_workspace()
+    config.browser_enabled = value
+    _persist(config)
+
+
 def load_for_workspace(config: AppConfig, workspace_id: str) -> None:
     registry = WorkspaceRegistry()
     rec = registry.get(workspace_id)
@@ -100,6 +107,7 @@ def load_for_workspace(config: AppConfig, workspace_id: str) -> None:
     config.llm_model = ws_settings.llm_model
     config.default_models = dict(ws_settings.default_models)
     config.auto_restore_sessions = ws_settings.auto_restore_sessions
+    config.browser_enabled = ws_settings.browser_enabled
     config.mysql_host = ws_settings.mysql_host
     config.mysql_port = ws_settings.mysql_port
     config.mysql_user = ws_settings.mysql_user

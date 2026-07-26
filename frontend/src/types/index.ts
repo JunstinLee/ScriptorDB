@@ -183,6 +183,7 @@ export interface SettingsResponse {
   llm_model: string | null;
   default_models: Record<string, string>;
   auto_restore_sessions: boolean;
+  browser_enabled: boolean;
   providers: ProviderInfo[];
   providers_with_keys: string[];
 }
@@ -192,6 +193,7 @@ export interface SettingsUpdateRequest {
   default_model?: string | null;
   default_model_provider?: string;
   auto_restore_sessions?: boolean;
+  browser_enabled?: boolean;
 }
 
 export interface ApiKeyRequest {
@@ -363,4 +365,31 @@ export interface HistorySearchResponse {
   total: number;
   offset: number;
   limit: number;
+}
+
+// ==================== Browser Workspace ====================
+
+/** 浏览器单次操作记录 */
+export interface BrowserAction {
+  tool: string;
+  detail: string;
+  timestamp: string;
+  success: boolean;
+}
+
+/** 浏览器页面历史条目 */
+export interface BrowserHistoryEntry {
+  url: string;
+  title: string;
+  timestamp: string;
+}
+
+/** 浏览器完整状态快照（对应 GET /api/browser/state 返回值） */
+export interface BrowserState {
+  launched: boolean;
+  url: string | null;
+  title: string | null;
+  screenshot_available: boolean;
+  actions: BrowserAction[];
+  history: BrowserHistoryEntry[];
 }

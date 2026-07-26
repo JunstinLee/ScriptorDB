@@ -97,7 +97,7 @@ export default function ChatMessages({
                   Assistant
                 </span>
               </div>
-              <div className="rounded-lg border border-grid bg-surface overflow-hidden">
+              <div className="rounded-lg border border-grid bg-surface overflow-hidden [transform:translateZ(0)]">
                 <RunContainer run={run} />
               </div>
               <div className="flex justify-end gap-1">

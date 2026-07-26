@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type Key } from "react";
 import { Tabs } from "@heroui/react";
 import { PanelRightClose, PanelRightOpen, Database, Wrench, List, Map } from "lucide-react";
-import type { Run, SchemaTable } from "../types";
+import type { BrowserState, Run, SchemaTable } from "../types";
 import SchemaMap from "./SchemaMap";
 import SchemaViewer from "./SchemaViewer";
 import ToolsPanel from "./ToolsPanel";
@@ -13,6 +13,9 @@ interface SchemaSidebarProps {
   activeSessionId: string | null;
   highlightedRunId: string | null;
   showSchemaSql: boolean;
+  browserState: BrowserState | null;
+  browserLoading: boolean;
+  onViewBrowser: () => void;
 }
 
 export default function SchemaSidebar({
@@ -22,6 +25,9 @@ export default function SchemaSidebar({
   activeSessionId,
   highlightedRunId,
   showSchemaSql,
+  browserState,
+  browserLoading,
+  onViewBrowser,
 }: SchemaSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState("schema");
@@ -167,7 +173,7 @@ export default function SchemaSidebar({
                 <p className="text-sm">No session selected</p>
               </div>
             ) : (
-              <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} />
+              <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} browserState={browserState} browserLoading={browserLoading} onViewBrowser={onViewBrowser} />
             )}
           </div>
         )}

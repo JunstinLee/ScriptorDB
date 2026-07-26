@@ -20,6 +20,7 @@ class WorkspaceSettings:
     llm_model: Optional[str] = None
     default_models: dict[str, str] = field(default_factory=dict)
     auto_restore_sessions: bool = True
+    browser_enabled: bool = False
     # TODO: 当 UI 支持"单个工作区覆盖全局默认"时，此字段由前端控制
     # 当前版本始终为 True，所有工作区使用全局默认设置
     use_global_defaults: bool = True
@@ -58,6 +59,9 @@ class WorkspaceSettings:
             auto_restore_sessions=bool(
                 payload.get("auto_restore_sessions", defaults.auto_restore_sessions)
             ),
+            browser_enabled=bool(
+                payload.get("browser_enabled", defaults.browser_enabled)
+            ),
             use_global_defaults=bool(
                 payload.get("use_global_defaults", defaults.use_global_defaults)
             ),
@@ -85,6 +89,7 @@ class WorkspaceSettings:
             "llm_model": self.llm_model,
             "default_models": self.default_models,
             "auto_restore_sessions": self.auto_restore_sessions,
+            "browser_enabled": self.browser_enabled,
             "use_global_defaults": self.use_global_defaults,
             "mysql_host": self.mysql_host,
             "mysql_port": self.mysql_port,

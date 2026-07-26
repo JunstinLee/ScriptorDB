@@ -23,6 +23,7 @@ class AppConfig:
     llm_model: str | None = None
     default_models: dict[str, str] = field(default_factory=dict)
     auto_restore_sessions: bool = True
+    browser_enabled: bool = False
 
     # MySQL 连接参数（密码存系统密钥环，这里只存是否已设置）
     mysql_host: str = "127.0.0.1"
@@ -66,6 +67,7 @@ class AppConfig:
         self.llm_model = None
         self.default_models = {}
         self.auto_restore_sessions = True
+        self.browser_enabled = False
         self.current_undo_group_id = None
         self.undo_manager = None
         self.mysql_host = "127.0.0.1"

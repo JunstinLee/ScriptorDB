@@ -14,6 +14,7 @@ class SettingsResponse(BaseModel):
     llm_model: str | None
     default_models: dict[str, str]
     auto_restore_sessions: bool
+    browser_enabled: bool = False
     providers: list[ProviderInfo]
     providers_with_keys: list[str]
     workspace_id: str | None = None
@@ -24,6 +25,7 @@ class SettingsUpdateRequest(BaseModel):
     default_model: str | None = None
     default_model_provider: str | None = None
     auto_restore_sessions: bool | None = None
+    browser_enabled: bool | None = None
 
 
 class ApiKeyRequest(BaseModel):

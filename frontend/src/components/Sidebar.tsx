@@ -53,6 +53,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mysqlOpen, setMysqlOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [popoverWidth, setPopoverWidth] = useState(232);
 
@@ -319,6 +320,15 @@ export default function Sidebar({
         isOpen={mysqlOpen}
         onOpenChange={setMysqlOpen}
         onConfigSaved={onDatabaseConfigured}
+      />
+
+      <HistorySearchModal
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        onSelectSession={(sessionId: string) => {
+          setIsHistoryOpen(false);
+          onSwitchSession(sessionId);
+        }}
       />
     </aside>
   );

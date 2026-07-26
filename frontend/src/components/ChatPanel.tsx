@@ -1,10 +1,12 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
 import ModelProviderBar from "./ModelProviderBar";
 import WelcomeScreen from "./WelcomeScreen";
 import type { ChatMessage, Run, SchemaTable, UndoGroup, WorkspaceDetail } from "../types";
 import { uploadFile } from "../api/files";
+import { fetchSettings, updateSettings } from "../api/settings";
+import { toast } from "@heroui/react";
 
 interface ChatPanelProps {
   activeSessionId: string | null;
@@ -45,6 +47,22 @@ export default function ChatPanel({
   const [urlError, setUrlError] = useState<string | null>(null);
   const [globeMode, setGlobeMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    fetchSettings().then((s) => {
+      if (mountedRef.current) setGlobeMode(s.browser_enabled);
+    }).catch(() => {});
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (settingsChanged > 0) {
+      fetchSettings().then((s) => {
+        if (mountedRef.current) setGlobeMode(s.browser_enabled);
+      }).catch(() => {});
+    }
+  }, [settingsChanged]);
 
   const removeAttachment = useCallback((path: string) => {
     setAttachments((prev) => prev.filter((p) => p !== path));
@@ -81,8 +99,14 @@ export default function ChatPanel({
   }, []);
 
   const toggleGlobe = useCallback(() => {
-    setGlobeMode((prev) => !prev);
-  }, []);
+    const next = !globeMode;
+    setGlobeMode(next);
+    updateSettings({ browser_enabled: next })
+      .then(() => {
+        toast.success(next ? "Browser control enabled" : "Browser control disabled");
+      })
+      .catch(() => {});
+  }, [globeMode]);
 
   const handleUrlChange = useCallback((value: string) => {
     setCrawlUrl(value);
@@ -132,7 +156,7 @@ export default function ChatPanel({
       </div>
 
       <div className="shrink-0 bg-background px-4 py-3">
-        <div className="overflow-hidden rounded-2xl border border-grid bg-surface">
+        <div className="overflow-hidden rounded-2xl border border-grid bg-surface [transform:translateZ(0)]">
           <ChatInput
             onSend={wrappedOnSend}
             disabled={isLoading}
