@@ -46,7 +46,10 @@ async def get_browser_screenshot():
         try:
             file_path.relative_to(workspace_path.resolve())
         except ValueError:
-            raise HTTPException(status_code=403, detail="Forbidden")
+            try:
+                file_path.relative_to(Path.cwd().resolve())
+            except ValueError:
+                raise HTTPException(status_code=403, detail="Forbidden")
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Screenshot file not found: {screenshot_path}")

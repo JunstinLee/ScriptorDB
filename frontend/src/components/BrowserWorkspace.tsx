@@ -115,7 +115,7 @@ function BrowserViewport({ state, loading }: { state: BrowserState | null; loadi
 
   return (
     <div className="flex flex-1 flex-col gap-3 p-4 min-w-0">
-      <div className="relative flex-1 overflow-hidden rounded-xl border border-grid bg-surface">
+      <div className="relative flex-1 overflow-hidden rounded-xl border border-grid bg-surface [transform:translateZ(0)]">
         {state.screenshot_available ? (
           <img
             src={getScreenshotUrl()}

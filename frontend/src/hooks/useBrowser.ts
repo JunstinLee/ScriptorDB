@@ -3,7 +3,7 @@ import { fetchBrowserState } from "../api/browser";
 import type { BrowserState } from "../types";
 
 /** 轮询间隔（毫秒） */
-const POLL_INTERVAL_MS = 2000;
+const POLL_INTERVAL_MS = 5000;
 
 interface UseBrowserReturn {
   state: BrowserState | null;
