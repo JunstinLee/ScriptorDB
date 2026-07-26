@@ -85,3 +85,4 @@ Most CLI commands and server endpoints require an active workspace. Without one,
 - Do NOT fix TypeScript / TSX type errors without explicit instruction — the user will inspect the files and provide the specific errors to address; do not modify `.ts` / `.tsx` files on your own initiative to resolve type issues.
 - If you change backend code, prompt the user to restart the backend.
 - Do not perform extra troubleshooting steps the user did not ask for; when asked for a cause, give the most direct one based on available information and do not investigate unrelated angles.
+- When generating PR/MR descriptions or extended descriptions, follow the guidelines in `DOCS/PULL_REQUEST_GUIDELINES.md`.
