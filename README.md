@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 
-**An AI agent that reads your SQLite database and answers questions in plain English.** No SQL required. No schema docs to write. Just point it at your `.sqlite` file and start asking.
+**An open-source AI agent that connects databases, files, and the web, then uses tools to analyze information and take actions safely.
 
 ![Demo GIF](TODO: add demo gif here)
 
