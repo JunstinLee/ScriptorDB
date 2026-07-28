@@ -10,6 +10,7 @@ import WorkspacePicker from "./components/WorkspacePicker";
 import { BrowserWorkspace } from "./components/BrowserWorkspace";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useBrowser } from "./hooks/useBrowser";
+import { useBrowserActions } from "./hooks/useBrowser";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
 import { useRuns } from "./hooks/useRuns";
@@ -24,6 +25,7 @@ import { fetchSettings } from "./api/settings";
 import { useOverlayState } from "@heroui/react";
 import type {
   ApprovalRequestEvent,
+  BrowserActionEvent,
   Run,
   RunEndEvent,
   StreamRunEvent,
@@ -205,6 +207,8 @@ function MainApp({
   const [browserEnabled, setBrowserEnabled] = useState(false);
   const { state: browserState, loading: browserLoading, error: browserError } =
     useBrowser(browserEnabled, workspace?.id ?? null);
+  const { actions: browserActions, appendAction, clearActions } = useBrowserActions();
+  const [latestBrowserAction, setLatestBrowserAction] = useState<BrowserActionEvent | null>(null);
 
   const handleNewSession = useCallback(() => {
     void createNewSession();
@@ -232,6 +236,12 @@ function MainApp({
           if (event.type === "tool_call" && event.tool_name?.startsWith("browser_")) {
             setBrowserActive(true);
             setBrowserEnabled(true);
+            setActiveMainTab("browser");
+          }
+          if (event.type === "browser_action") {
+            appendAction(event);
+            setLatestBrowserAction(event);
+            setBrowserActive(true);
             setActiveMainTab("browser");
           }
         };
@@ -280,6 +290,7 @@ function MainApp({
       activeSessionId,
       addUserMessage,
       appendEvent,
+      appendAction,
       appendStreamingText,
       createNewSession,
       finalizeAssistantMessage,
@@ -344,6 +355,17 @@ function MainApp({
           if (event.type === "text_delta") {
             appendStreamingText(event.delta);
           }
+          if (event.type === "tool_call" && event.tool_name?.startsWith("browser_")) {
+            setBrowserActive(true);
+            setBrowserEnabled(true);
+            setActiveMainTab("browser");
+          }
+          if (event.type === "browser_action") {
+            appendAction(event);
+            setLatestBrowserAction(event);
+            setBrowserActive(true);
+            setActiveMainTab("browser");
+          }
         },
         (error) => {
           if (error instanceof WorkspaceNotSelectedError) {
@@ -367,6 +389,7 @@ function MainApp({
     [
       approvalRequest,
       appendEvent,
+      appendAction,
       appendStreamingText,
       finalizeAssistantMessage,
       handleWorkspaceMissing,
@@ -428,7 +451,9 @@ function MainApp({
   useEffect(() => {
     setBrowserActive(false);
     setActiveMainTab("chat");
-  }, [activeSessionId]);
+    clearActions();
+    setLatestBrowserAction(null);
+  }, [activeSessionId, clearActions]);
 
   useEffect(() => {
     if (!workspace?.id) return;
@@ -519,6 +544,9 @@ function MainApp({
               state={browserState}
               loading={browserLoading}
               error={browserError}
+              actions={browserActions}
+              isRunning={isLoading}
+              latestAction={latestBrowserAction}
             />
           ) : (
             <ChatPanel

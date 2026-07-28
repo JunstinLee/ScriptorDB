@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { fetchBrowserState } from "../api/browser";
-import type { BrowserState } from "../types";
+import type { BrowserState, BrowserActionEvent } from "../types";
 
 /** 轮询间隔（毫秒） */
 const POLL_INTERVAL_MS = 5000;
@@ -91,4 +91,24 @@ export function useBrowser(
   }, [fetchState]);
 
   return { state, loading, error, refresh };
+}
+
+interface UseBrowserActionsReturn {
+  actions: BrowserActionEvent[];
+  appendAction: (event: BrowserActionEvent) => void;
+  clearActions: () => void;
+}
+
+export function useBrowserActions(): UseBrowserActionsReturn {
+  const [actions, setActions] = useState<BrowserActionEvent[]>([]);
+
+  const appendAction = useCallback((event: BrowserActionEvent) => {
+    setActions((prev) => [...prev, event]);
+  }, []);
+
+  const clearActions = useCallback(() => {
+    setActions([]);
+  }, []);
+
+  return { actions, appendAction, clearActions };
 }

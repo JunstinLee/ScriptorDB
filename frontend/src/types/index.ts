@@ -294,7 +294,8 @@ export type StreamRunEvent =
   | TextDeltaEvent
   | RunMetadataEvent
   | RunErrorEvent
-  | ApprovalRequestEvent;
+  | ApprovalRequestEvent
+  | BrowserActionEvent;
 
 export interface ToolInvocation {
   call_id: string;
@@ -324,6 +325,7 @@ export interface Run {
   started_at: string;
   ended_at?: string;
   error_message?: string;
+  browser_actions?: BrowserActionEvent[];
 }
 
 export interface UndoGroup {
@@ -375,6 +377,23 @@ export interface BrowserAction {
   detail: string;
   timestamp: string;
   success: boolean;
+}
+
+/** SSE 推送的实时浏览器操作事件 */
+export interface BrowserActionEvent {
+  type: "browser_action";
+  run_id: string;
+  tool: string;
+  selector: string;
+  coords: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  success: boolean;
+  detail: string;
+  timestamp: string;
 }
 
 /** 浏览器页面历史条目 */

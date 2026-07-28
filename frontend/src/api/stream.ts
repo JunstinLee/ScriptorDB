@@ -36,7 +36,8 @@ function processSseStream(
                 currentEvent === "tool_result" ||
                 currentEvent === "metadata" ||
                 currentEvent === "error" ||
-                currentEvent === "approval_request"
+                currentEvent === "approval_request" ||
+                currentEvent === "browser_action"
               ) {
                 try {
                   const obj = JSON.parse(data) as StreamRunEvent;
