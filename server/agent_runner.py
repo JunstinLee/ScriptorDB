@@ -161,6 +161,22 @@ async def run_agent_stream(
                         except Exception:
                             pass
 
+                    if tool_name == "browser_request_human_takeover":
+                        try:
+                            from browser import get_manager as _get_browser_manager
+                            bm = _get_browser_manager()
+                            state = await bm.get_state()
+                            await queue.put({
+                                "type": "human_takeover_request",
+                                "run_id": local_tracker.run_id,
+                                "reason": output or "",
+                                "current_url": state.get("url", ""),
+                                "screenshot_available": state.get("screenshot_available", False),
+                                "timestamp": utc_now_iso(),
+                            })
+                        except Exception:
+                            pass
+
                     trace_step += 1
                     await queue.put({
                         "type": "trace",

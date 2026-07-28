@@ -84,3 +84,12 @@ class BrowserActionEvent(BaseModel):
     success: bool = True
     detail: str = ""
     timestamp: str = ""
+
+
+class HumanTakeoverRequestEvent(BaseModel):
+    type: Literal["human_takeover_request"] = "human_takeover_request"
+    run_id: str
+    reason: str
+    current_url: str
+    screenshot_available: bool
+    timestamp: str

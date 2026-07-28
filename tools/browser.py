@@ -302,3 +302,19 @@ async def browser_go_forward(ctx: RunContext[Settings]) -> str:
         title = ""
     manager.record_navigate(page.url, title)
     return result
+
+
+@db_tool(
+    name="browser_request_human_takeover",
+    category="browser",
+    timeout=30,
+    sequential=True,
+)
+async def browser_request_human_takeover(
+    ctx: RunContext[Settings],
+    reason: str,
+) -> str:
+    manager = get_manager()
+    state = await manager.get_state()
+    manager.record_action("human_takeover", reason)
+    return f"Paused and requesting human takeover. Reason: {reason}. Current page: {state.get('url', 'unknown')}. Waiting for user to complete action before Agent resumes."

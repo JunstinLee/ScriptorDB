@@ -87,7 +87,7 @@ class ApprovalOrchestrator:
         new_messages_collector: list[ModelMessage],
         deferred_results: DeferredToolResults | None = None,
     ) -> bool:
-        """Run one iteration. Returns True if the run completed, False if paused for approval."""
+        """Run one iteration. Returns True if the run completed, False if paused for approval/takeover."""
         if self._run_tracker is None:
             self._run_tracker = RunTracker()
         agent = self.agent or self._resolve_agent()
@@ -106,7 +106,7 @@ class ApprovalOrchestrator:
             if ev_type == "new_messages":
                 new_messages_collector.extend(event.get("messages", []))
                 continue
-            if ev_type == "approval_request":
+            if ev_type in ("approval_request", "human_takeover_request"):
                 await event_callback(event)
                 return False
             if ev_type == "metadata":
@@ -232,6 +232,33 @@ class ApprovalOrchestrator:
         )
 
         return completed
+
+    async def resume_after_takeover(
+        self,
+        takeover_result: str,
+        event_callback: Callable[[dict[str, Any]], Awaitable[None]],
+        run_collector: dict[str, Any],
+        new_messages_collector: list[ModelMessage],
+    ) -> bool:
+        """Resume agent execution after human takeover completes."""
+        session = get_session_store().get(self.session_id)
+        if session is None:
+            return False
+
+        takeover_message = f"User completed manual action: {takeover_result}"
+        session.add_user_message(takeover_message)
+        get_session_store().save()
+
+        message_history = session.get_model_messages()
+        prompt = "Continue with the previous task based on the user's completed action."
+
+        return await self._run_loop(
+            prompt,
+            message_history,
+            event_callback,
+            run_collector=run_collector,
+            new_messages_collector=new_messages_collector,
+        )
 
 
 async def run_agent_stream_resumable(

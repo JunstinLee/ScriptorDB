@@ -62,6 +62,8 @@ async def _stream_orchestrator_events(
 
                 if ev_type == "approval_request":
                     return
+                if ev_type == "human_takeover_request":
+                    return
                 if ev_type == "run_end":
                     yield sse_done()
                     break
