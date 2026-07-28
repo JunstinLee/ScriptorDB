@@ -97,8 +97,9 @@ async def highlight_scroll(page: Page, pixels: int) -> None:
             el.id = '__scdb_scroll_indicator';
             document.body.appendChild(el);
         }}
+        const _pixels = {pixels};
         const pct = Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100);
-        el.textContent = `scroll {pixels > 0 ? '\\u2193' : '\\u2191'} ${{pct}}%`;
+        el.textContent = `scroll ${{_pixels > 0 ? '\\u2193' : '\\u2191'}} ${{pct}}%`;
     }})();
     """)
     await asyncio.sleep(2)
