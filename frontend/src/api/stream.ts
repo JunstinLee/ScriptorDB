@@ -37,14 +37,15 @@ function processSseStream(
                 currentEvent === "metadata" ||
                 currentEvent === "error" ||
                 currentEvent === "approval_request" ||
-                currentEvent === "browser_action"
+                currentEvent === "browser_action" ||
+                currentEvent === "human_takeover_request"
               ) {
                 try {
                   const obj = JSON.parse(data) as StreamRunEvent;
                   console.log(
                     "[stream] SSE event: type=%s run_id=%s",
                     obj.type,
-                    (obj as any).run_id ?? "-",
+                    (obj as unknown as { run_id?: string }).run_id ?? "-",
                   );
                   onEvent(obj);
                   if (obj.type === "metadata") {

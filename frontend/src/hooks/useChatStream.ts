@@ -4,9 +4,11 @@ import {
   streamChat,
   WorkspaceNotSelectedError,
 } from "../api/client";
+import { completeTakeover as completeTakeoverApi } from "../api/browser";
 import type {
   ApprovalRequestEvent,
   BrowserActionEvent,
+  HumanTakeoverRequestEvent,
   StreamRunEvent,
   ToolResultRunEvent,
   RunEndEvent,
@@ -57,6 +59,8 @@ export function useChatStream(params: UseChatStreamParams) {
   const approvalSessionIdRef = useRef<string | null>(null);
   const [approvalRequest, setApprovalRequest] =
     useState<ApprovalRequestEvent | null>(null);
+  const [takeoverEvent, setTakeoverEvent] =
+    useState<HumanTakeoverRequestEvent | null>(null);
 
   const makeEventCallback = useCallback(
     (sid: string) =>
@@ -77,6 +81,13 @@ export function useChatStream(params: UseChatStreamParams) {
           setBrowserActive(true);
           setActiveMainTab("browser");
         }
+        if (event.type === "human_takeover_request") {
+          setTakeoverEvent(event as HumanTakeoverRequestEvent);
+          setLoading(false);
+          setBrowserActive(true);
+          setActiveMainTab("browser");
+          return;
+        }
       },
     [
       appendEvent,
@@ -86,6 +97,7 @@ export function useChatStream(params: UseChatStreamParams) {
       setBrowserActive,
       setActiveMainTab,
       setLatestBrowserAction,
+      setLoading,
     ],
   );
 
@@ -225,9 +237,28 @@ export function useChatStream(params: UseChatStreamParams) {
     ],
   );
 
+  const handleTakeoverComplete = useCallback(
+    async (sessionId: string, result: string) => {
+      abortRef.current?.abort();
+      setTakeoverEvent(null);
+      setLoading(true);
+      await completeTakeoverApi(sessionId, result);
+    },
+    [setLoading],
+  );
+
+  const handleTakeoverCancel = useCallback(() => {
+    abortRef.current?.abort();
+    setTakeoverEvent(null);
+    setLoading(false);
+  }, [setLoading]);
+
   return {
     handleSend,
     handleApprovalSubmit,
     approvalRequest,
+    takeoverEvent,
+    handleTakeoverComplete,
+    handleTakeoverCancel,
   };
 }

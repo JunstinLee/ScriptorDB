@@ -285,6 +285,15 @@ export interface ApprovalRequestEvent {
   }[];
 }
 
+export interface HumanTakeoverRequestEvent {
+  type: "human_takeover_request";
+  run_id: string;
+  reason: string;
+  current_url: string;
+  screenshot_available: boolean;
+  timestamp: string;
+}
+
 export type StreamRunEvent =
   | RunStartEvent
   | RunEndEvent
@@ -295,7 +304,8 @@ export type StreamRunEvent =
   | RunMetadataEvent
   | RunErrorEvent
   | ApprovalRequestEvent
-  | BrowserActionEvent;
+  | BrowserActionEvent
+  | HumanTakeoverRequestEvent;
 
 export interface ToolInvocation {
   call_id: string;
@@ -411,4 +421,35 @@ export interface BrowserState {
   screenshot_available: boolean;
   actions: BrowserAction[];
   history: BrowserHistoryEntry[];
+}
+
+export interface InteractRequest {
+  action: "click" | "fill" | "press_key" | "scroll" | "navigate" | "go_back" | "go_forward";
+  selector?: string;
+  value?: string;
+  scroll_pixels?: number;
+}
+
+export interface InteractByCoordsRequest {
+  x: number;
+  y: number;
+  viewport_width: number;
+  viewport_height: number;
+}
+
+export interface InteractResponse {
+  ok: boolean;
+  action: string;
+  selector: string;
+  detail: string;
+}
+
+export interface TakeoverCompleteRequest {
+  session_id: string;
+  result: string;
+}
+
+export interface ViewportSizeResponse {
+  width: number;
+  height: number;
 }

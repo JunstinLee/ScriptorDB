@@ -1,7 +1,8 @@
 import { Monitor, Loader2, X, ImageIcon } from "lucide-react";
-import type { BrowserState, BrowserActionEvent } from "../types";
+import type { BrowserState, BrowserActionEvent, HumanTakeoverRequestEvent } from "../types";
 import { getScreenshotUrl } from "../api/browser";
 import { ActionStream } from "./ActionStream";
+import { HumanTakeoverPanel } from "./HumanTakeoverPanel";
 
 interface BrowserWorkspaceProps {
   state: BrowserState | null;
@@ -10,9 +11,26 @@ interface BrowserWorkspaceProps {
   actions?: BrowserActionEvent[];
   isRunning?: boolean;
   latestAction?: BrowserActionEvent | null;
+  takeoverEvent?: HumanTakeoverRequestEvent | null;
+  onTakeoverComplete?: (result: string) => void;
+  onTakeoverCancel?: () => void;
+  onClearActions?: () => void;
+  onScreenshotRefresh?: () => void;
 }
 
-function BrowserViewport({ state, loading, latestAction }: { state: BrowserState | null; loading: boolean; latestAction?: BrowserActionEvent | null }) {
+function BrowserViewport({
+  state,
+  loading,
+  latestAction,
+  takeoverActive,
+  onImageClick,
+}: {
+  state: BrowserState | null;
+  loading: boolean;
+  latestAction?: BrowserActionEvent | null;
+  takeoverActive: boolean;
+  onImageClick?: () => void;
+}) {
   if (!state?.launched) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6">
@@ -48,6 +66,8 @@ function BrowserViewport({ state, loading, latestAction }: { state: BrowserState
             src={getScreenshotUrl()}
             alt={state.title ?? "页面截图"}
             className="h-full w-full object-contain"
+            style={{ cursor: takeoverActive ? "crosshair" : "default" }}
+            onClick={() => onImageClick?.()}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -89,7 +109,19 @@ function BrowserViewport({ state, loading, latestAction }: { state: BrowserState
   );
 }
 
-export function BrowserWorkspace({ state, loading, error, actions, isRunning, latestAction }: BrowserWorkspaceProps) {
+export function BrowserWorkspace({
+  state,
+  loading,
+  error,
+  actions,
+  isRunning,
+  latestAction,
+  takeoverEvent,
+  onTakeoverComplete,
+  onTakeoverCancel,
+  onClearActions,
+  onScreenshotRefresh,
+}: BrowserWorkspaceProps) {
   if (error) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -102,9 +134,25 @@ export function BrowserWorkspace({ state, loading, error, actions, isRunning, la
     );
   }
 
+  if (takeoverEvent) {
+    return (
+      <div className="flex flex-1 min-h-0 min-w-0">
+        <HumanTakeoverPanel
+          event={takeoverEvent}
+          onComplete={onTakeoverComplete ?? (() => {})}
+          onCancel={onTakeoverCancel ?? (() => {})}
+          screenshotSrc={getScreenshotUrl()}
+          onScreenshotRefresh={onScreenshotRefresh ?? (() => {})}
+          actions={actions ?? []}
+          onClearActions={onClearActions ?? (() => {})}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-1 min-h-0 min-w-0">
-      <BrowserViewport state={state} loading={loading} latestAction={latestAction} />
+      <BrowserViewport state={state} loading={loading} latestAction={latestAction} takeoverActive={false} />
       <ActionStream events={actions ?? []} isRunning={isRunning ?? false} />
     </div>
   );

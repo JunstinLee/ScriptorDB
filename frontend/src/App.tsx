@@ -211,7 +211,7 @@ function MainApp({
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const { handleSend, handleApprovalSubmit, approvalRequest } = useChatStream({
+  const { handleSend, handleApprovalSubmit, approvalRequest, takeoverEvent, handleTakeoverComplete, handleTakeoverCancel } = useChatStream({
     activeSessionId,
     addUserMessage,
     appendEvent,
@@ -232,8 +232,23 @@ function MainApp({
   });
 
   const handleNewSession = useCallback(() => {
+    setBrowserActive(false);
+    setActiveMainTab("chat");
+    clearActions();
+    setLatestBrowserAction(null);
     void createNewSession();
-  }, [createNewSession]);
+  }, [createNewSession, clearActions]);
+
+  const handleSwitchSession = useCallback(
+    (id: string) => {
+      setBrowserActive(false);
+      setActiveMainTab("chat");
+      clearActions();
+      setLatestBrowserAction(null);
+      switchSession(id);
+    },
+    [switchSession, clearActions],
+  );
 
   const handleDeleteSession = useCallback(
     (id: string) => {
@@ -285,13 +300,6 @@ function MainApp({
   }, [activeSessionId, workspace?.id, refreshUndo]);
 
   useEffect(() => {
-    setBrowserActive(false);
-    setActiveMainTab("chat");
-    clearActions();
-    setLatestBrowserAction(null);
-  }, [activeSessionId, clearActions]);
-
-  useEffect(() => {
     if (!workspace?.id) return;
     fetchSettings().then((s) => setBrowserEnabled(s.browser_enabled)).catch((e) => { console.error("fetchSettings failed:", e); });
   }, [settingsChanged, workspace?.id]);
@@ -330,7 +338,7 @@ function MainApp({
         activeSessionId={activeSessionId}
         showSessionIdHover={showSessionIdHover}
         onNewSession={handleNewSession}
-        onSwitchSession={switchSession}
+        onSwitchSession={handleSwitchSession}
         onDeleteSession={handleDeleteSession}
         onOpenSettings={handleOpenSettings}
         activeWorkspace={workspace}
@@ -360,6 +368,17 @@ function MainApp({
               actions={browserActions}
               isRunning={isLoading}
               latestAction={latestBrowserAction}
+              takeoverEvent={takeoverEvent}
+              onTakeoverComplete={(result) => {
+                if (activeSessionId) {
+                  handleTakeoverComplete(activeSessionId, result);
+                }
+              }}
+              onTakeoverCancel={handleTakeoverCancel}
+              onClearActions={clearActions}
+              onScreenshotRefresh={() => {
+                /* browser polling will refresh screenshot */
+              }}
             />
           ) : (
             <ChatPanel
