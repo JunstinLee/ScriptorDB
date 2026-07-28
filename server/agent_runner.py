@@ -140,6 +140,27 @@ async def run_agent_stream(
                         "timestamp": utc_now_iso(),
                     })
 
+                    if tool_name and tool_name.startswith("browser_"):
+                        try:
+                            from browser import get_manager
+                            mgr = get_manager()
+                            state = await mgr.get_state()
+                            actions = state.get("actions", [])
+                            if actions:
+                                latest = actions[-1]
+                                await queue.put({
+                                    "type": "browser_action",
+                                    "run_id": local_tracker.run_id,
+                                    "tool": latest.get("tool", tool_name),
+                                    "selector": latest.get("selector", ""),
+                                    "coords": latest.get("coords", {}),
+                                    "success": latest.get("success", success),
+                                    "detail": latest.get("detail", ""),
+                                    "timestamp": latest.get("timestamp", utc_now_iso()),
+                                })
+                        except Exception:
+                            pass
+
                     trace_step += 1
                     await queue.put({
                         "type": "trace",

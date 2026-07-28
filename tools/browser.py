@@ -22,12 +22,14 @@ async def browser_launch(ctx: RunContext[Settings]) -> str:
 @db_tool(name="browser_navigate", category="browser", timeout=30, sequential=True)
 async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
     from browser.context import navigate as _navigate
+    from browser.highlights import inject_highlight_runtime
 
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
 
     result = await _navigate(page, url)
+    await inject_highlight_runtime(page)
 
     try:
         title = await page.title()
@@ -115,6 +117,7 @@ async def browser_scroll(
     pixels: int = 0,
 ) -> str:
     from browser.actions import scroll_by, scroll_to_bottom
+    from browser.highlights import highlight_scroll
 
     manager, page = _require_browser()
     if page is None:
@@ -122,10 +125,12 @@ async def browser_scroll(
 
     if to_bottom:
         result = await scroll_to_bottom(page)
+        await highlight_scroll(page, 9999)
     elif pixels == 0:
         return "pixels must be non-zero when to_bottom is False"
     else:
         result = await scroll_by(page, pixels)
+        await highlight_scroll(page, pixels)
 
     manager.record_action("scroll", "bottom" if to_bottom else f"{pixels}px")
     return result
@@ -157,36 +162,45 @@ async def browser_wait_for_selector(
     state: str = "visible",
 ) -> str:
     from browser.context import wait_for_selector as _wait
+    from browser.highlights import highlight_click
 
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     result = await _wait(page, selector, state)  # type: ignore[arg-type]
-    manager.record_action("wait_for_selector", selector)
+    await highlight_click(page, selector)
+    manager.record_action("wait_for_selector", selector, selector=selector)
     return result
 
 
 @db_tool(name="browser_click", category="browser", timeout=15, sequential=True)
 async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
     from browser.actions import click as _click
+    from browser.highlights import highlight_click
 
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
+    await highlight_click(page, selector)
     result = await _click(page, selector)
-    manager.record_action("click", selector)
+    manager.record_action("click", selector, selector=selector,
+                          success="Clicked" in result)
     return result
 
 
 @db_tool(name="browser_fill", category="browser", timeout=15, sequential=True)
 async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> str:
     from browser.actions import fill as _fill
+    from browser.highlights import highlight_input, highlight_input_remove
 
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
+    await highlight_input(page, selector)
     result = await _fill(page, selector, text)
-    manager.record_action("fill", selector)
+    await highlight_input_remove(page)
+    manager.record_action("fill", selector, selector=selector,
+                          success="Filled" in result)
     return result
 
 
