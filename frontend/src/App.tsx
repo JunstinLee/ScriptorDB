@@ -1,35 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Toast } from "@heroui/react";
-import { Monitor, MessageSquare } from "lucide-react";
 import ChatPanel from "./components/ChatPanel";
 import ConfirmDialog from "./components/common/ConfirmDialog";
+import MainTabBar from "./components/MainTabBar";
 import SchemaSidebar from "./components/SchemaSidebar";
 import SettingsModal from "./components/SettingsModal";
 import Sidebar from "./components/Sidebar";
+import SwitchingOverlay from "./components/common/SwitchingOverlay";
 import WorkspacePicker from "./components/WorkspacePicker";
 import { BrowserWorkspace } from "./components/BrowserWorkspace";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useBrowser } from "./hooks/useBrowser";
 import { useBrowserActions } from "./hooks/useBrowser";
+import { useChatStream } from "./hooks/useChatStream";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
 import { useRuns } from "./hooks/useRuns";
 import { useUndo } from "./hooks/useUndo";
 import { useWorkspaces } from "./hooks/useWorkspaces";
-import {
-  streamApproval,
-  streamChat,
-  WorkspaceNotSelectedError,
-} from "./api/client";
 import { fetchSettings } from "./api/settings";
 import { useOverlayState } from "@heroui/react";
 import type {
-  ApprovalRequestEvent,
   BrowserActionEvent,
   Run,
-  RunEndEvent,
-  StreamRunEvent,
-  ToolResultRunEvent,
   WorkspaceCreateRequest,
   WorkspaceDetail,
   WorkspaceItem,
@@ -142,8 +135,6 @@ function MainApp({
   const { getRuns, appendEvent, setRuns, clearRuns } = useRuns();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [undoConfirmGroupId, setUndoConfirmGroupId] = useState<number | null>(null);
-  const [approvalRequest, setApprovalRequest] = useState<ApprovalRequestEvent | null>(null);
-  const approvalSessionIdRef = useRef<string | null>(null);
 
   const handleRunsLoaded = useCallback(
     (_sessionId: string, loadedRuns: Run[]) => {
@@ -187,7 +178,6 @@ function MainApp({
   const runs = activeSessionId ? getRuns(activeSessionId) : [];
 
   const { tables, loading: schemaLoading, refresh: refreshSchema } = useSchema(workspace?.id);
-  const abortRef = useRef<AbortController | null>(null);
   const settingsModal = useOverlayState();
   const [settingsChanged, setSettingsChanged] = useState(0);
   const [selectedModel, setSelectedModel] = useState("");
@@ -210,194 +200,40 @@ function MainApp({
   const { actions: browserActions, appendAction, clearActions } = useBrowserActions();
   const [latestBrowserAction, setLatestBrowserAction] = useState<BrowserActionEvent | null>(null);
 
-  const handleNewSession = useCallback(() => {
-    void createNewSession();
-  }, [createNewSession]);
+  const onBrowserActivity = useCallback(() => {
+    setBrowserActive(true);
+    setBrowserEnabled(true);
+    setActiveMainTab("browser");
+  }, []);
 
   const handleWorkspaceMissing = useCallback(() => {
     clearRuns();
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const handleSend = useCallback(
-    (prompt: string, attachments: string[], crawlUrl: string | null) => {
-      const sessionId = activeSessionId;
+  const { handleSend, handleApprovalSubmit, approvalRequest } = useChatStream({
+    activeSessionId,
+    addUserMessage,
+    appendEvent,
+    appendAction,
+    appendStreamingText,
+    createNewSession,
+    finalizeAssistantMessage,
+    handleWorkspaceMissing,
+    refreshSessionTitle,
+    refreshUndo,
+    setLoading,
+    selectedModel,
+    selectedProvider,
+    onBrowserActivity,
+    setBrowserActive,
+    setActiveMainTab,
+    setLatestBrowserAction,
+  });
 
-      const sendToSession = (sid: string) => {
-        addUserMessage(prompt, attachments, crawlUrl);
-        setLoading(true);
-        approvalSessionIdRef.current = sid;
-
-        const onEvent = (event: StreamRunEvent) => {
-          appendEvent(sid, event);
-          if (event.type === "text_delta") {
-            appendStreamingText(event.delta);
-          }
-          if (event.type === "tool_call" && event.tool_name?.startsWith("browser_")) {
-            setBrowserActive(true);
-            setBrowserEnabled(true);
-            setActiveMainTab("browser");
-          }
-          if (event.type === "browser_action") {
-            appendAction(event);
-            setLatestBrowserAction(event);
-            setBrowserActive(true);
-            setActiveMainTab("browser");
-          }
-        };
-
-        const onError = (error: Error) => {
-          if (error instanceof WorkspaceNotSelectedError) {
-            handleWorkspaceMissing();
-            return;
-          }
-          appendStreamingText(`\n\nError: ${error.message}`);
-          setLoading(false);
-          setApprovalRequest(null);
-        };
-
-        const onDone = (fullOutput: string) => {
-          finalizeAssistantMessage(fullOutput);
-          setLoading(false);
-          void refreshSessionTitle(sid);
-          void refreshUndo();
-        };
-
-        abortRef.current = streamChat(
-          sid,
-          { prompt, attachments, model: selectedModel || null, provider: selectedProvider || null, crawl_url: crawlUrl },
-          onEvent,
-          onError,
-          onDone,
-          (event) => {
-            setApprovalRequest(event);
-          },
-        );
-      };
-
-      if (!sessionId) {
-        void (async () => {
-          const sid = await createNewSession();
-          if (sid) {
-            sendToSession(sid);
-          }
-        })();
-      } else {
-        sendToSession(sessionId);
-      }
-    },
-    [
-      activeSessionId,
-      addUserMessage,
-      appendEvent,
-      appendAction,
-      appendStreamingText,
-      createNewSession,
-      finalizeAssistantMessage,
-      handleWorkspaceMissing,
-      refreshSessionTitle,
-      refreshUndo,
-      setLoading,
-      selectedModel,
-      selectedProvider,
-    ],
-  );
-
-  const handleApprovalSubmit = useCallback(
-    (approved: boolean) => {
-      const request = approvalRequest;
-      const sid = approvalSessionIdRef.current;
-      setApprovalRequest(null);
-      if (!request || !sid) return;
-
-      if (!approved) {
-        console.log(
-          "[App] handleApprovalSubmit denied: run_id=%s calls=%s",
-          request.run_id,
-          request.calls.map((c) => c.tool_call_id).join(","),
-        );
-        for (const call of request.calls) {
-          const event: ToolResultRunEvent = {
-            type: "tool_result",
-            run_id: request.run_id,
-            call_id: call.tool_call_id,
-            tool_name: call.tool_name,
-            success: false,
-            output: "User cancelled the operation",
-            timestamp: new Date().toISOString(),
-          };
-          console.log(
-            "[App] handleApprovalSubmit: emitting local tool_result for call_id=%s",
-            call.tool_call_id,
-          );
-          appendEvent(sid, event);
-        }
-        const runEndEvent: RunEndEvent = {
-          type: "run_end",
-          run_id: request.run_id,
-          timestamp: new Date().toISOString(),
-        };
-        appendEvent(sid, runEndEvent);
-        setLoading(false);
-      }
-
-      const approvedMap: Record<string, boolean> = {};
-      for (const call of request.calls) {
-        approvedMap[call.tool_call_id] = approved;
-      }
-
-      abortRef.current = streamApproval(
-        sid,
-        request.request_id,
-        approvedMap,
-        (event) => {
-          appendEvent(sid, event);
-          if (event.type === "text_delta") {
-            appendStreamingText(event.delta);
-          }
-          if (event.type === "tool_call" && event.tool_name?.startsWith("browser_")) {
-            setBrowserActive(true);
-            setBrowserEnabled(true);
-            setActiveMainTab("browser");
-          }
-          if (event.type === "browser_action") {
-            appendAction(event);
-            setLatestBrowserAction(event);
-            setBrowserActive(true);
-            setActiveMainTab("browser");
-          }
-        },
-        (error) => {
-          if (error instanceof WorkspaceNotSelectedError) {
-            handleWorkspaceMissing();
-            return;
-          }
-          appendStreamingText(`\n\nError: ${error.message}`);
-          setLoading(false);
-        },
-        (fullOutput) => {
-          finalizeAssistantMessage(fullOutput);
-          setLoading(false);
-          void refreshSessionTitle(sid);
-          void refreshUndo();
-        },
-        (event) => {
-          setApprovalRequest(event);
-        },
-      );
-    },
-    [
-      approvalRequest,
-      appendEvent,
-      appendAction,
-      appendStreamingText,
-      finalizeAssistantMessage,
-      handleWorkspaceMissing,
-      refreshSessionTitle,
-      refreshUndo,
-      setLoading,
-    ],
-  );
+  const handleNewSession = useCallback(() => {
+    void createNewSession();
+  }, [createNewSession]);
 
   const handleDeleteSession = useCallback(
     (id: string) => {
@@ -508,34 +344,11 @@ function MainApp({
 
       <div className="flex flex-1 flex-col min-w-0">
         {(browserActive || browserState?.launched) && (
-          <div className="flex shrink-0 items-center border-b border-grid bg-background px-4">
-            <button
-              onClick={() => setActiveMainTab("chat")}
-              className={`relative flex items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-                activeMainTab === "chat"
-                  ? "border-accent text-accent"
-                  : "border-transparent text-muted hover:text-foreground"
-              }`}
-            >
-              <MessageSquare className="size-3.5" />
-              Chat
-            </button>
-
-            <button
-              onClick={() => setActiveMainTab("browser")}
-              className={`relative flex items-center gap-1.5 border-b-2 px-3 py-2 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-                activeMainTab === "browser"
-                  ? "border-accent text-accent"
-                  : "border-transparent text-muted hover:text-foreground"
-              }`}
-            >
-              <Monitor className="size-3.5" />
-              Browser
-              {browserLoading && (
-                <span className="ml-0.5 size-1.5 rounded-full bg-accent" />
-              )}
-            </button>
-          </div>
+          <MainTabBar
+            activeMainTab={activeMainTab}
+            onTabChange={setActiveMainTab}
+            browserLoading={browserLoading}
+          />
         )}
 
         <div className="flex flex-1 min-h-0 min-w-0">
@@ -651,13 +464,7 @@ function MainApp({
         isClosable={pickerClosable}
       />
 
-      {switchingWorkspace && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="rounded-lg border bg-surface px-6 py-4 shadow-lg">
-            <span className="text-sm text-muted">Switching workspace…</span>
-          </div>
-        </div>
-      )}
+      {switchingWorkspace && <SwitchingOverlay />}
     </div>
   );
 }
