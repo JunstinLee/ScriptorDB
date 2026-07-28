@@ -73,3 +73,14 @@ class ApprovalRequestEvent(BaseModel):
     run_id: str
     request_id: str
     calls: list[dict[str, Any]]
+
+
+class BrowserActionEvent(BaseModel):
+    type: Literal["browser_action"] = "browser_action"
+    run_id: str
+    tool: str
+    selector: str = ""
+    coords: dict = {}
+    success: bool = True
+    detail: str = ""
+    timestamp: str = ""

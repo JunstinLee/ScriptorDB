@@ -29,13 +29,20 @@ class BrowserManager:
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
-    def record_action(self, tool: str, detail: str, success: bool = True) -> None:
+    def record_action(self, tool: str, detail: str, success: bool = True,
+                      selector: str = "", coords: dict | None = None,
+                      screenshot_path: str = "") -> None:
         self._actions.append({
             "tool": tool,
             "detail": detail,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "success": success
+            "success": success,
+            "selector": selector,
+            "coords": coords or {},
+            "screenshot_path": screenshot_path,
         })
+        if len(self._actions) > 200:
+            self._actions = self._actions[-200:]
 
     def record_screenshot(self, path: str) -> None:
         self._last_screenshot = path
