@@ -1,5 +1,5 @@
 import { request } from "./core";
-import type { InteractRequest, InteractByCoordsRequest, InteractResponse, TakeoverCompleteRequest, ViewportSizeResponse, BrowserState } from "../types";
+import type { InteractRequest, InteractByCoordsRequest, InteractResponse, TakeoverCompleteRequest, ViewportSizeResponse, BrowserState, CookiesResponse, ProfilesResponse, SetCookieRequest } from "../types";
 
 export async function fetchBrowserState(): Promise<BrowserState> {
   return request<BrowserState>("/browser/state");
@@ -41,4 +41,60 @@ export async function cancelTakeover(sessionId: string): Promise<void> {
 
 export async function getViewportSize(): Promise<ViewportSizeResponse> {
   return request<ViewportSizeResponse>("/browser/viewport-size");
+}
+
+// Cookie API
+
+export async function fetchCookies(): Promise<CookiesResponse> {
+  return request<CookiesResponse>("/browser/cookies");
+}
+
+export async function setCookie(req: SetCookieRequest): Promise<void> {
+  await request("/browser/cookies", {
+    method: "POST",
+    body: JSON.stringify(req),
+  });
+}
+
+export async function deleteCookie(name: string): Promise<void> {
+  await request(`/browser/cookies/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function clearAllCookies(): Promise<void> {
+  await request("/browser/cookies", {
+    method: "DELETE",
+  });
+}
+
+// Profile API
+
+export async function fetchProfiles(): Promise<ProfilesResponse> {
+  return request<ProfilesResponse>("/browser/profiles");
+}
+
+export async function saveProfile(name: string): Promise<void> {
+  await request("/browser/profiles", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  });
+}
+
+export async function loadProfile(name: string): Promise<void> {
+  await request(`/browser/profiles/${encodeURIComponent(name)}/load`, {
+    method: "POST",
+  });
+}
+
+export async function deleteProfile(name: string): Promise<void> {
+  await request(`/browser/profiles/${encodeURIComponent(name)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function updateProfile(name: string): Promise<void> {
+  await request(`/browser/profiles/${encodeURIComponent(name)}`, {
+    method: "PUT",
+  });
 }

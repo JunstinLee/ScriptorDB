@@ -12,6 +12,8 @@ import { BrowserWorkspace } from "./components/BrowserWorkspace";
 import { useAppSettings } from "./hooks/useAppSettings";
 import { useBrowser } from "./hooks/useBrowser";
 import { useBrowserActions } from "./hooks/useBrowser";
+import { useProfiles } from "./hooks/useBrowser";
+import { useCookies } from "./hooks/useBrowser";
 import { useChatStream } from "./hooks/useChatStream";
 import { useSchema } from "./hooks/useSchema";
 import { useSessions } from "./hooks/useSessions";
@@ -19,6 +21,14 @@ import { useRuns } from "./hooks/useRuns";
 import { useUndo } from "./hooks/useUndo";
 import { useWorkspaces } from "./hooks/useWorkspaces";
 import { fetchSettings } from "./api/settings";
+import {
+  saveProfile,
+  loadProfile,
+  deleteProfile,
+  updateProfile,
+  deleteCookie,
+  clearAllCookies,
+} from "./api/browser";
 import { useOverlayState } from "@heroui/react";
 import type {
   BrowserActionEvent,
@@ -200,6 +210,9 @@ function MainApp({
   const { actions: browserActions, appendAction, clearActions } = useBrowserActions();
   const [latestBrowserAction, setLatestBrowserAction] = useState<BrowserActionEvent | null>(null);
 
+  const { profiles, loading: profilesLoading, refresh: refreshProfiles } = useProfiles(workspace?.id ?? null);
+  const { cookies, loading: cookiesLoading, refresh: refreshCookies } = useCookies(workspace?.id ?? null, browserState?.launched ?? false);
+
   const onBrowserActivity = useCallback(() => {
     setBrowserActive(true);
     setBrowserEnabled(true);
@@ -308,6 +321,36 @@ function MainApp({
     setPickerOpen(true);
   }, []);
 
+  const handleSaveProfile = useCallback(async (name: string) => {
+    await saveProfile(name);
+    refreshProfiles();
+  }, [refreshProfiles]);
+
+  const handleLoadProfile = useCallback(async (name: string) => {
+    await loadProfile(name);
+    refreshCookies();
+  }, [refreshCookies]);
+
+  const handleDeleteProfile = useCallback(async (name: string) => {
+    await deleteProfile(name);
+    refreshProfiles();
+  }, [refreshProfiles]);
+
+  const handleUpdateProfile = useCallback(async (name: string) => {
+    await updateProfile(name);
+    refreshProfiles();
+  }, [refreshProfiles]);
+
+  const handleDeleteCookie = useCallback(async (name: string) => {
+    await deleteCookie(name);
+    refreshCookies();
+  }, [refreshCookies]);
+
+  const handleClearCookies = useCallback(async () => {
+    await clearAllCookies();
+    refreshCookies();
+  }, [refreshCookies]);
+
   const handleDatabaseConfigured = useCallback(async () => {
     await onRefreshWorkspaces();
     void refreshSchema();
@@ -412,7 +455,19 @@ function MainApp({
         showSchemaSql={showSchemaSql}
         browserState={browserState}
         browserLoading={browserLoading}
+        browserEnabled={browserEnabled}
         onViewBrowser={() => setActiveMainTab("browser")}
+        profiles={profiles}
+        profilesLoading={profilesLoading}
+        cookies={cookies}
+        cookiesLoading={cookiesLoading}
+        onSaveProfile={handleSaveProfile}
+        onLoadProfile={handleLoadProfile}
+        onDeleteProfile={handleDeleteProfile}
+        onUpdateProfile={handleUpdateProfile}
+        onDeleteCookie={handleDeleteCookie}
+        onClearCookies={handleClearCookies}
+        onRefreshCookies={refreshCookies}
       />
 
       <SettingsModal

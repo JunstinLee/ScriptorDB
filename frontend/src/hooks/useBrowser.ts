@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { fetchBrowserState } from "../api/browser";
-import type { BrowserState, BrowserActionEvent } from "../types";
+import { fetchBrowserState, fetchCookies, fetchProfiles } from "../api/browser";
+import type { BrowserState, BrowserActionEvent, CookieInfo, BrowserProfileItem } from "../types";
 
 /** 轮询间隔（毫秒） */
 const POLL_INTERVAL_MS = 5000;
@@ -111,4 +111,48 @@ export function useBrowserActions(): UseBrowserActionsReturn {
   }, []);
 
   return { actions, appendAction, clearActions };
+}
+
+export function useProfiles(workspaceId: string | null) {
+  const [profiles, setProfiles] = useState<BrowserProfileItem[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!workspaceId) return;
+    setLoading(true);
+    try {
+      const data = await fetchProfiles();
+      setProfiles(data.profiles);
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { profiles, loading, refresh };
+}
+
+export function useCookies(workspaceId: string | null, browserLaunched: boolean) {
+  const [cookies, setCookies] = useState<CookieInfo[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!workspaceId || !browserLaunched) return;
+    setLoading(true);
+    try {
+      const data = await fetchCookies();
+      setCookies(data.cookies);
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId, browserLaunched]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { cookies, loading, refresh };
 }
