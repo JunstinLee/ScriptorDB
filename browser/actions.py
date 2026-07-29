@@ -44,7 +44,7 @@ async def press_key(page: Page, key: str) -> str:
 
 
 async def screenshot(page: Page, path: str | None = None) -> str:
-    if path is None:
+    if not path:
         path = str(Path(f"outputs/browser/screenshot_{int(time.time())}.png").resolve())
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
