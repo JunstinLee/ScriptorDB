@@ -183,6 +183,7 @@ class WorkspaceRegistry:
         ws_dir = workspace_dir(resolved)
         ws_dir.mkdir(parents=True, exist_ok=True)
         (ws_dir / "sessions").mkdir(parents=True, exist_ok=True)
+        (ws_dir / "browser_profiles").mkdir(parents=True, exist_ok=True)
         ws_settings = WorkspaceSettings.load(resolved, ws_id, rec.name)
         if db_url:
             ws_settings.db_url = db_url

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 import keyring
@@ -66,6 +67,31 @@ def delete_mysql_password(workspace_id: str) -> None:
 
 def has_mysql_password(workspace_id: str) -> bool:
     return get_mysql_password(workspace_id) is not None
+
+
+BROWSER_PROFILE_SERVICE_SUFFIX = ":browser_profile"
+
+
+def save_browser_profile(workspace_id: str, profile_name: str, storage_state: object) -> None:
+    service = _service(workspace_id) + BROWSER_PROFILE_SERVICE_SUFFIX
+    keyring.set_password(service, profile_name, json.dumps(storage_state))
+
+
+def get_browser_profile(workspace_id: str, profile_name: str) -> dict | None:
+    service = _service(workspace_id) + BROWSER_PROFILE_SERVICE_SUFFIX
+    value = keyring.get_password(service, profile_name)
+    if value is None:
+        return None
+    return json.loads(value)
+
+
+def delete_browser_profile(workspace_id: str, profile_name: str) -> None:
+    service = _service(workspace_id) + BROWSER_PROFILE_SERVICE_SUFFIX
+    _safe_delete(service, profile_name)
+
+
+def has_browser_profile(workspace_id: str, profile_name: str) -> bool:
+    return get_browser_profile(workspace_id, profile_name) is not None
 
 
 @dataclass(frozen=True)

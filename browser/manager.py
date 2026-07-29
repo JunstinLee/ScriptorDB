@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import time
-
 from datetime import datetime, timezone
+from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
@@ -85,7 +85,12 @@ class BrowserManager:
             "history": list(self._history),
         }
 
-    async def launch(self, headless: bool = True) -> str:
+    async def launch(
+        self,
+        headless: bool = True,
+        storage_state: dict | Path | None = None,
+        proxy: dict | None = None,
+    ) -> str:
         if self._browser is not None:
             return "Browser already launched"
 
@@ -97,7 +102,13 @@ class BrowserManager:
         try:
             self._playwright = await ap().start()
             self._browser = await self._playwright.chromium.launch(headless=headless)
-            self._context = await self._browser.new_context()
+            context_options: dict = {}
+            if storage_state:
+                if isinstance(storage_state, Path):
+                    context_options["storage_state"] = str(storage_state)
+                else:
+                    context_options["storage_state"] = storage_state
+            self._context = await self._browser.new_context(**context_options)
             self._page = await self._context.new_page()
         except Exception as e:
             self.reset()
@@ -127,6 +138,19 @@ class BrowserManager:
             self._playwright = None
         self.reset_state()
         return "Browser closed"
+
+    async def load_profile(self, name: str, workspace_id: str) -> bool:
+        from config.secrets import get_browser_profile
+        from browser.profiles import load_profile as _load_profile
+
+        if not self.is_launched():
+            storage_state = get_browser_profile(workspace_id, name)
+            if not storage_state:
+                return False
+            await self.launch(storage_state=storage_state)
+            return True
+
+        return await _load_profile(self, name, workspace_id)
 
     def is_launched(self) -> bool:
         return self._browser is not None

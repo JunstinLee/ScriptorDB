@@ -453,3 +453,37 @@ export interface ViewportSizeResponse {
   width: number;
   height: number;
 }
+
+// ==================== Browser Cookies & Profiles ====================
+
+export interface CookieInfo {
+  name: string;
+  domain: string;
+  path: string;
+  expires: number | null;
+  http_only: boolean;
+  secure: boolean;
+  same_site: string;
+}
+
+export interface CookiesResponse {
+  cookies: CookieInfo[];
+  count: number;
+  current_url: string;
+}
+
+export interface BrowserProfileItem {
+  name: string;
+  domain: string;
+  cookie_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfilesResponse {
+  profiles: BrowserProfileItem[];
+}
+
+export interface SaveProfileRequest {
+  name: string;
+}
