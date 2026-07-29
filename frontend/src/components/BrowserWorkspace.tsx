@@ -1,7 +1,8 @@
 import { Monitor, Loader2, X, ImageIcon } from "lucide-react";
-import type { BrowserState, BrowserActionEvent, HumanTakeoverRequestEvent } from "../types";
+import type { BrowserState, BrowserActionEvent, HumanTakeoverRequestEvent, BrowserProfileItem, CookieInfo } from "../types";
 import { getScreenshotUrl } from "../api/browser";
 import { ActionStream } from "./ActionStream";
+import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { HumanTakeoverPanel } from "./HumanTakeoverPanel";
 
 interface BrowserWorkspaceProps {
@@ -16,6 +17,10 @@ interface BrowserWorkspaceProps {
   onTakeoverCancel?: () => void;
   onClearActions?: () => void;
   onScreenshotRefresh?: () => void;
+  profiles?: BrowserProfileItem[];
+  cookies?: CookieInfo[];
+  cookiesLoading?: boolean;
+  onLoadProfile?: (name: string) => void;
 }
 
 function BrowserViewport({
@@ -121,6 +126,10 @@ export function BrowserWorkspace({
   onTakeoverCancel,
   onClearActions,
   onScreenshotRefresh,
+  profiles,
+  cookies,
+  cookiesLoading,
+  onLoadProfile,
 }: BrowserWorkspaceProps) {
   if (error) {
     return (
@@ -151,9 +160,21 @@ export function BrowserWorkspace({
   }
 
   return (
-    <div className="flex flex-1 min-h-0 min-w-0">
-      <BrowserViewport state={state} loading={loading} latestAction={latestAction} takeoverActive={false} />
-      <ActionStream events={actions ?? []} isRunning={isRunning ?? false} />
+    <div className="flex flex-1 flex-col min-h-0 min-w-0">
+      {state?.launched && (
+        <BrowserSessionInfo
+          profiles={profiles ?? []}
+          cookies={cookies ?? []}
+          cookiesLoading={cookiesLoading ?? false}
+          browserLaunched={state.launched}
+          currentUrl={state?.url ?? ""}
+          onLoadProfile={onLoadProfile}
+        />
+      )}
+      <div className="flex flex-1 min-h-0 min-w-0">
+        <BrowserViewport state={state} loading={loading} latestAction={latestAction} takeoverActive={false} />
+        <ActionStream events={actions ?? []} isRunning={isRunning ?? false} />
+      </div>
     </div>
   );
 }

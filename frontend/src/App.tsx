@@ -422,6 +422,10 @@ function MainApp({
               onScreenshotRefresh={() => {
                 /* browser polling will refresh screenshot */
               }}
+              profiles={profiles}
+              cookies={cookies}
+              cookiesLoading={cookiesLoading}
+              onLoadProfile={handleLoadProfile}
             />
           ) : (
             <ChatPanel
