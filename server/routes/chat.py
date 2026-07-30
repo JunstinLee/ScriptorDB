@@ -64,6 +64,14 @@ async def _stream_orchestrator_events(
                     return
                 if ev_type == "human_takeover_request":
                     return
+                if ev_type == "takeover_state_change":
+                    yield sse_event(ev_type, event)
+                    if event.get("state") == "cancelled":
+                        return
+                    continue
+                if ev_type == "takeover_cancelled":
+                    yield sse_event(ev_type, event)
+                    continue
                 if ev_type == "run_end":
                     yield sse_done()
                     break

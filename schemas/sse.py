@@ -90,6 +90,22 @@ class HumanTakeoverRequestEvent(BaseModel):
     type: Literal["human_takeover_request"] = "human_takeover_request"
     run_id: str
     reason: str
-    current_url: str
-    screenshot_available: bool
+    trigger: str = ""
+    current_url: str = ""
+    screenshot_available: bool = False
+    timestamp: str
+
+
+class TakeoverStateChangeEvent(BaseModel):
+    type: Literal["takeover_state_change"] = "takeover_state_change"
+    run_id: str
+    state: str
+    reason: str = ""
+    timestamp: str
+
+
+class TakeoverCancelledEvent(BaseModel):
+    type: Literal["takeover_cancelled"] = "takeover_cancelled"
+    run_id: str
+    reason: str
     timestamp: str

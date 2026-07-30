@@ -6,6 +6,8 @@ from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
+from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
+
 SCREENSHOT_TTL = 30
 
 
@@ -21,6 +23,13 @@ class BrowserManager:
         self._last_screenshot: str | None = None
         self._last_screenshot_time: float = 0
         self._launched_at: float | None = None
+        self._takeover = HumanTakeoverManager()
+        self._nav_timeout_count = 0
+        self._element_failure_count: dict[str, int] = {}
+
+    @property
+    def takeover(self) -> HumanTakeoverManager:
+        return self._takeover
 
     def record_navigate(self, url: str, title: str = "") -> None:
         self._history.append({
@@ -163,3 +172,39 @@ class BrowserManager:
         self._browser = None
         self._context = None
         self._page = None
+        self._takeover.reset()
+        self._nav_timeout_count = 0
+        self._element_failure_count.clear()
+
+    async def detect_takeover(self) -> bool:
+        if not self.is_launched() or self._page is None:
+            return False
+        if self._takeover.state != HumanTakeoverState.RUNNING:
+            return False
+        trigger = await detect_human_needed(self._page)
+        if trigger:
+            return self._takeover.request_takeover(
+                reason=trigger.reason,
+                trigger=trigger.trigger,
+                url=self._page.url,
+            )
+        return False
+
+    def record_nav_timeout(self):
+        self._nav_timeout_count += 1
+        trigger = detect_timeout_trigger(self._nav_timeout_count)
+        if trigger:
+            self._takeover.request_takeover(trigger.reason, trigger.trigger)
+
+    def reset_nav_timeout_count(self):
+        self._nav_timeout_count = 0
+
+    def record_element_failure(self, selector: str):
+        self._element_failure_count[selector] = self._element_failure_count.get(selector, 0) + 1
+        count = self._element_failure_count[selector]
+        trigger = detect_element_failure_trigger(count)
+        if trigger:
+            self._takeover.request_takeover(trigger.reason, trigger.trigger)
+
+    def reset_element_failures(self):
+        self._element_failure_count.clear()

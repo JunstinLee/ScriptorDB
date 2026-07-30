@@ -38,6 +38,11 @@ async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
     manager.record_navigate(url, title)
     manager.record_action("navigate", url)
 
+    if "成功" in result or "Navigated" in result:
+        manager.reset_nav_timeout_count()
+        manager.reset_element_failures()
+        await manager.detect_takeover()
+
     return result
 
 
@@ -185,6 +190,9 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
     result = await _click(page, selector)
     manager.record_action("click", selector, selector=selector,
                           success="Clicked" in result)
+    if "failed" in str(result).lower() or "error" in str(result).lower():
+        manager.record_element_failure(selector)
+        await manager.detect_takeover()
     return result
 
 
@@ -201,6 +209,9 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
     await highlight_input_remove(page)
     manager.record_action("fill", selector, selector=selector,
                           success="Filled" in result)
+    if "failed" in str(result).lower() or "error" in str(result).lower():
+        manager.record_element_failure(selector)
+        await manager.detect_takeover()
     return result
 
 
@@ -284,6 +295,7 @@ async def browser_go_back(ctx: RunContext[Settings]) -> str:
     except Exception:
         title = ""
     manager.record_navigate(page.url, title)
+    await manager.detect_takeover()
     return result
 
 
@@ -301,20 +313,5 @@ async def browser_go_forward(ctx: RunContext[Settings]) -> str:
     except Exception:
         title = ""
     manager.record_navigate(page.url, title)
+    await manager.detect_takeover()
     return result
-
-
-@db_tool(
-    name="browser_request_human_takeover",
-    category="browser",
-    timeout=30,
-    sequential=True,
-)
-async def browser_request_human_takeover(
-    ctx: RunContext[Settings],
-    reason: str,
-) -> str:
-    manager = get_manager()
-    state = await manager.get_state()
-    manager.record_action("human_takeover", reason)
-    return f"Paused and requesting human takeover. Reason: {reason}. Current page: {state.get('url', 'unknown')}. Waiting for user to complete action before Agent resumes."

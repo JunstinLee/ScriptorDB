@@ -109,6 +109,25 @@ class ApprovalOrchestrator:
             if ev_type in ("approval_request", "human_takeover_request"):
                 await event_callback(event)
                 return False
+            if ev_type == "takeover_cancelled":
+                from browser import get_manager
+                mgr = get_manager()
+                reason = event.get("reason", "")
+                await event_callback(event)
+                prompt_override = (
+                    f"人工接管已取消（{reason}）。请使用其他方式继续处理当前页面，"
+                    "或提示用户后续如何手动处理。"
+                )
+                completed = await self._run_loop(
+                    prompt_override,
+                    message_history,
+                    event_callback,
+                    run_collector=run_collector,
+                    new_messages_collector=new_messages_collector,
+                    deferred_results=deferred_results,
+                )
+                mgr.takeover.reset()
+                return completed
             if ev_type == "metadata":
                 run_collector.update({
                     "run_id": self._run_tracker.run_id,
@@ -241,24 +260,30 @@ class ApprovalOrchestrator:
         new_messages_collector: list[ModelMessage],
     ) -> bool:
         """Resume agent execution after human takeover completes."""
+        from browser import get_manager
+        mgr = get_manager()
+        mgr.takeover.complete(takeover_result)
+
         session = get_session_store().get(self.session_id)
         if session is None:
             return False
 
-        takeover_message = f"User completed manual action: {takeover_result}"
+        takeover_message = f"用户完成了人工操作: {takeover_result}"
         session.add_user_message(takeover_message)
         get_session_store().save()
 
         message_history = session.get_model_messages()
         prompt = "Continue with the previous task based on the user's completed action."
 
-        return await self._run_loop(
+        completed = await self._run_loop(
             prompt,
             message_history,
             event_callback,
             run_collector=run_collector,
             new_messages_collector=new_messages_collector,
         )
+        mgr.takeover.reset()
+        return completed
 
 
 async def run_agent_stream_resumable(
