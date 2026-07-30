@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import time
+from fractions import Fraction
 from io import BytesIO
 
 import numpy as np
@@ -42,7 +43,7 @@ class PlaywrightScreencastTrack(MediaStreamTrack):
 
         frame = VideoFrame.from_ndarray(arr, format="rgb24")
         frame.pts = int(pts * 90000)
-        frame.time_base = 1 / 90000
+        frame.time_base = Fraction(1, 90000)
 
         return frame
 
@@ -66,8 +67,14 @@ class BrowserStreamConnection:
         self.pc.addTrack(self.track)
 
         screencast = page.screencast
+        try:
+            await screencast.stop()
+        except Exception:
+            pass
+        track = self.track
+        assert track is not None
         await screencast.start(
-            on_frame=lambda f: self.track.add_frame(
+            on_frame=lambda f: track.add_frame(
                 base64.b64decode(f["data"])
             ),
             size={"width": 1280, "height": 720},
@@ -76,12 +83,14 @@ class BrowserStreamConnection:
 
         @self.pc.on("iceconnectionstatechange")
         async def _on_ice_state():
+            assert self.pc is not None
             if self.pc.iceConnectionState == "failed":
                 await self.stop()
 
         return True
 
     async def negotiate(self):
+        assert self.pc is not None
         offer = await self.pc.createOffer()
         await self.pc.setLocalDescription(offer)
         await self.websocket.send_text(json.dumps({
@@ -90,6 +99,7 @@ class BrowserStreamConnection:
         }))
 
     async def handle_answer(self, sdp: str):
+        assert self.pc is not None
         await self.pc.setRemoteDescription(
             RTCSessionDescription(sdp=sdp, type="answer")
         )
@@ -128,6 +138,11 @@ class BrowserStreamConnection:
             self.track.stop()
         if self.pc:
             await self.pc.close()
+        if self._page:
+            try:
+                await self._page.screencast.stop()
+            except Exception:
+                pass
 
     async def close(self):
         await self.stop()

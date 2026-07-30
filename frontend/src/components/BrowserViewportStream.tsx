@@ -64,6 +64,7 @@ export function BrowserViewportStream({
       const msg = JSON.parse(event.data);
 
       if (msg.type === "offer") {
+        if (pc.signalingState === "closed") return;
         await pc.setRemoteDescription(
           new RTCSessionDescription({ type: "offer", sdp: msg.sdp })
         );
@@ -98,7 +99,7 @@ export function BrowserViewportStream({
     };
 
     return () => {
-      ws.close();
+      if (ws.readyState !== WebSocket.CONNECTING) ws.close();
       pc.close();
     };
   }, []);
