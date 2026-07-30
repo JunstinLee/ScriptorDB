@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebRTC Browser Stream Diagnostic</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', monospace; background: #0d1117; color: #c9d1d9; padding: 16px; }
+  h1 { font-size: 16px; margin-bottom: 12px; }
+  .section { margin-bottom: 16px; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; }
+  .section-header { background: #161b22; padding: 8px 12px; font-size: 13px; font-weight: 600; border-bottom: 1px solid #30363d; }
+  .ok { color: #3fb950; }
+  .fail { color: #f85149; }
+  .warn { color: #d29922; }
+  .log { padding: 8px 12px; font-size: 12px; line-height: 1.6; max-height: 300px; overflow-y: auto; }
+  .log div { margin: 2px 0; }
+  .video-wrap { width: 100%; max-width: 800px; aspect-ratio: 16/10; background: #000; border-radius: 8px; overflow: hidden; margin: 8px 0; }
+  .video-wrap video { width: 100%; height: 100%; object-fit: contain; }
+  .btn { padding: 6px 14px; border: 1px solid #30363d; border-radius: 6px; background: #21262d; color: #c9d1d9; cursor: pointer; font-size: 12px; font-family: inherit; margin-right: 6px; }
+  .btn:hover { background: #30363d; }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .status-bar { font-size: 12px; padding: 8px 0; }
+  .label { color: #8b949e; margin-right: 8px; }
+</style>
+</head>
+<body>
+
+<h1>WebRTC Browser Stream Diagnostic</h1>
+
+<div class="section">
+  <div class="section-header" id="header-rest">REST API — /api/browser/state</div>
+  <div class="log" id="log-rest"></div>
+</div>
+
+<div class="section">
+  <div class="section-header" id="header-ws">WebSocket — ws://HOST/api/ws/browser</div>
+  <div class="log" id="log-ws"></div>
+</div>
+
+<div class="section">
+  <div class="section-header" id="header-rtc">WebRTC</div>
+  <div class="log" id="log-rtc"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">Video Viewport</div>
+  <div class="video-wrap">
+    <video id="video" autoplay playsinline muted></video>
+  </div>
+  <div class="status-bar" id="video-status">Waiting...</div>
+</div>
+
+<div>
+  <button class="btn" id="btn-connect" onclick="runDiag()">Run Full Diagnostic</button>
+  <button class="btn" id="btn-reset" onclick="teardown()">Reset</button>
+</div>
+
+<script>
+const HOST = location.host;
+const BACKEND = `http://${HOST}`;
+const WS_URL = (location.protocol === 'https:' ? 'wss' : 'ws') + '://' + HOST + '/api/ws/browser';
+
+let ws = null, pc = null;
+
+function log(id, text, cls) {
+  const el = document.getElementById(id);
+  const div = document.createElement('div');
+  const time = new Date().toISOString().slice(11, 23);
+  div.innerHTML = `<span class="label">${time}</span>`;
+  const span = document.createElement('span');
+  span.className = cls || '';
+  span.textContent = text;
+  div.appendChild(span);
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setHeader(id, text, cls) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'section-header ' + (cls || '');
+}
+
+// ── Layer 0: REST API ──────────────────────────────────────────────────────
+
+async function checkRestAPI() {
+  log('log-rest', 'Fetching GET /api/browser/state ...');
+  try {
+    const res = await fetch(BACKEND + '/api/browser/state');
+    if (res.status === 409) {
+      log('log-rest', 'HTTP 409 — no active workspace', 'fail');
+      setHeader('header-rest', 'REST API — FAIL (no workspace)', 'fail');
+      return false;
+    }
+    if (!res.ok) {
+      log('log-rest', `HTTP ${res.status}`, 'fail');
+      setHeader('header-rest', `REST API — FAIL (${res.status})`, 'fail');
+      return false;
+    }
+    const state = await res.json();
+    log('log-rest', `launched: ${state.launched}`, state.launched ? 'ok' : 'warn');
+    log('log-rest', `url: ${state.url || '(none)'}`);
+    log('log-rest', `title: ${state.title || '(none)'}`);
+    log('log-rest', `actions: ${(state.actions || []).length}`);
+    if (!state.launched) {
+      log('log-rest', 'Browser NOT launched — agent needs to call browser_launch', 'fail');
+      setHeader('header-rest', 'REST API — Browser not launched', 'fail');
+      return false;
+    }
+    if (!state.url) {
+      log('log-rest', 'Browser launched but no URL loaded', 'warn');
+    }
+    setHeader('header-rest', 'REST API — OK', 'ok');
+    return true;
+  } catch (e) {
+    log('log-rest', `Fetch error: ${e.message}`, 'fail');
+    setHeader('header-rest', 'REST API — FAIL (reachable?)', 'fail');
+    return false;
+  }
+}
+
+// ── Layer 1+2: WebSocket + WebRTC ──────────────────────────────────────────
+
+async function checkWebRTC() {
+  // WebSocket
+  log('log-ws', `Connecting to ${WS_URL} ...`);
+  setHeader('header-ws', 'WebSocket — connecting...');
+  try {
+    ws = new WebSocket(WS_URL);
+  } catch (e) {
+    log('log-ws', `new WebSocket failed: ${e.message}`, 'fail');
+    setHeader('header-ws', 'WebSocket — FAIL (constructor)', 'fail');
+    return;
+  }
+
+  ws.onopen = () => {
+    log('log-ws', 'WebSocket OPEN', 'ok');
+    setHeader('header-ws', 'WebSocket — open', 'ok');
+  };
+
+  ws.onerror = () => {
+    log('log-ws', 'WebSocket ERROR event', 'fail');
+    setHeader('header-ws', 'WebSocket — ERROR', 'fail');
+  };
+
+  ws.onclose = (e) => {
+    log('log-ws', `WebSocket CLOSED: code=${e.code} reason="${e.reason}"`, e.code === 1000 ? 'ok' : 'warn');
+    if (e.code === 1011 && e.reason.includes('not launched')) {
+      log('log-ws', '→ Server says browser is not launched', 'fail');
+    }
+  };
+
+  // RTCPeerConnection
+  log('log-rtc', 'Creating RTCPeerConnection...');
+  setHeader('header-rtc', 'WebRTC — creating...');
+  pc = new RTCPeerConnection({
+    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+  });
+
+  pc.oniceconnectionstatechange = () => {
+    const s = pc.iceConnectionState;
+    log('log-rtc', `ICE state: ${s}`, s === 'connected' || s === 'completed' ? 'ok' : s === 'failed' ? 'fail' : '');
+    setHeader('header-rtc', `WebRTC — ICE: ${s}`, s === 'connected' || s === 'completed' ? 'ok' : s === 'failed' ? 'fail' : 'warn');
+    if (s === 'failed' || s === 'disconnected') {
+      log('log-rtc', 'ICE failed. Check STUN reachability or firewall.', 'fail');
+    }
+  };
+
+  pc.onsignalingstatechange = () => {
+    log('log-rtc', `Signaling state: ${pc.signalingState}`);
+  };
+
+  pc.onconnectionstatechange = () => {
+    log('log-rtc', `Connection state: ${pc.connectionState}`, pc.connectionState === 'connected' ? 'ok' : '');
+  };
+
+  pc.onicegatheringstatechange = () => {
+    log('log-rtc', `Gathering state: ${pc.iceGatheringState}`);
+  };
+
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      log('log-rtc', `ICE candidate (local): ${event.candidate.candidate.substring(0, 40)}...`);
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'ice_candidate', candidate: event.candidate.toJSON() }));
+      }
+    } else {
+      log('log-rtc', 'ICE gathering complete (null candidate)');
+    }
+  };
+
+  pc.ontrack = (event) => {
+    log('log-rtc', `ONTRACK fired! kind=${event.track.kind} streams=${event.streams.length}`, 'ok');
+    const video = document.getElementById('video');
+    if (event.streams[0]) {
+      video.srcObject = event.streams[0];
+      document.getElementById('video-status').textContent = 'Video stream ATTACHED';
+      document.getElementById('video-status').className = 'status-bar ok';
+
+      // Check video readiness
+      const checkReady = () => {
+        const s = ['HAVE_NOTHING','HAVE_METADATA','HAVE_CURRENT_DATA','HAVE_FUTURE_DATA','HAVE_ENOUGH_DATA'][video.readyState];
+        log('log-rtc', `Video readyState: ${video.readyState} (${s})`, video.readyState >= 2 ? 'ok' : 'warn');
+        if (video.videoWidth > 0) {
+          log('log-rtc', `Video dimensions: ${video.videoWidth}x${video.videoHeight}`, 'ok');
+          document.getElementById('video-status').textContent = `Streaming ${video.videoWidth}x${video.videoHeight}`;
+        } else {
+          log('log-rtc', 'Video dimensions: 0x0 (no frame decoded yet)', 'warn');
+        }
+      };
+      setTimeout(checkReady, 500);
+      setTimeout(checkReady, 2000);
+      setTimeout(checkReady, 5000);
+    } else {
+      log('log-rtc', 'No stream in ontrack event!', 'fail');
+    }
+  };
+
+  iceCandidates = [];
+  ws.onmessage = async (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      log('log-ws', `← ${msg.type}`);
+
+      if (msg.type === 'offer') {
+        log('log-ws', `Offer received (SDP: ${msg.sdp.length} bytes)`, 'ok');
+        log('log-rtc', 'Setting remote description (offer)...');
+        await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: msg.sdp }));
+        log('log-rtc', 'Creating answer...');
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        log('log-rtc', `Answer created (SDP: ${answer.sdp.length} bytes)`, 'ok');
+        log('log-ws', `→ answer (${answer.sdp.length} bytes SDP)`);
+        ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+
+        // Flush queued ICE candidates
+        for (const c of iceCandidates) {
+          ws.send(JSON.stringify({ type: 'ice_candidate', candidate: c }));
+        }
+        iceCandidates = [];
+      }
+    } catch (e) {
+      log('log-ws', `Parse error: ${e.message}`, 'fail');
+    }
+  };
+}
+
+function teardown() {
+  if (pc) { pc.close(); pc = null; }
+  if (ws) { ws.close(); ws = null; }
+  document.getElementById('video').srcObject = null;
+  document.getElementById('video-status').textContent = 'Reset';
+  document.getElementById('video-status').className = 'status-bar';
+  document.getElementById('log-ws').innerHTML = '';
+  document.getElementById('log-rtc').innerHTML = '';
+  setHeader('header-ws', 'WebSocket');
+  setHeader('header-rtc', 'WebRTC');
+}
+
+async function runDiag() {
+  teardown();
+  document.getElementById('log-rest').innerHTML = '';
+  setHeader('header-rest', 'REST API');
+  document.getElementById('log-ws').innerHTML = '';
+  document.getElementById('log-rtc').innerHTML = '';
+  document.getElementById('video-status').textContent = 'Starting...';
+
+  const browserOk = await checkRestAPI();
+  if (!browserOk) {
+    document.getElementById('video-status').textContent = 'Browser not launched — cannot test WebRTC';
+    document.getElementById('video-status').className = 'status-bar fail';
+    return;
+  }
+
+  checkWebRTC();
+}
+
+// Auto-run on load
+setTimeout(runDiag, 300);
+</script>
+</body>
+</html>

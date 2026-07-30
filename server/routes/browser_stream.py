@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 import time
 from fractions import Fraction
@@ -74,9 +73,7 @@ class BrowserStreamConnection:
         track = self.track
         assert track is not None
         await screencast.start(
-            on_frame=lambda f: track.add_frame(
-                base64.b64decode(f["data"])
-            ),
+            on_frame=lambda f: track.add_frame(f["data"]),
             size={"width": 1280, "height": 720},
             quality=80,
         )
