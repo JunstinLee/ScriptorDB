@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { Monitor, Loader2, X, ImageIcon } from "lucide-react";
 import type { BrowserState, BrowserActionEvent, HumanTakeoverRequestEvent, BrowserProfileItem, CookieInfo } from "../types";
 import { getScreenshotUrl } from "../api/browser";
 import { ActionStream } from "./ActionStream";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
+import { BrowserViewportStream } from "./BrowserViewportStream";
 import { HumanTakeoverPanel } from "./HumanTakeoverPanel";
 
 interface BrowserWorkspaceProps {
@@ -131,6 +133,12 @@ export function BrowserWorkspace({
   cookiesLoading,
   onLoadProfile,
 }: BrowserWorkspaceProps) {
+  const [takeoverState, setTakeoverState] = useState<string>("running");
+
+  const handleInteraction = () => {
+    setTakeoverState("human_control");
+  };
+
   if (error) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -146,6 +154,11 @@ export function BrowserWorkspace({
   if (takeoverEvent) {
     return (
       <div className="flex flex-1 min-h-0 min-w-0">
+        {takeoverState === "human_control" ? (
+          <BrowserViewportStream interactive={true} onInteraction={handleInteraction} />
+        ) : (
+          <BrowserViewportStream interactive={false} />
+        )}
         <HumanTakeoverPanel
           event={takeoverEvent}
           onComplete={onTakeoverComplete ?? (() => {})}
@@ -172,7 +185,11 @@ export function BrowserWorkspace({
         />
       )}
       <div className="flex flex-1 min-h-0 min-w-0">
-        <BrowserViewport state={state} loading={loading} latestAction={latestAction} takeoverActive={false} />
+        {state?.launched ? (
+          <BrowserViewportStream />
+        ) : (
+          <BrowserViewport state={state} loading={loading} latestAction={latestAction} takeoverActive={false} />
+        )}
         <ActionStream events={actions ?? []} isRunning={isRunning ?? false} />
       </div>
     </div>

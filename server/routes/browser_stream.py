@@ -1,0 +1,173 @@
+from __future__ import annotations
+
+import asyncio
+import base64
+import json
+import time
+from io import BytesIO
+
+import numpy as np
+from aiortc import MediaStreamTrack, RTCPeerConnection, RTCSessionDescription
+from av import VideoFrame
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from PIL import Image
+
+from browser import get_manager
+
+router = APIRouter(prefix="/api", tags=["browser_stream"])
+
+
+class PlaywrightScreencastTrack(MediaStreamTrack):
+    kind = "video"
+
+    def __init__(self):
+        super().__init__()
+        self._queue: asyncio.Queue = asyncio.Queue(maxsize=2)
+        self._timestamp = 0
+
+    def add_frame(self, jpeg_bytes: bytes):
+        while not self._queue.empty():
+            try:
+                self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        self._queue.put_nowait((jpeg_bytes, time.time()))
+
+    async def recv(self) -> VideoFrame:
+        jpeg_bytes, pts = await self._queue.get()
+
+        img = Image.open(BytesIO(jpeg_bytes))
+        img = img.convert("RGB")
+        arr = np.array(img)
+
+        frame = VideoFrame.from_ndarray(arr, format="rgb24")
+        frame.pts = int(pts * 90000)
+        frame.time_base = 1 / 90000
+
+        return frame
+
+
+class BrowserStreamConnection:
+
+    def __init__(self, websocket: WebSocket):
+        self.websocket = websocket
+        self.pc: RTCPeerConnection | None = None
+        self.track: PlaywrightScreencastTrack | None = None
+        self._page = None
+
+    async def start(self):
+        page = get_manager().page()
+        if not page:
+            return False
+        self._page = page
+
+        self.pc = RTCPeerConnection()
+        self.track = PlaywrightScreencastTrack()
+        self.pc.addTrack(self.track)
+
+        screencast = page.screencast
+        await screencast.start(
+            on_frame=lambda f: self.track.add_frame(
+                base64.b64decode(f["data"])
+            ),
+            size={"width": 1280, "height": 720},
+            quality=80,
+        )
+
+        @self.pc.on("iceconnectionstatechange")
+        async def _on_ice_state():
+            if self.pc.iceConnectionState == "failed":
+                await self.stop()
+
+        return True
+
+    async def negotiate(self):
+        offer = await self.pc.createOffer()
+        await self.pc.setLocalDescription(offer)
+        await self.websocket.send_text(json.dumps({
+            "type": "offer",
+            "sdp": self.pc.localDescription.sdp,
+        }))
+
+    async def handle_answer(self, sdp: str):
+        await self.pc.setRemoteDescription(
+            RTCSessionDescription(sdp=sdp, type="answer")
+        )
+
+    async def handle_input(self, msg: dict):
+        if not self._page:
+            return
+
+        msg_type = msg.get("type")
+
+        if msg_type == "mouse_click":
+            x = msg["x"]
+            y = msg["y"]
+            vw = msg["vw"]
+            vh = msg["vh"]
+            actual_w = await self._page.evaluate("window.innerWidth")
+            actual_h = await self._page.evaluate("window.innerHeight")
+            actual_x = (x / vw) * actual_w
+            actual_y = (y / vh) * actual_h
+            await self._page.mouse.click(actual_x, actual_y)
+
+        elif msg_type == "key_press":
+            key = msg["key"]
+            await self._page.keyboard.press(key)
+
+        elif msg_type == "scroll":
+            delta = msg.get("deltaY", 0)
+            await self._page.evaluate(f"window.scrollBy(0, {delta})")
+
+        elif msg_type == "type_text":
+            text = msg["text"]
+            await self._page.keyboard.type(text)
+
+    async def stop(self):
+        if self.track:
+            self.track.stop()
+        if self.pc:
+            await self.pc.close()
+
+    async def close(self):
+        await self.stop()
+
+
+@router.websocket("/ws/browser")
+async def browser_ws(websocket: WebSocket):
+    await websocket.accept()
+
+    conn = BrowserStreamConnection(websocket)
+    if not await conn.start():
+        await websocket.close(code=1011, reason="Browser not launched")
+        return
+
+    try:
+        await conn.negotiate()
+
+        while True:
+            try:
+                data = await asyncio.wait_for(
+                    websocket.receive_text(), timeout=30
+                )
+            except asyncio.TimeoutError:
+                continue
+
+            msg = json.loads(data)
+
+            if msg["type"] == "answer":
+                await conn.handle_answer(msg["sdp"])
+
+            elif msg["type"] in (
+                "mouse_click", "key_press", "scroll", "type_text"
+            ):
+                takeover = get_manager().takeover
+                if takeover and takeover.state == "human_control":
+                    await conn.handle_input(msg)
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    finally:
+        await conn.close()
