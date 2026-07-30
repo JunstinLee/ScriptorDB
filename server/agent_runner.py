@@ -20,9 +20,12 @@ from pydantic_ai.messages import (
 from agents.db_agent import get_agent
 from config.app_config import AppConfig
 from config.models import fuzzy_match_model
+from logging_setup import get_logger
 from tools.tool_result import ToolResult
 
 from server.run_tracker import RunTracker, utc_now_iso
+
+logger = get_logger("agent_runner")
 
 
 async def run_agent_stream(
@@ -161,6 +164,7 @@ async def run_agent_stream(
                             takeover = mgr.takeover if mgr else None
                             if takeover and takeover.should_pause_agent():
                                 takeover.enter_waiting()
+                                logger.warning(f"agent paused for takeover reason={takeover.reason} trigger={takeover.trigger}")
                                 _state = await mgr.get_state()
                                 await queue.put({
                                     "type": "human_takeover_request",

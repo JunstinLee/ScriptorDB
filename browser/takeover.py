@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 
+from logging_setup import get_logger
+
+logger = get_logger("browser.takeover")
+
 
 class HumanTakeoverState(str, Enum):
     RUNNING = "running"
@@ -52,27 +56,32 @@ class HumanTakeoverManager:
         self.current_url = url
         self.screenshot_path = screenshot
         self._detected_at = datetime.now(timezone.utc).timestamp()
+        logger.warning(f"takeover requested reason={reason} trigger={trigger} url={url}")
         return True
 
     def enter_waiting(self, on_timeout: Callable | None = None):
         self.state = HumanTakeoverState.WAITING_HUMAN
         self._wait_start = datetime.now(timezone.utc).timestamp()
         self._on_timeout = on_timeout
+        logger.info("takeover enter waiting")
         if on_timeout:
             self._timeout_task = asyncio.create_task(self._timeout_loop())
 
     def enter_human_control(self):
         self._cancel_timeout()
         self.state = HumanTakeoverState.HUMAN_CONTROL
+        logger.info("takeover enter human_control")
 
     def complete(self, result: str):
         self._cancel_timeout()
         self.state = HumanTakeoverState.RESUMING
         self.result = result
+        logger.info(f"takeover complete result={result}")
 
     def cancel(self, reason: str = ""):
         self._cancel_timeout()
         self.state = HumanTakeoverState.CANCELLED
+        logger.info(f"takeover cancelled reason={reason}")
         if reason:
             self.reason = reason
 
@@ -94,6 +103,7 @@ class HumanTakeoverManager:
     async def _timeout_loop(self):
         await asyncio.sleep(TAKEOVER_TIMEOUT)
         if self.state == HumanTakeoverState.WAITING_HUMAN:
+            logger.warning(f"takeover timeout after {TAKEOVER_TIMEOUT}s")
             self.cancel(f"超时：{TAKEOVER_TIMEOUT}秒内无用户响应")
             if self._on_timeout:
                 self._on_timeout()

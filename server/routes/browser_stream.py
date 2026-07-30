@@ -13,6 +13,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from PIL import Image
 
 from browser import get_manager
+from logging_setup import get_logger
+
+logger = get_logger("browser_stream")
 
 router = APIRouter(prefix="/api", tags=["browser_stream"])
 
@@ -24,6 +27,7 @@ class PlaywrightScreencastTrack(MediaStreamTrack):
         super().__init__()
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=2)
         self._timestamp = 0
+        self._frame_count = 0
 
     def add_frame(self, jpeg_bytes: bytes):
         while not self._queue.empty():
@@ -43,6 +47,10 @@ class PlaywrightScreencastTrack(MediaStreamTrack):
         frame = VideoFrame.from_ndarray(arr, format="rgb24")
         frame.pts = int(pts * 90000)
         frame.time_base = Fraction(1, 90000)
+
+        self._frame_count += 1
+        if self._frame_count % 30 == 1:
+            logger.info(f"frame decoded pts={int(pts * 90000)} img_size={img.size}")
 
         return frame
 
@@ -77,10 +85,12 @@ class BrowserStreamConnection:
             size={"width": 1280, "height": 720},
             quality=80,
         )
+        logger.info(f"screencast started size=1280x720 quality=80")
 
         @self.pc.on("iceconnectionstatechange")
         async def _on_ice_state():
             assert self.pc is not None
+            logger.warning(f"ICE state={self.pc.iceConnectionState}")
             if self.pc.iceConnectionState == "failed":
                 await self.stop()
 
@@ -112,22 +122,27 @@ class BrowserStreamConnection:
             y = msg["y"]
             vw = msg["vw"]
             vh = msg["vh"]
+            logger.info(f"input received type=mouse_click x={x} y={y} vw={vw} vh={vh}")
             actual_w = await self._page.evaluate("window.innerWidth")
             actual_h = await self._page.evaluate("window.innerHeight")
             actual_x = (x / vw) * actual_w
             actual_y = (y / vh) * actual_h
+            logger.info(f"click mapped actual=({actual_x},{actual_y}) actual_viewport=({actual_w}x{actual_h})")
             await self._page.mouse.click(actual_x, actual_y)
 
         elif msg_type == "key_press":
             key = msg["key"]
+            logger.info(f"input received type=key_press key={key}")
             await self._page.keyboard.press(key)
 
         elif msg_type == "scroll":
             delta = msg.get("deltaY", 0)
+            logger.info(f"input received type=scroll deltaY={delta}")
             await self._page.evaluate(f"window.scrollBy(0, {delta})")
 
         elif msg_type == "type_text":
             text = msg["text"]
+            logger.info(f"input received type=type_text")
             await self._page.keyboard.type(text)
 
     async def stop(self):
@@ -148,6 +163,7 @@ class BrowserStreamConnection:
 @router.websocket("/ws/browser")
 async def browser_ws(websocket: WebSocket):
     await websocket.accept()
+    logger.info("websocket connected")
 
     conn = BrowserStreamConnection(websocket)
     if not await conn.start():
@@ -176,10 +192,13 @@ async def browser_ws(websocket: WebSocket):
                 takeover = get_manager().takeover
                 if takeover and takeover.state == "human_control":
                     await conn.handle_input(msg)
+                else:
+                    state = takeover.state.value if takeover else "unknown"
+                    logger.warning(f"input dropped takeover.state={state} expected human_control")
 
     except WebSocketDisconnect:
-        pass
+        logger.info("websocket disconnected")
     except Exception:
-        pass
+        logger.info("websocket disconnected")
     finally:
         await conn.close()

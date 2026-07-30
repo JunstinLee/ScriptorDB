@@ -170,7 +170,6 @@ class ApprovalOrchestrator:
         all_denied = all(not approved_map.get(call["tool_call_id"], False) for call in pending.deferred_calls)
 
         if all_denied:
-            print(f"[CANCEL_TRACE] ALL_DENIED run_id={pending.run_id} deferred_ids={[c['tool_call_id'] for c in pending.deferred_calls]} tracker_tools_before={[(t['call_id'],t['status']) for t in self._run_tracker.tool_invocations]}")
             for call in pending.deferred_calls:
                 self._run_tracker.add_tool_invocation(
                     call["tool_call_id"], call["tool_name"], call["args"]
@@ -182,7 +181,6 @@ class ApprovalOrchestrator:
                     None,
                     None,
                 )
-            print(f"[CANCEL_TRACE] POST_COMPLETE tracker_tools={[(t['call_id'],t['tool_name'],t['status']) for t in self._run_tracker.tool_invocations]}")
             self._run_tracker.finish()
             run_collector.update({
                 "run_id": self._run_tracker.run_id,
@@ -192,7 +190,6 @@ class ApprovalOrchestrator:
                 "started_at": self._run_tracker.started_at,
                 "ended_at": self._run_tracker.ended_at,
             })
-            print(f"[CANCEL_TRACE] RUN_COLLECTOR_POPULATED run_id={run_collector['run_id']} status={run_collector['status']} tool_count={len(run_collector.get('tool_invocations',[]))} tools={[(t['call_id'],t['status']) for t in run_collector.get('tool_invocations',[])]} final_output={run_collector.get('final_output','')[:50]}")
             await event_callback({
                 "type": "metadata",
                 "run_id": self._run_tracker.run_id,
@@ -207,7 +204,6 @@ class ApprovalOrchestrator:
                 "run_id": self._run_tracker.run_id,
                 "timestamp": utc_now_iso(),
             })
-            print("[CANCEL_TRACE] ALL_DENIED_RETURNING_TRUE")
             session = get_session_store().get(self.session_id)
             if session is not None:
                 run = StoredRun(
@@ -238,9 +234,6 @@ class ApprovalOrchestrator:
                     call_id, call["tool_name"], call["args"]
                 )
                 results.approvals[call_id] = ToolDenied("User denied the import operation.")
-        if denied_ids:
-            print(f"[CANCEL_TRACE] MIXED_PATH denied_ids={denied_ids} tracker_tools_after_add={[(t['call_id'],t['status']) for t in self._run_tracker.tool_invocations]}")
-        print(f"[CANCEL_TRACE] ENTERING_RUN_LOOP results_count={len(results.approvals)}")
         completed = await self._run_loop(
             "Continue",
             pending.message_history,
@@ -344,7 +337,6 @@ async def run_agent_stream_resumable(
                 tracker=local_tracker,
             )
             if approval_event:
-                print(f"[CANCEL_TRACE] PAUSING_FOR_APPROVAL request_id={approval_event['request_id']} run_id={approval_event['run_id']} pending_calls={[c['tool_call_id'] for c in approval_event.get('calls',[])]}")
                 yield approval_event
                 # Pause; caller will resume after POST /approve.
                 return
@@ -413,7 +405,6 @@ def _process_deferred_requests(
             tool_invocations=list(tracker.tool_invocations) if tracker else [],
         )
         get_pending_store().add(request_id, pending)
-        print(f"[CANCEL_TRACE] APPROVAL_REQUEST_CREATED request_id={request_id} run_id={run_id} pending_call_ids={[c['tool_call_id'] for c in pending_calls]}")
 
         return {
             "type": "approval_request",

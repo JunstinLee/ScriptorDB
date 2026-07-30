@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from browser import get_manager
 from config.settings import Settings
+from logging_setup import get_logger
 from pydantic_ai import RunContext
 from tools.tool_decorators import db_tool
+
+logger = get_logger("tools.browser")
 
 
 def _require_browser() -> tuple:
@@ -14,6 +17,7 @@ def _require_browser() -> tuple:
 @db_tool(name="browser_launch", category="browser", timeout=30, sequential=True)
 async def browser_launch(ctx: RunContext[Settings]) -> str:
     manager = get_manager()
+    logger.info("browser_launch called")
     result = await manager.launch()
     manager.record_action("launch", result)
     return result
@@ -28,6 +32,7 @@ async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
     if page is None:
         return "Browser not launched. Please call browser_launch first."
 
+    logger.info(f"browser_navigate url={url} takeover_state={manager.takeover.state.value}")
     result = await _navigate(page, url)
     await inject_highlight_runtime(page)
 
@@ -42,6 +47,7 @@ async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
         manager.reset_nav_timeout_count()
         manager.reset_element_failures()
         await manager.detect_takeover()
+        logger.info(f"browser_navigate detect_takeover result takeover_state={manager.takeover.state.value}")
 
     return result
 
@@ -186,6 +192,7 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
+    logger.info(f"browser_click selector={selector} takeover_state={manager.takeover.state.value}")
     await highlight_click(page, selector)
     result = await _click(page, selector)
     manager.record_action("click", selector, selector=selector,
@@ -204,6 +211,7 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
+    logger.info(f"browser_fill selector={selector} takeover_state={manager.takeover.state.value}")
     await highlight_input(page, selector)
     result = await _fill(page, selector, text)
     await highlight_input_remove(page)
@@ -296,6 +304,7 @@ async def browser_go_back(ctx: RunContext[Settings]) -> str:
         title = ""
     manager.record_navigate(page.url, title)
     await manager.detect_takeover()
+    logger.info(f"browser_go_back detect_takeover result takeover_state={manager.takeover.state.value}")
     return result
 
 
@@ -314,4 +323,5 @@ async def browser_go_forward(ctx: RunContext[Settings]) -> str:
         title = ""
     manager.record_navigate(page.url, title)
     await manager.detect_takeover()
+    logger.info(f"browser_go_forward detect_takeover result takeover_state={manager.takeover.state.value}")
     return result

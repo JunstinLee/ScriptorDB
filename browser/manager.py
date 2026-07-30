@@ -7,6 +7,9 @@ from pathlib import Path
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
+from logging_setup import get_logger
+
+logger = get_logger("browser.manager")
 
 SCREENSHOT_TTL = 30
 
@@ -127,6 +130,7 @@ class BrowserManager:
         self.reset_state()
 
         mode = "headless" if headless else "visible"
+        logger.info(f"browser launched headless={headless}")
         return f"Browser launched successfully in {mode} mode"
 
     async def close(self) -> str:
@@ -146,6 +150,7 @@ class BrowserManager:
             self._browser = None
             self._playwright = None
         self.reset_state()
+        logger.info("browser closed")
         return "Browser closed"
 
     async def load_profile(self, name: str, workspace_id: str) -> bool:
@@ -183,6 +188,7 @@ class BrowserManager:
             return False
         trigger = await detect_human_needed(self._page)
         if trigger:
+            logger.warning(f"takeover detected trigger={trigger.trigger} reason={trigger.reason}")
             return self._takeover.request_takeover(
                 reason=trigger.reason,
                 trigger=trigger.trigger,
@@ -192,6 +198,7 @@ class BrowserManager:
 
     def record_nav_timeout(self):
         self._nav_timeout_count += 1
+        logger.warning(f"nav timeout count={self._nav_timeout_count}")
         trigger = detect_timeout_trigger(self._nav_timeout_count)
         if trigger:
             self._takeover.request_takeover(trigger.reason, trigger.trigger)
