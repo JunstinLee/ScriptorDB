@@ -4,11 +4,11 @@ import {
   streamChat,
   WorkspaceNotSelectedError,
 } from "../api/client";
-import { completeTakeover as completeTakeoverApi } from "../api/browser";
+import { completeTakeover as completeTakeoverApi, cancelTakeover as cancelTakeoverApi } from "../api/browser";
+import { useTakeoverState } from "./useTakeoverState";
 import type {
   ApprovalRequestEvent,
   BrowserActionEvent,
-  HumanTakeoverRequestEvent,
   StreamRunEvent,
   ToolResultRunEvent,
   RunEndEvent,
@@ -31,7 +31,6 @@ interface UseChatStreamParams {
   onBrowserActivity: () => void;
   setBrowserActive: (v: boolean) => void;
   setActiveMainTab: (v: "chat" | "browser") => void;
-  setLatestBrowserAction: (action: BrowserActionEvent) => void;
 }
 
 export function useChatStream(params: UseChatStreamParams) {
@@ -52,15 +51,13 @@ export function useChatStream(params: UseChatStreamParams) {
     onBrowserActivity,
     setBrowserActive,
     setActiveMainTab,
-    setLatestBrowserAction,
   } = params;
 
   const abortRef = useRef<AbortController | null>(null);
   const approvalSessionIdRef = useRef<string | null>(null);
   const [approvalRequest, setApprovalRequest] =
     useState<ApprovalRequestEvent | null>(null);
-  const [takeoverEvent, setTakeoverEvent] =
-    useState<HumanTakeoverRequestEvent | null>(null);
+  const takeover = useTakeoverState();
 
   const makeEventCallback = useCallback(
     (sid: string) =>
@@ -77,27 +74,43 @@ export function useChatStream(params: UseChatStreamParams) {
         }
         if (event.type === "browser_action") {
           appendAction(event);
-          setLatestBrowserAction(event);
           setBrowserActive(true);
           setActiveMainTab("browser");
         }
         if (event.type === "human_takeover_request") {
-          setTakeoverEvent(event as HumanTakeoverRequestEvent);
-          setLoading(false);
+          takeover.enterWaiting(
+            event.reason,
+            event.trigger || "",
+            event.run_id,
+          );
           setBrowserActive(true);
           setActiveMainTab("browser");
-          return;
+        }
+        if (event.type === "takeover_state_change") {
+          switch (event.state) {
+            case "waiting_human":
+              takeover.enterWaiting(event.reason, event.trigger, event.run_id);
+              break;
+            case "human_control":
+              takeover.enterHumanControl();
+              break;
+            case "resuming":
+              takeover.enterResuming();
+              break;
+            case "cancelled":
+              takeover.reset();
+              break;
+          }
         }
       },
     [
       appendEvent,
       appendAction,
       appendStreamingText,
-      onBrowserActivity,
-      setBrowserActive,
-      setActiveMainTab,
-      setLatestBrowserAction,
-      setLoading,
+        onBrowserActivity,
+        setBrowserActive,
+        setActiveMainTab,
+        takeover,
     ],
   );
 
@@ -240,25 +253,45 @@ export function useChatStream(params: UseChatStreamParams) {
   const handleTakeoverComplete = useCallback(
     async (sessionId: string, result: string) => {
       abortRef.current?.abort();
-      setTakeoverEvent(null);
-      setLoading(true);
-      await completeTakeoverApi(sessionId, result);
+      takeover.enterResuming();
+
+      completeTakeoverApi(
+        sessionId,
+        result,
+        makeEventCallback(sessionId),
+        makeDoneCallback(sessionId),
+        makeErrorCallback(),
+      );
     },
-    [setLoading],
+    [takeover, makeEventCallback, makeDoneCallback, makeErrorCallback],
   );
 
-  const handleTakeoverCancel = useCallback(() => {
-    abortRef.current?.abort();
-    setTakeoverEvent(null);
-    setLoading(false);
-  }, [setLoading]);
+  const handleTakeoverCancel = useCallback(
+    async (sessionId: string) => {
+      abortRef.current?.abort();
+      takeover.reset();
+      await cancelTakeoverApi(sessionId);
+      setLoading(false);
+    },
+    [takeover, setLoading],
+  );
+
+  const handleEnterHumanControl = useCallback(
+    async (sessionId: string) => {
+      const { enterHumanControl } = await import("../api/browser");
+      await enterHumanControl(sessionId);
+      takeover.enterHumanControl();
+    },
+    [takeover],
+  );
 
   return {
     handleSend,
     handleApprovalSubmit,
     approvalRequest,
-    takeoverEvent,
+    takeoverInfo: takeover.info,
     handleTakeoverComplete,
     handleTakeoverCancel,
+    handleEnterHumanControl,
   };
 }

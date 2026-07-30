@@ -1,5 +1,7 @@
 import { request } from "./core";
-import type { InteractRequest, InteractByCoordsRequest, InteractResponse, TakeoverCompleteRequest, ViewportSizeResponse, BrowserState, CookiesResponse, ProfilesResponse, SetCookieRequest } from "../types";
+import type { InteractRequest, InteractByCoordsRequest, InteractResponse, ViewportSizeResponse, BrowserState, CookiesResponse, ProfilesResponse, SetCookieRequest } from "../types";
+import { processSseStream } from "./stream";
+import type { StreamRunEvent } from "../types";
 
 export async function fetchBrowserState(): Promise<BrowserState> {
   return request<BrowserState>("/browser/state");
@@ -24,11 +26,35 @@ export async function interactByCoords(x: number, y: number, vw: number, vh: num
   });
 }
 
-export async function completeTakeover(sessionId: string, result: string): Promise<void> {
-  const body: TakeoverCompleteRequest = { session_id: sessionId, result };
-  await request("/browser/takeover/complete", {
+export async function completeTakeover(
+  sessionId: string,
+  result: string,
+  onEvent: (event: StreamRunEvent) => void,
+  onDone: (fullOutput: string) => void,
+  onError: (error: Error) => void,
+): Promise<AbortController> {
+  const abort = new AbortController();
+  void (async () => {
+    try {
+      const response = await fetch("/api/browser/takeover/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, result }),
+        signal: abort.signal,
+      });
+      await processSseStream(response, onEvent, onError, onDone);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      onError(err instanceof Error ? err : new Error("Unknown error"));
+    }
+  })();
+  return abort;
+}
+
+export async function enterHumanControl(sessionId: string): Promise<void> {
+  await request("/browser/takeover/enter-human-control", {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ session_id: sessionId }),
   });
 }
 

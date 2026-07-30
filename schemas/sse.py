@@ -99,8 +99,9 @@ class HumanTakeoverRequestEvent(BaseModel):
 class TakeoverStateChangeEvent(BaseModel):
     type: Literal["takeover_state_change"] = "takeover_state_change"
     run_id: str
-    state: str
+    state: str  # "waiting_human" | "human_control" | "resuming" | "cancelled"
     reason: str = ""
+    trigger: str = ""
     timestamp: str
 
 

@@ -1,11 +1,12 @@
-import { useState } from "react";
-import { Monitor, Loader2, X, ImageIcon } from "lucide-react";
-import type { BrowserState, BrowserActionEvent, HumanTakeoverRequestEvent, BrowserProfileItem, CookieInfo } from "../types";
+import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
+import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo } from "../types";
 import { getScreenshotUrl } from "../api/browser";
 import { ActionStream } from "./ActionStream";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { BrowserViewportStream } from "./BrowserViewportStream";
-import { HumanTakeoverPanel } from "./HumanTakeoverPanel";
+import { BrowserStatusBar } from "./BrowserStatusBar";
+import { HumanTakeoverDrawer } from "./HumanTakeoverPanel";
+import type { TakeoverInfo } from "../hooks/useTakeoverState";
 
 interface BrowserWorkspaceProps {
   state: BrowserState | null;
@@ -13,30 +14,24 @@ interface BrowserWorkspaceProps {
   error: string | null;
   actions?: BrowserActionEvent[];
   isRunning?: boolean;
-  latestAction?: BrowserActionEvent | null;
-  takeoverEvent?: HumanTakeoverRequestEvent | null;
+  takeoverInfo: TakeoverInfo;
   onTakeoverComplete?: (result: string) => void;
   onTakeoverCancel?: () => void;
+  onEnterHumanControl?: () => void;
   onClearActions?: () => void;
-  onScreenshotRefresh?: () => void;
   profiles?: BrowserProfileItem[];
   cookies?: CookieInfo[];
   cookiesLoading?: boolean;
   onLoadProfile?: (name: string) => void;
+  sessionId?: string;
 }
 
 function BrowserViewport({
   state,
   loading,
-  latestAction,
-  takeoverActive,
-  onImageClick,
 }: {
   state: BrowserState | null;
   loading: boolean;
-  latestAction?: BrowserActionEvent | null;
-  takeoverActive: boolean;
-  onImageClick?: () => void;
 }) {
   if (!state?.launched) {
     return (
@@ -73,25 +68,12 @@ function BrowserViewport({
             src={getScreenshotUrl()}
             alt={state.title ?? "页面截图"}
             className="h-full w-full object-contain"
-            style={{ cursor: takeoverActive ? "crosshair" : "default" }}
-            onClick={() => onImageClick?.()}
+            style={{ cursor: "default" }}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
             <ImageIcon className="size-12 text-muted" />
           </div>
-        )}
-
-        {latestAction?.coords && (
-          <div
-            className="absolute border-2 border-red-400/60 rounded pointer-events-none"
-            style={{
-              left: latestAction.coords.x,
-              top: latestAction.coords.y,
-              width: latestAction.coords.width,
-              height: latestAction.coords.height,
-            }}
-          />
         )}
 
         {loading && (
@@ -122,23 +104,16 @@ export function BrowserWorkspace({
   error,
   actions,
   isRunning,
-  latestAction,
-  takeoverEvent,
+  takeoverInfo,
   onTakeoverComplete,
   onTakeoverCancel,
-  onClearActions,
-  onScreenshotRefresh,
+  onEnterHumanControl,
   profiles,
   cookies,
   cookiesLoading,
   onLoadProfile,
+  sessionId,
 }: BrowserWorkspaceProps) {
-  const [takeoverState, setTakeoverState] = useState<string>("running");
-
-  const handleInteraction = () => {
-    setTakeoverState("human_control");
-  };
-
   if (error) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -151,29 +126,16 @@ export function BrowserWorkspace({
     );
   }
 
-  if (takeoverEvent) {
-    return (
-      <div className="flex flex-1 min-h-0 min-w-0">
-        {takeoverState === "human_control" ? (
-          <BrowserViewportStream interactive={true} onInteraction={handleInteraction} />
-        ) : (
-          <BrowserViewportStream interactive={false} />
-        )}
-        <HumanTakeoverPanel
-          event={takeoverEvent}
-          onComplete={onTakeoverComplete ?? (() => {})}
-          onCancel={onTakeoverCancel ?? (() => {})}
-          screenshotSrc={getScreenshotUrl()}
-          onScreenshotRefresh={onScreenshotRefresh ?? (() => {})}
-          actions={actions ?? []}
-          onClearActions={onClearActions ?? (() => {})}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-1 flex-col min-h-0 min-w-0">
+      <BrowserStatusBar
+        phase={takeoverInfo.phase}
+        reason={takeoverInfo.reason}
+        trigger={takeoverInfo.trigger}
+        remainingSeconds={takeoverInfo.remainingSeconds}
+        browserRunning={!!state?.launched}
+      />
+
       {state?.launched && (
         <BrowserSessionInfo
           profiles={profiles ?? []}
@@ -184,14 +146,34 @@ export function BrowserWorkspace({
           onLoadProfile={onLoadProfile}
         />
       )}
+
       <div className="flex flex-1 min-h-0 min-w-0">
         {state?.launched ? (
-          <BrowserViewportStream />
+          <BrowserViewportStream
+            interactive={takeoverInfo.phase === "human_control"}
+          />
         ) : (
-          <BrowserViewport state={state} loading={loading} latestAction={latestAction} takeoverActive={false} />
+          <BrowserViewport state={state} loading={loading} />
         )}
         <ActionStream events={actions ?? []} isRunning={isRunning ?? false} />
       </div>
+
+      {(takeoverInfo.phase === "waiting_human" ||
+        takeoverInfo.phase === "human_control" ||
+        takeoverInfo.phase === "resuming") && (
+        <HumanTakeoverDrawer
+          phase={takeoverInfo.phase}
+          reason={takeoverInfo.reason}
+          currentUrl={state?.url ?? ""}
+          trigger={takeoverInfo.trigger}
+          remainingSeconds={takeoverInfo.remainingSeconds}
+          onEnterControl={onEnterHumanControl ?? (() => {})}
+          onCancel={onTakeoverCancel ?? (() => {})}
+          onComplete={onTakeoverComplete ?? (() => {})}
+          runId={takeoverInfo.runId}
+          sessionId={sessionId ?? ""}
+        />
+      )}
     </div>
   );
 }

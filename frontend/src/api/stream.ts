@@ -3,7 +3,7 @@ import { WorkspaceNotSelectedError } from "./core";
 
 const BASE = "/api";
 
-function processSseStream(
+export function processSseStream(
   res: Response,
   onEvent: (event: StreamRunEvent) => void,
   onError: (error: Error) => void,
@@ -38,7 +38,8 @@ function processSseStream(
                 currentEvent === "error" ||
                 currentEvent === "approval_request" ||
                 currentEvent === "browser_action" ||
-                currentEvent === "human_takeover_request"
+                currentEvent === "human_takeover_request" ||
+                currentEvent === "takeover_state_change"
               ) {
                 try {
                   const obj = JSON.parse(data) as StreamRunEvent;

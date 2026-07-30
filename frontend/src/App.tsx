@@ -31,7 +31,6 @@ import {
 } from "./api/browser";
 import { useOverlayState } from "@heroui/react";
 import type {
-  BrowserActionEvent,
   Run,
   WorkspaceCreateRequest,
   WorkspaceDetail,
@@ -208,8 +207,6 @@ function MainApp({
   const { state: browserState, loading: browserLoading, error: browserError } =
     useBrowser(browserEnabled, workspace?.id ?? null);
   const { actions: browserActions, appendAction, clearActions } = useBrowserActions();
-  const [latestBrowserAction, setLatestBrowserAction] = useState<BrowserActionEvent | null>(null);
-
   const { profiles, loading: profilesLoading, refresh: refreshProfiles } = useProfiles(workspace?.id ?? null);
   const { cookies, loading: cookiesLoading, refresh: refreshCookies } = useCookies(workspace?.id ?? null, browserState?.launched ?? false);
 
@@ -224,7 +221,7 @@ function MainApp({
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const { handleSend, handleApprovalSubmit, approvalRequest, takeoverEvent, handleTakeoverComplete, handleTakeoverCancel } = useChatStream({
+  const { handleSend, handleApprovalSubmit, approvalRequest, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
     activeSessionId,
     addUserMessage,
     appendEvent,
@@ -241,14 +238,12 @@ function MainApp({
     onBrowserActivity,
     setBrowserActive,
     setActiveMainTab,
-    setLatestBrowserAction,
   });
 
   const handleNewSession = useCallback(() => {
     setBrowserActive(false);
     setActiveMainTab("chat");
     clearActions();
-    setLatestBrowserAction(null);
     void createNewSession();
   }, [createNewSession, clearActions]);
 
@@ -257,7 +252,6 @@ function MainApp({
       setBrowserActive(false);
       setActiveMainTab("chat");
       clearActions();
-      setLatestBrowserAction(null);
       switchSession(id);
     },
     [switchSession, clearActions],
@@ -410,22 +404,28 @@ function MainApp({
               error={browserError}
               actions={browserActions}
               isRunning={isLoading}
-              latestAction={latestBrowserAction}
-              takeoverEvent={takeoverEvent}
+              takeoverInfo={takeoverInfo}
               onTakeoverComplete={(result) => {
                 if (activeSessionId) {
                   handleTakeoverComplete(activeSessionId, result);
                 }
               }}
-              onTakeoverCancel={handleTakeoverCancel}
-              onClearActions={clearActions}
-              onScreenshotRefresh={() => {
-                /* browser polling will refresh screenshot */
+              onTakeoverCancel={() => {
+                if (activeSessionId) {
+                  handleTakeoverCancel(activeSessionId);
+                }
               }}
+              onEnterHumanControl={() => {
+                if (activeSessionId) {
+                  handleEnterHumanControl(activeSessionId);
+                }
+              }}
+              onClearActions={clearActions}
               profiles={profiles}
               cookies={cookies}
               cookiesLoading={cookiesLoading}
               onLoadProfile={handleLoadProfile}
+              sessionId={activeSessionId ?? ""}
             />
           ) : (
             <ChatPanel

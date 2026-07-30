@@ -294,6 +294,15 @@ export interface HumanTakeoverRequestEvent {
   timestamp: string;
 }
 
+export interface TakeoverStateChangeEvent {
+  type: "takeover_state_change";
+  run_id: string;
+  state: "waiting_human" | "human_control" | "resuming" | "cancelled";
+  reason: string;
+  trigger: string;
+  timestamp: string;
+}
+
 export type StreamRunEvent =
   | RunStartEvent
   | RunEndEvent
@@ -305,7 +314,8 @@ export type StreamRunEvent =
   | RunErrorEvent
   | ApprovalRequestEvent
   | BrowserActionEvent
-  | HumanTakeoverRequestEvent;
+  | HumanTakeoverRequestEvent
+  | TakeoverStateChangeEvent;
 
 export interface ToolInvocation {
   call_id: string;
@@ -447,6 +457,14 @@ export interface InteractResponse {
 export interface TakeoverCompleteRequest {
   session_id: string;
   result: string;
+}
+
+export interface TakeoverEnterControlRequest {
+  session_id: string;
+}
+
+export interface TakeoverCancelRequest {
+  session_id: string;
 }
 
 export interface ViewportSizeResponse {
