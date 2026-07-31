@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import type { BrowserActionEvent } from "../types";
 
-interface ActionStreamProps {
+interface AgentActivityTimelineProps {
   events: BrowserActionEvent[];
   isRunning: boolean;
 }
@@ -118,7 +118,7 @@ function ActionRow({
   );
 }
 
-export function ActionStream({ events, isRunning }: ActionStreamProps) {
+export function AgentActivityTimeline({ events, isRunning }: AgentActivityTimelineProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -127,8 +127,8 @@ export function ActionStream({ events, isRunning }: ActionStreamProps) {
 
   if (events.length === 0) {
     return (
-      <div className="flex w-[38%] shrink-0 flex-col items-center justify-center border-l border-grid px-4 py-8">
-        <p className="text-xs italic text-muted">Waiting for agent actions...</p>
+      <div className="px-3 py-4 text-center">
+        <p className="text-xs italic text-muted">等待智能体操作...</p>
       </div>
     );
   }
@@ -136,24 +136,16 @@ export function ActionStream({ events, isRunning }: ActionStreamProps) {
   const reversed = [...events].reverse();
 
   return (
-    <div className="flex w-[38%] shrink-0 flex-col border-l border-grid">
-      <div className="shrink-0 border-b border-grid px-4 py-2">
-        <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-          Agent Actions
-        </h3>
-      </div>
-
-      <div className="flex-1 min-h-0 overflow-y-auto px-1 py-2">
-        {reversed.map((evt, i) => (
-          <ActionRow
-            key={`${evt.tool}-${evt.timestamp}-${i}`}
-            event={evt}
-            isLatest={i === 0}
-            isRunning={isRunning}
-          />
-        ))}
-        <div ref={bottomRef} />
-      </div>
+    <div className="max-h-72 min-w-[320px] overflow-y-auto px-1 py-1">
+      {reversed.map((evt, i) => (
+        <ActionRow
+          key={`${evt.tool}-${evt.timestamp}-${i}`}
+          event={evt}
+          isLatest={i === 0}
+          isRunning={isRunning}
+        />
+      ))}
+      <div ref={bottomRef} />
     </div>
   );
 }

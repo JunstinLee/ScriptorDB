@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
-import { Button, ListBox, Modal, Select } from "@heroui/react";
-import { ShieldCheck, ShieldOff, Upload, Cookie, HardDrive, Globe } from "lucide-react";
-import type { BrowserProfileItem, CookieInfo } from "../types";
+import { Button, ListBox, Modal, Popover, Select } from "@heroui/react";
+import { ShieldCheck, ShieldOff, Upload, Cookie, HardDrive, Globe, Activity } from "lucide-react";
+import type { BrowserProfileItem, CookieInfo, BrowserActionEvent } from "../types";
+import { AgentActivityTimeline } from "./AgentActivityTimeline";
 
 interface BrowserSessionInfoProps {
   profiles: BrowserProfileItem[];
@@ -10,6 +11,8 @@ interface BrowserSessionInfoProps {
   browserLaunched: boolean;
   currentUrl: string;
   onLoadProfile?: (name: string) => void;
+  actions?: BrowserActionEvent[];
+  isRunning?: boolean;
 }
 
 const AUTH_COOKIE_PATTERNS = [
@@ -56,6 +59,8 @@ export function BrowserSessionInfo({
   browserLaunched,
   currentUrl,
   onLoadProfile,
+  actions,
+  isRunning,
 }: BrowserSessionInfoProps) {
   const [loadOpen, setLoadOpen] = useState(false);
   const [selectedProfile, setSelectedProfile] = useState<string>("");
@@ -113,6 +118,30 @@ export function BrowserSessionInfo({
         <HardDrive className="size-3 text-muted" />
         <span className="text-[11px] text-graphite">{storageSize}</span>
       </div>
+
+      {actions && actions.length > 0 && (
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Popover>
+            <Popover.Trigger>
+              <button
+                type="button"
+                className="flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] text-graphite transition-colors hover:bg-surface hover:text-foreground"
+              >
+                <Activity className="size-3" />
+                <span>Actions ({actions.length})</span>
+              </button>
+            </Popover.Trigger>
+            <Popover.Content placement="bottom" className="p-0">
+              <Popover.Dialog className="p-0">
+                <AgentActivityTimeline
+                  events={actions}
+                  isRunning={isRunning ?? false}
+                />
+              </Popover.Dialog>
+            </Popover.Content>
+          </Popover>
+        </div>
+      )}
 
       <div className="flex items-center gap-1.5 ml-auto">
         <span className="text-[10px] text-muted">
