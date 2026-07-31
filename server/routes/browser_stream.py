@@ -13,6 +13,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from PIL import Image
 
 from browser import get_manager
+from browser.takeover import HumanTakeoverState
 from logging_setup import get_logger
 
 logger = get_logger("browser_stream")
@@ -223,11 +224,11 @@ async def browser_ws(websocket: WebSocket):
                 "mouse_click", "mouse_move", "key_press", "scroll", "type_text"
             ):
                 takeover = get_manager().takeover
-                if takeover and takeover.state == "human_control":
-                    await conn.handle_input(msg)
+                if takeover and takeover.state == HumanTakeoverState.HUMAN_CONTROL:
+                    logger.info("input received during human_control, dropped (user should use real Chrome window)")
                 else:
                     state = takeover.state.value if takeover else "unknown"
-                    logger.warning(f"input dropped takeover.state={state} expected human_control")
+                    logger.warning(f"input dropped takeover.state={state}")
 
     except WebSocketDisconnect:
         logger.info("websocket disconnected")

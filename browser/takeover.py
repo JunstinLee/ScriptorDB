@@ -36,6 +36,7 @@ class HumanTakeoverManager:
         self._wait_start: float = 0
         self._timeout_task: asyncio.Task | None = None
         self._on_timeout: Callable | None = None
+        self.message: str = ""
 
     def can_agent_proceed(self) -> bool:
         return self.state in (HumanTakeoverState.RUNNING, HumanTakeoverState.RESUMING)
@@ -70,6 +71,7 @@ class HumanTakeoverManager:
     def enter_human_control(self):
         self._cancel_timeout()
         self.state = HumanTakeoverState.HUMAN_CONTROL
+        self.message = "请在 Chrome 窗口中操作"
         logger.info("takeover enter human_control")
 
     def complete(self, result: str):
@@ -92,6 +94,7 @@ class HumanTakeoverManager:
         self.trigger = ""
         self.screenshot_path = None
         self.result = ""
+        self.message = ""
         self._detected_at = 0
         self._wait_start = 0
 

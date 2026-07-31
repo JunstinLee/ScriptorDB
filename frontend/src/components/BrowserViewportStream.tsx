@@ -4,6 +4,7 @@ type StreamState = "connecting" | "connected" | "disconnected";
 
 interface BrowserViewportStreamProps {
   interactive?: boolean;
+  isTakeoverActive?: boolean;
   onInteraction?: (event: InputEvent) => void;
 }
 
@@ -20,6 +21,7 @@ interface InputEvent {
 
 export function BrowserViewportStream({
   interactive = false,
+  isTakeoverActive = false,
   onInteraction,
 }: BrowserViewportStreamProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -117,7 +119,7 @@ export function BrowserViewportStream({
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLVideoElement>) => {
-      if (!interactive || !videoRef.current) return;
+      if (!interactive || isTakeoverActive || !videoRef.current) return;
       const rect = videoRef.current.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const y = e.clientY - rect.top;
@@ -129,12 +131,12 @@ export function BrowserViewportStream({
         vh: rect.height,
       });
     },
-    [interactive, sendInput]
+    [interactive, isTakeoverActive, sendInput]
   );
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLVideoElement>) => {
-      if (!interactive || !videoRef.current) return;
+      if (!interactive || isTakeoverActive || !videoRef.current) return;
       const now = Date.now();
       if (now - lastMoveRef.current < 50) return;
       lastMoveRef.current = now;
@@ -149,11 +151,11 @@ export function BrowserViewportStream({
         vh: rect.height,
       });
     },
-    [interactive, sendInput]
+    [interactive, isTakeoverActive, sendInput]
   );
 
   useEffect(() => {
-    if (!interactive) return;
+    if (!interactive || isTakeoverActive) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (
@@ -168,14 +170,14 @@ export function BrowserViewportStream({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [interactive, sendInput]);
+  }, [interactive, isTakeoverActive, sendInput]);
 
   const handleWheel = useCallback(
     (e: React.WheelEvent<HTMLVideoElement>) => {
-      if (!interactive) return;
+      if (!interactive || isTakeoverActive) return;
       sendInput({ type: "scroll", deltaY: e.deltaY });
     },
-    [interactive, sendInput]
+    [interactive, isTakeoverActive, sendInput]
   );
 
   if (error) {
@@ -210,6 +212,15 @@ export function BrowserViewportStream({
         onMouseMove={handleMouseMove}
         onWheel={handleWheel}
       />
+
+      {isTakeoverActive && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10 pointer-events-none">
+          <div className="text-center space-y-2">
+            <p className="text-lg font-semibold text-white">请在 Chrome 窗口中直接操作</p>
+            <p className="text-sm text-white/70">不要在此视频画面中点击</p>
+          </div>
+        </div>
+      )}
 
       {state === "connecting" && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/60">

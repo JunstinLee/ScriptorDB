@@ -11,6 +11,7 @@ interface HumanTakeoverDrawerProps {
   onEnterControl: () => void;
   onCancel: () => void;
   onComplete: (result: string) => void;
+  onShowWindow: () => void;
   runId: string;
   sessionId: string;
 }
@@ -29,6 +30,7 @@ export function HumanTakeoverDrawer({
   onEnterControl,
   onCancel,
   onComplete,
+  onShowWindow,
 }: HumanTakeoverDrawerProps) {
   const [resultText, setResultText] = useState("");
 
@@ -91,7 +93,7 @@ export function HumanTakeoverDrawer({
           <div className="flex items-center gap-2">
             <div className="size-2 rounded-full bg-blue-500" />
             <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">
-              人工接管中 — 请在浏览器画面中直接操作
+              Chrome 窗口已打开 — 请在窗口中直接操作
             </span>
           </div>
         </div>
@@ -117,19 +119,27 @@ export function HumanTakeoverDrawer({
             rows={2}
             className="w-full resize-none rounded-lg border border-grid bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:ring-1 focus:ring-accent"
           />
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-between gap-2">
             <button
-              onClick={onCancel}
-              className="rounded-lg border border-grid px-4 py-1.5 text-xs text-muted hover:bg-surface"
+              onClick={onShowWindow}
+              className="rounded-lg border border-grid px-3 py-1.5 text-xs text-muted hover:bg-surface"
             >
-              取消接管
+              显示 Chrome 窗口
             </button>
-            <button
-              onClick={() => onComplete(resultText || "用户完成操作")}
-              className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
-            >
-              完成并恢复 Agent
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={onCancel}
+                className="rounded-lg border border-grid px-4 py-1.5 text-xs text-muted hover:bg-surface"
+              >
+                取消接管
+              </button>
+              <button
+                onClick={() => onComplete(resultText || "用户完成操作")}
+                className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
+              >
+                完成并恢复 Agent
+              </button>
+            </div>
           </div>
         </div>
       </div>

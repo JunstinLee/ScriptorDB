@@ -1,7 +1,6 @@
 import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
 import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo } from "../types";
 import { getScreenshotUrl } from "../api/browser";
-import { ActionStream } from "./ActionStream";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { BrowserViewportStream } from "./BrowserViewportStream";
 import { BrowserStatusBar } from "./BrowserStatusBar";
@@ -18,6 +17,7 @@ interface BrowserWorkspaceProps {
   onTakeoverComplete?: (result: string) => void;
   onTakeoverCancel?: () => void;
   onEnterHumanControl?: () => void;
+  onShowTakeoverWindow?: () => void;
   onClearActions?: () => void;
   profiles?: BrowserProfileItem[];
   cookies?: CookieInfo[];
@@ -108,6 +108,7 @@ export function BrowserWorkspace({
   onTakeoverComplete,
   onTakeoverCancel,
   onEnterHumanControl,
+  onShowTakeoverWindow,
   profiles,
   cookies,
   cookiesLoading,
@@ -151,11 +152,11 @@ export function BrowserWorkspace({
         {state?.launched ? (
           <BrowserViewportStream
             interactive={takeoverInfo.phase === "human_control"}
+            isTakeoverActive={takeoverInfo.phase === "human_control"}
           />
         ) : (
           <BrowserViewport state={state} loading={loading} />
         )}
-        <ActionStream events={actions ?? []} isRunning={isRunning ?? false} />
       </div>
 
       {(takeoverInfo.phase === "waiting_human" ||
@@ -170,6 +171,7 @@ export function BrowserWorkspace({
           onEnterControl={onEnterHumanControl ?? (() => {})}
           onCancel={onTakeoverCancel ?? (() => {})}
           onComplete={onTakeoverComplete ?? (() => {})}
+          onShowWindow={onShowTakeoverWindow ?? (() => {})}
           runId={takeoverInfo.runId}
           sessionId={sessionId ?? ""}
         />

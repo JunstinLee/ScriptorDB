@@ -28,6 +28,7 @@ import {
   updateProfile,
   deleteCookie,
   clearAllCookies,
+  showTakeoverWindow,
 } from "./api/browser";
 import { useOverlayState } from "@heroui/react";
 import type {
@@ -420,6 +421,7 @@ function MainApp({
                   handleEnterHumanControl(activeSessionId);
                 }
               }}
+              onShowTakeoverWindow={() => showTakeoverWindow()}
               onClearActions={clearActions}
               profiles={profiles}
               cookies={cookies}

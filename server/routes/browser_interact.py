@@ -146,7 +146,7 @@ async def enter_human_control(body: TakeoverEnterControlRequest):
     from browser import get_manager
     mgr = get_manager()
     mgr.takeover.enter_human_control()
-    return {"ok": True, "state": mgr.takeover.state}
+    return {"ok": True, "state": mgr.takeover.state, "message": mgr.takeover.message}
 
 
 @router.post("/takeover/cancel")
@@ -154,6 +154,14 @@ async def cancel_takeover(body: TakeoverCancelRequest):
     from browser import get_manager
     mgr = get_manager()
     mgr.takeover.cancel("用户取消接管")
+    return {"ok": True}
+
+
+@router.post("/takeover/show-window")
+async def show_takeover_window():
+    from browser import get_manager
+    mgr = get_manager()
+    await mgr.show_window()
     return {"ok": True}
 
 

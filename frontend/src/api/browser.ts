@@ -65,6 +65,12 @@ export async function cancelTakeover(sessionId: string): Promise<void> {
   });
 }
 
+export async function showTakeoverWindow(): Promise<void> {
+  await request("/browser/takeover/show-window", {
+    method: "POST",
+  });
+}
+
 export async function getViewportSize(): Promise<ViewportSizeResponse> {
   return request<ViewportSizeResponse>("/browser/viewport-size");
 }

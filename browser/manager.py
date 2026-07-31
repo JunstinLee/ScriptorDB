@@ -121,7 +121,10 @@ class BrowserManager:
 
         try:
             self._playwright = await ap().start()
-            self._browser = await self._playwright.chromium.launch(headless=headless)
+            self._browser = await self._playwright.chromium.launch(
+                headless=False,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
             context_options: dict = {"viewport": {"width": 1280, "height": 720}}
             if storage_state:
                 if isinstance(storage_state, Path):
@@ -138,8 +141,8 @@ class BrowserManager:
         self.reset_state()
 
         mode = "headless" if headless else "visible"
-        logger.info(f"browser launched headless={headless}")
-        return f"Browser launched successfully in {mode} mode"
+        logger.info(f"browser launched headless=False")
+        return f"Browser launched successfully in visible mode"
 
     async def close(self) -> str:
         try:
@@ -160,6 +163,13 @@ class BrowserManager:
         self.reset_state()
         logger.info("browser closed")
         return "Browser closed"
+
+    async def show_window(self):
+        if not self._context:
+            return
+        pages = self._context.pages
+        if pages:
+            await pages[0].bring_to_front()
 
     async def load_profile(self, name: str, workspace_id: str) -> bool:
         from config.secrets import get_browser_profile
