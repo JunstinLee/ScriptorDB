@@ -57,7 +57,12 @@ export function useChatStream(params: UseChatStreamParams) {
   const approvalSessionIdRef = useRef<string | null>(null);
   const [approvalRequest, setApprovalRequest] =
     useState<ApprovalRequestEvent | null>(null);
-  const takeover = useTakeoverState();
+  const takeover = useTakeoverState(() => {
+    const sid = approvalSessionIdRef.current;
+    if (sid) {
+      cancelTakeoverApi(sid).catch(() => {});
+    }
+  });
 
   const makeEventCallback = useCallback(
     (sid: string) =>

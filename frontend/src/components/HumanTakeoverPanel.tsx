@@ -110,6 +110,7 @@ export function HumanTakeoverDrawer({
 
         <div className="space-y-2">
           <textarea
+            id="takeover-result"
             value={resultText}
             onChange={(e) => setResultText(e.target.value)}
             placeholder="描述你做了什么操作（可选）..."

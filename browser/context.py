@@ -18,6 +18,11 @@ async def navigate(page: Page, url: str, wait_until: WaitUntil = "domcontentload
     logger.info(f"page.goto url={url}")
     try:
         await page.goto(url, wait_until=wait_until)
+        try:
+            from browser import get_manager
+            await get_manager().notify_screencast_restart()
+        except Exception:
+            pass
         return f"Navigated to {url}"
     except Exception as e:
         logger.error(f"page.goto failed url={url} error={e}")

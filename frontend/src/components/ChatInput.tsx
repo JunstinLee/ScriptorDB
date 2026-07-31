@@ -113,6 +113,7 @@ export default function ChatInput({ onSend, disabled, attachments, removeAttachm
 
       <div className="flex items-end gap-2">
         <textarea
+          id="chat-input"
           ref={textareaRef}
           value={prompt}
           onChange={handleChange}

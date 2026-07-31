@@ -8,7 +8,7 @@ interface BrowserViewportStreamProps {
 }
 
 interface InputEvent {
-  type: "mouse_click" | "key_press" | "scroll" | "type_text";
+  type: "mouse_click" | "mouse_move" | "key_press" | "scroll" | "type_text";
   x?: number;
   y?: number;
   vw?: number;
@@ -25,6 +25,7 @@ export function BrowserViewportStream({
   const videoRef = useRef<HTMLVideoElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const lastMoveRef = useRef<number>(0);
   const [state, setState] = useState<StreamState>("connecting");
   const [error, setError] = useState<string | null>(null);
 
@@ -131,6 +132,26 @@ export function BrowserViewportStream({
     [interactive, sendInput]
   );
 
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLVideoElement>) => {
+      if (!interactive || !videoRef.current) return;
+      const now = Date.now();
+      if (now - lastMoveRef.current < 50) return;
+      lastMoveRef.current = now;
+      const rect = videoRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      sendInput({
+        type: "mouse_move",
+        x,
+        y,
+        vw: rect.width,
+        vh: rect.height,
+      });
+    },
+    [interactive, sendInput]
+  );
+
   useEffect(() => {
     if (!interactive) return;
 
@@ -186,6 +207,7 @@ export function BrowserViewportStream({
         className="h-full w-full object-contain"
         style={{ cursor: interactive ? "crosshair" : "default" }}
         onClick={handleClick}
+        onMouseMove={handleMouseMove}
         onWheel={handleWheel}
       />
 

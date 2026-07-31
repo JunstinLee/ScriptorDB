@@ -17,7 +17,7 @@ export interface TakeoverInfo {
 
 const TAKEOVER_TIMEOUT = 150;
 
-export function useTakeoverState() {
+export function useTakeoverState(onTimeout?: () => void) {
   const [info, setInfo] = useState<TakeoverInfo>({
     phase: "none",
     reason: "",
@@ -53,6 +53,7 @@ export function useTakeoverState() {
           phase: "cancelled",
           reason: `超时：${TAKEOVER_TIMEOUT}秒内无用户响应`,
         }));
+        onTimeout?.();
       }
     }, 1000);
   }, [clearTimer]);

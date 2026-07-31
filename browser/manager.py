@@ -29,10 +29,18 @@ class BrowserManager:
         self._takeover = HumanTakeoverManager()
         self._nav_timeout_count = 0
         self._element_failure_count: dict[str, int] = {}
+        self._screencast_connection: object | None = None
 
     @property
     def takeover(self) -> HumanTakeoverManager:
         return self._takeover
+
+    def set_screencast_connection(self, conn: object | None) -> None:
+        self._screencast_connection = conn
+
+    async def notify_screencast_restart(self) -> None:
+        if self._screencast_connection and hasattr(self._screencast_connection, "ensure_screencast_active"):
+            await self._screencast_connection.ensure_screencast_active()  # type: ignore[union-attr]
 
     def record_navigate(self, url: str, title: str = "") -> None:
         self._history.append({
@@ -114,7 +122,7 @@ class BrowserManager:
         try:
             self._playwright = await ap().start()
             self._browser = await self._playwright.chromium.launch(headless=headless)
-            context_options: dict = {}
+            context_options: dict = {"viewport": {"width": 1280, "height": 720}}
             if storage_state:
                 if isinstance(storage_state, Path):
                     context_options["storage_state"] = str(storage_state)

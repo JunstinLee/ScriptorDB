@@ -68,6 +68,7 @@ class BrowserStreamConnection:
         if not page:
             return False
         self._page = page
+        get_manager().set_screencast_connection(self)
 
         self.pc = RTCPeerConnection()
         self.track = PlaywrightScreencastTrack()
@@ -95,6 +96,24 @@ class BrowserStreamConnection:
                 await self.stop()
 
         return True
+
+    async def ensure_screencast_active(self):
+        if not self._page or not self.track:
+            return
+        logger.info("screencast reattach after navigation")
+        try:
+            await self._page.screencast.stop()
+        except Exception:
+            pass
+        try:
+            await self._page.screencast.start(
+                on_frame=lambda f: self.track.add_frame(f["data"]),  # type: ignore[union-attr]
+                size={"width": 1280, "height": 720},
+                quality=80,
+            )
+            logger.info("screencast reattached after navigation")
+        except Exception as e:
+            logger.warning(f"screencast reattach failed: {e}")
 
     async def negotiate(self):
         assert self.pc is not None
@@ -130,6 +149,17 @@ class BrowserStreamConnection:
             logger.info(f"click mapped actual=({actual_x},{actual_y}) actual_viewport=({actual_w}x{actual_h})")
             await self._page.mouse.click(actual_x, actual_y)
 
+        elif msg_type == "mouse_move":
+            x = msg["x"]
+            y = msg["y"]
+            vw = msg["vw"]
+            vh = msg["vh"]
+            actual_w = await self._page.evaluate("window.innerWidth")
+            actual_h = await self._page.evaluate("window.innerHeight")
+            actual_x = (x / vw) * actual_w
+            actual_y = (y / vh) * actual_h
+            await self._page.mouse.move(actual_x, actual_y)
+
         elif msg_type == "key_press":
             key = msg["key"]
             logger.info(f"input received type=key_press key={key}")
@@ -158,6 +188,7 @@ class BrowserStreamConnection:
 
     async def close(self):
         await self.stop()
+        get_manager().set_screencast_connection(None)
 
 
 @router.websocket("/ws/browser")
@@ -187,7 +218,7 @@ async def browser_ws(websocket: WebSocket):
                 await conn.handle_answer(msg["sdp"])
 
             elif msg["type"] in (
-                "mouse_click", "key_press", "scroll", "type_text"
+                "mouse_click", "mouse_move", "key_press", "scroll", "type_text"
             ):
                 takeover = get_manager().takeover
                 if takeover and takeover.state == "human_control":
