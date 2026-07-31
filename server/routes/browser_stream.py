@@ -141,12 +141,13 @@ class BrowserStreamConnection:
             y = msg["y"]
             vw = msg["vw"]
             vh = msg["vh"]
-            logger.info(f"input received type=mouse_click x={x} y={y} vw={vw} vh={vh}")
+            logger.info(f"HUMAN_INPUT type=mouse_click x={x} y={y} vw={vw} vh={vh} page_url={self._page.url if self._page else 'N/A'}")
             actual_w = await self._page.evaluate("window.innerWidth")
             actual_h = await self._page.evaluate("window.innerHeight")
             actual_x = (x / vw) * actual_w
             actual_y = (y / vh) * actual_h
-            logger.info(f"click mapped actual=({actual_x},{actual_y}) actual_viewport=({actual_w}x{actual_h})")
+            logger.info(f"PLAYWRIGHT_CLICK x={actual_x} y={actual_y} viewport=({actual_w}x{actual_h})")
+            await self._page.mouse.move(actual_x, actual_y, steps=5)
             await self._page.mouse.click(actual_x, actual_y)
 
         elif msg_type == "mouse_move":
@@ -154,11 +155,12 @@ class BrowserStreamConnection:
             y = msg["y"]
             vw = msg["vw"]
             vh = msg["vh"]
+            logger.info(f"HUMAN_INPUT type=mouse_move x={x} y={y} vw={vw} vh={vh}")
             actual_w = await self._page.evaluate("window.innerWidth")
             actual_h = await self._page.evaluate("window.innerHeight")
             actual_x = (x / vw) * actual_w
             actual_y = (y / vh) * actual_h
-            await self._page.mouse.move(actual_x, actual_y)
+            await self._page.mouse.move(actual_x, actual_y, steps=3)
 
         elif msg_type == "key_press":
             key = msg["key"]

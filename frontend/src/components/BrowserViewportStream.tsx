@@ -100,7 +100,7 @@ export function BrowserViewportStream({
     };
 
     return () => {
-      if (ws.readyState !== WebSocket.CONNECTING) ws.close();
+      if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) ws.close();
       pc.close();
     };
   }, []);
