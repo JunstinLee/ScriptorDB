@@ -14,8 +14,10 @@ export function BrowserViewportStream({
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const [state, setState] = useState<StreamState>("connecting");
   const [error, setError] = useState<string | null>(null);
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
 
   useEffect(() => {
+    let disposed = false;
     const protocol = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${protocol}://${location.host}/api/ws/browser`);
     wsRef.current = ws;
@@ -26,7 +28,7 @@ export function BrowserViewportStream({
     pcRef.current = pc;
 
     pc.ontrack = (event) => {
-      if (videoRef.current && event.streams[0]) {
+      if (!disposed && videoRef.current && event.streams[0]) {
         videoRef.current.srcObject = event.streams[0];
         setState("connected");
       }
@@ -34,7 +36,6 @@ export function BrowserViewportStream({
 
     pc.oniceconnectionstatechange = () => {
       if (
-        pc.iceConnectionState === "disconnected" ||
         pc.iceConnectionState === "failed" ||
         pc.iceConnectionState === "closed"
       ) {
@@ -48,21 +49,31 @@ export function BrowserViewportStream({
     };
 
     ws.onmessage = async (event) => {
-      const msg = JSON.parse(event.data);
+      try {
+        const msg = JSON.parse(event.data);
 
-      if (msg.type === "offer") {
-        if (pc.signalingState === "closed") return;
-        await pc.setRemoteDescription(
-          new RTCSessionDescription({ type: "offer", sdp: msg.sdp })
-        );
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        ws.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
+        if (msg.type === "offer") {
+          if (disposed || pc.signalingState === "closed") return;
+          await pc.setRemoteDescription(
+            new RTCSessionDescription({ type: "offer", sdp: msg.sdp })
+          );
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
+          }
 
-        for (const c of iceCandidates) {
-          ws.send(JSON.stringify({ type: "ice_candidate", candidate: c }));
+          for (const c of iceCandidates) {
+            if (ws.readyState !== WebSocket.OPEN) break;
+            ws.send(JSON.stringify({ type: "ice_candidate", candidate: c }));
+          }
+          iceCandidates = [];
         }
-        iceCandidates = [];
+      } catch (err: unknown) {
+        if (!disposed) {
+          setError(err instanceof Error ? err.message : "视频流协商失败");
+          setState("disconnected");
+        }
       }
     };
 
@@ -81,15 +92,33 @@ export function BrowserViewportStream({
     };
 
     ws.onerror = () => {
-      setError("WebSocket 连接失败");
+      if (!disposed) {
+        setError("WebSocket 连接失败");
+        setState("disconnected");
+      }
+    };
+
+    ws.onclose = (event) => {
+      if (disposed) return;
+      const reason = event.reason || `连接已关闭（代码 ${event.code}）`;
+      setError(reason === "Browser target unavailable" ? "浏览器页面已失效，请重新连接" : reason);
       setState("disconnected");
     };
 
     return () => {
+      disposed = true;
       if (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN) ws.close();
       pc.close();
+      if (wsRef.current === ws) wsRef.current = null;
+      if (pcRef.current === pc) pcRef.current = null;
     };
-  }, []);
+  }, [connectionAttempt]);
+
+  const retry = () => {
+    setError(null);
+    setState("connecting");
+    setConnectionAttempt((attempt) => attempt + 1);
+  };
 
   if (error) {
     return (
@@ -97,10 +126,7 @@ export function BrowserViewportStream({
         <div className="text-center space-y-2">
           <p className="text-sm text-danger">{error}</p>
           <button
-            onClick={() => {
-              setError(null);
-              setState("connecting");
-            }}
+            onClick={retry}
             className="text-sm text-accent hover:underline"
           >
             重试
@@ -144,10 +170,7 @@ export function BrowserViewportStream({
           <div className="flex flex-col items-center gap-3">
             <span className="text-sm text-muted">连接已断开</span>
             <button
-              onClick={() => {
-                setState("connecting");
-                setError(null);
-              }}
+              onClick={retry}
               className="rounded-lg bg-accent px-4 py-1.5 text-sm text-white"
             >
               重新连接
