@@ -288,6 +288,7 @@ export interface ApprovalRequestEvent {
 export interface HumanTakeoverRequestEvent {
   type: "human_takeover_request";
   run_id: string;
+  checkpoint_id?: string;
   reason: string;
   current_url: string;
   screenshot_available: boolean;
@@ -303,6 +304,13 @@ export interface TakeoverStateChangeEvent {
   timestamp: string;
 }
 
+export interface TakeoverCancelledEvent {
+  type: "takeover_cancelled";
+  run_id: string;
+  reason: string;
+  timestamp: string;
+}
+
 export type StreamRunEvent =
   | RunStartEvent
   | RunEndEvent
@@ -315,7 +323,8 @@ export type StreamRunEvent =
   | ApprovalRequestEvent
   | BrowserActionEvent
   | HumanTakeoverRequestEvent
-  | TakeoverStateChangeEvent;
+  | TakeoverStateChangeEvent
+  | TakeoverCancelledEvent;
 
 export interface ToolInvocation {
   call_id: string;
@@ -465,6 +474,7 @@ export interface TakeoverEnterControlRequest {
 
 export interface TakeoverCancelRequest {
   session_id: string;
+  run_id?: string;
 }
 
 export interface ViewportSizeResponse {

@@ -54,6 +54,7 @@ export function useChatStream(params: UseChatStreamParams) {
   } = params;
 
   const abortRef = useRef<AbortController | null>(null);
+  const takeoverAbortRef = useRef<AbortController | null>(null);
   const approvalSessionIdRef = useRef<string | null>(null);
   const [approvalRequest, setApprovalRequest] =
     useState<ApprovalRequestEvent | null>(null);
@@ -106,6 +107,9 @@ export function useChatStream(params: UseChatStreamParams) {
               takeover.reset();
               break;
           }
+        }
+        if (event.type === "takeover_cancelled") {
+          takeover.reset();
         }
       },
     [
@@ -258,24 +262,49 @@ export function useChatStream(params: UseChatStreamParams) {
   const handleTakeoverComplete = useCallback(
     async (sessionId: string, result: string) => {
       abortRef.current?.abort();
+      takeoverAbortRef.current?.abort();
       takeover.enterResuming();
 
-      completeTakeoverApi(
+      takeoverAbortRef.current = completeTakeoverApi(
         sessionId,
         result,
         makeEventCallback(sessionId),
-        makeDoneCallback(sessionId),
-        makeErrorCallback(),
+        (fullOutput: string) => {
+          finalizeAssistantMessage(fullOutput);
+          setLoading(false);
+          void refreshSessionTitle(sessionId);
+          void refreshUndo();
+          takeover.reset();
+        },
+        (error: Error) => {
+          if (error instanceof WorkspaceNotSelectedError) {
+            handleWorkspaceMissing();
+          } else {
+            appendStreamingText(`\n\nError: ${error.message}`);
+            setLoading(false);
+          }
+          takeover.reset();
+        },
       );
     },
-    [takeover, makeEventCallback, makeDoneCallback, makeErrorCallback],
+    [
+      takeover,
+      makeEventCallback,
+      finalizeAssistantMessage,
+      setLoading,
+      refreshSessionTitle,
+      refreshUndo,
+      handleWorkspaceMissing,
+      appendStreamingText,
+    ],
   );
 
   const handleTakeoverCancel = useCallback(
-    async (sessionId: string) => {
+    async (sessionId: string, runId: string) => {
       abortRef.current?.abort();
+      takeoverAbortRef.current?.abort();
       takeover.reset();
-      await cancelTakeoverApi(sessionId);
+      await cancelTakeoverApi(sessionId, runId).catch(() => {});
       setLoading(false);
     },
     [takeover, setLoading],

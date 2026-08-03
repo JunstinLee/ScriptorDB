@@ -58,10 +58,10 @@ export async function enterHumanControl(sessionId: string): Promise<void> {
   });
 }
 
-export async function cancelTakeover(sessionId: string): Promise<void> {
+export async function cancelTakeover(sessionId: string, runId = ""): Promise<void> {
   await request("/browser/takeover/cancel", {
     method: "POST",
-    body: JSON.stringify({ session_id: sessionId }),
+    body: JSON.stringify({ session_id: sessionId, run_id: runId }),
   });
 }
 

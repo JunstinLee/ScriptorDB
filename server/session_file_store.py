@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
     ModelResponse,
     TextPart,
+    ToolCallPart,
+    ToolReturnPart,
     UserPromptPart,
 )
 
@@ -23,6 +26,77 @@ from server.session_model import Session, SessionStore
 _DEFAULT_STORAGE = GLOBAL_CONFIG_DIR / "global_sessions"
 _PAYLOAD_VERSION = 2
 _INDEX_VERSION = 2
+
+
+def _part_to_data(part: Any) -> dict | None:
+    """把 ModelMessage 的 part 序列化为 JSON 兼容 dict。"""
+    if isinstance(part, UserPromptPart):
+        return {"type": "UserPromptPart", "content": part.content}
+    if isinstance(part, TextPart):
+        return {"type": "TextPart", "content": part.content}
+    if isinstance(part, ToolCallPart):
+        return {
+            "type": "ToolCallPart",
+            "tool_call_id": part.tool_call_id,
+            "tool_name": part.tool_name,
+            "args": part.args,
+        }
+    if isinstance(part, ToolReturnPart):
+        return {
+            "type": "ToolReturnPart",
+            "tool_call_id": part.tool_call_id,
+            "tool_name": part.tool_name,
+            "content": part.content,
+        }
+    return None
+
+
+def _part_from_data(part_data: dict) -> Any | None:
+    ptype = part_data.get("type")
+    try:
+        if ptype == "UserPromptPart":
+            return UserPromptPart(content=part_data.get("content", ""))
+        if ptype == "TextPart":
+            return TextPart(content=part_data.get("content", ""))
+        if ptype == "ToolCallPart":
+            return ToolCallPart(
+                tool_call_id=part_data["tool_call_id"],
+                tool_name=part_data["tool_name"],
+                args=part_data.get("args", ""),
+            )
+        if ptype == "ToolReturnPart":
+            return ToolReturnPart(
+                tool_call_id=part_data["tool_call_id"],
+                tool_name=part_data["tool_name"],
+                content=part_data.get("content", ""),
+            )
+    except Exception:
+        return None
+    return None
+
+
+def _model_message_from_data(data: dict) -> ModelMessage | None:
+    """从 JSON dict 恢复 ModelRequest/ModelResponse（含工具调用与结果部分）。"""
+    msg_type = data.get("type")
+    parts = data.get("parts", [])
+    if not isinstance(parts, list):
+        return None
+    model_parts = []
+    for p in parts:
+        if isinstance(p, dict):
+            part = _part_from_data(p)
+            if part is not None:
+                model_parts.append(part)
+    if not model_parts:
+        return None
+    try:
+        if msg_type == "ModelRequest":
+            return ModelRequest(parts=model_parts)
+        if msg_type == "ModelResponse":
+            return ModelResponse(parts=model_parts)
+    except Exception:
+        return None
+    return None
 
 
 class FileSessionStore(SessionStore):
@@ -149,22 +223,9 @@ class FileSessionStore(SessionStore):
                 for m in payload.get("model_messages", []):
                     if isinstance(m, dict):
                         try:
-                            msg_type = m.get("type")
-                            parts = m.get("parts", [])
-                            if msg_type == "ModelRequest":
-                                model_parts = []
-                                for p in parts:
-                                    if isinstance(p, dict) and p.get("type") == "UserPromptPart":
-                                        model_parts.append(UserPromptPart(content=p.get("content", "")))
-                                if model_parts:
-                                    session.model_messages.append(ModelRequest(parts=model_parts))
-                            elif msg_type == "ModelResponse":
-                                model_parts = []
-                                for p in parts:
-                                    if isinstance(p, dict) and p.get("type") == "TextPart":
-                                        model_parts.append(TextPart(content=p.get("content", "")))
-                                if model_parts:
-                                    session.model_messages.append(ModelResponse(parts=model_parts))
+                            parsed = _model_message_from_data(m)
+                            if parsed is not None:
+                                session.model_messages.append(parsed)
                         except Exception:
                             pass
                 self._sessions[sid] = session
@@ -230,22 +291,9 @@ class FileSessionStore(SessionStore):
             for m in payload.get("model_messages", []):
                 if isinstance(m, dict):
                     try:
-                        msg_type = m.get("type")
-                        parts = m.get("parts", [])
-                        if msg_type == "ModelRequest":
-                            model_parts = []
-                            for p in parts:
-                                if isinstance(p, dict) and p.get("type") == "UserPromptPart":
-                                    model_parts.append(UserPromptPart(content=p.get("content", "")))
-                            if model_parts:
-                                session.model_messages.append(ModelRequest(parts=model_parts))
-                        elif msg_type == "ModelResponse":
-                            model_parts = []
-                            for p in parts:
-                                if isinstance(p, dict) and p.get("type") == "TextPart":
-                                    model_parts.append(TextPart(content=p.get("content", "")))
-                            if model_parts:
-                                session.model_messages.append(ModelResponse(parts=model_parts))
+                        parsed = _model_message_from_data(m)
+                        if parsed is not None:
+                            session.model_messages.append(parsed)
                     except Exception:
                         pass
             self._sessions[sid] = session
@@ -261,14 +309,16 @@ class FileSessionStore(SessionStore):
                 if isinstance(m, ModelRequest):
                     parts_data = []
                     for p in m.parts:
-                        if isinstance(p, UserPromptPart):
-                            parts_data.append({"type": "UserPromptPart", "content": p.content})
+                        part_data = _part_to_data(p)
+                        if part_data is not None:
+                            parts_data.append(part_data)
                     model_msgs_data.append({"type": "ModelRequest", "parts": parts_data})
                 elif isinstance(m, ModelResponse):
                     parts_data = []
                     for p in m.parts:
-                        if isinstance(p, TextPart):
-                            parts_data.append({"type": "TextPart", "content": p.content})
+                        part_data = _part_to_data(p)
+                        if part_data is not None:
+                            parts_data.append(part_data)
                     model_msgs_data.append({"type": "ModelResponse", "parts": parts_data})
             payload = {
                 "version": _PAYLOAD_VERSION,

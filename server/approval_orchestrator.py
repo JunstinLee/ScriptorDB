@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, ToolApproved, ToolDenied
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
 from agents.db_agent import get_agent
 from config.app_config import AppConfig
@@ -17,6 +17,7 @@ from server.approval_policy import (
     LOW_RISK_WRITE_TOOLS,
     PendingApproval,
     get_pending_store,
+    get_takeover_checkpoint_store,
 )
 from server.import_inspector import count_import_rows
 from server.run_tracker import RunTracker, utc_now_iso
@@ -37,7 +38,7 @@ class ApprovalOrchestrator:
         config: AppConfig,
         model: str | None = None,
         provider: str | None = None,
-        agent: Agent[AppConfig] | None = None,
+        agent: Any | None = None,
     ):
         self.session_id = session_id
         self.config = config
@@ -114,24 +115,11 @@ class ApprovalOrchestrator:
                 await event_callback(event)
                 return False
             if ev_type == "takeover_cancelled":
-                from browser import get_manager
-                mgr = get_manager()
-                reason = event.get("reason", "")
+                # 终止语义：取消只记录终态，不再静默启动后台模型回合。
                 await event_callback(event)
-                prompt_override = (
-                    f"人工接管已取消（{reason}）。请使用其他方式继续处理当前页面，"
-                    "或提示用户后续如何手动处理。"
-                )
-                completed = await self._run_loop(
-                    prompt_override,
-                    message_history,
-                    event_callback,
-                    run_collector=run_collector,
-                    new_messages_collector=new_messages_collector,
-                    deferred_results=deferred_results,
-                )
-                mgr.takeover.reset()
-                return completed
+                from browser import get_manager
+                get_manager().takeover.reset()
+                return True
             if ev_type == "metadata":
                 run_collector.update({
                     "run_id": self._run_tracker.run_id,
@@ -257,8 +245,16 @@ class ApprovalOrchestrator:
         run_collector: dict[str, Any],
         new_messages_collector: list[ModelMessage],
     ) -> bool:
-        """Resume agent execution after human takeover completes."""
+        """Resume agent execution after human takeover completes.
+
+        History comes from the takeover checkpoint (message history + this
+        turn's tool calls/results), not only from the session's plain messages.
+        """
         if run_id and (self._run_tracker is None or self._run_tracker.run_id != run_id):
+            return False
+
+        checkpoint = get_takeover_checkpoint_store().get_for_run(self.session_id, run_id)
+        if checkpoint is None:
             return False
 
         from browser import get_manager
@@ -269,11 +265,17 @@ class ApprovalOrchestrator:
         if session is None:
             return False
 
+        message_history = list(checkpoint.message_history) + list(checkpoint.turn_new_messages)
         takeover_message = f"用户完成了人工操作: {takeover_result}"
-        session.add_user_message(takeover_message)
-        get_session_store().save()
+        message_history.append(
+            ModelRequest(parts=[UserPromptPart(content=takeover_message)])
+        )
 
-        message_history = session.get_model_messages()
+        if self._run_tracker is None:
+            self._run_tracker = RunTracker(run_id=checkpoint.run_id)
+        self._run_tracker.tool_invocations = list(checkpoint.tool_invocations)
+        self._run_tracker.final_output = checkpoint.final_output
+
         prompt = "Continue with the previous task based on the user's completed action."
 
         completed = await self._run_loop(
@@ -283,8 +285,49 @@ class ApprovalOrchestrator:
             run_collector=run_collector,
             new_messages_collector=new_messages_collector,
         )
+        if completed:
+            get_takeover_checkpoint_store().remove(self.session_id)
         mgr.takeover.reset()
         return completed
+
+    def cancel_takeover(self, run_id: str = "", reason: str = "") -> dict[str, Any]:
+        """Cancel the active takeover with terminate semantics.
+
+        Validates the run_id against the orchestrator's active run, persists a
+        clear terminal state (checkpoint messages + cancelled run), then clears
+        the orchestrator-level takeover state. Caller is responsible for
+        removing the orchestrator from the active registry.
+        """
+        if run_id and (self._run_tracker is None or self._run_tracker.run_id != run_id):
+            return {"ok": False, "error": "run_mismatch", "status": "not_cancelled"}
+
+        checkpoint = get_takeover_checkpoint_store().get(self.session_id)
+        if checkpoint is None:
+            return {"ok": False, "error": "no_active_takeover", "status": "not_cancelled"}
+
+        session = get_session_store().get(self.session_id)
+        if session is not None:
+            if checkpoint.turn_new_messages:
+                session.add_model_messages(list(checkpoint.turn_new_messages))
+            run = StoredRun(
+                run_id=checkpoint.run_id,
+                status="cancelled",
+                tool_invocations=[
+                    StoredToolInvocation(**inv)
+                    for inv in checkpoint.tool_invocations
+                ],
+                final_output=checkpoint.final_output,
+                started_at=checkpoint.created_at,
+                ended_at=utc_now_iso(),
+            )
+            session.add_run(run)
+            get_session_store().save()
+
+        get_takeover_checkpoint_store().remove(self.session_id)
+
+        from browser import get_manager
+        get_manager().takeover.cancel(reason or "用户取消接管")
+        return {"ok": True, "status": "cancelled", "reason": reason or "用户取消接管"}
 
 
 async def run_agent_stream_resumable(

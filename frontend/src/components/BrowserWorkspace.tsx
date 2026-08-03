@@ -102,8 +102,6 @@ export function BrowserWorkspace({
   state,
   loading,
   error,
-  actions,
-  isRunning,
   takeoverInfo,
   onTakeoverComplete,
   onTakeoverCancel,
@@ -151,8 +149,7 @@ export function BrowserWorkspace({
       <div className="flex flex-1 min-h-0 min-w-0">
         {state?.launched ? (
           <BrowserViewportStream
-            interactive={takeoverInfo.phase === "human_control"}
-            isTakeoverActive={takeoverInfo.phase === "human_control"}
+            takeoverActive={takeoverInfo.phase === "human_control"}
           />
         ) : (
           <BrowserViewport state={state} loading={loading} />

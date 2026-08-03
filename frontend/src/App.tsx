@@ -413,7 +413,7 @@ function MainApp({
               }}
               onTakeoverCancel={() => {
                 if (activeSessionId) {
-                  handleTakeoverCancel(activeSessionId);
+                  handleTakeoverCancel(activeSessionId, takeoverInfo.runId);
                 }
               }}
               onEnterHumanControl={() => {

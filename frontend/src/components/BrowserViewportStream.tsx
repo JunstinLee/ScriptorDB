@@ -1,33 +1,17 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type StreamState = "connecting" | "connected" | "disconnected";
 
 interface BrowserViewportStreamProps {
-  interactive?: boolean;
-  isTakeoverActive?: boolean;
-  onInteraction?: (event: InputEvent) => void;
-}
-
-interface InputEvent {
-  type: "mouse_click" | "mouse_move" | "key_press" | "scroll" | "type_text";
-  x?: number;
-  y?: number;
-  vw?: number;
-  vh?: number;
-  key?: string;
-  deltaY?: number;
-  text?: string;
+  takeoverActive?: boolean;
 }
 
 export function BrowserViewportStream({
-  interactive = false,
-  isTakeoverActive = false,
-  onInteraction,
+  takeoverActive = false,
 }: BrowserViewportStreamProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
-  const lastMoveRef = useRef<number>(0);
   const [state, setState] = useState<StreamState>("connecting");
   const [error, setError] = useState<string | null>(null);
 
@@ -107,79 +91,6 @@ export function BrowserViewportStream({
     };
   }, []);
 
-  const sendInput = useCallback(
-    (msg: InputEvent) => {
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(msg));
-      }
-      onInteraction?.(msg);
-    },
-    [onInteraction]
-  );
-
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLVideoElement>) => {
-      if (!interactive || isTakeoverActive || !videoRef.current) return;
-      const rect = videoRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      sendInput({
-        type: "mouse_click",
-        x,
-        y,
-        vw: rect.width,
-        vh: rect.height,
-      });
-    },
-    [interactive, isTakeoverActive, sendInput]
-  );
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLVideoElement>) => {
-      if (!interactive || isTakeoverActive || !videoRef.current) return;
-      const now = Date.now();
-      if (now - lastMoveRef.current < 50) return;
-      lastMoveRef.current = now;
-      const rect = videoRef.current.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      sendInput({
-        type: "mouse_move",
-        x,
-        y,
-        vw: rect.width,
-        vh: rect.height,
-      });
-    },
-    [interactive, isTakeoverActive, sendInput]
-  );
-
-  useEffect(() => {
-    if (!interactive || isTakeoverActive) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        ["Enter", "Tab", "Escape", "Backspace", "Delete",
-         "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"
-        ].includes(e.key)
-      ) {
-        e.preventDefault();
-        sendInput({ type: "key_press", key: e.key });
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [interactive, isTakeoverActive, sendInput]);
-
-  const handleWheel = useCallback(
-    (e: React.WheelEvent<HTMLVideoElement>) => {
-      if (!interactive || isTakeoverActive) return;
-      sendInput({ type: "scroll", deltaY: e.deltaY });
-    },
-    [interactive, isTakeoverActive, sendInput]
-  );
-
   if (error) {
     return (
       <div className="flex flex-1 items-center justify-center p-8">
@@ -207,13 +118,10 @@ export function BrowserViewportStream({
         playsInline
         muted
         className="h-full w-full object-contain"
-        style={{ cursor: interactive ? "crosshair" : "default" }}
-        onClick={handleClick}
-        onMouseMove={handleMouseMove}
-        onWheel={handleWheel}
+        style={{ cursor: "default" }}
       />
 
-      {isTakeoverActive && (
+      {takeoverActive && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10 pointer-events-none">
           <div className="text-center space-y-2">
             <p className="text-lg font-semibold text-white">请在 Chrome 窗口中直接操作</p>

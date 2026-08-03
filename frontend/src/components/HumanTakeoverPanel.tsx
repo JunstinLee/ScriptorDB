@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, MousePointer, Keyboard, ArrowUpDown } from "lucide-react";
+import { AlertTriangle, Monitor } from "lucide-react";
 import type { TakeoverPhase } from "../hooks/useTakeoverState";
 
 interface HumanTakeoverDrawerProps {
@@ -100,13 +100,7 @@ export function HumanTakeoverDrawer({
 
         <div className="flex gap-4 text-xs text-muted mb-3">
           <span className="flex items-center gap-1">
-            <MousePointer className="size-3" /> 点击画面交互
-          </span>
-          <span className="flex items-center gap-1">
-            <Keyboard className="size-3" /> 键盘输入
-          </span>
-          <span className="flex items-center gap-1">
-            <ArrowUpDown className="size-3" /> 滚轮滚动
+            <Monitor className="size-3" /> 视频画面为只读预览，请在真实 Chrome 窗口中操作
           </span>
         </div>
 

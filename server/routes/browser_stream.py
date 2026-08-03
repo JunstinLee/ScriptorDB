@@ -132,51 +132,9 @@ class BrowserStreamConnection:
         )
 
     async def handle_input(self, msg: dict):
-        if not self._page:
-            return
-
+        # 只读预览策略：视频流不接收鼠标/键盘/滚轮输入，真实 Chrome 窗口是唯一操作入口。
         msg_type = msg.get("type")
-
-        if msg_type == "mouse_click":
-            x = msg["x"]
-            y = msg["y"]
-            vw = msg["vw"]
-            vh = msg["vh"]
-            logger.info(f"HUMAN_INPUT type=mouse_click x={x} y={y} vw={vw} vh={vh} page_url={self._page.url if self._page else 'N/A'}")
-            actual_w = await self._page.evaluate("window.innerWidth")
-            actual_h = await self._page.evaluate("window.innerHeight")
-            actual_x = (x / vw) * actual_w
-            actual_y = (y / vh) * actual_h
-            logger.info(f"PLAYWRIGHT_CLICK x={actual_x} y={actual_y} viewport=({actual_w}x{actual_h})")
-            await self._page.mouse.move(actual_x, actual_y, steps=5)
-            await self._page.mouse.click(actual_x, actual_y)
-
-        elif msg_type == "mouse_move":
-            x = msg["x"]
-            y = msg["y"]
-            vw = msg["vw"]
-            vh = msg["vh"]
-            logger.info(f"HUMAN_INPUT type=mouse_move x={x} y={y} vw={vw} vh={vh}")
-            actual_w = await self._page.evaluate("window.innerWidth")
-            actual_h = await self._page.evaluate("window.innerHeight")
-            actual_x = (x / vw) * actual_w
-            actual_y = (y / vh) * actual_h
-            await self._page.mouse.move(actual_x, actual_y, steps=3)
-
-        elif msg_type == "key_press":
-            key = msg["key"]
-            logger.info(f"input received type=key_press key={key}")
-            await self._page.keyboard.press(key)
-
-        elif msg_type == "scroll":
-            delta = msg.get("deltaY", 0)
-            logger.info(f"input received type=scroll deltaY={delta}")
-            await self._page.evaluate(f"window.scrollBy(0, {delta})")
-
-        elif msg_type == "type_text":
-            text = msg["text"]
-            logger.info(f"input received type=type_text")
-            await self._page.keyboard.type(text)
+        logger.warning(f"video input unsupported, dropped type={msg_type}")
 
     async def stop(self):
         if self.track:
@@ -225,10 +183,10 @@ async def browser_ws(websocket: WebSocket):
             ):
                 takeover = get_manager().takeover
                 if takeover and takeover.state == HumanTakeoverState.HUMAN_CONTROL:
-                    logger.info("input received during human_control, dropped (user should use real Chrome window)")
+                    logger.info("video input rejected during human_control (use the real Chrome window)")
                 else:
                     state = takeover.state.value if takeover else "unknown"
-                    logger.warning(f"input dropped takeover.state={state}")
+                    logger.warning(f"input rejected takeover.state={state}")
 
     except WebSocketDisconnect:
         logger.info("websocket disconnected")

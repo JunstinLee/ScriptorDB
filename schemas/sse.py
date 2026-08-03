@@ -89,6 +89,7 @@ class BrowserActionEvent(BaseModel):
 class HumanTakeoverRequestEvent(BaseModel):
     type: Literal["human_takeover_request"] = "human_takeover_request"
     run_id: str
+    checkpoint_id: str = ""
     reason: str
     trigger: str = ""
     current_url: str = ""

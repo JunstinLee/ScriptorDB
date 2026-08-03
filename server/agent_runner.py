@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json as json_mod
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import suppress
 from typing import Any
 
@@ -21,6 +21,10 @@ from agents.db_agent import get_agent
 from config.app_config import AppConfig
 from config.models import fuzzy_match_model
 from logging_setup import get_logger
+from server.approval_policy import (
+    PendingTakeover,
+    get_takeover_checkpoint_store,
+)
 from tools.tool_result import ToolResult
 
 from server.run_tracker import RunTracker, utc_now_iso
@@ -37,7 +41,7 @@ async def run_agent_stream(
     agent: Any | None = None,
     tracker: RunTracker | None = None,
     deferred_results: DeferredToolResults | None = None,
-) -> AsyncIterator[dict]:
+) -> AsyncGenerator[dict[str, Any], None]:
     """纯编排层：启动 agent.run()，通过 asyncio.Queue 收集事件，产出标准化 dict 事件。
 
     不再产出 SSE 字符串，由 streaming 层负责包装。
@@ -62,6 +66,8 @@ async def run_agent_stream(
     handler_calls = 0
     queue: asyncio.Queue[dict] = asyncio.Queue()
     local_tracker = tracker or RunTracker()
+    checkpoint_id = uuid.uuid4().hex[:12]
+    tool_parts: list[Any] = []
 
     yield {
         "type": "run_start",
@@ -76,6 +82,7 @@ async def run_agent_stream(
         try:
             async for event in events:
                 if isinstance(event, FunctionToolCallEvent):
+                    tool_parts.append(event.part)
                     call_id = event.part.tool_call_id
                     local_tracker.start_tool(call_id)
                     args = event.part.args
@@ -107,6 +114,7 @@ async def run_agent_stream(
                     })
 
                 elif isinstance(event, FunctionToolResultEvent):
+                    tool_parts.append(event.part)
                     call_id = event.part.tool_call_id if event.part else "unknown"
                     tool_name = event.part.tool_name if event.part else "unknown"
                     duration_ms = local_tracker.tool_duration_ms(call_id)
@@ -165,10 +173,29 @@ async def run_agent_stream(
                             if takeover and takeover.should_pause_agent():
                                 takeover.enter_waiting()
                                 logger.warning(f"agent paused for takeover reason={takeover.reason} trigger={takeover.trigger}")
+                                _checkpoint = PendingTakeover(
+                                    session_id=getattr(config, "chat_session_id", "") or "",
+                                    run_id=local_tracker.run_id,
+                                    checkpoint_id=checkpoint_id,
+                                    prompt=prompt,
+                                    message_history=list(message_history),
+                                    turn_new_messages=(
+                                        [ModelRequest(parts=list(tool_parts))]
+                                        if tool_parts
+                                        else []
+                                    ),
+                                    tool_invocations=list(local_tracker.tool_invocations),
+                                    final_output=full_output,
+                                    reason=takeover.reason,
+                                    trigger=takeover.trigger,
+                                    created_at=utc_now_iso(),
+                                )
+                                get_takeover_checkpoint_store().add(_checkpoint)
                                 _state = await mgr.get_state()
                                 await queue.put({
                                     "type": "human_takeover_request",
                                     "run_id": local_tracker.run_id,
+                                    "checkpoint_id": checkpoint_id,
                                     "reason": takeover.reason,
                                     "trigger": takeover.trigger,
                                     "current_url": _state.get("url", ""),

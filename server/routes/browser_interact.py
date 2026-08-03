@@ -27,6 +27,7 @@ class TakeoverCompleteRequest(BaseModel):
 
 class TakeoverCancelRequest(BaseModel):
     session_id: str
+    run_id: str = ""
 
 
 class TakeoverEnterControlRequest(BaseModel):
@@ -191,10 +192,21 @@ async def enter_human_control(body: TakeoverEnterControlRequest):
 
 @router.post("/takeover/cancel")
 async def cancel_takeover(body: TakeoverCancelRequest):
-    from browser import get_manager
-    mgr = get_manager()
-    mgr.takeover.cancel("用户取消接管")
-    return {"ok": True}
+    orchestrator = get_orchestrator(body.session_id)
+    if orchestrator is None:
+        raise HTTPException(status_code=404, detail="No active takeover for this session")
+
+    result = orchestrator.cancel_takeover(body.run_id, "用户取消接管")
+    if not result.get("ok"):
+        if result.get("error") == "run_mismatch":
+            raise HTTPException(
+                status_code=409,
+                detail="Run mismatch: the takeover belongs to a different run",
+            )
+        raise HTTPException(status_code=409, detail=result.get("error", "Cannot cancel takeover"))
+
+    remove_orchestrator(body.session_id)
+    return result
 
 
 @router.post("/takeover/show-window")

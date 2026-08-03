@@ -39,7 +39,8 @@ export function processSseStream(
                 currentEvent === "approval_request" ||
                 currentEvent === "browser_action" ||
                 currentEvent === "human_takeover_request" ||
-                currentEvent === "takeover_state_change"
+                currentEvent === "takeover_state_change" ||
+                currentEvent === "takeover_cancelled"
               ) {
                 try {
                   const obj = JSON.parse(data) as StreamRunEvent;
