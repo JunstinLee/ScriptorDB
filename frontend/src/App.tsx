@@ -398,7 +398,13 @@ function MainApp({
         )}
 
         <div className="flex flex-1 min-h-0 min-w-0">
-          {activeMainTab === "browser" ? (
+          <div
+            className={
+              activeMainTab === "browser"
+                ? "flex flex-1 min-h-0 min-w-0"
+                : "hidden"
+            }
+          >
             <BrowserWorkspace
               state={browserState}
               loading={browserLoading}
@@ -429,7 +435,15 @@ function MainApp({
               onLoadProfile={handleLoadProfile}
               sessionId={activeSessionId ?? ""}
             />
-          ) : (
+          </div>
+
+          <div
+            className={
+              activeMainTab === "chat"
+                ? "flex flex-1 min-h-0 min-w-0"
+                : "hidden"
+            }
+          >
             <ChatPanel
               activeSessionId={activeSessionId}
               messages={messages}
@@ -448,7 +462,7 @@ function MainApp({
                 setSelectedProvider(provider);
               }}
             />
-          )}
+          </div>
         </div>
       </div>
 
