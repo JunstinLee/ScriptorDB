@@ -46,6 +46,10 @@ class ApprovalOrchestrator:
         self.agent = agent
         self._run_tracker: RunTracker | None = None
 
+    @property
+    def run_id(self) -> str:
+        return self._run_tracker.run_id if self._run_tracker else ""
+
     async def start_run(
         self,
         prompt: str,
@@ -247,12 +251,16 @@ class ApprovalOrchestrator:
 
     async def resume_after_takeover(
         self,
+        run_id: str,
         takeover_result: str,
         event_callback: Callable[[dict[str, Any]], Awaitable[None]],
         run_collector: dict[str, Any],
         new_messages_collector: list[ModelMessage],
     ) -> bool:
         """Resume agent execution after human takeover completes."""
+        if run_id and (self._run_tracker is None or self._run_tracker.run_id != run_id):
+            return False
+
         from browser import get_manager
         mgr = get_manager()
         mgr.takeover.complete(takeover_result)

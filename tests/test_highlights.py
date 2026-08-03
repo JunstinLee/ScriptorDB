@@ -51,3 +51,52 @@ async def test_highlight_scroll_does_not_crash():
     page.evaluate = AsyncMock(return_value=None)
     await highlight_scroll(page, 100)
     assert page.evaluate.call_count >= 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "selector",
+    [
+        "input[name='q']",
+        "input[name=\"q\"]",
+        'input[name="va\\\\lue"]',
+        "#id\\nwith\\nnewlines",
+    ],
+)
+async def test_highlight_click_passes_selector_as_argument(selector):
+    """Selector 必须作为 page.evaluate 的参数传递，不能出现在 JS 表达式中。"""
+    page = AsyncMock()
+    page.evaluate = AsyncMock(return_value=None)
+    await highlight_click(page, selector, duration_ms=10)
+
+    selector_calls = [
+        call for call in page.evaluate.call_args_list if len(call.args) == 2
+    ]
+    assert selector_calls, "expected a page.evaluate(expression, selector) call"
+    expression, arg = selector_calls[0].args
+    assert arg == selector
+    assert selector not in expression
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "selector",
+    [
+        "input[name='q']",
+        "input[name=\"q\"]",
+        'input[name="va\\\\lue"]',
+        "#id\\nwith\\nnewlines",
+    ],
+)
+async def test_highlight_input_passes_selector_as_argument(selector):
+    page = AsyncMock()
+    page.evaluate = AsyncMock(return_value=None)
+    await highlight_input(page, selector)
+
+    selector_calls = [
+        call for call in page.evaluate.call_args_list if len(call.args) == 2
+    ]
+    assert selector_calls, "expected a page.evaluate(expression, selector) call"
+    expression, arg = selector_calls[0].args
+    assert arg == selector
+    assert selector not in expression

@@ -219,6 +219,7 @@ async def run_agent_stream(
         return await agent.run(prompt, **kwargs)
 
     run_task = asyncio.create_task(run_agent())
+    pending_get_task: asyncio.Task | None = None
 
     try:
         while True:
@@ -227,16 +228,20 @@ async def run_agent_stream(
 
             if queue.empty():
                 get_task = asyncio.create_task(queue.get())
-                done, _pending = await asyncio.wait(
-                    {get_task, run_task},
-                    return_when=asyncio.FIRST_COMPLETED,
-                )
-                if get_task not in done:
-                    get_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await get_task
-                    continue
-                ev = get_task.result()
+                pending_get_task = get_task
+                try:
+                    done, _pending = await asyncio.wait(
+                        {get_task, run_task},
+                        return_when=asyncio.FIRST_COMPLETED,
+                    )
+                    if get_task not in done:
+                        get_task.cancel()
+                        with suppress(asyncio.CancelledError):
+                            await get_task
+                        continue
+                    ev = get_task.result()
+                finally:
+                    pending_get_task = None
             else:
                 ev = queue.get_nowait()
 
@@ -316,3 +321,20 @@ async def run_agent_stream(
             "run_id": local_tracker.run_id,
             "timestamp": utc_now_iso(),
         }
+    finally:
+        if pending_get_task is not None and not pending_get_task.done():
+            pending_get_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await pending_get_task
+        if run_task.done():
+            with suppress(asyncio.CancelledError, Exception):
+                run_task.result()
+        else:
+            run_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await run_task
+        while not queue.empty():
+            try:
+                queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break

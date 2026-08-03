@@ -42,20 +42,21 @@ async def inject_highlight_runtime(page: Page) -> None:
 
 async def highlight_click(page: Page, selector: str, duration_ms: int = 600) -> None:
     await inject_highlight_runtime(page)
-    await page.evaluate(f"""
-    (() => {{
-        const el = document.querySelector('{selector}');
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        const ov = document.createElement('div');
-        ov.id = '__scdb_highlight_click';
-        ov.style.left = rect.left + 'px';
-        ov.style.top = rect.top + 'px';
-        ov.style.width = rect.width + 'px';
-        ov.style.height = rect.height + 'px';
-        document.body.appendChild(ov);
-    }})();
-    """)
+    await page.evaluate(
+        """(selector) => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            const ov = document.createElement('div');
+            ov.id = '__scdb_highlight_click';
+            ov.style.left = rect.left + 'px';
+            ov.style.top = rect.top + 'px';
+            ov.style.width = rect.width + 'px';
+            ov.style.height = rect.height + 'px';
+            document.body.appendChild(ov);
+        }""",
+        selector,
+    )
     await asyncio.sleep(duration_ms / 1000)
     await page.evaluate("""
         const el = document.getElementById('__scdb_highlight_click');
@@ -65,14 +66,15 @@ async def highlight_click(page: Page, selector: str, duration_ms: int = 600) -> 
 
 async def highlight_input(page: Page, selector: str) -> None:
     await inject_highlight_runtime(page)
-    await page.evaluate(f"""
-    (() => {{
-        const el = document.querySelector('{selector}');
-        if (!el) return;
-        el.setAttribute('data-scdb-orig-id', el.id);
-        el.id = '__scdb_highlight_input';
-    }})();
-    """)
+    await page.evaluate(
+        """(selector) => {
+            const el = document.querySelector(selector);
+            if (!el) return;
+            el.setAttribute('data-scdb-orig-id', el.id);
+            el.id = '__scdb_highlight_input';
+        }""",
+        selector,
+    )
 
 
 async def highlight_input_remove(page: Page) -> None:

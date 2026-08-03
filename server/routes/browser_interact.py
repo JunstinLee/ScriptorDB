@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -21,6 +22,7 @@ router = APIRouter(prefix="/api/browser", tags=["browser_interact"])
 class TakeoverCompleteRequest(BaseModel):
     session_id: str
     result: str
+    run_id: str = ""
 
 
 class TakeoverCancelRequest(BaseModel):
@@ -45,15 +47,12 @@ class InteractByCoordsRequest(BaseModel):
     viewport_height: int
 
 
-@router.post("/takeover/complete")
-async def complete_human_takeover(body: TakeoverCompleteRequest):
-    require_workspace()
-    config = get_config()
-
-    orchestrator = get_orchestrator(body.session_id)
-    if orchestrator is None:
-        raise HTTPException(status_code=404, detail="No active run for this session")
-
+def _stream_takeover_resume_events(
+    orchestrator,
+    run_id: str,
+    takeover_result: str,
+    session_id: str,
+) -> StreamingResponse:
     event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
     run_collector: dict[str, Any] = {}
     new_messages_collector: list[ModelMessage] = []
@@ -64,7 +63,8 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
 
     run_task = asyncio.create_task(
         orchestrator.resume_after_takeover(
-            body.result,
+            run_id,
+            takeover_result,
             event_callback,
             run_collector=run_collector,
             new_messages_collector=new_messages_collector,
@@ -74,17 +74,18 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
     async def generate():
         nonlocal run_collector, new_messages_collector, persisted
 
+        interrupted = False
         try:
             while True:
                 if run_task.done() and event_queue.empty():
                     completed = await run_task
                     if completed:
                         persist_chat_run(
-                            session_id=body.session_id,
+                            session_id=session_id,
                             new_messages_collector=new_messages_collector,
                             run_collector=run_collector,
                         )
-                        remove_orchestrator(body.session_id)
+                        remove_orchestrator(session_id)
                         persisted = True
                     break
 
@@ -102,11 +103,11 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
                     completed = await run_task
                     if completed:
                         persist_chat_run(
-                            session_id=body.session_id,
+                            session_id=session_id,
                             new_messages_collector=new_messages_collector,
                             run_collector=run_collector,
                         )
-                        remove_orchestrator(body.session_id)
+                        remove_orchestrator(session_id)
                         persisted = True
                     yield sse_event(ev_type, event)
                     yield sse_done()
@@ -117,16 +118,36 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
                     return
 
                 yield sse_event(ev_type, event)
+        except asyncio.CancelledError:
+            interrupted = True
+            raise
         finally:
-            if not persisted and run_task.done():
+            if interrupted:
+                if run_task.done():
+                    try:
+                        if run_task.result() and run_collector.get("run_id"):
+                            persist_chat_run(
+                                session_id=session_id,
+                                new_messages_collector=new_messages_collector,
+                                run_collector=run_collector,
+                            )
+                            remove_orchestrator(session_id)
+                    except Exception:
+                        pass
+                else:
+                    run_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await run_task
+                    remove_orchestrator(session_id)
+            elif not persisted and run_task.done():
                 try:
                     if run_task.result() and run_collector.get("run_id"):
                         persist_chat_run(
-                            session_id=body.session_id,
+                            session_id=session_id,
                             new_messages_collector=new_messages_collector,
                             run_collector=run_collector,
                         )
-                        remove_orchestrator(body.session_id)
+                        remove_orchestrator(session_id)
                 except Exception:
                     pass
 
@@ -138,6 +159,25 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
+    )
+
+
+@router.post("/takeover/complete")
+async def complete_human_takeover(body: TakeoverCompleteRequest):
+    require_workspace()
+    get_config()
+
+    orchestrator = get_orchestrator(body.session_id)
+    if orchestrator is None:
+        raise HTTPException(status_code=404, detail="No active run for this session")
+    if body.run_id and orchestrator.run_id != body.run_id:
+        raise HTTPException(
+            status_code=409,
+            detail="Run mismatch: the takeover belongs to a different run",
+        )
+
+    return _stream_takeover_resume_events(
+        orchestrator, body.run_id, body.result, body.session_id
     )
 
 
