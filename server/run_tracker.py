@@ -58,7 +58,6 @@ class RunTracker:
             "status": "running",
             "started_at": utc_now_iso(),
         })
-        print(f"[CANCEL_TRACE] TRACKER_ADD_TOOL run_id={self.run_id} call_id={call_id} tool={tool_name} total_tools={len(self.tool_invocations)}")
 
     def complete_tool(
         self,
@@ -77,9 +76,7 @@ class RunTracker:
                 inv["duration_ms"] = duration_ms
                 inv["data"] = data
                 inv["ended_at"] = utc_now_iso()
-                print(f"[CANCEL_TRACE] TRACKER_COMPLETE_TOOL run_id={self.run_id} call_id={call_id} found=True status={inv['status']} output={str(output)[:50] if output else None}")
                 return
-        print(f"[CANCEL_TRACE] TRACKER_COMPLETE_TOOL_NOT_FOUND run_id={self.run_id} call_id={call_id} existing_ids={[t['call_id'] for t in self.tool_invocations]}")
 
     def append_text(self, delta: str) -> None:
         self.final_output += delta
@@ -87,7 +84,6 @@ class RunTracker:
     def finish(self) -> None:
         self.status = "completed"
         self.ended_at = utc_now_iso()
-        print(f"[CANCEL_TRACE] TRACKER_FINISH run_id={self.run_id} status=completed tool_count={len(self.tool_invocations)} tools={[(t['call_id'],t['status']) for t in self.tool_invocations]}")
 
     def fail(self, message: str) -> None:
         self.status = "error"

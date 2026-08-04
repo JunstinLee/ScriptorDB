@@ -3,7 +3,7 @@ import { WorkspaceNotSelectedError } from "./core";
 
 const BASE = "/api";
 
-function processSseStream(
+export function processSseStream(
   res: Response,
   onEvent: (event: StreamRunEvent) => void,
   onError: (error: Error) => void,
@@ -36,14 +36,18 @@ function processSseStream(
                 currentEvent === "tool_result" ||
                 currentEvent === "metadata" ||
                 currentEvent === "error" ||
-                currentEvent === "approval_request"
+                currentEvent === "approval_request" ||
+                currentEvent === "browser_action" ||
+                currentEvent === "human_takeover_request" ||
+                currentEvent === "takeover_state_change" ||
+                currentEvent === "takeover_cancelled"
               ) {
                 try {
                   const obj = JSON.parse(data) as StreamRunEvent;
                   console.log(
                     "[stream] SSE event: type=%s run_id=%s",
                     obj.type,
-                    (obj as any).run_id ?? "-",
+                    (obj as unknown as { run_id?: string }).run_id ?? "-",
                   );
                   onEvent(obj);
                   if (obj.type === "metadata") {

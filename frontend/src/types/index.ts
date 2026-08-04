@@ -285,6 +285,32 @@ export interface ApprovalRequestEvent {
   }[];
 }
 
+export interface HumanTakeoverRequestEvent {
+  type: "human_takeover_request";
+  run_id: string;
+  checkpoint_id?: string;
+  reason: string;
+  current_url: string;
+  screenshot_available: boolean;
+  timestamp: string;
+}
+
+export interface TakeoverStateChangeEvent {
+  type: "takeover_state_change";
+  run_id: string;
+  state: "waiting_human" | "human_control" | "resuming" | "cancelled";
+  reason: string;
+  trigger: string;
+  timestamp: string;
+}
+
+export interface TakeoverCancelledEvent {
+  type: "takeover_cancelled";
+  run_id: string;
+  reason: string;
+  timestamp: string;
+}
+
 export type StreamRunEvent =
   | RunStartEvent
   | RunEndEvent
@@ -294,7 +320,11 @@ export type StreamRunEvent =
   | TextDeltaEvent
   | RunMetadataEvent
   | RunErrorEvent
-  | ApprovalRequestEvent;
+  | ApprovalRequestEvent
+  | BrowserActionEvent
+  | HumanTakeoverRequestEvent
+  | TakeoverStateChangeEvent
+  | TakeoverCancelledEvent;
 
 export interface ToolInvocation {
   call_id: string;
@@ -324,6 +354,7 @@ export interface Run {
   started_at: string;
   ended_at?: string;
   error_message?: string;
+  browser_actions?: BrowserActionEvent[];
 }
 
 export interface UndoGroup {
@@ -377,6 +408,23 @@ export interface BrowserAction {
   success: boolean;
 }
 
+/** SSE 推送的实时浏览器操作事件 */
+export interface BrowserActionEvent {
+  type: "browser_action";
+  run_id: string;
+  tool: string;
+  selector: string;
+  coords: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  success: boolean;
+  detail: string;
+  timestamp: string;
+}
+
 /** 浏览器页面历史条目 */
 export interface BrowserHistoryEntry {
   url: string;
@@ -392,4 +440,89 @@ export interface BrowserState {
   screenshot_available: boolean;
   actions: BrowserAction[];
   history: BrowserHistoryEntry[];
+}
+
+export interface InteractRequest {
+  action: "click" | "fill" | "press_key" | "scroll" | "navigate" | "go_back" | "go_forward";
+  selector?: string;
+  value?: string;
+  scroll_pixels?: number;
+}
+
+export interface InteractByCoordsRequest {
+  x: number;
+  y: number;
+  viewport_width: number;
+  viewport_height: number;
+}
+
+export interface InteractResponse {
+  ok: boolean;
+  action: string;
+  selector: string;
+  detail: string;
+}
+
+export interface TakeoverCompleteRequest {
+  session_id: string;
+  result: string;
+}
+
+export interface TakeoverEnterControlRequest {
+  session_id: string;
+}
+
+export interface TakeoverCancelRequest {
+  session_id: string;
+  run_id?: string;
+}
+
+export interface ViewportSizeResponse {
+  width: number;
+  height: number;
+}
+
+// ==================== Browser Cookies & Profiles ====================
+
+export interface CookieInfo {
+  name: string;
+  domain: string;
+  path: string;
+  expires: number | null;
+  http_only: boolean;
+  secure: boolean;
+  same_site: string;
+}
+
+export interface CookiesResponse {
+  cookies: CookieInfo[];
+  count: number;
+  current_url: string;
+}
+
+export interface BrowserProfileItem {
+  name: string;
+  domain: string;
+  cookie_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProfilesResponse {
+  profiles: BrowserProfileItem[];
+}
+
+export interface SaveProfileRequest {
+  name: string;
+}
+
+export interface SetCookieRequest {
+  name: string;
+  value: string;
+  domain?: string;
+  path?: string;
+  secure?: boolean;
+  http_only?: boolean;
+  same_site?: string;
+  expires?: number;
 }

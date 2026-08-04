@@ -73,3 +73,41 @@ class ApprovalRequestEvent(BaseModel):
     run_id: str
     request_id: str
     calls: list[dict[str, Any]]
+
+
+class BrowserActionEvent(BaseModel):
+    type: Literal["browser_action"] = "browser_action"
+    run_id: str
+    tool: str
+    selector: str = ""
+    coords: dict = {}
+    success: bool = True
+    detail: str = ""
+    timestamp: str = ""
+
+
+class HumanTakeoverRequestEvent(BaseModel):
+    type: Literal["human_takeover_request"] = "human_takeover_request"
+    run_id: str
+    checkpoint_id: str = ""
+    reason: str
+    trigger: str = ""
+    current_url: str = ""
+    screenshot_available: bool = False
+    timestamp: str
+
+
+class TakeoverStateChangeEvent(BaseModel):
+    type: Literal["takeover_state_change"] = "takeover_state_change"
+    run_id: str
+    state: str  # "waiting_human" | "human_control" | "resuming" | "cancelled"
+    reason: str = ""
+    trigger: str = ""
+    timestamp: str
+
+
+class TakeoverCancelledEvent(BaseModel):
+    type: Literal["takeover_cancelled"] = "takeover_cancelled"
+    run_id: str
+    reason: str
+    timestamp: str

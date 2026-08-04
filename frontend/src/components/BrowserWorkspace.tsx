@@ -1,91 +1,38 @@
-import { Monitor, Loader2, Check, X, ImageIcon } from "lucide-react";
-import type { BrowserState, BrowserAction, BrowserHistoryEntry } from "../types";
+import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
+import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo } from "../types";
 import { getScreenshotUrl } from "../api/browser";
+import { BrowserSessionInfo } from "./BrowserSessionInfo";
+import { BrowserViewportStream } from "./BrowserViewportStream";
+import { BrowserStatusBar } from "./BrowserStatusBar";
+import { HumanTakeoverDrawer } from "./HumanTakeoverPanel";
+import type { TakeoverInfo } from "../hooks/useTakeoverState";
 
 interface BrowserWorkspaceProps {
   state: BrowserState | null;
   loading: boolean;
   error: string | null;
+  actions?: BrowserActionEvent[];
+  isRunning?: boolean;
+  takeoverInfo: TakeoverInfo;
+  onTakeoverComplete?: (result: string) => void;
+  onTakeoverCancel?: () => void;
+  onEnterHumanControl?: () => void;
+  onShowTakeoverWindow?: () => void;
+  onClearActions?: () => void;
+  profiles?: BrowserProfileItem[];
+  cookies?: CookieInfo[];
+  cookiesLoading?: boolean;
+  onLoadProfile?: (name: string) => void;
+  sessionId?: string;
 }
 
-/** ISO 8601 时间字符串 → 相对时间文本（"刚刚"、"3秒前"、"1分前"） */
-function formatRelativeTime(isoString: string): string {
-  const then = new Date(isoString).getTime();
-  const now = Date.now();
-  const seconds = Math.floor((now - then) / 1000);
-
-  if (seconds < 5) return "刚刚";
-  if (seconds < 60) return `${seconds}秒前`;
-
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}分前`;
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}小时前`;
-
-  return new Date(isoString).toLocaleDateString("zh-CN");
-}
-
-function ActionEntry({ action, isLatest }: { action: BrowserAction; isLatest: boolean }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md px-2 py-1.5 hover:bg-default/30">
-      {isLatest ? (
-        <Loader2 className="mt-0.5 size-3 shrink-0 animate-spin text-accent" />
-      ) : action.success ? (
-        <Check className="mt-0.5 size-3 shrink-0 text-success" />
-      ) : (
-        <X className="mt-0.5 size-3 shrink-0 text-danger" />
-      )}
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <span className="shrink-0 rounded bg-default/50 px-1.5 text-[11px] font-medium text-foreground/80">
-            {action.tool}
-          </span>
-          <span className="shrink-0 text-[11px] text-muted">
-            {formatRelativeTime(action.timestamp)}
-          </span>
-        </div>
-        <p className="mt-0.5 truncate text-xs text-muted">
-          {action.detail}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function HistoryEntry({ entry, isCurrent }: { entry: BrowserHistoryEntry; isCurrent: boolean }) {
-  return (
-    <div className="flex items-center gap-2 rounded px-2 py-1 hover:bg-default/30">
-      <span
-        className={`size-2 shrink-0 rounded-full ${
-          isCurrent ? "bg-accent" : "border border-muted bg-transparent"
-        }`}
-      />
-
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs text-foreground">
-          {safeUrlDisplay(entry.url)}
-        </p>
-        <p className="text-[10px] text-muted">
-          {formatRelativeTime(entry.timestamp)}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function safeUrlDisplay(url: string): string {
-  try {
-    const u = new URL(url);
-    const path = u.pathname.length > 1 ? u.pathname : "";
-    return u.hostname + path;
-  } catch {
-    return url;
-  }
-}
-
-function BrowserViewport({ state, loading }: { state: BrowserState | null; loading: boolean }) {
+function BrowserViewport({
+  state,
+  loading,
+}: {
+  state: BrowserState | null;
+  loading: boolean;
+}) {
   if (!state?.launched) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6">
@@ -121,6 +68,7 @@ function BrowserViewport({ state, loading }: { state: BrowserState | null; loadi
             src={getScreenshotUrl()}
             alt={state.title ?? "页面截图"}
             className="h-full w-full object-contain"
+            style={{ cursor: "default" }}
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -150,59 +98,23 @@ function BrowserViewport({ state, loading }: { state: BrowserState | null; loadi
   );
 }
 
-function ExecutionTimeline({ state, loading }: { state: BrowserState | null; loading: boolean }) {
-  const actions = state?.actions ?? [];
-  const history = state?.history ?? [];
-
-  const reversedActions = [...actions].reverse();
-  const reversedHistory = [...history].reverse();
-
-  const isCurrentUrl = (url: string) => state?.url === url;
-
-  return (
-    <div className="flex w-[38%] min-w-0 shrink-0 flex-col gap-4 overflow-y-auto border-l border-grid px-4 py-3">
-      <div>
-        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-          执行日志
-        </h3>
-
-        {reversedActions.length === 0 ? (
-          <p className="text-xs text-muted">暂无操作记录</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {reversedActions.map((action, i) => (
-              <ActionEntry
-                key={`${action.tool}-${action.timestamp}-${i}`}
-                action={action}
-                isLatest={i === 0 && loading}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {reversedHistory.length > 0 && (
-        <div>
-          <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted">
-            页面历史
-          </h3>
-
-          <div className="flex flex-col gap-1.5">
-            {reversedHistory.map((entry, i) => (
-              <HistoryEntry
-                key={`${entry.url}-${entry.timestamp}-${i}`}
-                entry={entry}
-                isCurrent={isCurrentUrl(entry.url)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function BrowserWorkspace({ state, loading, error }: BrowserWorkspaceProps) {
+export function BrowserWorkspace({
+  state,
+  loading,
+  error,
+  takeoverInfo,
+  onTakeoverComplete,
+  onTakeoverCancel,
+  onEnterHumanControl,
+  onShowTakeoverWindow,
+  profiles,
+  cookies,
+  cookiesLoading,
+  onLoadProfile,
+  sessionId,
+  actions,
+  isRunning,
+}: BrowserWorkspaceProps) {
   if (error) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -216,9 +128,55 @@ export function BrowserWorkspace({ state, loading, error }: BrowserWorkspaceProp
   }
 
   return (
-    <div className="flex flex-1 min-h-0 min-w-0">
-      <BrowserViewport state={state} loading={loading} />
-      <ExecutionTimeline state={state} loading={loading} />
+    <div className="flex flex-1 flex-col min-h-0 min-w-0">
+      <BrowserStatusBar
+        phase={takeoverInfo.phase}
+        reason={takeoverInfo.reason}
+        trigger={takeoverInfo.trigger}
+        remainingSeconds={takeoverInfo.remainingSeconds}
+        browserRunning={!!state?.launched}
+      />
+
+      {state?.launched && (
+        <BrowserSessionInfo
+          profiles={profiles ?? []}
+          cookies={cookies ?? []}
+          cookiesLoading={cookiesLoading ?? false}
+          browserLaunched={state.launched}
+          currentUrl={state?.url ?? ""}
+          onLoadProfile={onLoadProfile}
+          actions={actions}
+          isRunning={isRunning}
+        />
+      )}
+
+      <div className="flex flex-1 min-h-0 min-w-0">
+        {state?.launched ? (
+          <BrowserViewportStream
+            takeoverActive={takeoverInfo.phase === "human_control"}
+          />
+        ) : (
+          <BrowserViewport state={state} loading={loading} />
+        )}
+      </div>
+
+      {(takeoverInfo.phase === "waiting_human" ||
+        takeoverInfo.phase === "human_control" ||
+        takeoverInfo.phase === "resuming") && (
+        <HumanTakeoverDrawer
+          phase={takeoverInfo.phase}
+          reason={takeoverInfo.reason}
+          currentUrl={state?.url ?? ""}
+          trigger={takeoverInfo.trigger}
+          remainingSeconds={takeoverInfo.remainingSeconds}
+          onEnterControl={onEnterHumanControl ?? (() => {})}
+          onCancel={onTakeoverCancel ?? (() => {})}
+          onComplete={onTakeoverComplete ?? (() => {})}
+          onShowWindow={onShowTakeoverWindow ?? (() => {})}
+          runId={takeoverInfo.runId}
+          sessionId={sessionId ?? ""}
+        />
+      )}
     </div>
   );
 }

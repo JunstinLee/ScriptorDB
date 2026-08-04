@@ -4,7 +4,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 
-**An open-source AI agent that connects databases, files, and the web, then uses tools to analyze information and take actions safely.
+**An AI agent that reads your SQLite database and answers questions in plain English.** No SQL required. No schema docs to write. Just point it at your `.sqlite` file and start asking.
 
 ![Demo GIF](TODO: add demo gif here)
 
@@ -63,16 +63,6 @@ Paste a URL, and the agent fetches and analyzes the page content alongside your 
 
 - **URL + question in one prompt** — Type your question, paste a URL, and the agent crawls the page as Markdown, then answers using both the page content and your database context.
 - **Built on crawl4ai** — Pages are rendered and extracted to clean Markdown (up to 50K characters), preserving headings, tables, and text structure.
-
-### 🖥️ Browser Control — Let the Agent Drive a Real Browser (Under Development)
-
-The agent can launch a Chromium browser, navigate pages, interact with elements, extract data, and take screenshots — all driven by natural language.Browser functionality can be enabled/disabled per workspace.
-
-- **Full Playwright integration** — Headless or visible Chrome. Navigate, click, fill forms, press keys, scroll, go back/forward.
-- **DOM querying** — Extract text, attributes, and image sources from any element via CSS selectors.
-- **JavaScript execution** — Run arbitrary JS in the page context and get results back.
-- **Cookie management** — Get, set, and clear cookies for authenticated sessions.
-- **State tracking** — Navigation history, action log, and screenshot snapshots with a 30-second TTL.
 
 
 ### 🔍 Search Session History
@@ -143,7 +133,6 @@ Email: justinlee@aivault.dev
 ```
 ScriptorDB/
 ├── agents/              # Pydantic AI agent, toolsets, audit/undo hooks
-├── browser/             # Playwright browser automation: launch, navigate, interact, query, screenshot
 ├── cli/                 # Typer commands: setup, ask, interactive, serve, workspace, undo
 ├── config/              # Settings, workspace registry, model resolution, secrets, global defaults
 ├── frontend/            # React 19 + Vite + TypeScript + HeroUI + Tailwind CSS v4
@@ -164,7 +153,6 @@ ScriptorDB/
 - [x] CLI, FastAPI backend, and React frontend
 - [x] Session persistence with TTL
 - [x] Undo log for write operations
-- [ ] Browser control — Playwright-powered browser automation (in progress, core tools available)
 - [ ] Fine-grained permission model per workspace
 - [ ] Query result diffing and rollback snapshots
 - [ ] Built-in prompt-injection test harness

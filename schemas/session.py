@@ -33,7 +33,7 @@ class StoredToolInvocation(BaseModel):
 
 class StoredRun(BaseModel):
     run_id: str
-    status: Literal["running", "completed", "error"] = "running"
+    status: Literal["running", "completed", "error", "cancelled"] = "running"
     tool_invocations: list[StoredToolInvocation] = Field(default_factory=list)
     trace_steps: list[Any] = Field(default_factory=list)
     final_output: str = ""

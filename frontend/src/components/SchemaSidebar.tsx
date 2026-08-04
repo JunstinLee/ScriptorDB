@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type Key } from "react";
 import { Tabs } from "@heroui/react";
-import { PanelRightClose, PanelRightOpen, Database, Wrench, List, Map } from "lucide-react";
-import type { BrowserState, Run, SchemaTable } from "../types";
+import { PanelRightClose, PanelRightOpen, Database, Wrench, List, Map, Globe } from "lucide-react";
+import type { BrowserState, Run, SchemaTable, BrowserProfileItem, CookieInfo } from "../types";
 import SchemaMap from "./SchemaMap";
 import SchemaViewer from "./SchemaViewer";
 import ToolsPanel from "./ToolsPanel";
+import BrowserProfilePanel from "./BrowserProfilePanel";
+import CookieViewer from "./CookieViewer";
 
 interface SchemaSidebarProps {
   tables: SchemaTable[];
@@ -15,7 +17,19 @@ interface SchemaSidebarProps {
   showSchemaSql: boolean;
   browserState: BrowserState | null;
   browserLoading: boolean;
+  browserEnabled: boolean;
   onViewBrowser: () => void;
+  profiles?: BrowserProfileItem[];
+  profilesLoading?: boolean;
+  cookies?: CookieInfo[];
+  cookiesLoading?: boolean;
+  onSaveProfile?: (name: string) => void;
+  onLoadProfile?: (name: string) => void;
+  onDeleteProfile?: (name: string) => void;
+  onUpdateProfile?: (name: string) => void;
+  onDeleteCookie?: (name: string) => void;
+  onClearCookies?: () => void;
+  onRefreshCookies?: () => void;
 }
 
 export default function SchemaSidebar({
@@ -27,7 +41,19 @@ export default function SchemaSidebar({
   showSchemaSql,
   browserState,
   browserLoading,
+  browserEnabled,
   onViewBrowser,
+  profiles,
+  profilesLoading,
+  cookies,
+  cookiesLoading,
+  onSaveProfile,
+  onLoadProfile,
+  onDeleteProfile,
+  onUpdateProfile,
+  onDeleteCookie,
+  onClearCookies,
+  onRefreshCookies,
 }: SchemaSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [selectedTab, setSelectedTab] = useState("schema");
@@ -35,16 +61,12 @@ export default function SchemaSidebar({
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const prevToolCountRef = useRef(0);
 
+  const effectiveCollapsed = collapsed && !highlightedRunId;
+  const effectiveSelectedTab = highlightedRunId ? "tools" : selectedTab;
+
   const toggleCollapse = useCallback(() => {
     setCollapsed((prev) => !prev);
   }, []);
-
-  useEffect(() => {
-    if (highlightedRunId) {
-      setCollapsed(false);
-      setSelectedTab("tools");
-    }
-  }, [highlightedRunId]);
 
   useEffect(() => {
     prevToolCountRef.current = 0;
@@ -67,7 +89,7 @@ export default function SchemaSidebar({
     [],
   );
 
-  if (collapsed) {
+  if (effectiveCollapsed) {
     return (
       <aside className="flex w-14 shrink-0 flex-col items-center gap-3 border-l py-3">
         <button
@@ -85,7 +107,7 @@ export default function SchemaSidebar({
     <aside className="flex w-[360px] shrink-0 flex-col border-l">
       <div className="flex items-center gap-2 border-b border-grid px-3 py-2">
         <Tabs
-          selectedKey={selectedTab}
+          selectedKey={effectiveSelectedTab}
           onSelectionChange={(key: Key) => setSelectedTab(String(key))}
           className="w-auto"
         >
@@ -104,6 +126,13 @@ export default function SchemaSidebar({
                 Tools
                 <Tabs.Indicator className="bg-cobalt" />
               </Tabs.Tab>
+              {browserEnabled && (
+                <Tabs.Tab id="profiles">
+                  <Globe className="mr-1.5 inline size-3.5 text-graphite" />
+                  Profiles
+                  <Tabs.Indicator className="bg-cobalt" />
+                </Tabs.Tab>
+              )}
             </Tabs.List>
           </Tabs.ListContainer>
         </Tabs>
@@ -119,7 +148,7 @@ export default function SchemaSidebar({
       </div>
 
       <div className="flex flex-1 flex-col overflow-y-auto py-2">
-        {selectedTab === "schema" ? (
+        {effectiveSelectedTab === "schema" ? (
           <div className="flex flex-1 flex-col gap-2 min-h-0">
             <div className="flex items-center gap-1 px-3">
               <button
@@ -166,7 +195,7 @@ export default function SchemaSidebar({
               />
             )}
           </div>
-        ) : (
+        ) : effectiveSelectedTab === "tools" ? (
           <div className="px-2">
             {!activeSessionId ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted">
@@ -175,6 +204,27 @@ export default function SchemaSidebar({
             ) : (
               <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} browserState={browserState} browserLoading={browserLoading} onViewBrowser={onViewBrowser} />
             )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            <BrowserProfilePanel
+              profiles={profiles ?? []}
+              loading={profilesLoading ?? false}
+              onSave={onSaveProfile ?? (() => {})}
+              onLoad={onLoadProfile ?? (() => {})}
+              onDelete={onDeleteProfile ?? (() => {})}
+              onUpdate={onUpdateProfile ?? (() => {})}
+              browserLaunched={browserState?.launched ?? false}
+            />
+            <CookieViewer
+              cookies={cookies ?? []}
+              loading={cookiesLoading ?? false}
+              currentUrl={browserState?.url ?? ""}
+              browserLaunched={browserState?.launched ?? false}
+              onDeleteCookie={onDeleteCookie ?? (() => {})}
+              onClearAll={onClearCookies ?? (() => {})}
+              onRefresh={onRefreshCookies ?? (() => {})}
+            />
           </div>
         )}
       </div>

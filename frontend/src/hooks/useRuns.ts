@@ -127,6 +127,12 @@ function applyEventToRun(run: Run, event: StreamRunEvent): Run {
         ended_at: event.timestamp,
       };
     }
+    case "browser_action": {
+      return {
+        ...run,
+        browser_actions: [...(run.browser_actions || []), event],
+      };
+    }
     default:
       return run;
   }

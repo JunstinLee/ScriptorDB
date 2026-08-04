@@ -5,14 +5,28 @@ from typing import Literal
 
 from playwright.async_api import Page
 
+from logging_setup import get_logger
+
+logger = get_logger("browser.context")
+
 WaitUntil = Literal["commit", "domcontentloaded", "load", "networkidle"]
 LoadState = Literal["domcontentloaded", "load", "networkidle"]
 SelectorState = Literal["attached", "detached", "visible", "hidden"]
 
 
 async def navigate(page: Page, url: str, wait_until: WaitUntil = "domcontentloaded") -> str:
-    await page.goto(url, wait_until=wait_until)
-    return f"Navigated to {url}"
+    logger.info(f"page.goto url={url}")
+    try:
+        await page.goto(url, wait_until=wait_until)
+        try:
+            from browser import get_manager
+            await get_manager().notify_screencast_restart()
+        except Exception:
+            pass
+        return f"Navigated to {url}"
+    except Exception as e:
+        logger.error(f"page.goto failed url={url} error={e}")
+        return f"Navigation failed: {e}"
 
 
 async def wait_for_load_state(page: Page, state: LoadState = "load") -> str:

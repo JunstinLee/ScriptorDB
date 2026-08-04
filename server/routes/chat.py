@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from typing import Any
 
 from fastapi import APIRouter, HTTPException
@@ -23,6 +24,17 @@ router = APIRouter(prefix="/api/sessions", tags=["chat"])
 _active_orchestrators: dict[str, ApprovalOrchestrator] = {}
 
 
+def _persist_paused_run(session_id: str, summary: dict[str, Any]) -> None:
+    session = get_session_store().get(session_id)
+    if session is None:
+        return
+    if summary.get("new_messages"):
+        session.add_model_messages(summary["new_messages"])
+    if summary.get("final_output"):
+        session.add_assistant_message(summary["final_output"])
+    get_session_store().save()
+
+
 async def _stream_orchestrator_events(
     orchestrator: ApprovalOrchestrator,
     prompt: str,
@@ -43,6 +55,7 @@ async def _stream_orchestrator_events(
     async def generate():
         nonlocal run_collector, new_messages_collector
 
+        interrupted = False
         try:
             while True:
                 if run_task.done() and event_queue.empty():
@@ -62,29 +75,61 @@ async def _stream_orchestrator_events(
 
                 if ev_type == "approval_request":
                     return
+                if ev_type == "human_takeover_request":
+                    return
+                if ev_type == "takeover_state_change":
+                    yield sse_event(ev_type, event)
+                    if event.get("state") == "cancelled":
+                        return
+                    continue
+                if ev_type == "takeover_cancelled":
+                    yield sse_event(ev_type, event)
+                    continue
                 if ev_type == "run_end":
                     yield sse_done()
                     break
+        except asyncio.CancelledError:
+            interrupted = True
+            raise
         finally:
-            summary = await run_task
-            if summary["status"] == "completed":
-                new_messages_collector.extend(summary.get("new_messages", []))
-                persist_chat_run(
-                    session_id=session_id,
-                    new_messages_collector=new_messages_collector,
-                    run_collector=summary,
-                )
-            elif summary["status"] == "running":
-                # Paused for deferred-tool approval: checkpoint the user message
-                # and this turn's model messages (incl. the deferred tool calls)
-                # so a backend restart does not lose the turn.
-                session = get_session_store().get(session_id)
-                if session is not None:
-                    if summary.get("new_messages"):
-                        session.add_model_messages(summary["new_messages"])
-                    if summary.get("final_output"):
-                        session.add_assistant_message(summary["final_output"])
-                    get_session_store().save()
+            if interrupted:
+                if run_task.done():
+                    with suppress(Exception):
+                        summary = run_task.result()
+                        if summary["status"] == "completed":
+                            new_messages_collector.extend(
+                                summary.get("new_messages", [])
+                            )
+                            persist_chat_run(
+                                session_id=session_id,
+                                new_messages_collector=new_messages_collector,
+                                run_collector=summary,
+                            )
+                            from browser import get_manager
+                            get_manager().schedule_idle_close()
+                        elif summary["status"] == "running":
+                            _persist_paused_run(session_id, summary)
+                else:
+                    run_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await run_task
+                    remove_orchestrator(session_id)
+            else:
+                summary = await run_task
+                if summary["status"] == "completed":
+                    new_messages_collector.extend(summary.get("new_messages", []))
+                    persist_chat_run(
+                        session_id=session_id,
+                        new_messages_collector=new_messages_collector,
+                        run_collector=summary,
+                    )
+                    from browser import get_manager
+                    get_manager().schedule_idle_close()
+                elif summary["status"] == "running":
+                    # Paused for deferred-tool approval: checkpoint the user message
+                    # and this turn's model messages (incl. the deferred tool calls)
+                    # so a backend restart does not lose the turn.
+                    _persist_paused_run(session_id, summary)
 
     return StreamingResponse(
         generate(),
