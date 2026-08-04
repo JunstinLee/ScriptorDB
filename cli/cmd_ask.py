@@ -33,7 +33,7 @@ def ask(
         config.llm_provider = provider
 
     if model:
-        matched = resolve_user_model(config.llm_provider, model)
+        matched = resolve_user_model(config.llm_provider, model, config.workspace_id)
         if matched and matched != model:
             typer.echo(f"Using model: {matched}")
         model = matched

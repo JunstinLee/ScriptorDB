@@ -49,21 +49,21 @@ def test_resolve_model_unsupported_provider():
 
 def test_fuzzy_match_exact(monkeypatch):
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True: ["gpt-4o", "gpt-4.1"]
+        models, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
     )
     assert models.fuzzy_match_model("openai", "gpt-4o") == "gpt-4o"
 
 
 def test_fuzzy_match_substring_unique(monkeypatch):
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True: ["gpt-4o", "gpt-4.1"]
+        models, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
     )
     assert models.fuzzy_match_model("openai", "4.1") == "gpt-4.1"
 
 
 def test_fuzzy_match_no_match(monkeypatch):
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True: ["gpt-4o", "gpt-4.1"]
+        models, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
     )
     assert models.fuzzy_match_model("openai", "claude") is None
 
@@ -92,7 +92,7 @@ def test_get_recommended_models_finds_top(monkeypatch):
     monkeypatch.setattr(
         models,
         "list_available_models",
-        lambda provider, use_cache=True: ["gpt-5.5", "gpt-5.5-pro", "claude-opus-4-8", "gemini-3.5-flash"],
+        lambda provider, use_cache=True, **kwargs: ["gpt-5.5", "gpt-5.5-pro", "claude-opus-4-8", "gemini-3.5-flash"],
     )
     result = models.get_recommended_models("openai")
     assert "gpt-5.5" in result
@@ -105,7 +105,7 @@ def test_get_recommended_models_substring_fallback(monkeypatch):
     monkeypatch.setattr(
         models,
         "list_available_models",
-        lambda provider, use_cache=True: ["openai/gpt-5.5-pro-2025", "anthropic/claude-opus-4-8"],
+        lambda provider, use_cache=True, **kwargs: ["openai/gpt-5.5-pro-2025", "anthropic/claude-opus-4-8"],
     )
     result = models.get_recommended_models("openai")
     assert "openai/gpt-5.5-pro-2025" in result

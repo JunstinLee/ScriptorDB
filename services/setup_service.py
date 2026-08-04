@@ -46,7 +46,7 @@ def configure_setup(config=None) -> None:
     typer.echo(f"\nAPI key for {provider} saved to system keychain.")
 
     try:
-        models = list_available_models(provider, use_cache=False)
+        models = list_available_models(provider, use_cache=False, workspace_id=config.workspace_id)
     except Exception as e:
         typer.echo(f"\nCould not fetch model list: {e}", err=True)
         typer.echo("You can still pass --model when running queries.")

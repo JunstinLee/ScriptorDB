@@ -53,7 +53,7 @@ class AppConfig:
     def resolved_model(self) -> str:
         from config.models import resolve_model
 
-        return resolve_model(self.llm_provider, self.llm_model)
+        return resolve_model(self.llm_provider, self.llm_model, self.workspace_id)
 
     def get_default_model(self, provider: str) -> str | None:
         return self.default_models.get(provider)
