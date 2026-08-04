@@ -10,7 +10,7 @@ from config.model_client import list_available_models
 from config.secrets import SUPPORTED_PROVIDERS
 
 
-def get_recommended_models(provider: str) -> list[str]:
+def get_recommended_models(provider: str, workspace_id: str | None = None) -> list[str]:
     """获取 provider 的推荐模型列表（返回 provider 特定的模型 ID）。
 
     优先基于 Canonical Model Registry：
@@ -22,7 +22,7 @@ def get_recommended_models(provider: str) -> list[str]:
     列表（基于 slug 的子串匹配）。
     """
     try:
-        models = list_available_models(provider)
+        models = list_available_models(provider, workspace_id=workspace_id)
     except Exception:
         models = []
 
@@ -82,7 +82,7 @@ def resolve_canonical_slug(provider: str, model_id: str) -> str | None:
     return canonical.slug if canonical else None
 
 
-def resolve_model(provider: str, model: str | None) -> str:
+def resolve_model(provider: str, model: str | None, workspace_id: str | None = None) -> str:
     """解析出最终给 pydantic_ai 用的 'provider:model' 字符串。
 
     - 如果 model 已经是 'provider:' 前缀开头，原样返回
@@ -101,7 +101,7 @@ def resolve_model(provider: str, model: str | None) -> str:
             return model
         return f"{prefix}{model}"
 
-    models = list_available_models(provider)
+    models = list_available_models(provider, workspace_id=workspace_id)
     if not models:
         raise RuntimeError(
             f"No models available for {provider}. "
@@ -110,11 +110,11 @@ def resolve_model(provider: str, model: str | None) -> str:
     return f"{prefix}{models[0]}"
 
 
-def fuzzy_match_model(provider: str, query: str) -> str | None:
+def fuzzy_match_model(provider: str, query: str, workspace_id: str | None = None) -> str | None:
     """根据用户输入的子串在可用模型中查找匹配项。"""
     if not query:
         return None
-    models = list_available_models(provider)
+    models = list_available_models(provider, workspace_id=workspace_id)
     q = query.lower()
     exact = [m for m in models if m.lower() == q]
     if exact:

@@ -136,7 +136,7 @@ def test_get_recommended_models_uses_canonical(monkeypatch):
         "text-embedding-3-small",
     ]
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True: fake_models
+        models, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
     )
 
     result = models.get_recommended_models("openrouter")
@@ -153,7 +153,7 @@ def test_get_recommended_models_together_hf_style(monkeypatch):
         "totally-unrelated/foo",
     ]
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True: fake_models
+        models, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
     )
 
     result = models.get_recommended_models("together")
@@ -169,7 +169,7 @@ def test_get_recommended_models_deduplicates(monkeypatch):
         "deepseek-v4-pro",
     ]
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True: fake_models
+        models, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
     )
 
     result = models.get_recommended_models("openrouter")
@@ -179,7 +179,7 @@ def test_get_recommended_models_deduplicates(monkeypatch):
 def test_get_recommended_models_no_match_returns_empty(monkeypatch):
     fake_models = ["totally/unrelated", "another/random"]
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True: fake_models
+        models, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
     )
 
     result = models.get_recommended_models("openrouter")

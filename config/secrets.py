@@ -291,31 +291,6 @@ class ProviderConfig:
 
 
 SUPPORTED_PROVIDERS: dict[str, ProviderConfig] = {
-    "openai": ProviderConfig(
-        base_url="https://api.openai.com/v1",
-        list_models_path="/models",
-        model_prefix="openai:",
-    ),
-    "anthropic": ProviderConfig(
-        base_url="https://api.anthropic.com",
-        list_models_path="/v1/models",
-        model_prefix="anthropic:",
-    ),
-    "google": ProviderConfig(
-        base_url="https://generativelanguage.googleapis.com",
-        list_models_path="/v1beta/models",
-        model_prefix="google:",
-    ),
-    "groq": ProviderConfig(
-        base_url="https://api.groq.com/openai/v1",
-        list_models_path="/models",
-        model_prefix="groq:",
-    ),
-    "mistral": ProviderConfig(
-        base_url="https://api.mistral.ai/v1",
-        list_models_path="/models",
-        model_prefix="mistral:",
-    ),
     "openrouter": ProviderConfig(
         base_url="https://openrouter.ai/api/v1",
         list_models_path="/models",
@@ -328,6 +303,11 @@ SUPPORTED_PROVIDERS: dict[str, ProviderConfig] = {
     ),
     "together": ProviderConfig(
         base_url="https://api.together.xyz/v1",
+        list_models_path="/models",
+        model_prefix="openai:",
+    ),
+    "deepseek": ProviderConfig(
+        base_url="https://api.deepseek.com",
         list_models_path="/models",
         model_prefix="openai:",
     ),

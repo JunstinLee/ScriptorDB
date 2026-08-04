@@ -137,7 +137,7 @@ class ApprovalOrchestrator:
         if self.provider:
             self.config.llm_provider = self.provider
         if self.model:
-            matched = fuzzy_match_model(self.config.llm_provider, self.model)
+            matched = fuzzy_match_model(self.config.llm_provider, self.model, self.config.workspace_id)
             if matched:
                 self.config.llm_model = matched
         return get_agent(self.config, self.model, self.provider)

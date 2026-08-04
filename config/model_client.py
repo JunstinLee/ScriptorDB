@@ -14,7 +14,7 @@ EXCLUDE_KEYWORDS = [
 
 
 class ModelFetcher(Protocol):
-    def __call__(self, provider: str, *, use_cache: bool = True) -> list[str]: ...
+    def __call__(self, provider: str, *, use_cache: bool = True, workspace_id: str | None = None) -> list[str]: ...
 
 
 def _parse_models(data: dict) -> list[str]:
@@ -44,7 +44,7 @@ def filter_chat_models(models: list[str]) -> list[str]:
     return result
 
 
-def list_available_models(provider: str, *, use_cache: bool = True) -> list[str]:
+def list_available_models(provider: str, *, use_cache: bool = True, workspace_id: str | None = None) -> list[str]:
     if provider not in SUPPORTED_PROVIDERS:
         raise ValueError(f"Unsupported provider: {provider}")
 
@@ -54,7 +54,7 @@ def list_available_models(provider: str, *, use_cache: bool = True) -> list[str]
             return cached
 
     config = SUPPORTED_PROVIDERS[provider]
-    api_key = get_api_key(provider)
+    api_key = get_api_key(provider, workspace_id)
     if not api_key:
         raise RuntimeError(f"No API key for {provider}. Run 'python main.py setup' first.")
 

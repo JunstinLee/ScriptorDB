@@ -30,8 +30,9 @@ def _resolve_provider(provider: str) -> str:
 @router.get("/api/models", response_model=ModelsResponse)
 async def get_models(provider: str = ""):
     p = _resolve_provider(provider)
+    config = get_config()
     try:
-        models = list_available_models(p)
+        models = list_available_models(p, workspace_id=config.workspace_id)
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     return ModelsResponse(models=models)
@@ -40,8 +41,9 @@ async def get_models(provider: str = ""):
 @router.get("/api/models/recommended", response_model=ModelsResponse)
 async def get_models_recommended(provider: str = ""):
     p = _resolve_provider(provider)
+    config = get_config()
     try:
-        models = get_recommended_models(p)
+        models = get_recommended_models(p, workspace_id=config.workspace_id)
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
     return ModelsResponse(models=models)
@@ -57,8 +59,9 @@ async def get_models_with_canonical(provider: str = ""):
     - display_name: 用户面向的展示名（来自 canonical）
     """
     p = _resolve_provider(provider)
+    config = get_config()
     try:
-        ids = list_available_models(p)
+        ids = list_available_models(p, workspace_id=config.workspace_id)
     except (ValueError, RuntimeError) as e:
         raise HTTPException(status_code=400, detail=str(e))
 

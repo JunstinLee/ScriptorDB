@@ -7,7 +7,7 @@ from pydantic_ai.providers.openai import OpenAIProvider
 
 from config.secrets import SUPPORTED_PROVIDERS, get_api_key
 
-OPENAI_COMPAT_PROVIDERS = {"nim", "together"}
+OPENAI_COMPAT_PROVIDERS = {"nim", "together", "openrouter", "deepseek"}
 
 
 def build_model(provider: str, model_name: str, workspace_id: str | None) -> Any:

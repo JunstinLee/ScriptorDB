@@ -28,7 +28,7 @@ def models(
         raise typer.Exit(1)
     p = provider or config.llm_provider
     try:
-        ms = list_available_models(p)
+        ms = list_available_models(p, workspace_id=config.workspace_id)
     except Exception as e:
         typer.echo(f"Failed to fetch models: {e}", err=True)
         raise typer.Exit(1)

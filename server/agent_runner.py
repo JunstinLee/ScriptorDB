@@ -55,7 +55,7 @@ async def run_agent_stream(
     if provider:
         config.llm_provider = provider
     if model:
-        matched = fuzzy_match_model(config.llm_provider, model)
+        matched = fuzzy_match_model(config.llm_provider, model, config.workspace_id)
         if matched:
             config.llm_model = matched
 

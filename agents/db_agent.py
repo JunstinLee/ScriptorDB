@@ -53,7 +53,7 @@ def get_agent(
 ) -> Agent[Settings, str | DeferredToolRequests]:
     active_provider = provider or config.llm_provider
     resolved = (
-        resolve_model(active_provider, model) if model else config.resolved_model
+        resolve_model(active_provider, model, config.workspace_id) if model else config.resolved_model
     )
     if config.db_url:
         config.undo_manager = UndoManager(config.db_url, config.workspace_id or "")
