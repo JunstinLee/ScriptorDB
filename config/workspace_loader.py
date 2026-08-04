@@ -50,7 +50,7 @@ def migrate_legacy(current_dir: Path | None = None) -> WorkspaceRecord | None:
 
     cwd = current_dir or Path.cwd()
     legacy = _read_legacy_config()
-    llm_provider = legacy.get("llm_provider") or "openai"
+    llm_provider = legacy.get("llm_provider") or "openrouter"
     default_models = legacy.get("default_models") or {}
     auto_restore = bool(legacy.get("auto_restore_sessions", True))
 
