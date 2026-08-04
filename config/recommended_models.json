@@ -99,7 +99,7 @@
     "slug": "kimi-2.6",
     "display_name": "Kimi 2.6",
     "aliases": {
-      "nim": "kimi-k2.6",
+      "nim": "moonshotai/kimi-k2.6",
       "openrouter": "kimi-2.6",
       "together": "kimi-2.6"
     }
@@ -125,7 +125,7 @@
     "display_name": "MiniMax 2.7",
     "aliases": {
       "openrouter": "minimax-2.7",
-      "nim": "minimax-m2.7",
+      "nim": "minimaxai/minimax-m2.7",
       "together": "minimax-2.7"
     }
   },
@@ -133,7 +133,7 @@
     "slug": "deepseek-v4-pro",
     "display_name": "DeepSeek V4 Pro",
     "aliases": {
-      "nim": "deepseek-v4-pro",
+      "nim": "deepseek-ai/deepseek-v4-pro",
       "openrouter": "deepseek-v4-pro",
       "together": "deepseek-v4-pro"
     }
@@ -142,7 +142,7 @@
     "slug": "deepseek-v4-flash",
     "display_name": "DeepSeek V4 Flash",
     "aliases": {
-      "nim": "deepseek-v4-flash",
+      "nim": "deepseek-ai/deepseek-v4-flash",
       "openrouter": "deepseek-v4-flash",
       "together": "deepseek-v4-flash"
     }
@@ -167,6 +167,7 @@
     "slug": "minimax-m3",
     "display_name": "MiniMax M3",
     "aliases": {
+      "nim": "minimaxai/minimax-m3",
       "openrouter": "minimax-m3",
       "together": "minimax-m3"
     }
@@ -175,7 +176,7 @@
     "slug": "glm-5",
     "display_name": "GLM 5",
     "aliases": {
-      "nim": "glm-5"
+      "nim": "z-ai/glm-5.2"
     }
   }
 ]
