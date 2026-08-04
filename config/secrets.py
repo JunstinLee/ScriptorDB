@@ -306,4 +306,9 @@ SUPPORTED_PROVIDERS: dict[str, ProviderConfig] = {
         list_models_path="/models",
         model_prefix="openai:",
     ),
+    "deepseek": ProviderConfig(
+        base_url="https://api.deepseek.com",
+        list_models_path="/models",
+        model_prefix="openai:",
+    ),
 }
