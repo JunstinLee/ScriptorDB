@@ -87,6 +87,8 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
                         from server.routes.chat import remove_orchestrator
                         remove_orchestrator(session_id)
                         persisted = True
+                        from browser import get_manager
+                        get_manager().schedule_idle_close()
                     yield sse_event(ev_type, event)
                     yield sse_done()
                     break
@@ -106,5 +108,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
                         )
                         from server.routes.chat import remove_orchestrator
                         remove_orchestrator(session_id)
+                        from browser import get_manager
+                        get_manager().schedule_idle_close()
                 except Exception:
                     pass

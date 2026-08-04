@@ -12,6 +12,7 @@ logger = get_logger("tools.browser")
 
 def _require_browser() -> tuple:
     manager = get_manager()
+    manager.cancel_idle_close()
     return manager, manager.page()
 
 
@@ -26,6 +27,7 @@ def _check_blocked(manager) -> str | None:
 @db_tool(name="browser_launch", category="browser", timeout=30, sequential=True)
 async def browser_launch(ctx: RunContext[Settings]) -> str:
     manager = get_manager()
+    manager.cancel_idle_close()
     logger.info("browser_launch called")
     result = await manager.launch()
     manager.record_action("launch", result)

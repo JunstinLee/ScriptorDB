@@ -110,6 +110,8 @@ def _stream_takeover_resume_events(
                         )
                         remove_orchestrator(session_id)
                         persisted = True
+                        from browser import get_manager
+                        get_manager().schedule_idle_close()
                     yield sse_event(ev_type, event)
                     yield sse_done()
                     break
@@ -133,6 +135,8 @@ def _stream_takeover_resume_events(
                                 run_collector=run_collector,
                             )
                             remove_orchestrator(session_id)
+                            from browser import get_manager
+                            get_manager().schedule_idle_close()
                     except Exception:
                         pass
                 else:
@@ -149,6 +153,8 @@ def _stream_takeover_resume_events(
                             run_collector=run_collector,
                         )
                         remove_orchestrator(session_id)
+                        from browser import get_manager
+                        get_manager().schedule_idle_close()
                 except Exception:
                     pass
 
@@ -186,6 +192,7 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
 async def enter_human_control(body: TakeoverEnterControlRequest):
     from browser import get_manager
     mgr = get_manager()
+    mgr.cancel_idle_close()
     mgr.takeover.enter_human_control()
     return {"ok": True, "state": mgr.takeover.state, "message": mgr.takeover.message}
 
@@ -213,6 +220,7 @@ async def cancel_takeover(body: TakeoverCancelRequest):
 async def show_takeover_window():
     from browser import get_manager
     mgr = get_manager()
+    mgr.cancel_idle_close()
     await mgr.show_window()
     return {"ok": True}
 
@@ -224,6 +232,7 @@ async def browser_interact(body: InteractRequest):
     from browser.context import navigate as ctx_navigate
 
     mgr = get_manager()
+    mgr.cancel_idle_close()
     if not mgr.is_launched():
         raise HTTPException(400, "Browser not launched")
     page = mgr.page()
@@ -250,6 +259,7 @@ async def browser_interact(body: InteractRequest):
 async def browser_interact_coords(body: InteractByCoordsRequest):
     from browser import get_manager
     mgr = get_manager()
+    mgr.cancel_idle_close()
     if not mgr.is_launched():
         raise HTTPException(400, "Browser not launched")
     page = mgr.page()

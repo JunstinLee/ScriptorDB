@@ -105,6 +105,8 @@ async def _stream_orchestrator_events(
                                 new_messages_collector=new_messages_collector,
                                 run_collector=summary,
                             )
+                            from browser import get_manager
+                            get_manager().schedule_idle_close()
                         elif summary["status"] == "running":
                             _persist_paused_run(session_id, summary)
                 else:
@@ -121,6 +123,8 @@ async def _stream_orchestrator_events(
                         new_messages_collector=new_messages_collector,
                         run_collector=summary,
                     )
+                    from browser import get_manager
+                    get_manager().schedule_idle_close()
                 elif summary["status"] == "running":
                     # Paused for deferred-tool approval: checkpoint the user message
                     # and this turn's model messages (incl. the deferred tool calls)

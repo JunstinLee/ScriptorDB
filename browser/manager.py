@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import time
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,6 +15,7 @@ from logging_setup import get_logger
 logger = get_logger("browser.manager")
 
 SCREENSHOT_TTL = 30
+IDLE_CLOSE_TIMEOUT = 150
 
 
 class BrowserManager:
@@ -32,6 +35,7 @@ class BrowserManager:
         self._nav_timeout_count = 0
         self._element_failure_count: dict[str, int] = {}
         self._screencast_connection: object | None = None
+        self._idle_close_task: asyncio.Task | None = None
 
     @property
     def takeover(self) -> HumanTakeoverManager:
@@ -168,6 +172,7 @@ class BrowserManager:
         return f"Browser launched successfully in visible mode"
 
     async def close(self) -> str:
+        self.cancel_idle_close()
         try:
             if self._browser is not None:
                 await self._browser.close()
@@ -183,6 +188,28 @@ class BrowserManager:
         self.reset_state()
         logger.info("browser closed")
         return "Browser closed"
+
+    def schedule_idle_close(self, timeout: float = IDLE_CLOSE_TIMEOUT) -> None:
+        self.cancel_idle_close()
+        if not self.is_launched():
+            return
+        logger.info(f"scheduling idle close in {timeout}s")
+        self._idle_close_task = asyncio.create_task(self._idle_close_after(timeout))
+
+    async def _idle_close_after(self, timeout: float) -> None:
+        await asyncio.sleep(timeout)
+        if not self.is_launched():
+            return
+        logger.info("idle close timer fired; closing browser")
+        await self.close()
+
+    def cancel_idle_close(self) -> None:
+        if self._idle_close_task and not self._idle_close_task.done():
+            self._idle_close_task.cancel()
+            self._idle_close_task = None
+
+    def is_idle_close_scheduled(self) -> bool:
+        return self._idle_close_task is not None and not self._idle_close_task.done()
 
     async def show_window(self):
         if not self.is_launched() or not self._context:
