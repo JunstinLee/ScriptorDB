@@ -210,17 +210,6 @@ export default function ModelProviderBar({
             <div className="flex h-[240px]">
               {/* Provider pane */}
               <div className="w-[120px] shrink-0 overflow-y-auto border-r border-grid">
-                <button
-                  type="button"
-                  onClick={() => handleProviderSelect("")}
-                  className={`flex w-full items-center px-3 py-2 text-left text-[12px] transition-colors ${
-                    !provider
-                      ? "bg-cobalt/8 text-cobalt"
-                      : "text-ink hover:bg-grid/50"
-                  }`}
-                >
-                  default
-                </button>
                 {PROVIDERS.map((p) => (
                   <button
                     key={p}
@@ -253,18 +242,7 @@ export default function ModelProviderBar({
                   </div>
                 ) : (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => handleModelSelect("")}
-                      className={`flex w-full items-center px-3 py-2 text-left text-[12px] transition-colors ${
-                        !model
-                          ? "bg-cobalt/8 text-cobalt"
-                          : "text-ink hover:bg-grid/50"
-                      }`}
-                    >
-                      default
-                    </button>
-                    {models.map((entry) => (
+                     {models.map((entry) => (
                       <button
                         key={entry.provider_specific_id}
                         type="button"
