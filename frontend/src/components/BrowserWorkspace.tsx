@@ -112,6 +112,8 @@ export function BrowserWorkspace({
   cookiesLoading,
   onLoadProfile,
   sessionId,
+  actions,
+  isRunning,
 }: BrowserWorkspaceProps) {
   if (error) {
     return (
@@ -143,6 +145,8 @@ export function BrowserWorkspace({
           browserLaunched={state.launched}
           currentUrl={state?.url ?? ""}
           onLoadProfile={onLoadProfile}
+          actions={actions}
+          isRunning={isRunning}
         />
       )}
 
