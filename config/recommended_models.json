@@ -173,8 +173,8 @@
     }
   },
   {
-    "slug": "glm-5",
-    "display_name": "GLM 5",
+    "slug": "glm-5.2",
+    "display_name": "GLM 5.2",
     "aliases": {
       "nim": "z-ai/glm-5.2"
     }
