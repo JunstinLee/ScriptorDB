@@ -40,3 +40,8 @@ def _create_crawl_toolset():
 @register_toolset("browser")
 def _create_browser_toolset():
     return [d.to_tool() for d in get_all_tool_defs() if d.category == "browser"]
+
+
+@register_toolset("download")
+def _create_download_toolset():
+    return [d.to_tool() for d in get_all_tool_defs() if d.category == "download"]
