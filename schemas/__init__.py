@@ -21,6 +21,7 @@ from schemas.models import (
     ModelsWithCanonicalResponse,
 )
 from schemas.mysql import MySQLConfigRequest, MySQLConfigResponse
+from schemas.pdf_models import PdfExtractResult
 from schemas.session import (
     MessageItem,
     SessionCreateResponse,
