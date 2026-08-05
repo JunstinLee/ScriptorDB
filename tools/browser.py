@@ -223,9 +223,17 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
         return blocked
     logger.info(f"browser_click selector={selector} takeover_state={manager.takeover.state.value}")
     await highlight_click(page, selector)
+    await manager.trace.record_pre_click(page, selector)
     result = await _click(page, selector)
-    manager.record_action("click", selector, selector=selector,
+    trace = await manager.trace.record_post_nav(page)
+    detail = selector
+    pre = trace.get("pre_click") or {}
+    final_url = trace.get("final_url") or ""
+    if pre.get("url") and final_url and pre.get("url") != final_url:
+        detail = f"{selector} -> {final_url}"
+    manager.record_action("click", detail, selector=selector,
                           success="Clicked" in result)
+    logger.info(f"browser_click trace pre={pre.get('url')} final={final_url} status={trace.get('status_code')}")
     if "failed" in str(result).lower() or "error" in str(result).lower():
         manager.record_element_failure(selector)
         await manager.detect_takeover()
