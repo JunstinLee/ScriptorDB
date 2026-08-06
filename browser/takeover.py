@@ -119,8 +119,27 @@ class HumanTrigger:
     confidence: float
 
 
-async def detect_human_needed(page) -> HumanTrigger | None:
+async def _visible_match(evaluate, selector: str) -> bool:
+    js = (
+        "() => { const e = document.querySelector(%s); "
+        "if (!e) return false; "
+        "const s = getComputedStyle(e); "
+        "const r = e.getBoundingClientRect(); "
+        "return r.width > 0 && r.height > 0 "
+        "&& s.display !== 'none' && s.visibility !== 'hidden' && +s.opacity > 0; }"
+    ) % json.dumps(selector)
+    try:
+        return bool(await evaluate(js))
+    except Exception:
+        return False
+
+
+async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
     if page is None:
+        return None
+    if evaluate is None:
+        evaluate = getattr(page, "evaluate", None)
+    if evaluate is None:
         return None
 
     url = page.url
@@ -130,21 +149,23 @@ async def detect_human_needed(page) -> HumanTrigger | None:
     except Exception:
         pass
 
-    if await page.evaluate(
-        "() => !!(document.querySelector('.g-recaptcha') || "
-        "document.querySelector('iframe[src*=\"recaptcha\"]'))"
-    ):
+    if await _visible_match(evaluate, '.g-recaptcha, iframe[src*="recaptcha"]'):
         return HumanTrigger("检测到 reCAPTCHA 验证码", "captcha", 1.0)
 
-    if await page.evaluate(
-        "() => !!(document.querySelector('.h-captcha') || "
-        "document.querySelector('iframe[src*=\"hcaptcha\"]'))"
-    ):
+    if await _visible_match(evaluate, '.h-captcha, iframe[src*="hcaptcha"]'):
         return HumanTrigger("检测到 hCaptcha 验证码", "captcha", 1.0)
 
-    if await page.evaluate(
-        "() => !!(document.querySelector('img[id*=captcha], "
-        "img[class*=captcha], img[src*=captcha], img[id*=verify], img[class*=verify]'))"
+    if await _visible_match(
+        evaluate,
+        'iframe[src*="challenges.cloudflare.com"], [data-turnstile-sitekey], '
+        'input[name="cf-turnstile-response"]',
+    ):
+        return HumanTrigger("检测到 Cloudflare Turnstile 验证码", "captcha", 0.9)
+
+    if await _visible_match(
+        evaluate,
+        "img[id*=captcha], img[class*=captcha], img[src*=captcha], "
+        "img[id*=verify], img[class*=verify]",
     ):
         return HumanTrigger("检测到图形验证码", "captcha", 0.9)
 
@@ -156,7 +177,7 @@ async def detect_human_needed(page) -> HumanTrigger | None:
         "input[inputmode='numeric'][maxlength='6']",
     ]
     for q in mfa_queries:
-        if await page.evaluate(f"() => !!document.querySelector({json.dumps(q)})"):
+        if await evaluate(f"() => !!document.querySelector({json.dumps(q)})"):
             return HumanTrigger(f"检测到多因素认证(MFA)输入框: {q}", "mfa", 0.95)
 
     oauth_patterns = [
@@ -180,7 +201,7 @@ async def detect_human_needed(page) -> HumanTrigger | None:
     if "cloudflare" in title and ("attention required" in title or "just a moment" in title):
         return HumanTrigger("检测到 Cloudflare 防护", "antibot", 0.95)
 
-    if await page.evaluate(
+    if await evaluate(
         "() => { const e = document.querySelector('input[type=file]'); "
         "if (!e) return false; const r = e.getBoundingClientRect(); "
         "return r.width > 0 && r.height > 0; }"
@@ -188,7 +209,7 @@ async def detect_human_needed(page) -> HumanTrigger | None:
         return HumanTrigger("检测到文件上传选择器", "file_upload", 0.7)
 
     if ("checkout" in url.lower() or "payment" in url.lower()):
-        has_payment = await page.evaluate(
+        has_payment = await evaluate(
             "() => !!(document.querySelector('input[name*=card]') || "
             "document.querySelector('[data-testid=payment]'))"
         )
@@ -197,7 +218,7 @@ async def detect_human_needed(page) -> HumanTrigger | None:
 
     login_keywords = ["sign in", "log in", "login", "signin"]
     if any(kw in title for kw in login_keywords):
-        has_password = await page.evaluate(
+        has_password = await evaluate(
             "() => !!document.querySelector('input[type=password]')"
         )
         if has_password:
