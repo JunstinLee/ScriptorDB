@@ -191,6 +191,8 @@ async def _crawl_url_inner(
     }
     if wait_for_selector:
         config_kwargs["wait_for"] = f"css:{wait_for_selector}"
+    else:
+        config_kwargs["wait_until"] = "networkidle"
     config = CrawlerRunConfig(**config_kwargs)
 
     domain = urlparse(url).hostname or ""

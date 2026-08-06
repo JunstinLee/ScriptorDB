@@ -92,12 +92,17 @@ def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
     """
     from tools.sandbox import sandbox_execute
 
-    result = sandbox_execute(
-        code=code,
-        db_url=ctx.deps.db_url,
-        timeout=30,
-        max_output_kb=10,
-    )
+    try:
+        result = sandbox_execute(
+            code=code,
+            db_url=ctx.deps.db_url,
+            timeout=30,
+            max_output_kb=10,
+        )
+    except Exception as e:
+        from tools.errors import _to_tool_error
+
+        return _to_tool_error(e)
 
     if result.exit_code == 0:
         return ToolResult(

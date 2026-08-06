@@ -8,8 +8,12 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 
+from logging_setup import get_logger
+
 if TYPE_CHECKING:
     from tools.tool_result import ToolResult, ToolErrorInfo
+
+logger = get_logger("tools.errors")
 
 
 current_error_id: ContextVar[str | None] = ContextVar("current_error_id", default=None)
@@ -80,6 +84,13 @@ def _to_tool_error(e: Exception, error_id: str = "") -> ToolResult:
         error_id = current_error_id.get() or uuid.uuid4().hex[:12]
 
     if category not in USER_VISIBLE_CATEGORIES:
+        logger.error(
+            "Internal tool error (id=%s) type=%s: %s",
+            error_id,
+            type(e).__name__,
+            e,
+            exc_info=e,
+        )
         message = f"Internal error (ID: {error_id}). Please contact an administrator."
 
     return ToolResult(

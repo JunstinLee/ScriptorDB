@@ -8,12 +8,13 @@ from pydantic_ai import Tool
 
 
 def _wrap_browser_tool(func: Callable[..., Any], name: str) -> Callable[..., Any]:
-    """Wrap browser-category tools with the tool-call middleware.
+    """Wrap browser-category tools (and run_python_code) with the middleware.
 
     The middleware may block a low-level browser call in document-discovery
     contexts and auto-switch to a more appropriate tool (browser_extract_links
-    / crawl_webpage), returning its labeled result. `functools.wraps` keeps the
-    original signature so the tool schema is unchanged.
+    / crawl_webpage), returning its labeled result; it also forbids
+    run_python_code once a task involves browser control. `functools.wraps`
+    keeps the original signature so the tool schema is unchanged.
     """
 
     @functools.wraps(func)
@@ -24,9 +25,9 @@ def _wrap_browser_tool(func: Callable[..., Any], name: str) -> Callable[..., Any
         from services.tool_middleware import evaluate_call, execute_switch
 
         decision = await evaluate_call(ctx, name)
-        if decision == "switch":
-            return await execute_switch(ctx, name, kwargs)
-        return await func(ctx, *args, **kwargs)
+        if decision == "allow":
+            return await func(ctx, *args, **kwargs)
+        return await execute_switch(ctx, name, kwargs, decision)
 
     return wrapped
 
@@ -66,7 +67,7 @@ class ToolDef:
 
     def to_tool(self) -> Tool:
         func = self.func
-        if self.category == "browser":
+        if self.category == "browser" or self.name == "run_python_code":
             func = _wrap_browser_tool(func, self.name)
         return Tool(
             func,
