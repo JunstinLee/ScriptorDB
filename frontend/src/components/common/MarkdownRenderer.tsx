@@ -1,8 +1,16 @@
-import { useCallback, useState, type CSSProperties } from "react";
+import {
+  Children,
+  isValidElement,
+  useCallback,
+  useState,
+  type CSSProperties,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import { useTheme } from "../../hooks/useTheme";
+import PaginatedTable from "./PaginatedTable";
+import { useTablePagination } from "./tablePagination";
 
 import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
@@ -99,6 +107,32 @@ const prismDark: Record<string, CSSProperties> = {
   deleted: { color: "#EF5350" },
   namespace: { opacity: 0.7 },
 };
+
+function TableHead({ children, ...props }: React.ComponentProps<"thead">) {
+  const { paginated } = useTablePagination();
+  return (
+    <thead
+      className={
+        paginated
+          ? "border-b border-grid sticky top-0 z-10 bg-paper dark:bg-[#1a1d24]"
+          : "border-b border-grid"
+      }
+      {...props}
+    >
+      {children}
+    </thead>
+  );
+}
+
+function TableBody({ children, ...props }: React.ComponentProps<"tbody">) {
+  const { paginated, page, pageSize } = useTablePagination();
+  if (!paginated) {
+    return <tbody {...props}>{children}</tbody>;
+  }
+  const rows = Children.toArray(children).filter(isValidElement);
+  const start = page * pageSize;
+  return <tbody {...props}>{rows.slice(start, start + pageSize)}</tbody>;
+}
 
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
   const { isDark } = useTheme();
@@ -227,17 +261,11 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
           hr: (props) => (
             <hr className="my-3 border-grid" {...props} />
           ),
-          table: ({ children, ...props }) => (
-            <div className="overflow-x-auto mb-3 last:mb-0">
-              <table className="w-full border-collapse text-left text-xs" {...props}>{children}</table>
-            </div>
+          table: ({ node, children }) => (
+            <PaginatedTable node={node}>{children}</PaginatedTable>
           ),
-          thead: ({ children, ...props }) => (
-            <thead className="border-b border-grid" {...props}>{children}</thead>
-          ),
-          tbody: ({ children, ...props }) => (
-            <tbody {...props}>{children}</tbody>
-          ),
+          thead: TableHead,
+          tbody: TableBody,
           tr: ({ children, ...props }) => (
             <tr className="border-b border-grid last:border-0" {...props}>{children}</tr>
           ),
