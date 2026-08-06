@@ -6,7 +6,7 @@ from urllib.parse import quote
 import pytest
 
 from browser import get_manager
-from browser.links import StructuredLink, extract_links
+from browser.links import LinkExtraction, StructuredLink, extract_links
 from browser.tabs import TabManager
 from browser.trace import ClickTracer
 from tools.browser import browser_click
@@ -30,37 +30,112 @@ class TestBrowserExtractLinks:
     @pytest.mark.asyncio
     async def test_extract_links_success(self):
         mock_page = AsyncMock()
-        mock_page.evaluate = AsyncMock(return_value=[
-            {
-                "text": "Docs",
-                "url": "https://example.com/docs",
-                "title": "Docs page",
-                "base_domain": "example.com",
-                "target": "_blank",
-                "new_tab": True,
-                "is_internal": True,
-            },
-            {
-                "text": "",
-                "url": "https://other.com/x",
-                "title": "",
-                "base_domain": "other.com",
-                "target": "",
-                "new_tab": False,
-                "is_internal": False,
-            },
-        ])
+        mock_page.evaluate = AsyncMock(return_value={
+            "total": 2,
+            "links": [
+                {
+                    "text": "Docs",
+                    "url": "https://example.com/docs",
+                    "title": "Docs page",
+                    "base_domain": "example.com",
+                    "target": "_blank",
+                    "new_tab": True,
+                    "is_internal": True,
+                },
+                {
+                    "text": "",
+                    "url": "https://other.com/x",
+                    "title": "",
+                    "base_domain": "other.com",
+                    "target": "",
+                    "new_tab": False,
+                    "is_internal": False,
+                },
+            ],
+        })
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, max_links=10)
-            assert "Found 2 links" in result
-            assert "example.com/docs" in result
-            assert "new_tab" in result
-            mock_page.evaluate.assert_awaited_once()
+        assert "提取到 2 条链接" in result
+        assert "example.com/docs" in result
+        assert "new_tab" in result
+        assert "is_internal" in result
+        assert '"title":' not in result
+        assert '"base_domain":' not in result
+        assert '"target":' not in result
+        _, args = mock_page.evaluate.await_args.args
+        assert args == ["", 0, 10, True, True]
+
+    @pytest.mark.asyncio
+    async def test_extract_links_include_metadata(self):
+        mock_page = AsyncMock()
+        mock_page.evaluate = AsyncMock(return_value={
+            "total": 1,
+            "links": [
+                {
+                    "text": "Docs",
+                    "url": "https://example.com/docs",
+                    "title": "Docs page",
+                    "base_domain": "example.com",
+                    "target": "_blank",
+                    "new_tab": True,
+                    "is_internal": True,
+                }
+            ],
+        })
+        with patch.object(get_manager(), "_page", mock_page):
+            result = await browser_extract_links(None, include_metadata=True)
+        assert '"title": "Docs page"' in result
+        assert '"base_domain": "example.com"' in result
+        assert '"target": "_blank"' in result
+
+    @pytest.mark.asyncio
+    async def test_pagination_truncated_flag(self):
+        mock_page = AsyncMock()
+        mock_page.evaluate = AsyncMock(return_value={
+            "total": 5,
+            "links": [
+                {
+                    "text": f"L{i}",
+                    "url": f"https://example.com/{i}",
+                    "title": "",
+                    "base_domain": "example.com",
+                    "target": "",
+                    "new_tab": False,
+                    "is_internal": True,
+                }
+                for i in range(3)
+            ],
+        })
+        with patch.object(get_manager(), "_page", mock_page):
+            result = await browser_extract_links(None, max_links=3, page=1)
+        assert "提取到 5 条链接" in result
+        assert "已截断" in result
+        assert '"truncated": true' in result
+        assert "example.com/0" in result
+
+    @pytest.mark.asyncio
+    async def test_page_out_of_range(self):
+        mock_page = AsyncMock()
+        mock_page.evaluate = AsyncMock(return_value={"total": 5, "links": []})
+        with patch.object(get_manager(), "_page", mock_page):
+            result = await browser_extract_links(None, max_links=3, page=9)
+        assert "超出范围" in result
+
+    @pytest.mark.asyncio
+    async def test_filter_args_passed_to_extractor(self):
+        mock_page = AsyncMock()
+        mock_page.evaluate = AsyncMock(return_value={"total": 0, "links": []})
+        with patch.object(get_manager(), "_page", mock_page):
+            await browser_extract_links(
+                None, max_links=7, page=2, include_external=False, unique_only=False
+            )
+        _, args = mock_page.evaluate.await_args.args
+        assert args == ["", 7, 7, False, False]
 
     @pytest.mark.asyncio
     async def test_extract_links_empty(self):
         mock_page = AsyncMock()
-        mock_page.evaluate = AsyncMock(return_value=[])
+        mock_page.evaluate = AsyncMock(return_value={"total": 0, "links": []})
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None)
             assert "No links found" in result
@@ -279,13 +354,33 @@ class TestLinksModule:
     @pytest.mark.asyncio
     async def test_extract_links_returns_structured(self):
         page = AsyncMock()
-        page.evaluate = AsyncMock(return_value=[
-            {"text": "A", "url": "https://example.com/a", "title": "", "base_domain": "example.com",
-             "target": "", "new_tab": False, "is_internal": True},
-        ])
-        links = await extract_links(page, max_links=5)
-        assert isinstance(links[0], StructuredLink)
-        assert links[0].url == "https://example.com/a"
+        page.evaluate = AsyncMock(return_value={
+            "total": 1,
+            "links": [
+                {"text": "A", "url": "https://example.com/a", "title": "", "base_domain": "example.com",
+                 "target": "", "new_tab": False, "is_internal": True},
+            ],
+        })
+        extraction = await extract_links(page, limit=5)
+        assert isinstance(extraction, LinkExtraction)
+        assert extraction.total == 1
+        assert isinstance(extraction.links[0], StructuredLink)
+        assert extraction.links[0].url == "https://example.com/a"
+
+    @pytest.mark.asyncio
+    async def test_extract_links_computes_truncated(self):
+        page = AsyncMock()
+        page.evaluate = AsyncMock(return_value={
+            "total": 5,
+            "links": [
+                {"text": f"A{i}", "url": f"https://example.com/{i}", "title": "", "base_domain": "example.com",
+                 "target": "", "new_tab": False, "is_internal": True}
+                for i in range(3)
+            ],
+        })
+        extraction = await extract_links(page, limit=3, offset=0)
+        assert extraction.truncated is True
+        assert len(extraction.links) == 3
 
 
 @pytest.mark.slow
@@ -307,7 +402,7 @@ class TestBrowserLinksReal:
         assert "navigated to" in result.lower()
 
         result = await browser_extract_links(None)
-        assert "Found 2 links" in result
+        assert "提取到 2 条链接" in result
 
         result = await browser_get_tabs(None)
         assert "ACTIVE" in result

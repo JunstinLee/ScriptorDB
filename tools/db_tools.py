@@ -85,6 +85,11 @@ def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResul
 
 @db_tool(name="run_python_code", category="write", timeout=35, max_retries=2, requires_approval=True, validator=validate_python_code, sequential=True)
 def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
+    """在受控沙箱中执行 Python 代码，用于计算、数据分析、可视化或文件处理。
+
+    不要用本工具格式化或转换其他工具（如链接提取、文件读取）的返回结果；
+    那些工具返回的已是可直接使用的最终数据。
+    """
     from tools.sandbox import sandbox_execute
 
     result = sandbox_execute(

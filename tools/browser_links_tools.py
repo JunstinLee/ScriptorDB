@@ -16,25 +16,76 @@ logger = get_logger("tools.browser_links")
 async def browser_extract_links(
     ctx: RunContext[Settings],
     selector: str = "",
-    max_links: int = 100,
+    max_links: int = 50,
+    page: int = 1,
+    include_external: bool = True,
+    unique_only: bool = True,
+    include_metadata: bool = False,
 ) -> str:
-    manager, page = _require_browser()
-    if page is None:
+    """提取页面链接并返回已去重、格式固定的最终列表。
+
+    返回结果即为可直接呈现的最终数据（total/page/truncated/links），请直接
+    根据结果回答用户；不要再用 run_python_code 等工具对链接列表做二次整理。
+    """
+    manager, page_obj = _require_browser()
+    if page_obj is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
 
     try:
-        links = await extract_links(page, selector or None, max_links)
+        extraction = await extract_links(
+            page_obj,
+            selector or None,
+            limit=max_links,
+            include_external=include_external,
+            unique_only=unique_only,
+            offset=(max(page, 1) - 1) * max_links,
+        )
     except Exception as e:
         manager.record_action("extract_links", f"error: {e}", success=False)
         return f"Link extraction failed: {e}"
 
-    manager.record_action("extract_links", f"{len(links)} links")
-    if not links:
+    manager.record_action("extract_links", f"{extraction.total} links")
+    if extraction.total == 0:
         return "No links found on page"
-    payload = [link.__dict__ for link in links]
-    return f"Found {len(links)} links:\n{json.dumps(payload, ensure_ascii=False, indent=2)}"
+    if not extraction.links:
+        return f"该页没有链接（共 {extraction.total} 条，第 {page} 页超出范围）"
+
+    if include_metadata:
+        payload = [
+            {
+                "text": link.text,
+                "url": link.url,
+                "new_tab": link.new_tab,
+                "is_internal": link.is_internal,
+                "title": link.title,
+                "base_domain": link.base_domain,
+                "target": link.target,
+            }
+            for link in extraction.links
+        ]
+    else:
+        payload = [
+            {
+                "text": link.text,
+                "url": link.url,
+                "new_tab": link.new_tab,
+                "is_internal": link.is_internal,
+            }
+            for link in extraction.links
+        ]
+
+    summary = f"提取到 {extraction.total} 条链接（第 {page} 页）"
+    if extraction.truncated:
+        summary += "，已截断"
+    body = {
+        "total": extraction.total,
+        "page": page,
+        "truncated": extraction.truncated,
+        "links": payload,
+    }
+    return f"{summary}:\n{json.dumps(body, ensure_ascii=False)}"
 
 
 @db_tool(name="browser_get_tabs", category="browser", timeout=10, sequential=False)

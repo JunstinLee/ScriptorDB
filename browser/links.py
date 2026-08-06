@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from playwright.async_api import Page
 
@@ -20,12 +20,20 @@ class StructuredLink:
     is_internal: bool = True
 
 
+@dataclass
+class LinkExtraction:
+    total: int = 0
+    truncated: bool = False
+    links: list[StructuredLink] = field(default_factory=list)
+
+
 _LINK_EXTRACT_JS = """
-([selector, maxLinks]) => {
+([selector, offset, limit, includeExternal, uniqueOnly]) => {
     const anchors = selector
         ? document.querySelectorAll(selector)
         : document.querySelectorAll('a[href]');
     const baseUrl = new URL(document.baseURI);
+    const seen = new Set();
     const links = [];
     for (const a of anchors) {
         const rawHref = a.getAttribute('href');
@@ -43,6 +51,12 @@ _LINK_EXTRACT_JS = """
             continue;
         }
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') continue;
+        const isInternal = parsed.hostname === baseUrl.hostname;
+        if (!includeExternal && !isInternal) continue;
+        if (uniqueOnly) {
+            if (seen.has(abs)) continue;
+            seen.add(abs);
+        }
         links.push({
             text: (a.innerText || '').trim(),
             url: abs,
@@ -50,11 +64,11 @@ _LINK_EXTRACT_JS = """
             base_domain: parsed.hostname,
             target: a.getAttribute('target') || '',
             new_tab: a.target === '_blank',
-            is_internal: parsed.hostname === baseUrl.hostname,
+            is_internal: isInternal,
         });
-        if (links.length >= maxLinks) break;
     }
-    return links;
+    const total = links.length;
+    return { total, links: links.slice(offset, offset + limit) };
 }
 """
 
@@ -62,12 +76,21 @@ _LINK_EXTRACT_JS = """
 async def extract_links(
     page: Page,
     selector: str | None = None,
-    max_links: int = 100,
-) -> list[StructuredLink]:
-    raw = await page.evaluate(_LINK_EXTRACT_JS, [selector or "", max_links])
+    limit: int = 50,
+    include_external: bool = True,
+    unique_only: bool = True,
+    offset: int = 0,
+) -> LinkExtraction:
+    raw = await page.evaluate(
+        _LINK_EXTRACT_JS,
+        [selector or "", offset, limit, include_external, unique_only],
+    )
     if not raw:
-        return []
-    return [StructuredLink(**item) for item in raw]
+        return LinkExtraction(total=0, truncated=False, links=[])
+    total = int(raw.get("total") or 0)
+    links = [StructuredLink(**item) for item in raw.get("links") or []]
+    truncated = offset + len(links) < total
+    return LinkExtraction(total=total, truncated=truncated, links=links)
 
 
-__all__ = ["StructuredLink", "extract_links"]
+__all__ = ["LinkExtraction", "StructuredLink", "extract_links"]
