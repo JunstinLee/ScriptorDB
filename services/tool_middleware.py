@@ -12,7 +12,6 @@ logger = get_logger("tool_middleware")
 _BLOCKED_TOOLS = {
     "browser_query",
     "browser_get_text",
-    "browser_extract_links",
 }
 
 _DOC_KEYWORDS = (

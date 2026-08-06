@@ -15,7 +15,7 @@ def extract_rows(html: str, schema: dict | None) -> list | None:
     Returns the raw extracted row list (for cross-page merging), or None on
     failure.
     """
-    if not html or not schema or not isinstance(schema, dict):
+    if not isinstance(html, str) or not html or not schema or not isinstance(schema, dict):
         return None
     try:
         strategy = JsonCssExtractionStrategy(schema)

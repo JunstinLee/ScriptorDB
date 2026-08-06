@@ -115,11 +115,13 @@ def _guess_content_type(url: str) -> str | None:
 
 
 def _extract_fit_html(result: object) -> str:
-    return (
-        getattr(result, "fit_html", "") or ""
-        or getattr(result, "cleaned_html", "") or ""
-        or _extract_html(result)
-    )
+    for attr in ("fit_html", "cleaned_html", "html"):
+        value = getattr(result, attr, None)
+        if isinstance(value, bytes):
+            value = value.decode(errors="ignore")
+        if isinstance(value, str) and value:
+            return value
+    return ""
 
 
 def _pagination_click_js(selector: str) -> str:
