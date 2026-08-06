@@ -1,9 +1,34 @@
 from __future__ import annotations
 
+import functools
 from collections.abc import Callable
 from typing import Any
 
 from pydantic_ai import Tool
+
+
+def _wrap_browser_tool(func: Callable[..., Any], name: str) -> Callable[..., Any]:
+    """Wrap browser-category tools with the tool-call middleware.
+
+    The middleware may block a low-level browser call in document-discovery
+    contexts and auto-switch to a more appropriate tool (browser_extract_links
+    / crawl_webpage), returning its labeled result. `functools.wraps` keeps the
+    original signature so the tool schema is unchanged.
+    """
+
+    @functools.wraps(func)
+    async def wrapped(ctx, *args, **kwargs):
+        enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
+        if not enabled:
+            return await func(ctx, *args, **kwargs)
+        from services.tool_middleware import evaluate_call, execute_switch
+
+        decision = await evaluate_call(ctx, name)
+        if decision == "switch":
+            return await execute_switch(ctx, name, kwargs)
+        return await func(ctx, *args, **kwargs)
+
+    return wrapped
 
 
 class ToolDef:
@@ -40,8 +65,11 @@ class ToolDef:
         self.sequential = sequential
 
     def to_tool(self) -> Tool:
+        func = self.func
+        if self.category == "browser":
+            func = _wrap_browser_tool(func, self.name)
         return Tool(
-            self.func,
+            func,
             takes_ctx=True,
             name=self.name,
             timeout=self.timeout,

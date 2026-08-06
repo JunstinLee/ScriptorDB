@@ -9,19 +9,28 @@ from logging_setup import get_logger
 logger = get_logger("crawl.structured")
 
 
-def extract_with_schema(html: str, schema: dict | None) -> str | None:
-    """Run JsonCssExtractionStrategy directly against already-fetched HTML.
+def extract_rows(html: str, schema: dict | None) -> list | None:
+    """Run JsonCssExtractionStrategy against already-fetched HTML.
 
-    Returns the extracted rows as a JSON string, or None on failure.
+    Returns the raw extracted row list (for cross-page merging), or None on
+    failure.
     """
     if not html or not schema or not isinstance(schema, dict):
         return None
     try:
         strategy = JsonCssExtractionStrategy(schema)
-        rows = strategy.extract("", html)
+        return strategy.extract("", html)
     except Exception as e:
         logger.warning("schema extraction failed: %s", e)
         return None
+
+
+def extract_with_schema(html: str, schema: dict | None) -> str | None:
+    """Run JsonCssExtractionStrategy directly against already-fetched HTML.
+
+    Returns the extracted rows as a JSON string, or None on failure.
+    """
+    rows = extract_rows(html, schema)
     if not rows:
         return None
     try:
@@ -31,4 +40,4 @@ def extract_with_schema(html: str, schema: dict | None) -> str | None:
         return None
 
 
-__all__ = ["extract_with_schema"]
+__all__ = ["extract_with_schema", "extract_rows"]

@@ -63,20 +63,29 @@ def _format_result(result: CrawlResult, domains: list[str] | None) -> str:
     return "\n".join(sections)
 
 
-@db_tool(name="crawl_webpage", category="crawl", timeout=45)
+@db_tool(name="crawl_webpage", category="crawl", timeout=120)
 async def crawl_webpage(
     ctx,
     url: str,
     allowed_domains: str = "",
     extraction_schema: str = "",
+    wait_for_selector: str = "",
+    pagination_next_selector: str = "",
+    max_pages: int = 1,
+    document_domains: str = "",
 ) -> str:
     from services.crawl_service import crawl_url
 
     domains = _parse_domains(allowed_domains)
+    doc_domains = _parse_domains(document_domains)
     schema = _parse_schema(extraction_schema)
     result: CrawlResult = await crawl_url(
         url,
         allowed_domains=domains,
         extraction_schema=schema,
+        wait_for_selector=wait_for_selector.strip() or None,
+        pagination_next_selector=pagination_next_selector.strip() or None,
+        max_pages=max(max_pages, 1),
+        document_domains=doc_domains,
     )
     return _format_result(result, domains)

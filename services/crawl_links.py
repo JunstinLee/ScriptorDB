@@ -33,12 +33,32 @@ def extract_links(result: object) -> list[CrawlLink]:
 def filter_document_links(
     links: list[CrawlLink],
     allowed_domains: list[str] | None = None,
+    document_domains: list[str] | None = None,
 ) -> list[CrawlLink]:
+    """Filter document links, keeping those on `allowed_domains`.
+
+    `document_domains` lists additional domains allowed for document links
+    only (e.g. a file CDN) — page/navigation links are not affected.
+    Protocol-relative URLs (``//host/...``) are normalized to ``https:``.
+    """
     docs = [link for link in links if _is_document_url(link.url)]
-    if not allowed_domains:
-        return docs
-    allowed = {_normalize(d) for d in allowed_domains if d}
-    return [link for link in docs if _domain_of(link.url) in allowed]
+    allowed = {_normalize(d) for d in (allowed_domains or []) if d}
+    allowed.update(_normalize(d) for d in (document_domains or []) if d)
+    if not allowed:
+        return [_normalize_doc_url(link) for link in docs]
+    return [_normalize_doc_url(link) for link in docs if _domain_of(link.url) in allowed]
+
+
+def _normalize_doc_url(link: CrawlLink) -> CrawlLink:
+    if not link.url.startswith("//"):
+        return link
+    return CrawlLink(
+        url=f"https:{link.url}",
+        text=link.text,
+        title=link.title,
+        base_domain=link.base_domain,
+        is_internal=link.is_internal,
+    )
 
 
 def _is_document_url(url: str) -> bool:

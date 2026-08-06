@@ -93,4 +93,20 @@ async def extract_links(
     return LinkExtraction(total=total, truncated=truncated, links=links)
 
 
-__all__ = ["LinkExtraction", "StructuredLink", "extract_links"]
+def merge_extractions(extractions: list[LinkExtraction]) -> LinkExtraction:
+    """Merge multiple LinkExtraction snapshots (e.g. across site pages).
+
+    Deduplicates links by URL, preserving first-seen order. The merged
+    `total` counts unique links.
+    """
+    seen: set[str] = set()
+    merged: list[StructuredLink] = []
+    for extraction in extractions:
+        for link in extraction.links:
+            if link.url and link.url not in seen:
+                seen.add(link.url)
+                merged.append(link)
+    return LinkExtraction(total=len(merged), truncated=False, links=merged)
+
+
+__all__ = ["LinkExtraction", "StructuredLink", "extract_links", "merge_extractions"]

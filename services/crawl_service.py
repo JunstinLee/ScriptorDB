@@ -1,17 +1,20 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import traceback
 from urllib.parse import urlparse
+from uuid import uuid4
 
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 
 from logging_setup import get_logger
+from schemas.crawl_links import CrawlLink
 from schemas.crawl_models import CrawlResult
 from services.crawl_links import DOCUMENT_EXTENSIONS, extract_links, filter_document_links
 from services.crawl_policy import build_exclude_domains, is_binary_content_type
 from services.crawl_rate_limit import RateLimiter
-from services.crawl_structured import extract_with_schema
+from services.crawl_structured import extract_rows
 
 logger = get_logger("crawl")
 
@@ -119,10 +122,58 @@ def _extract_fit_html(result: object) -> str:
     )
 
 
+def _pagination_click_js(selector: str) -> str:
+    """JS that clicks the next-page button, ignoring disabled/absent elements."""
+    return (
+        "(() => {"
+        f"const btn = document.querySelector({selector!r});"
+        "if (btn && !btn.disabled && btn.getAttribute('aria-disabled') !== 'true') {"
+        "btn.click();"
+        "}"
+        "})()"
+    )
+
+
+def _merge_links(acc: list[CrawlLink], new: list[CrawlLink]) -> None:
+    seen = {link.url for link in acc}
+    for link in new:
+        if link.url and link.url not in seen:
+            seen.add(link.url)
+            acc.append(link)
+
+
+def _merge_rows(acc: list[dict], new: list | None) -> None:
+    if not new:
+        return
+    seen = {_row_key(row) for row in acc}
+    for row in new:
+        if not isinstance(row, dict):
+            continue
+        key = _row_key(row)
+        if key not in seen:
+            seen.add(key)
+            acc.append(row)
+
+
+def _row_key(row: dict) -> str:
+    return json.dumps(row, ensure_ascii=False, sort_keys=True)
+
+
+def _serialize_rows(rows: list[dict]) -> str | None:
+    if not rows:
+        return None
+    return json.dumps(rows, ensure_ascii=False)
+
+
 async def _crawl_url_inner(
     url: str,
     allowed_domains: list[str] | None = None,
     extraction_schema: dict | None = None,
+    wait_for_selector: str | None = None,
+    pagination_next_selector: str | None = None,
+    max_pages: int = 1,
+    document_domains: list[str] | None = None,
+    page_settle_ms: int = 800,
 ) -> CrawlResult:
     if _url_is_document(url):
         logger.info("crawl url is a document by extension url=%s — routed to download tool", url)
@@ -134,23 +185,60 @@ async def _crawl_url_inner(
             markdown=DOCUMENT_MARKER,
         )
 
-    config = CrawlerRunConfig(
-        cache_mode=CacheMode.ENABLED,
-        exclude_domains=build_exclude_domains(allowed_domains),
-    )
+    config_kwargs: dict = {
+        "cache_mode": CacheMode.ENABLED,
+        "exclude_domains": build_exclude_domains(allowed_domains),
+    }
+    if wait_for_selector:
+        config_kwargs["wait_for"] = f"css:{wait_for_selector}"
+    config = CrawlerRunConfig(**config_kwargs)
 
     domain = urlparse(url).hostname or ""
+    needs_pagination = bool(pagination_next_selector) and max_pages > 1
+    session_id = f"crawl-{uuid4().hex}" if needs_pagination else None
+
+    collected: list[object] = []
+    merged_links: list[CrawlLink] = []
+    merged_rows: list[dict] = []
 
     async with AsyncWebCrawler() as crawler:
         await _rate_limiter.acquire(domain)
         try:
-            result = await crawler.arun(url=url, config=config)
+            if needs_pagination:
+                first = await crawler.arun(url=url, config=config, session_id=session_id)
+            else:
+                first = await crawler.arun(url=url, config=config)
+            if first:
+                collected.append(first)
+                _merge_links(merged_links, extract_links(first))
+                if extraction_schema:
+                    _merge_rows(merged_rows, extract_rows(_extract_fit_html(first), extraction_schema))
+
+            for _ in range(max_pages - 1):
+                page_config = CrawlerRunConfig(
+                    js_only=True,
+                    js_code=[_pagination_click_js(pagination_next_selector or "")],
+                    wait_until="domcontentloaded",
+                    delay_before_return_html=page_settle_ms / 1000.0,
+                    cache_mode=CacheMode.BYPASS,
+                )
+                page_result = await crawler.arun(url=url, config=page_config, session_id=session_id)
+                if not page_result:
+                    break
+                collected.append(page_result)
+                before = len(merged_links)
+                _merge_links(merged_links, extract_links(page_result))
+                if extraction_schema:
+                    _merge_rows(merged_rows, extract_rows(_extract_fit_html(page_result), extraction_schema))
+                if len(merged_links) == before:
+                    break
         finally:
             _rate_limiter.release(domain)
 
-    if not result:
+    if not collected or collected[0] is None:
         return CrawlResult(url=url, success=False, error="No response from crawler")
 
+    result = collected[0]
     content_type = _extract_content_type(result)
     status_code = _extract_status_code(result)
     title = _extract_title(result)
@@ -182,12 +270,11 @@ async def _crawl_url_inner(
         )
         success = True
 
-    links = extract_links(result)
-    document_links = filter_document_links(links, allowed_domains)
+    document_links = filter_document_links(merged_links, allowed_domains, document_domains)
 
     extracted_data = None
     if extraction_schema and success:
-        extracted_data = extract_with_schema(_extract_fit_html(result), extraction_schema)
+        extracted_data = _serialize_rows(merged_rows)
 
     return CrawlResult(
         url=url,
@@ -196,7 +283,7 @@ async def _crawl_url_inner(
         html=_extract_html(result),
         status_code=status_code,
         success=success,
-        links=links,
+        links=merged_links,
         document_links=document_links,
         content_type=content_type,
         truncated=truncated,
@@ -209,6 +296,11 @@ async def crawl_url(
     timeout: int = 30,
     allowed_domains: list[str] | None = None,
     extraction_schema: dict | None = None,
+    wait_for_selector: str | None = None,
+    pagination_next_selector: str | None = None,
+    max_pages: int = 1,
+    document_domains: list[str] | None = None,
+    page_settle_ms: int = 800,
 ) -> CrawlResult:
     try:
         normalized = _normalize_url(url)
@@ -217,7 +309,16 @@ async def crawl_url(
 
     try:
         return await asyncio.wait_for(
-            _crawl_url_inner(normalized, allowed_domains, extraction_schema),
+            _crawl_url_inner(
+                normalized,
+                allowed_domains,
+                extraction_schema,
+                wait_for_selector,
+                pagination_next_selector,
+                max_pages,
+                document_domains,
+                page_settle_ms,
+            ),
             timeout=timeout,
         )
     except asyncio.TimeoutError:
