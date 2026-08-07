@@ -5,16 +5,53 @@ import json
 from config.settings import Settings
 from logging_setup import get_logger
 from pydantic_ai import RunContext
-from tools.browser import _check_blocked, _click_next, _require_browser, _settle_after_click
+from tools.browser_common import _check_blocked, _click_next, _require_browser, _settle_after_click
 from tools.tool_decorators import db_tool
 
 logger = get_logger("tools.browser.table")
 
 _TABLE_EXTRACT_JS = """\
 (params) => {
-  const rows = document.querySelectorAll(params.rowSelector);
+  let docRe = /[.](pdf|xls|xlsx|zip|csv)([?#]|$)/i;
+  if (params.linkPattern) {
+    try { docRe = new RegExp(params.linkPattern, "i"); } catch (e) {}
+  }
+  const dateRe = /\\b(January|February|March|April|May|June|July|August|September|October|November|December)\\s+\\d{1,2},?\\s+\\d{2,4}\\b|\\b\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}\\b/i;
+  const textOf = (el) => (el.innerText || "").replace(/\\s+/g, " ").trim();
+  const enough = (el) => {
+    if (!el) return true;
+    const t = textOf(el);
+    if (t.length < params.minText) return false;
+    if (params.requireDate && !dateRe.test(t)) return false;
+    return true;
+  };
+  const grow = (el) => {
+    let cur = el;
+    while (cur && cur !== document.documentElement && !enough(cur)) {
+      cur = cur.parentElement;
+    }
+    if (!cur || cur === document.documentElement) return null;
+    return cur;
+  };
+
+  let rowEls = [];
+  if (params.auto) {
+    const seen = new Set();
+    const anchors = Array.from(document.querySelectorAll("a[href]")).filter((a) => docRe.test(a.href || ""));
+    for (const a of anchors) {
+      const row = grow(a);
+      if (row && !seen.has(row)) { seen.add(row); rowEls.push(row); }
+    }
+  } else {
+    for (const row of Array.from(document.querySelectorAll(params.rowSelector))) {
+      const grown = grow(row);
+      if (grown) rowEls.push(grown);
+    }
+  }
+
   const out = [];
-  for (const row of rows) {
+  const seenKeys = new Set();
+  for (const row of rowEls) {
     const rec = {};
     for (const name of Object.keys(params.fields)) {
       const spec = params.fields[name];
@@ -24,6 +61,7 @@ _TABLE_EXTRACT_JS = """\
       } else {
         nodes = [row];
       }
+      if (spec.doc) nodes = nodes.filter((n) => docRe.test(n.href || ""));
       const attr = spec.attribute || "text";
       const pick = (el) => {
         if (!el) return "";
@@ -37,7 +75,8 @@ _TABLE_EXTRACT_JS = """\
         rec[name] = pick(nodes[0]);
       }
     }
-    out.push(rec);
+    const key = JSON.stringify(rec);
+    if (!seenKeys.has(key)) { seenKeys.add(key); out.push(rec); }
   }
   return out;
 }
@@ -45,8 +84,10 @@ _TABLE_EXTRACT_JS = """\
 
 _DEFAULT_FIELDS = {
     "text": {"selector": "", "attribute": "text"},
-    "links": {"selector": "a[href]", "attribute": "href", "all": True},
+    "links": {"selector": "a[href]", "attribute": "href", "all": True, "doc": True},
 }
+
+_DEFAULT_LINK_PATTERN = "[.](pdf|xls|xlsx|zip|csv)([?#]|$)"
 
 
 def _parse_fields(raw: str) -> dict | None:
@@ -64,10 +105,24 @@ def _parse_fields(raw: str) -> dict | None:
     return obj
 
 
-async def _extract_rows_from_page(page_obj, row_selector: str, fields: dict) -> list[dict]:
+async def _extract_rows_from_page(
+    page_obj,
+    row_selector: str,
+    fields: dict,
+    min_text: int,
+    link_pattern: str,
+    require_date: bool,
+) -> list[dict]:
     payload = await page_obj.evaluate(
         _TABLE_EXTRACT_JS,
-        {"rowSelector": row_selector, "fields": fields},
+        {
+            "auto": not row_selector or row_selector.lower() == "auto",
+            "rowSelector": row_selector,
+            "fields": fields,
+            "minText": min_text,
+            "linkPattern": link_pattern,
+            "requireDate": require_date,
+        },
     )
     if not isinstance(payload, list):
         return []
@@ -81,11 +136,16 @@ async def _extract_rows_across_site_pages(
     pagination_next_selector: str,
     max_pages: int,
     page_settle_ms: int,
+    min_text: int,
+    link_pattern: str,
+    require_date: bool,
 ) -> list[dict]:
     rows: list[dict] = []
     seen: set[str] = set()
     for i in range(max_pages):
-        page_rows = await _extract_rows_from_page(page_obj, row_selector, fields)
+        page_rows = await _extract_rows_from_page(
+            page_obj, row_selector, fields, min_text, link_pattern, require_date
+        )
         new_rows = []
         for row in page_rows:
             key = json.dumps(row, ensure_ascii=False, sort_keys=True)
@@ -105,13 +165,16 @@ async def _extract_rows_across_site_pages(
 @db_tool(name="browser_extract_table", category="browser", timeout=60, sequential=False)
 async def browser_extract_table(
     ctx: RunContext[Settings],
-    row_selector: str,
+    row_selector: str = "auto",
     fields: str = "",
     wait_for_selector: str = "",
     pagination_next_selector: str = "",
     max_pages: int = 1,
     page_settle_ms: int = 800,
     max_rows: int = 500,
+    min_text: int = 30,
+    link_pattern: str = "",
+    require_date_token: bool = False,
 ) -> str:
     """Extract structured data by rows (with automatic pagination merge), returning a final JSON result.
 
@@ -119,19 +182,26 @@ async def browser_extract_table(
     Answer the user based on it directly; do not re-process it with run_python_code.
 
     Parameters:
-    - row_selector: CSS selector for each row container (required). Works for any container
-      (div, li, tr, ...) — no need to know the exact sub-selectors beforehand.
+    - row_selector: CSS selector for each row container. Leave empty or use "auto" to
+      auto-discover rows: each document link is walked up to its first ancestor whose text
+      is long enough (and, if enabled, contains a date). Works on div/li/tr/card layouts
+      without knowing any selectors in advance.
     - fields: optional JSON field mapping, format:
         {"date": {"selector": ".date"}, "pdf": {"selector": "a[href$='.pdf']", "attribute": "href"}}
       attribute values: text (default), href (resolved to absolute URL), or any HTML attribute name;
       "all": true collects all matches for that field as an array.
-      When left empty, each row returns {text: the row's innerText, links: all hrefs inside the row},
-      which keeps every row's own content and document links together.
+      When left empty, each row returns {text: the row's innerText, links: document hrefs inside the row}.
     - wait_for_selector: wait for this selector before extracting (dynamically rendered pages);
     - pagination_next_selector: the "next page" selector of the site pager (auto-detects when
       left empty); with max_pages>1 it clicks through pages and merges rows from all pages;
     - page_settle_ms: settle time after pagination click (milliseconds);
-    - max_rows: maximum number of rows returned (truncates if exceeded).
+    - max_rows: maximum number of rows returned (truncates if exceeded);
+    - min_text: minimum visible text length for a row container; rows shorter than this are
+      grown upward to their parent container;
+    - link_pattern: custom regex (JS) to match document URLs for auto-discovery and the
+      default links field, e.g. "[.]pdf|[.]docx" for sites without standard file extensions;
+    - require_date_token: when true, a row is considered complete only if its text contains a
+      date (English month name or M/D/YYYY), useful for SEC/investor listing pages.
     """
     manager, page_obj = _require_browser()
     if page_obj is None:
@@ -143,16 +213,20 @@ async def browser_extract_table(
     if parsed_fields is None:
         return "Invalid fields: expected a non-empty JSON object like {\"date\": {\"selector\": \".date\"}, \"pdf\": {\"selector\": \"a[href$='.pdf']\", \"attribute\": \"href\"}}"
 
+    pattern = link_pattern.strip() or _DEFAULT_LINK_PATTERN
     try:
         if wait_for_selector:
             await page_obj.wait_for_selector(wait_for_selector, timeout=10000)
         rows = await _extract_rows_across_site_pages(
             page_obj,
-            row_selector,
+            row_selector.strip(),
             parsed_fields,
             pagination_next_selector,
             max(max_pages, 1),
             max(page_settle_ms, 0),
+            max(min_text, 0),
+            pattern,
+            bool(require_date_token),
         )
     except Exception as e:
         manager.record_action("extract_table", f"error: {e}", success=False)

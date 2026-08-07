@@ -8,7 +8,7 @@ from config.settings import Settings
 from logging_setup import get_logger
 from pydantic_ai import RunContext
 from services.crawl_links import DOCUMENT_EXTENSIONS
-from tools.browser import _check_blocked, _click_next, _require_browser, _settle_after_click
+from tools.browser_common import _check_blocked, _click_next, _require_browser, _settle_after_click
 from tools.tool_decorators import db_tool
 
 logger = get_logger("tools.browser.links")
