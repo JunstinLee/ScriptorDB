@@ -24,7 +24,7 @@ class TestBrowserExtractLinks:
     async def test_without_launch(self):
         with patch.object(get_manager(), "_page", None):
             result = await browser_extract_links(None)
-            assert "not launched" in result.lower()
+            assert "not launched" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_extract_links_success(self):
@@ -54,13 +54,13 @@ class TestBrowserExtractLinks:
         })
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, max_links=10)
-        assert "Extracted 2 links" in result
-        assert "example.com/docs" in result
-        assert "new_tab" in result
-        assert "is_internal" in result
-        assert '"title":' not in result
-        assert '"base_domain":' not in result
-        assert '"target":' not in result
+        assert result["total"] == 2
+        assert any(l["url"] == "https://example.com/docs" for l in result["links"])
+        assert all("new_tab" in l for l in result["links"])
+        assert all("is_internal" in l for l in result["links"])
+        assert all("title" not in l for l in result["links"])
+        assert all("base_domain" not in l for l in result["links"])
+        assert all("target" not in l for l in result["links"])
         _, args = mock_page.evaluate.await_args.args
         assert args == ["", 0, 10, True, True]
 
@@ -83,9 +83,9 @@ class TestBrowserExtractLinks:
         })
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, include_metadata=True)
-        assert '"title": "Docs page"' in result
-        assert '"base_domain": "example.com"' in result
-        assert '"target": "_blank"' in result
+        assert result["links"][0]["title"] == "Docs page"
+        assert result["links"][0]["base_domain"] == "example.com"
+        assert result["links"][0]["target"] == "_blank"
 
     @pytest.mark.asyncio
     async def test_pagination_truncated_flag(self):
@@ -107,10 +107,9 @@ class TestBrowserExtractLinks:
         })
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, max_links=3, page=1)
-        assert "Extracted 5 links" in result
-        assert "truncated" in result
-        assert '"truncated": true' in result
-        assert "example.com/0" in result
+        assert result["total"] == 5
+        assert result["truncated"] is True
+        assert any(l["url"] == "https://example.com/0" for l in result["links"])
 
     @pytest.mark.asyncio
     async def test_page_out_of_range(self):
@@ -118,7 +117,8 @@ class TestBrowserExtractLinks:
         mock_page.evaluate = AsyncMock(return_value={"total": 5, "links": []})
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, max_links=3, page=9)
-        assert "out of range" in result
+        assert result["links"] == []
+        assert result["total"] == 5
 
     @pytest.mark.asyncio
     async def test_filter_args_passed_to_extractor(self):
@@ -137,7 +137,8 @@ class TestBrowserExtractLinks:
         mock_page.evaluate = AsyncMock(return_value={"total": 0, "links": []})
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None)
-            assert "No links found" in result
+            assert result["total"] == 0
+            assert result["links"] == []
 
     @pytest.mark.asyncio
     async def test_extract_links_error(self):
@@ -145,7 +146,7 @@ class TestBrowserExtractLinks:
         mock_page.evaluate = AsyncMock(side_effect=Exception("boom"))
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None)
-            assert "failed" in result.lower()
+            assert "failed" in result["error"].lower()
 
     @pytest.mark.asyncio
     async def test_document_only_keeps_external_cdn_docs(self):
@@ -174,8 +175,8 @@ class TestBrowserExtractLinks:
                 None, document_only=True, allowed_domains="investor.oracle.com",
                 resolve_redirects=False,
             )
-        assert "cloudfront.net/8-k.pdf" in result
-        assert "investor.oracle.com/" not in result
+        assert any("cloudfront.net/8-k.pdf" in l["url"] for l in result["links"])
+        assert all("investor.oracle.com/" not in l["url"] for l in result["links"])
 
     @pytest.mark.asyncio
     async def test_resolve_redirects_follows_to_final_url(self):
@@ -198,7 +199,7 @@ class TestBrowserExtractLinks:
         mock_page.request.get = AsyncMock(return_value=AsyncMock())
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, document_only=True, resolve_redirects=True)
-        assert "cloudfront.net/report.xlsx" in result
+        assert any("cloudfront.net/report.xlsx" in l["url"] for l in result["links"])
 
     @pytest.mark.asyncio
     async def test_subdomain_is_internal(self):
@@ -462,7 +463,7 @@ class TestBrowserLinksReal:
         assert "navigated to" in result.lower()
 
         result = await browser_extract_links(None)
-        assert "Extracted 2 links" in result
+        assert result["total"] == 2
 
         result = await browser_get_tabs(None)
         assert "ACTIVE" in result

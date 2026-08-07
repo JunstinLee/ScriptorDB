@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-
 from config.settings import Settings
 from logging_setup import get_logger
 from pydantic_ai import RunContext
@@ -58,7 +56,7 @@ async def browser_inspect_structure(
     min_links: int = 1,
     min_text: int = 5,
     max_sample: int = 300,
-) -> str:
+) -> dict:
     """Discover candidate row containers on the current page (final JSON result).
 
     Scans the rendered DOM for document links (PDF/Excel/ZIP/CSV) and reports the
@@ -75,9 +73,9 @@ async def browser_inspect_structure(
     """
     manager, page_obj = _require_browser()
     if page_obj is None:
-        return "Browser not launched. Please call browser_launch first."
+        return {"error": "Browser not launched. Please call browser_launch first."}
     if blocked := _check_blocked(manager):
-        return blocked
+        return {"error": blocked}
 
     try:
         payload = await page_obj.evaluate(
@@ -91,7 +89,7 @@ async def browser_inspect_structure(
         )
     except Exception as e:
         manager.record_action("inspect_structure", f"error: {e}", success=False)
-        return f"Structure inspection failed: {e}"
+        return {"error": f"Structure inspection failed: {e}"}
 
     if not isinstance(payload, dict):
         payload = {"documentLinkCount": 0, "candidates": []}
@@ -99,11 +97,7 @@ async def browser_inspect_structure(
     candidates = [c for c in payload.get("candidates", []) if isinstance(c, dict)]
     manager.record_action("inspect_structure", f"{payload.get('documentLinkCount', 0)} doc links, {len(candidates)} candidates")
 
-    if not candidates:
-        return "No document-link row containers found on the page. The page may not have loaded yet or its documents use a different pattern."
-
-    body = {
+    return {
         "documentLinkCount": payload.get("documentLinkCount", 0),
         "candidates": candidates,
     }
-    return f"Found {payload.get('documentLinkCount', 0)} document links; candidate row containers:\n{json.dumps(body, ensure_ascii=False)}"

@@ -133,6 +133,8 @@ async def run_agent_stream(
                             output = content.error.message
                     elif isinstance(content, str):
                         output = content
+                    elif isinstance(content, dict):
+                        output = json_mod.dumps(content, ensure_ascii=False)
 
                     local_tracker.complete_tool(
                         call_id, success, output, error_code, duration_ms, data=data

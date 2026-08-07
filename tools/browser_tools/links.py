@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from urllib.parse import urlparse
 
 from browser.links import LinkExtraction, extract_links, merge_extractions
@@ -136,8 +135,8 @@ async def browser_extract_links(
     allowed_domains: str = "",
     document_domains: str = "",
     resolve_redirects: bool = True,
-) -> str:
-    """Extract page links and return a deduplicated, final formatted list.
+) -> dict:
+    """Extract page links and return a deduplicated, final structured list.
 
     The result is the final, directly presentable data (total/page/truncated/links).
     The returned links are already deduplicated and structured — no further parsing,
@@ -157,9 +156,9 @@ async def browser_extract_links(
     """
     manager, page_obj = _require_browser()
     if page_obj is None:
-        return "Browser not launched. Please call browser_launch first."
+        return {"error": "Browser not launched. Please call browser_launch first."}
     if blocked := _check_blocked(manager):
-        return blocked
+        return {"error": blocked}
 
     domains = [d.strip() for d in allowed_domains.split(",") if d.strip()] or None
     doc_domains = [d.strip() for d in document_domains.split(",") if d.strip()] or None
@@ -196,7 +195,7 @@ async def browser_extract_links(
             extraction.links = _dedupe_by_url(extraction.links)
     except Exception as e:
         manager.record_action("extract_links", f"error: {e}", success=False)
-        return f"Link extraction failed: {e}"
+        return {"error": f"Link extraction failed: {e}"}
 
     raw_total = extraction.total
     links = filter_links(
@@ -217,9 +216,14 @@ async def browser_extract_links(
 
     manager.record_action("extract_links", f"{total} links")
     if total == 0:
-        return "No links found on page"
+        return {"total": 0, "page": max(page, 1), "truncated": False, "links": []}
     if not links:
-        return f"No links on this page (total {total}, page {page} is out of range)"
+        return {
+            "total": total,
+            "page": max(page, 1),
+            "truncated": False,
+            "links": [],
+        }
 
     if include_metadata:
         payload = [
@@ -245,13 +249,9 @@ async def browser_extract_links(
             for link in links
         ]
 
-    summary = f"Extracted {total} links (page {page})"
-    if truncated:
-        summary += ", truncated"
-    body = {
+    return {
         "total": total,
-        "page": page,
+        "page": max(page, 1),
         "truncated": truncated,
         "links": payload,
     }
-    return f"{summary}:\n{json.dumps(body, ensure_ascii=False)}"

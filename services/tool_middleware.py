@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import threading
+from typing import Any
 from urllib.parse import urlparse
 
 from logging_setup import get_logger
@@ -182,7 +183,9 @@ def _find_tool_func(name: str):
     return None
 
 
-def _label(tool_name: str, replacement: str, kwargs: dict, result: str) -> str:
+def _label(tool_name: str, replacement: str, kwargs: dict, result: Any) -> str:
+    if isinstance(result, dict):
+        result = json.dumps(result, ensure_ascii=False)
     return _SWITCH_LABEL.format(
         tool_name=tool_name,
         replacement=replacement,
@@ -191,7 +194,9 @@ def _label(tool_name: str, replacement: str, kwargs: dict, result: str) -> str:
     )
 
 
-def _result_is_empty(result: str) -> bool:
+def _result_is_empty(result: str | dict) -> bool:
+    if isinstance(result, dict):
+        return not result.get("rows") and not result.get("links")
     low = result.lower()
     return any(marker in low for marker in _EMPTY_RESULT_MARKERS)
 

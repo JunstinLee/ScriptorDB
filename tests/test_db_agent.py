@@ -9,7 +9,24 @@ from config.settings import Settings
 from tools.db_tools import get_schema, python_sandbox_execute, query_database
 from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
 from tools.export_tools import export_excel
+from tools.tool_decorators import get_all_tool_defs
 from tools.viz_tools import plot_chart
+
+
+def test_browser_data_tools_return_object_schema():
+    import tools.browser_tools.inspect
+    import tools.browser_tools.links
+    import tools.browser_tools.table
+
+    object_tools = {
+        "browser_extract_table",
+        "browser_extract_rows",
+        "browser_extract_links",
+        "browser_inspect_structure",
+    }
+    for d in get_all_tool_defs():
+        if d.name in object_tools:
+            assert d.to_tool().function_schema.return_schema["type"] == "object", d.name
 
 
 def _auto_approve_handler(

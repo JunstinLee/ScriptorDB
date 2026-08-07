@@ -180,18 +180,21 @@ def _filter_blank_rows(rows: list[dict]) -> list[dict]:
     return cleaned
 
 
-def _format_result(rows: list[dict], max_pages: int, max_rows: int) -> str:
+def _format_result(rows: list[dict], max_pages: int, max_rows: int) -> dict:
     truncated = False
     if len(rows) > max_rows:
         rows = rows[:max_rows]
         truncated = True
-    body = {
+    return {
         "total": len(rows),
         "pages": max(max_pages, 1),
         "truncated": truncated,
         "rows": rows,
     }
-    return f"Extracted {len(rows)} structured rows (up to {max(max_pages, 1)} page(s)):\n{json.dumps(body, ensure_ascii=False)}"
+
+
+def _empty_result(max_pages: int = 1) -> dict:
+    return {"total": 0, "pages": max(max_pages, 1), "truncated": False, "rows": []}
 
 
 @db_tool(name="browser_extract_table", category="browser", timeout=60, sequential=False)
@@ -204,7 +207,7 @@ async def browser_extract_table(
     max_rows: int = 500,
     min_text: int = 30,
     link_pattern: str = "",
-) -> str:
+) -> dict:
     """Extract structured rows from the rendered page, auto-discovering the rows (final JSON result).
 
     The tool locates the row containers itself: each document link is walked up to its
@@ -230,9 +233,9 @@ async def browser_extract_table(
     """
     manager, page_obj = _require_browser()
     if page_obj is None:
-        return "Browser not launched. Please call browser_launch first."
+        return {"error": "Browser not launched. Please call browser_launch first."}
     if blocked := _check_blocked(manager):
-        return blocked
+        return {"error": blocked}
 
     pattern = link_pattern.strip() or _DEFAULT_LINK_PATTERN
     try:
@@ -256,12 +259,12 @@ async def browser_extract_table(
         )
     except Exception as e:
         manager.record_action("extract_table", f"error: {e}", success=False)
-        return f"Table extraction failed: {e}"
+        return {"error": f"Table extraction failed: {e}"}
 
     rows = _filter_blank_rows(rows)
     manager.record_action("extract_table", f"{len(rows)} rows")
     if not rows:
-        return "No rows found on page"
+        return _empty_result(max_pages)
     return _format_result(rows, max_pages, max_rows)
 
 
@@ -278,7 +281,7 @@ async def browser_extract_rows(
     min_text: int = 30,
     link_pattern: str = "",
     require_date_token: bool = False,
-) -> str:
+) -> dict:
     """Extract structured rows using an explicit CSS row selector and field mapping (advanced).
 
     Use this only when `browser_extract_table` returns no or wrong rows for an unusual
@@ -299,13 +302,13 @@ async def browser_extract_rows(
     """
     manager, page_obj = _require_browser()
     if page_obj is None:
-        return "Browser not launched. Please call browser_launch first."
+        return {"error": "Browser not launched. Please call browser_launch first."}
     if blocked := _check_blocked(manager):
-        return blocked
+        return {"error": blocked}
 
     parsed_fields = _parse_fields(fields)
     if parsed_fields is None:
-        return "Invalid fields: expected a non-empty JSON object like {\"date\": {\"selector\": \".date\"}, \"pdf\": {\"selector\": \"a[href$='.pdf']\", \"attribute\": \"href\"}}"
+        return {"error": "Invalid fields: expected a non-empty JSON object like {\"date\": {\"selector\": \".date\"}, \"pdf\": {\"selector\": \"a[href$='.pdf']\", \"attribute\": \"href\"}}"}
 
     pattern = link_pattern.strip() or _DEFAULT_LINK_PATTERN
     try:
@@ -324,10 +327,10 @@ async def browser_extract_rows(
         )
     except Exception as e:
         manager.record_action("extract_rows", f"error: {e}", success=False)
-        return f"Row extraction failed: {e}"
+        return {"error": f"Row extraction failed: {e}"}
 
     rows = _filter_blank_rows(rows)
     manager.record_action("extract_rows", f"{len(rows)} rows")
     if not rows:
-        return "No rows found on page"
+        return _empty_result(max_pages)
     return _format_result(rows, max_pages, max_rows)
