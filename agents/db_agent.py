@@ -7,6 +7,7 @@ from config.app_config import AppConfig
 from config.models import resolve_model
 from config.provider_adapter import build_model
 from config.settings import Settings
+from services.run_control import build_output_validator
 from tools.registry import get_all_tools
 from tools.toolsets import (
     _create_read_toolset as _,
@@ -52,14 +53,17 @@ def _build_agent(config: AppConfig, resolved_model: str, browser_enabled: bool =
     exclude = None
     if not browser_enabled:
         exclude = {"browser"}
-    return Agent(
+    agent = Agent(
         model=model,
         deps_type=Settings,
         output_type=[str, DeferredToolRequests],
         tools=get_all_tools(exclude_categories=exclude),
         capabilities=[audit_hooks, undo_hooks],
         system_prompt=_SYSTEM_PROMPT,
+        retries={"output": 2},
     )
+    agent.output_validator(build_output_validator())
+    return agent
 
 
 def get_agent(
