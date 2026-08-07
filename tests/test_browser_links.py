@@ -147,6 +147,67 @@ class TestBrowserExtractLinks:
             result = await browser_extract_links(None)
             assert "failed" in result.lower()
 
+    @pytest.mark.asyncio
+    async def test_document_only_keeps_external_cdn_docs(self):
+        mock_page = AsyncMock()
+        mock_page.url = "https://investor.oracle.com/sec-filings/"
+        mock_page.evaluate = AsyncMock(return_value={
+            "total": 2,
+            "links": [
+                {
+                    "text": "8-K", "url": "https://d1io.cloudfront.net/8-k.pdf",
+                    "title": "", "base_domain": "d1io.cloudfront.net",
+                    "target": "", "new_tab": False, "is_internal": False,
+                },
+                {
+                    "text": "Home", "url": "https://investor.oracle.com/",
+                    "title": "", "base_domain": "investor.oracle.com",
+                    "target": "", "new_tab": False, "is_internal": True,
+                },
+            ],
+        })
+        mock_page.request = AsyncMock()
+        mock_page.request.head = AsyncMock(return_value=AsyncMock())
+        mock_page.request.get = AsyncMock(return_value=AsyncMock())
+        with patch.object(get_manager(), "_page", mock_page):
+            result = await browser_extract_links(
+                None, document_only=True, allowed_domains="investor.oracle.com",
+                resolve_redirects=False,
+            )
+        assert "cloudfront.net/8-k.pdf" in result
+        assert "investor.oracle.com/" not in result
+
+    @pytest.mark.asyncio
+    async def test_resolve_redirects_follows_to_final_url(self):
+        mock_page = AsyncMock()
+        mock_page.url = "https://investor.oracle.com/sec-filings/"
+        mock_page.evaluate = AsyncMock(return_value={
+            "total": 1,
+            "links": [
+                {
+                    "text": "Report", "url": "https://investor.oracle.com/node/123",
+                    "title": "", "base_domain": "investor.oracle.com",
+                    "target": "", "new_tab": False, "is_internal": True,
+                },
+            ],
+        })
+        resp = AsyncMock()
+        resp.url = "https://d1io.cloudfront.net/report.xlsx"
+        mock_page.request = AsyncMock()
+        mock_page.request.head = AsyncMock(return_value=resp)
+        mock_page.request.get = AsyncMock(return_value=AsyncMock())
+        with patch.object(get_manager(), "_page", mock_page):
+            result = await browser_extract_links(None, document_only=True, resolve_redirects=True)
+        assert "cloudfront.net/report.xlsx" in result
+
+    @pytest.mark.asyncio
+    async def test_subdomain_is_internal(self):
+        from services.link_policy import is_internal_link
+
+        assert is_internal_link("https://docs.oracle.com/x", "https://investor.oracle.com/")
+        assert is_internal_link("https://www.python.org/x", "https://python.org/")
+        assert not is_internal_link("https://cloudfront.net/x", "https://investor.oracle.com/")
+
 
 class TestBrowserGetTabs:
     @pytest.mark.asyncio

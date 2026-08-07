@@ -4,10 +4,12 @@ import {
   useCallback,
   useState,
   type CSSProperties,
+  type ReactNode,
 } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
+import type { Element } from "hast";
 import { useTheme } from "../../hooks/useTheme";
 import PaginatedTable from "./PaginatedTable";
 import { useTablePagination } from "./tablePagination";
@@ -36,6 +38,15 @@ SyntaxHighlighter.registerLanguage("html", html);
 
 interface MarkdownRendererProps {
   content: string;
+}
+
+interface MarkdownTableProps {
+  node?: Element;
+  children?: ReactNode;
+}
+
+function MarkdownTable({ node, children }: MarkdownTableProps) {
+  return <PaginatedTable node={node}>{children}</PaginatedTable>;
 }
 
 const prismLight: Record<string, CSSProperties> = {
@@ -261,9 +272,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
           hr: (props) => (
             <hr className="my-3 border-grid" {...props} />
           ),
-          table: ({ node, children }) => (
-            <PaginatedTable node={node}>{children}</PaginatedTable>
-          ),
+          table: MarkdownTable,
           thead: TableHead,
           tbody: TableBody,
           tr: ({ children, ...props }) => (

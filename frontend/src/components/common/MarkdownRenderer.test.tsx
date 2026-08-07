@@ -99,6 +99,26 @@ describe("MarkdownRenderer", () => {
     expect(screen.getByText("value 0")).toBeInTheDocument();
   });
 
+  it("keeps the current page when the renderer updates", async () => {
+    const user = userEvent.setup();
+    const rows = Array.from({ length: 25 }, (_, i) => `| ${i} | value ${i} |`)
+      .join("\n");
+    const content = `| id | val |\n|---|---|\n${rows}`;
+    const { rerender } = renderWithTheme(<MarkdownRenderer content={content} />);
+
+    await user.click(screen.getByText("Next"));
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+
+    rerender(
+      <ThemeProvider>
+        <MarkdownRenderer content={`${content}\n`} />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("value 20")).toBeInTheDocument();
+  });
+
   it("does not paginate small tables", () => {
     const rows = Array.from({ length: 3 }, (_, i) => `| ${i} | value ${i} |`)
       .join("\n");

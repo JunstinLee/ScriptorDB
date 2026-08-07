@@ -205,7 +205,7 @@ def _browser_extract_kwargs(tool_name: str, args: dict, current_url: str) -> dic
     selectors) are inherited from the original call when present — never
     hard-bound to the current page.
     """
-    kwargs: dict = {"include_metadata": True, "max_pages": 5}
+    kwargs: dict = {"include_metadata": True, "max_pages": 5, "resolve_redirects": True}
     if tool_name == "browser_extract_links":
         inherit = ("selector", "wait_for_selector", "pagination_next_selector",
                    "allowed_domains", "document_domains", "document_only")

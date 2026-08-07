@@ -94,7 +94,7 @@ class TestCrawlLinksModule:
             "https://example.com/b.csv#frag",
         ]
 
-    def test_filter_document_links_by_domain(self):
+    def test_filter_document_links_by_domain_keeps_content_docs(self):
         links = [
             CrawlLink(url="https://example.com/report.pdf"),
             CrawlLink(url="https://other.com/data.xlsx"),
@@ -103,8 +103,17 @@ class TestCrawlLinksModule:
         docs = filter_document_links(links, ["example.com"])
         assert [d.url for d in docs] == [
             "https://example.com/report.pdf",
+            "https://other.com/data.xlsx",
             "https://www.example.com/r2.pdf",
         ]
+
+    def test_filter_document_links_restricts_when_page_out_of_scope(self):
+        links = [
+            CrawlLink(url="https://example.com/report.pdf"),
+            CrawlLink(url="https://other.com/data.xlsx"),
+        ]
+        docs = filter_document_links(links, ["example.com"], page_url="https://elsewhere.com/")
+        assert [d.url for d in docs] == ["https://example.com/report.pdf"]
 
 
 class TestCrawlPolicy:

@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from playwright.async_api import Page
 
 from logging_setup import get_logger
+from services.link_policy import is_internal_link
 
 logger = get_logger("browser.links")
 
@@ -80,6 +81,7 @@ async def extract_links(
     include_external: bool = True,
     unique_only: bool = True,
     offset: int = 0,
+    base_url: str | None = None,
 ) -> LinkExtraction:
     raw = await page.evaluate(
         _LINK_EXTRACT_JS,
@@ -89,6 +91,9 @@ async def extract_links(
         return LinkExtraction(total=0, truncated=False, links=[])
     total = int(raw.get("total") or 0)
     links = [StructuredLink(**item) for item in raw.get("links") or []]
+    if isinstance(base_url, str) and base_url:
+        for link in links:
+            link.is_internal = is_internal_link(link.url, base_url)
     truncated = offset + len(links) < total
     return LinkExtraction(total=total, truncated=truncated, links=links)
 

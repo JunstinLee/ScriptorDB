@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from urllib.parse import urlparse
 
@@ -7,53 +8,83 @@ from browser.links import LinkExtraction, extract_links, merge_extractions
 from config.settings import Settings
 from logging_setup import get_logger
 from pydantic_ai import RunContext
-from services.crawl_links import DOCUMENT_EXTENSIONS
+from services.link_policy import domain_of, filter_links, is_document_url, is_internal_link
 from tools.browser_common import _check_blocked, _click_next, _require_browser, _settle_after_click
 from tools.tool_decorators import db_tool
 
 logger = get_logger("tools.browser.links")
 
 _SITE_PAGE_SNAPSHOT_LIMIT = 500
+_MAX_REDIRECT_RESOLUTIONS = 50
+_MAX_REDIRECT_CONCURRENCY = 5
+_REDIRECT_TIMEOUT_MS = 8000
 
 
-def _is_document_url(url: str) -> bool:
-    path = url.split("?", 1)[0].split("#", 1)[0].lower()
-    return path.endswith(DOCUMENT_EXTENSIONS)
+async def _follow_redirect(page_obj, url: str) -> str | None:
+    request = getattr(page_obj, "request", None)
+    if request is None:
+        return None
+    for method in ("head", "get"):
+        try:
+            resp = await getattr(request, method)(
+                url,
+                max_redirects=10,
+                timeout=_REDIRECT_TIMEOUT_MS,
+            )
+            final_url = getattr(resp, "url", None)
+            if isinstance(final_url, str) and final_url:
+                return final_url
+        except Exception:
+            continue
+    return None
 
 
-def _normalize_domain(domain: str) -> str:
-    return domain.strip().lower().removeprefix("www.")
-
-
-def _domain_of(url: str) -> str:
-    return _normalize_domain(urlparse(url).hostname or "")
-
-
-def _filter_links(
+async def _resolve_redirects(
+    page_obj,
     links: list,
-    document_only: bool,
-    domains: list[str] | None,
-    document_domains: list[str] | None,
+    page_url: str,
 ) -> list:
-    """Apply document-only and domain policy.
+    """Follow redirects for candidate links and update URL / internal flags.
 
-    Navigation links are restricted to `domains`; document links (PDF/Excel/
-    ZIP/CSV) are additionally allowed on `document_domains` (e.g. a file CDN).
+    Only links that are not already same-site document URLs are resolved (keeps
+    the common case fast); resolved links get their final URL, base_domain and
+    is_internal recomputed. Resolution is capped and failure keeps the original.
     """
-    if document_only:
-        links = [link for link in links if _is_document_url(link.url)]
-    if not domains and not document_domains:
-        return links
-    allowed_nav = {_normalize_domain(d) for d in domains or []}
-    allowed_doc = allowed_nav | {_normalize_domain(d) for d in document_domains or []}
+    out = list(links)
+    candidates: list[tuple[int, object]] = []
+    for index, link in enumerate(links):
+        if is_document_url(link.url) and is_internal_link(link.url, page_url):
+            continue
+        if len(candidates) >= _MAX_REDIRECT_RESOLUTIONS:
+            break
+        candidates.append((index, link))
 
-    def keep(link) -> bool:
-        domain = _domain_of(link.url)
-        if _is_document_url(link.url):
-            return not allowed_doc or domain in allowed_doc
-        return not allowed_nav or domain in allowed_nav
+    semaphore = asyncio.Semaphore(_MAX_REDIRECT_CONCURRENCY)
 
-    return [link for link in links if keep(link)]
+    async def resolve_one(link):
+        async with semaphore:
+            final_url = await _follow_redirect(page_obj, link.url)
+        if final_url and final_url != link.url:
+            link.url = final_url
+            link.base_domain = domain_of(final_url)
+            link.is_internal = is_internal_link(final_url, page_url)
+        return link
+
+    resolved = await asyncio.gather(*(resolve_one(link) for _, link in candidates))
+    for (index, _), link in zip(candidates, resolved):
+        out[index] = link
+    return out
+
+
+def _dedupe_by_url(links: list) -> list:
+    seen: set[str] = set()
+    out: list = []
+    for link in links:
+        if link.url in seen:
+            continue
+        seen.add(link.url)
+        out.append(link)
+    return out
 
 
 async def _extract_across_site_pages(
@@ -75,6 +106,7 @@ async def _extract_across_site_pages(
             include_external=include_external,
             unique_only=unique_only,
             offset=0,
+            base_url=page_obj.url,
         )
         new_links = [link for link in extraction.links if link.url not in seen]
         seen.update(link.url for link in extraction.links)
@@ -88,7 +120,7 @@ async def _extract_across_site_pages(
     return merge_extractions(extractions)
 
 
-@db_tool(name="browser_extract_links", category="browser", timeout=15, sequential=False)
+@db_tool(name="browser_extract_links", category="browser", timeout=60, sequential=False)
 async def browser_extract_links(
     ctx: RunContext[Settings],
     selector: str = "",
@@ -103,6 +135,7 @@ async def browser_extract_links(
     document_only: bool = False,
     allowed_domains: str = "",
     document_domains: str = "",
+    resolve_redirects: bool = True,
 ) -> str:
     """Extract page links and return a deduplicated, final formatted list.
 
@@ -115,8 +148,11 @@ async def browser_extract_links(
       rel=next/.pager-next/.next when left empty); with max_pages>1 it clicks through pages
       and merges links from all pages;
     - document_only: keep only document links (PDF/Excel/ZIP/CSV);
-    - allowed_domains: allowed domains (comma separated), page links are restricted to these;
-    - document_domains: additional domains allowed for document links (comma separated, e.g. a file CDN).
+    - allowed_domains: allowed domains (comma separated), navigation links are restricted to these;
+      document links are treated as page content and are kept regardless of their host;
+    - document_domains: additional domains allowed for document links (comma separated, e.g. a file CDN);
+    - resolve_redirects: follow redirects for candidate links and classify them by their
+      final URL (on by default; capped to 50 resolutions per call).
     """
     manager, page_obj = _require_browser()
     if page_obj is None:
@@ -126,10 +162,14 @@ async def browser_extract_links(
 
     domains = [d.strip() for d in allowed_domains.split(",") if d.strip()] or None
     doc_domains = [d.strip() for d in document_domains.split(",") if d.strip()] or None
+    if document_only:
+        include_external = True
 
     try:
         if wait_for_selector:
             await page_obj.wait_for_selector(wait_for_selector, timeout=10000)
+
+        page_url = page_obj.url if isinstance(page_obj.url, str) else ""
 
         if max_pages > 1:
             extraction = await _extract_across_site_pages(
@@ -148,13 +188,23 @@ async def browser_extract_links(
                 include_external=include_external,
                 unique_only=unique_only,
                 offset=(max(page, 1) - 1) * max_links,
+                base_url=page_url,
             )
+        if resolve_redirects:
+            extraction.links = await _resolve_redirects(page_obj, extraction.links, page_url)
+            extraction.links = _dedupe_by_url(extraction.links)
     except Exception as e:
         manager.record_action("extract_links", f"error: {e}", success=False)
         return f"Link extraction failed: {e}"
 
     raw_total = extraction.total
-    links = _filter_links(extraction.links, document_only, domains, doc_domains)
+    links = filter_links(
+        extraction.links,
+        page_url=page_url,
+        allowed_domains=domains,
+        document_domains=doc_domains,
+        document_only=document_only,
+    )
     offset = (max(page, 1) - 1) * max_links
     if max_pages > 1:
         total = len(links)

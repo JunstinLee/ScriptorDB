@@ -11,7 +11,7 @@ from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 from logging_setup import get_logger
 from schemas.crawl_links import CrawlLink
 from schemas.crawl_models import CrawlResult
-from services.crawl_links import DOCUMENT_EXTENSIONS, extract_links, filter_document_links
+from services.crawl_links import extract_links, filter_document_links, is_document_url
 from services.crawl_policy import build_exclude_domains, is_binary_content_type
 from services.crawl_rate_limit import RateLimiter
 from services.crawl_structured import extract_rows
@@ -102,8 +102,7 @@ def _extract_html(result: object) -> str:
 
 
 def _url_is_document(url: str) -> bool:
-    path = url.split("?", 1)[0].split("#", 1)[0].lower()
-    return path.endswith(DOCUMENT_EXTENSIONS)
+    return is_document_url(url)
 
 
 def _guess_content_type(url: str) -> str | None:
@@ -274,7 +273,7 @@ async def _crawl_url_inner(
         )
         success = True
 
-    document_links = filter_document_links(merged_links, allowed_domains, document_domains)
+    document_links = filter_document_links(merged_links, allowed_domains, document_domains, page_url=url)
 
     extracted_data = None
     if extraction_schema and success:

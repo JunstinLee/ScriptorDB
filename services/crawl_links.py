@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from urllib.parse import urlparse
-
 from schemas.crawl_links import CrawlLink
-
-DOCUMENT_EXTENSIONS = (".pdf", ".xls", ".xlsx", ".zip", ".csv")
+from services.link_policy import (
+    DOCUMENT_EXTENSIONS,
+    domain_of,
+    filter_links,
+    is_document_url,
+)
 
 
 def extract_links(result: object) -> list[CrawlLink]:
@@ -34,44 +36,28 @@ def filter_document_links(
     links: list[CrawlLink],
     allowed_domains: list[str] | None = None,
     document_domains: list[str] | None = None,
+    page_url: str = "",
 ) -> list[CrawlLink]:
-    """Filter document links, keeping those on `allowed_domains`.
+    """Filter document links.
 
-    `document_domains` lists additional domains allowed for document links
-    only (e.g. a file CDN) — page/navigation links are not affected.
-    Protocol-relative URLs (``//host/...``) are normalized to ``https:``.
+    Document links are treated as page content: while the source page is in
+    scope (`allowed_domains` empty, or the page URL is on an allowed domain),
+    external document links (e.g. on a file CDN) are kept. `document_domains`
+    remains an explicit additional allowlist for document links.
     """
-    docs = [link for link in links if _is_document_url(link.url)]
-    allowed = {_normalize(d) for d in (allowed_domains or []) if d}
-    allowed.update(_normalize(d) for d in (document_domains or []) if d)
-    if not allowed:
-        return [_normalize_doc_url(link) for link in docs]
-    return [_normalize_doc_url(link) for link in docs if _domain_of(link.url) in allowed]
-
-
-def _normalize_doc_url(link: CrawlLink) -> CrawlLink:
-    if not link.url.startswith("//"):
-        return link
-    return CrawlLink(
-        url=f"https:{link.url}",
-        text=link.text,
-        title=link.title,
-        base_domain=link.base_domain,
-        is_internal=link.is_internal,
+    return filter_links(
+        links,
+        page_url=page_url,
+        allowed_domains=allowed_domains,
+        document_domains=document_domains,
+        document_only=True,
     )
 
 
-def _is_document_url(url: str) -> bool:
-    path = url.split("?", 1)[0].split("#", 1)[0].lower()
-    return path.endswith(DOCUMENT_EXTENSIONS)
-
-
-def _normalize(domain: str) -> str:
-    return domain.strip().lower().removeprefix("www.")
-
-
-def _domain_of(url: str) -> str:
-    return _normalize(urlparse(url).hostname or "")
-
-
-__all__ = ["extract_links", "filter_document_links", "DOCUMENT_EXTENSIONS"]
+__all__ = [
+    "extract_links",
+    "filter_document_links",
+    "DOCUMENT_EXTENSIONS",
+    "is_document_url",
+    "domain_of",
+]
