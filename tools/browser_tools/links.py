@@ -140,7 +140,8 @@ async def browser_extract_links(
     """Extract page links and return a deduplicated, final formatted list.
 
     The result is the final, directly presentable data (total/page/truncated/links).
-    Answer the user based on it directly; do not re-process it with run_python_code.
+    The returned links are already deduplicated and structured — no further parsing,
+    transformation, or computation is needed; answer the user based on them directly.
 
     Optional advanced parameters:
     - wait_for_selector: wait for this CSS selector before extracting (dynamically rendered pages);

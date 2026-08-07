@@ -6,7 +6,7 @@ from pydantic_ai.capabilities import HandleDeferredToolCalls
 from pydantic_ai.models.test import TestModel as PydanticTestModel
 
 from config.settings import Settings
-from tools.db_tools import get_schema, query_database, run_python_code
+from tools.db_tools import get_schema, python_sandbox_execute, query_database
 from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
 from tools.export_tools import export_excel
 from tools.viz_tools import plot_chart
@@ -33,7 +33,7 @@ def test_agent():
             read_csv, write_csv,
             read_file, write_file,
             list_files, export_excel, plot_chart,
-            run_python_code,
+            python_sandbox_execute,
         ],
         capabilities=[HandleDeferredToolCalls(handler=_auto_approve_handler)],
     )
@@ -52,7 +52,7 @@ def test_agent_structure(test_agent):
     assert len(tools_dict) == 10
     expected = {
         "query_database", "get_schema", "read_csv", "read_file", "list_files",
-        "write_csv", "write_file", "export_excel", "run_python_code", "plot_chart",
+        "write_csv", "write_file", "export_excel", "python_sandbox_execute", "plot_chart",
     }
     actual = set(tools_dict.keys())
     assert actual == expected
@@ -77,4 +77,4 @@ async def test_agent_calls_tools(test_agent, test_settings):
     params = m.last_model_request_parameters
     assert params is not None
     tool_names = [p.name for p in params.function_tools]
-    assert any(name in tool_names for name in ("run_python_code", "get_schema", "query_database"))
+    assert any(name in tool_names for name in ("python_sandbox_execute", "get_schema", "query_database"))

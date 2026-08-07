@@ -50,14 +50,13 @@ _REPEAT_LABEL = (
 )
 
 _NO_PYTHON_LABEL = (
-    "[Middleware] run_python_code 被拦截：当前任务已涉及浏览器控制，禁止使用 Python 代码。\n"
-    "工具返回结果（含 [Middleware] 标注结果）即最终数据，请直接使用；"
-    "如需计算、分析或格式化，请说明需求，不要用 run_python_code 处理网页数据。"
+    "[Middleware] python_sandbox_execute 已被拦截：浏览器/crawl 工具返回的结果已是最终数据，"
+    "无需再执行 Python 代码处理。请直接基于现有结果输出答案；如需额外计算，请直接向用户说明需求。"
 )
 
 _NO_PYTHON_REPEAT_LABEL = (
-    "[Middleware] run_python_code 已多次被拦截：当前任务涉及浏览器控制，禁止使用 Python。\n"
-    "请直接基于工具已返回的最终数据输出答案，禁止再次调用 run_python_code。"
+    "[Middleware] python_sandbox_execute 已多次被拦截：请直接基于浏览器/crawl 工具已返回的最终数据输出答案，"
+    "无需再执行 Python 代码处理。"
 )
 
 _EMPTY_RESULT_MARKERS = (
@@ -224,7 +223,7 @@ async def evaluate_call(ctx, tool_name: str) -> str:
     - "allow":      execute normally
     - "switch":     block and auto-switch to a more appropriate tool
     - "repeat":     block; same tool already blocked this round — do not run anything
-    - "no-python":  block; browser control task forbids run_python_code
+    - "no-python":  block; browser control task forbids python_sandbox_execute
 
     Fails open: any uncertainty → "allow".
     """
@@ -234,9 +233,9 @@ async def evaluate_call(ctx, tool_name: str) -> str:
     if _is_browser_tool(tool_name):
         _mark_browser_used(round_id)
 
-    if tool_name == "run_python_code":
+    if tool_name == "python_sandbox_execute":
         if round_id in _round_browser_used or _browser_launched():
-            logger.info("tool middleware: blocking run_python_code — browser control active (round %s)", round_id)
+            logger.info("tool middleware: blocking python_sandbox_execute — browser control active (round %s)", round_id)
             if _bump_round_block(round_id, tool_name) >= 2:
                 return "no-python-repeat"
             return "no-python"

@@ -214,7 +214,8 @@ async def browser_extract_table(
     the tool decides, not you.
 
     The result is the final, directly presentable data (total/pages/truncated/rows).
-    Answer the user based on it directly; do not re-process it with run_python_code.
+    The returned rows are already cleaned and structured — no further parsing,
+    transformation, or computation is needed; answer the user based on them directly.
 
     Parameters:
     - wait_for_selector: wait for this CSS selector before extracting (dynamically rendered pages);
@@ -281,8 +282,9 @@ async def browser_extract_rows(
     """Extract structured rows using an explicit CSS row selector and field mapping (advanced).
 
     Use this only when `browser_extract_table` returns no or wrong rows for an unusual
-    page structure. Returns the final JSON data (total/pages/truncated/rows); answer the
-    user based on it directly and do not re-process it with run_python_code.
+    page structure. Returns the final JSON data (total/pages/truncated/rows); the returned
+    rows are already cleaned and structured — no further parsing, transformation, or
+    computation is needed.
 
     Parameters:
     - row_selector: CSS selector for each row container (required). Rows shorter than

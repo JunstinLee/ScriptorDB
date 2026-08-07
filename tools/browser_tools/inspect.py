@@ -64,8 +64,8 @@ async def browser_inspect_structure(
     Scans the rendered DOM for document links (PDF/Excel/ZIP/CSV) and reports the
     containers that hold them, for orientation only. Row location is automatic:
     call `browser_extract_table` with no selectors — do not pass the candidate
-    selectors shown here to any tool. The result is final data; answer the user
-    based on it directly and do not re-process it with run_python_code.
+    selectors shown here to any tool. The result is final data — no further parsing,
+    transformation, or computation is needed.
 
     Parameters:
     - max_candidates: maximum number of container candidates returned;
