@@ -9,8 +9,7 @@ from browser import get_manager
 from browser.links import LinkExtraction, StructuredLink, extract_links
 from browser.tabs import TabManager
 from browser.trace import ClickTracer
-from tools.browser import browser_click
-from tools.browser_links_tools import browser_extract_links, browser_get_tabs, browser_switch_tab
+from tools.browser import browser_click, browser_extract_links, browser_get_tabs, browser_switch_tab
 
 
 @pytest.fixture(autouse=True)
@@ -55,7 +54,7 @@ class TestBrowserExtractLinks:
         })
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, max_links=10)
-        assert "提取到 2 条链接" in result
+        assert "Extracted 2 links" in result
         assert "example.com/docs" in result
         assert "new_tab" in result
         assert "is_internal" in result
@@ -108,8 +107,8 @@ class TestBrowserExtractLinks:
         })
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, max_links=3, page=1)
-        assert "提取到 5 条链接" in result
-        assert "已截断" in result
+        assert "Extracted 5 links" in result
+        assert "truncated" in result
         assert '"truncated": true' in result
         assert "example.com/0" in result
 
@@ -119,7 +118,7 @@ class TestBrowserExtractLinks:
         mock_page.evaluate = AsyncMock(return_value={"total": 5, "links": []})
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_extract_links(None, max_links=3, page=9)
-        assert "超出范围" in result
+        assert "out of range" in result
 
     @pytest.mark.asyncio
     async def test_filter_args_passed_to_extractor(self):
@@ -402,7 +401,7 @@ class TestBrowserLinksReal:
         assert "navigated to" in result.lower()
 
         result = await browser_extract_links(None)
-        assert "提取到 2 条链接" in result
+        assert "Extracted 2 links" in result
 
         result = await browser_get_tabs(None)
         assert "ACTIVE" in result
