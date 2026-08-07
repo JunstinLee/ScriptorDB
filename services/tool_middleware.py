@@ -12,6 +12,7 @@ logger = get_logger("tool_middleware")
 _BLOCKED_TOOLS = {
     "browser_query",
     "browser_get_text",
+    "browser_evaluate",
 }
 
 _DOC_KEYWORDS = (
@@ -52,6 +53,11 @@ _NO_PYTHON_LABEL = (
     "[Middleware] run_python_code 被拦截：当前任务已涉及浏览器控制，禁止使用 Python 代码。\n"
     "工具返回结果（含 [Middleware] 标注结果）即最终数据，请直接使用；"
     "如需计算、分析或格式化，请说明需求，不要用 run_python_code 处理网页数据。"
+)
+
+_NO_PYTHON_REPEAT_LABEL = (
+    "[Middleware] run_python_code 已多次被拦截：当前任务涉及浏览器控制，禁止使用 Python。\n"
+    "请直接基于工具已返回的最终数据输出答案，禁止再次调用 run_python_code。"
 )
 
 _EMPTY_RESULT_MARKERS = (
@@ -231,6 +237,8 @@ async def evaluate_call(ctx, tool_name: str) -> str:
     if tool_name == "run_python_code":
         if round_id in _round_browser_used or _browser_launched():
             logger.info("tool middleware: blocking run_python_code — browser control active (round %s)", round_id)
+            if _bump_round_block(round_id, tool_name) >= 2:
+                return "no-python-repeat"
             return "no-python"
 
     if tool_name not in _BLOCKED_TOOLS:
@@ -250,6 +258,8 @@ async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
     """Execute the middleware action for a blocked tool call."""
     if decision == "no-python":
         return _NO_PYTHON_LABEL
+    if decision == "no-python-repeat":
+        return _NO_PYTHON_REPEAT_LABEL
     if decision == "repeat":
         return _REPEAT_LABEL.format(tool_name=tool_name)
 

@@ -34,7 +34,7 @@ from tools.browser_tools.navigation import (  # noqa: E402
     browser_load_state,
     browser_navigate,
 )
-from tools.browser_tools.table import browser_extract_table  # noqa: E402
+from tools.browser_tools.table import browser_extract_rows, browser_extract_table  # noqa: E402
 from tools.browser_tools.tabs import browser_get_tabs, browser_switch_tab  # noqa: E402
 from tools.browser_tools.visual import browser_screenshot  # noqa: E402
 
@@ -43,6 +43,7 @@ __all__ = [
     "browser_click",
     "browser_evaluate",
     "browser_extract_links",
+    "browser_extract_rows",
     "browser_extract_table",
     "browser_fill",
     "browser_get_cookies",

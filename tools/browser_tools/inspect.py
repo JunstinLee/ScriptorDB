@@ -62,8 +62,9 @@ async def browser_inspect_structure(
     """Discover candidate row containers on the current page (final JSON result).
 
     Scans the rendered DOM for document links (PDF/Excel/ZIP/CSV) and reports the
-    containers that hold them, so you can pick a `row_selector` for
-    `browser_extract_table` in one step. The result is final data; answer the user
+    containers that hold them, for orientation only. Row location is automatic:
+    call `browser_extract_table` with no selectors — do not pass the candidate
+    selectors shown here to any tool. The result is final data; answer the user
     based on it directly and do not re-process it with run_python_code.
 
     Parameters:
