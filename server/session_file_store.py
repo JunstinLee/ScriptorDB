@@ -20,8 +20,11 @@ from config.workspace import (
     LEGACY_SESSIONS_BACKUP_FILE,
     LEGACY_SESSIONS_FILE,
 )
+from logging_setup import get_logger
 from server.schemas import MessageItem, StoredRun
 from server.session_model import Session, SessionStore
+
+logger = get_logger("session_file_store")
 
 _DEFAULT_STORAGE = GLOBAL_CONFIG_DIR / "global_sessions"
 _PAYLOAD_VERSION = 2
@@ -339,8 +342,22 @@ class FileSessionStore(SessionStore):
                 "runs": [r.model_dump() for r in session.runs],
             }
             file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
-        except OSError:
-            pass
+            logger.info(
+                "session_file_written session_id=%s path=%s messages=%s model_messages=%s runs=%s",
+                session.session_id, file_path, len(session.messages),
+                len(session.model_messages), len(session.runs),
+            )
+        except OSError as e:
+            logger.exception(
+                "session_file_write_oserror session_id=%s path=%s err=%s",
+                session.session_id, file_path, e,
+            )
+        except Exception:
+            logger.exception(
+                "session_file_write_failed session_id=%s path=%s",
+                session.session_id, file_path,
+            )
+            raise
 
     def _write_index(self) -> None:
         try:
@@ -357,13 +374,16 @@ class FileSessionStore(SessionStore):
                 },
             }
             self._index_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
-        except OSError:
-            pass
+            logger.info("session_index_written path=%s sessions=%s", self._index_file, len(self._sessions))
+        except OSError as e:
+            logger.exception("session_index_write_oserror path=%s err=%s", self._index_file, e)
 
     def save(self) -> None:
+        logger.info("session_store_save start sessions=%s", len(self._sessions))
         for session in self._sessions.values():
             self._write_session_file(session)
         self._write_index()
+        logger.info("session_store_save done sessions=%s", len(self._sessions))
 
     def create(self) -> Session:
         session = Session()
