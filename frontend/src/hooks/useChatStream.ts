@@ -138,6 +138,11 @@ export function useChatStream(params: UseChatStreamParams) {
 
   const makeDoneCallback = useCallback(
     (sid: string) => (fullOutput: string) => {
+      console.log(
+        "[useChatStream] onDone sid=%s output_len=%s",
+        sid,
+        fullOutput.length,
+      );
       finalizeAssistantMessage(fullOutput);
       setLoading(false);
       void refreshSessionTitle(sid);
