@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import functools
+import inspect
 from collections.abc import Callable
 from typing import Any
 
@@ -19,14 +21,21 @@ def _wrap_browser_tool(func: Callable[..., Any], name: str) -> Callable[..., Any
 
     @functools.wraps(func)
     async def wrapped(ctx, *args, **kwargs):
+        async def call_original():
+            if inspect.iscoroutinefunction(func):
+                return await func(ctx, *args, **kwargs)
+            # sync 工具（如 python_sandbox_execute 返回 ToolResult）不能 await，
+            # 丢线程执行避免阻塞事件循环
+            return await asyncio.to_thread(func, ctx, *args, **kwargs)
+
         enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
         if not enabled:
-            return await func(ctx, *args, **kwargs)
+            return await call_original()
         from services.tool_middleware import evaluate_call, execute_switch
 
         decision = await evaluate_call(ctx, name)
         if decision == "allow":
-            return await func(ctx, *args, **kwargs)
+            return await call_original()
         return await execute_switch(ctx, name, kwargs, decision)
 
     return wrapped
