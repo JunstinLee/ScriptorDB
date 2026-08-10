@@ -9,6 +9,9 @@ import httpx
 from config.workspace_paths import workspace_outputs_dir
 from schemas.download_models import DownloadResult
 from services.download_policy import DownloadPolicyError, is_allowed_type, validate_domain
+from logging_setup import get_logger
+
+logger = get_logger("download_service")
 
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 _MAX_REDIRECTS = 5
@@ -164,9 +167,13 @@ async def download_file(
     headers = {"user-agent": _DEFAULT_USER_AGENT}
     size_limit = max_size_mb * 1024 * 1024
     last_error = "download failed"
+    logger.info(
+        "download_service start url=%s allowed_domains=%s workspace=%s size_limit=%s",
+        url, allowed_domains, workspace_path, size_limit,
+    )
     for attempt in range(_MAX_RETRIES + 1):
         try:
-            return await _download_to_result(
+            result = await _download_to_result(
                 url,
                 allowed_domains,
                 headers,
@@ -174,8 +181,14 @@ async def download_file(
                 size_limit,
                 workspace_path,
             )
+            logger.info(
+                "download_service result attempt=%s success=%s filename=%r size=%r sha256=%r path=%r error=%r",
+                attempt, result.success, result.filename, result.size, result.sha256, result.path, result.error,
+            )
+            return result
         except httpx.HTTPError as exc:
             last_error = f"network error: {exc}"
+            logger.warning("download_service network error attempt=%s err=%s", attempt, exc)
             if attempt == _MAX_RETRIES:
                 break
     return DownloadResult(url=url, success=False, error=last_error)

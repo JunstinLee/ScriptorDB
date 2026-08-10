@@ -136,6 +136,15 @@ async def run_agent_stream(
                     elif isinstance(content, dict):
                         output = json_mod.dumps(content, ensure_ascii=False)
 
+                    logger.info(
+                        "tool_result_event run_id=%s call_id=%s tool=%s content_type=%s "
+                        "success=%s output_type=%s data_type=%s",
+                        local_tracker.run_id, call_id, tool_name,
+                        type(content).__name__ if content is not None else "None",
+                        success,
+                        type(output).__name__ if output is not None else "None",
+                        type(data).__name__ if data is not None else "None",
+                    )
                     local_tracker.complete_tool(
                         call_id, success, output, error_code, duration_ms, data=data
                     )
