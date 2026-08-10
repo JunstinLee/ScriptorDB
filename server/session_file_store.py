@@ -356,7 +356,7 @@ class FileSessionStore(SessionStore):
                 "model_messages": model_msgs_data,
                 "runs": [r.model_dump() for r in session.runs],
             }
-            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
             logger.info(
                 "session_file_written session_id=%s path=%s messages=%s model_messages=%s runs=%s",
                 session.session_id, file_path, len(session.messages),
