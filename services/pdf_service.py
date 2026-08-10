@@ -18,11 +18,13 @@ _TRUNCATION_MARKER = "\n\n[Content truncated — exceeded 50K characters]"
 def _extract_raw_markdown(result: object) -> str:
     md = getattr(result, "markdown", None)
     if isinstance(md, str):
-        return md
+        # str() 剥离 StringCompatibleMarkdown 等 str 子类携带的附加属性
+        # （crawl4ai 的 markdown 携带 _markdown_result，pydantic 序列化时会 dump 成 {}）
+        return str(md)
     if md is not None:
         raw = getattr(md, "raw_markdown", None)
         if isinstance(raw, str):
-            return raw
+            return str(raw)
     return ""
 
 

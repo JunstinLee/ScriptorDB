@@ -14,6 +14,7 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_core import to_jsonable_python
 
 from config.workspace import (
     GLOBAL_CONFIG_DIR,
@@ -49,9 +50,23 @@ def _part_to_data(part: Any) -> dict | None:
             "type": "ToolReturnPart",
             "tool_call_id": part.tool_call_id,
             "tool_name": part.tool_name,
-            "content": part.content,
+            "content": _content_to_data(part.content),
         }
     return None
+
+
+def _content_to_data(content: Any) -> str:
+    """把 ToolReturnPart.content 转为 JSON 可序列化的字符串。
+
+    工具函数可能直接返回 pydantic 模型（如 tools.tool_result.ToolResult），
+    这类对象无法被 json.dumps 直接序列化；统一转为 JSON 字符串存储。
+    """
+    if isinstance(content, str):
+        return content
+    try:
+        return json.dumps(to_jsonable_python(content), ensure_ascii=False)
+    except Exception:
+        return str(content)
 
 
 def _part_from_data(part_data: dict) -> Any | None:

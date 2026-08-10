@@ -32,6 +32,17 @@ from server.run_tracker import RunTracker, utc_now_iso
 
 logger = get_logger("agent_runner")
 
+# 连接类异常：模型 API 的 SSE 流可能被对端中断（如 incomplete chunked read），
+# 这类瞬时错误可通过重试恢复。aiohttp 是传递依赖，导入失败时退化为不重试。
+try:
+    from aiohttp import ClientError as _AiohttpClientError
+
+    _CONNECTION_RETRY_EXCEPTIONS: tuple[type[BaseException], ...] = (_AiohttpClientError,)
+except ImportError:  # pragma: no cover
+    _CONNECTION_RETRY_EXCEPTIONS = ()
+
+_MAX_CONNECTION_RETRIES = 2
+
 
 def _find_rate_limit(exc: BaseException) -> tuple[int, str] | None:
     """Walk the exception chain (and exception groups) looking for HTTP 429.
@@ -281,7 +292,19 @@ async def run_agent_stream(
         }
         if deferred_results is not None:
             kwargs["deferred_tool_results"] = deferred_results
-        return await agent.run(prompt, **kwargs)
+        attempts = 0
+        while True:
+            try:
+                return await agent.run(prompt, **kwargs)
+            except _CONNECTION_RETRY_EXCEPTIONS as e:
+                attempts += 1
+                if attempts > _MAX_CONNECTION_RETRIES:
+                    raise
+                logger.warning(
+                    "agent run connection error (attempt %d/%d): %s",
+                    attempts, _MAX_CONNECTION_RETRIES, e,
+                )
+                await asyncio.sleep(1.0 * attempts)
 
     run_task = asyncio.create_task(run_agent())
     pending_get_task: asyncio.Task | None = None

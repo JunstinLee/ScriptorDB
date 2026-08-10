@@ -105,13 +105,20 @@ def python_sandbox_execute(ctx: RunContext[Settings], code: str) -> ToolResult:
         return _to_tool_error(e)
 
     if result.exit_code == 0:
+        output = f"Code executed successfully: {len(result.stdout)} bytes of output"
+        data: dict[str, object] = {
+            "stdout": result.stdout,
+            "execution_time_ms": result.elapsed_ms,
+        }
+        # stderr 可能包含沙箱拦截信息或用户代码的警告/错误输出，
+        # 不能静默丢弃，否则 agent 会把"0 bytes of output"误判为缓冲问题。
+        if result.stderr.strip():
+            output += f"\nstderr: {result.stderr.strip()[:2000]}"
+            data["stderr"] = result.stderr
         return ToolResult(
             success=True,
-            output=f"Code executed successfully: {len(result.stdout)} bytes of output",
-            data={
-                "stdout": result.stdout,
-                "execution_time_ms": result.elapsed_ms,
-            },
+            output=output,
+            data=data,
         )
 
     from tools.errors import ErrorCategory
