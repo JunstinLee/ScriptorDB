@@ -3,6 +3,7 @@ import { Search, Loader2 } from "lucide-react";
 import type { Run } from "../types";
 import MarkdownRenderer from "./common/MarkdownRenderer";
 import ImageArtifact from "./common/ImageArtifact";
+import RateLimitNotice from "./common/RateLimitNotice";
 
 interface RunContainerProps {
   run: Run;
@@ -79,11 +80,15 @@ export default function RunContainer({ run }: RunContainerProps) {
         );
       })}
 
-      {run.status === "error" && run.error_message && (
-        <div className="border-l-[3px] border-l-vermilion bg-vermilion/5 px-4 py-3">
-          <p className="text-sm text-vermilion">{run.error_message}</p>
-        </div>
-      )}
+      {run.status === "error" &&
+        run.error_message &&
+        (run.error_type === "rate_limit" ? (
+          <RateLimitNotice message={run.error_message} />
+        ) : (
+          <div className="border-l-[3px] border-l-vermilion bg-vermilion/5 px-4 py-3">
+            <p className="text-sm text-vermilion">{run.error_message}</p>
+          </div>
+        ))}
 
       {isRunning && (
         <div className="px-4 py-3">

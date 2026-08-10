@@ -8,6 +8,7 @@ from contextlib import suppress
 from typing import Any
 
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, RunContext
+from pydantic_ai.exceptions import FallbackExceptionGroup, ModelHTTPError
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -30,6 +31,32 @@ from tools.tool_result import ToolResult
 from server.run_tracker import RunTracker, utc_now_iso
 
 logger = get_logger("agent_runner")
+
+
+def _find_rate_limit(exc: BaseException) -> tuple[int, str] | None:
+    """Walk the exception chain (and exception groups) looking for HTTP 429.
+
+    Returns (status_code, model_name) when the failure is a model rate limit,
+    None otherwise. pydantic-ai may surface ModelHTTPError directly, wrapped in
+    UnexpectedModelBehavior, or inside a FallbackExceptionGroup, so the chain is
+    traversed defensively.
+    """
+    seen: set[int] = set()
+    pending: list[BaseException] = [exc]
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, ModelHTTPError) and current.status_code == 429:
+            return (current.status_code, current.model_name)
+        if isinstance(current, FallbackExceptionGroup):
+            pending.extend(current.exceptions)
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return None
 
 
 async def run_agent_stream(
@@ -348,12 +375,23 @@ async def run_agent_stream(
     except Exception as e:
         error_id = uuid.uuid4().hex[:12]
         local_tracker.fail(str(e))
-        yield {
+        error_event: dict[str, Any] = {
             "type": "error",
             "run_id": local_tracker.run_id,
             "message": f"运行失败（ID: {error_id}），请联系管理员",
             "error_id": error_id,
         }
+        rate_limit = _find_rate_limit(e)
+        if rate_limit is not None:
+            status_code, model_name = rate_limit
+            error_event["error_type"] = "rate_limit"
+            error_event["status_code"] = status_code
+            error_event["model_name"] = model_name
+            error_event["message"] = (
+                "模型限流（HTTP 429 Too Many Requests），请求过于频繁，"
+                "请稍等片刻后重试。"
+            )
+        yield error_event
         yield {
             "type": "run_end",
             "run_id": local_tracker.run_id,

@@ -270,6 +270,10 @@ export interface RunErrorEvent {
   run_id: string;
   message: string;
   error_id?: string | null;
+  /** 错误类别：rate_limit 表示模型限流（HTTP 429），其余为程序错误 */
+  error_type?: string | null;
+  status_code?: number | null;
+  model_name?: string | null;
 }
 
 export interface ApprovalRequestEvent {
@@ -354,6 +358,8 @@ export interface Run {
   started_at: string;
   ended_at?: string;
   error_message?: string;
+  /** 错误类别：rate_limit 表示模型限流（HTTP 429），其余为程序错误 */
+  error_type?: string | null;
   browser_actions?: BrowserActionEvent[];
 }
 
