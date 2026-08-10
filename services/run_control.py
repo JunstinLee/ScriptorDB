@@ -70,11 +70,22 @@ def extract_result_markers(messages: list[ModelMessage] | None) -> set[str]:
     return markers
 
 
+_THOUSAND_SEP_RE = re.compile(r"(?<=\d),(?=\d)")
+
+
+def _strip_thousand_separators(text: str) -> str:
+    """Remove comma thousand separators so '1,007,833' matches marker '1007833'."""
+    return _THOUSAND_SEP_RE.sub("", text)
+
+
 def _hits(markers: set[str], text_lower: str) -> int:
     hits = 0
+    normalized: str | None = None
     for marker in markers:
         if marker.isdigit():
-            if re.search(rf"\b{re.escape(marker)}\b", text_lower):
+            if normalized is None:
+                normalized = _strip_thousand_separators(text_lower)
+            if re.search(rf"\b{re.escape(marker)}\b", normalized):
                 hits += 1
         elif marker in text_lower:
             hits += 1
