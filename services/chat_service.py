@@ -5,7 +5,7 @@ from typing import Any
 from pydantic_ai.messages import ModelMessage
 
 from logging_setup import get_logger
-from server.schemas import StoredRun, StoredToolInvocation
+from schemas import StoredRun, StoredToolInvocation
 from server.sessions import get_session_store
 
 logger = get_logger("chat_service")

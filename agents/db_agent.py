@@ -14,7 +14,7 @@ from tools.toolsets import (
     _create_crawl_toolset as _,
     _create_browser_toolset as _,
 )
-from tools.undo_manager import UndoManager
+from tools.undo import UndoManager
 
 
 _SYSTEM_PROMPT = """\
@@ -78,7 +78,3 @@ def get_agent(
     if config.db_url:
         config.undo_manager = UndoManager(config.db_url, config.workspace_id or "")
     return _build_agent(config, resolved, browser_enabled=config.browser_enabled)
-
-
-def reset_agent_cache() -> None:
-    return None

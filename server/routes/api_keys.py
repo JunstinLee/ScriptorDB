@@ -5,7 +5,7 @@ from typing import Any
 
 from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, save_api_key
 from server.dependencies import get_config
-from server.schemas import ApiKeyRequest, ApiKeyTestResponse
+from schemas import ApiKeyRequest, ApiKeyTestResponse
 from services.api_key_service import test_key
 
 router = APIRouter(tags=["api-keys"])

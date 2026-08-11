@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from logging_setup import get_logger
 from server.dependencies import require_workspace
-from server.schemas import SchemaResponse
+from schemas import SchemaResponse
 from services.schema_service import get_schema as svc_get_schema
 
 logger = get_logger("routes.schema")

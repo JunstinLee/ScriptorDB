@@ -10,7 +10,7 @@ from config.models import (
     resolve_canonical_slug,
 )
 from server.dependencies import get_config
-from server.schemas import (
+from schemas import (
     CanonicalModelItem,
     CanonicalModelsResponse,
     DefaultModelResponse,

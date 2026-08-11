@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from server.dependencies import require_workspace
 from logging_setup import get_logger
-from server.schemas import (
+from schemas import (
     SessionCreateResponse,
     SessionInfo,
     SessionListItem,

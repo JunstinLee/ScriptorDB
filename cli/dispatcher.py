@@ -5,7 +5,6 @@ from pathlib import Path
 
 import typer
 
-from agents.db_agent import reset_agent_cache
 from cli import workspace_cli  # noqa: F401
 from cli.commands import ask, forget, interactive, models, serve, setup
 from cli.cmd_common import _get_config_ctx
@@ -127,7 +126,6 @@ def _activate(workspace_id: str, registry: WorkspaceRegistry) -> None:
     config = _get_config_ctx()
     load_for_workspace(config, workspace_id)
     registry.set_last_active(workspace_id)
-    reset_agent_cache()
     typer.echo(f"✅ 已激活: {config.workspace_name} ({config.workspace_id})\n")
 
 

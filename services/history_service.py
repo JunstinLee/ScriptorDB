@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from server.schemas import (
+from schemas import (
     HistoryMatchSegment,
     HistorySearchMatch,
     HistorySearchResponse,

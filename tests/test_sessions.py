@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from server.schemas import MessageItem, SessionCreateResponse
+from schemas import MessageItem, SessionCreateResponse
 from server.sessions import (
     _LEGACY_BACKUP_FILE,
     _LEGACY_SESSIONS_FILE,

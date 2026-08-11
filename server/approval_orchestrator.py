@@ -21,7 +21,7 @@ from server.approval_policy import (
 )
 from server.import_inspector import count_import_rows
 from server.run_tracker import RunTracker, utc_now_iso
-from server.schemas import StoredRun, StoredToolInvocation
+from schemas import StoredRun, StoredToolInvocation
 from server.sessions import get_session_store
 
 

@@ -11,7 +11,7 @@ from pydantic_ai.messages import ModelMessage
 from logging_setup import get_logger
 from server.approval_orchestrator import ApprovalOrchestrator
 from server.dependencies import get_config, require_workspace
-from server.schemas import ChatRequest
+from schemas import ChatRequest
 from server.sessions import get_session_store
 from server.sse_format import sse_done, sse_event
 from services.chat_service import persist_chat_run

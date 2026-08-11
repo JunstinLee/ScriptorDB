@@ -5,7 +5,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from agents.db_agent import reset_agent_cache
 from config.settings import load_for_workspace
 from config.workspace import WorkspaceRegistry, workspace_sessions_dir
 from config.workspace_paths import LEGACY_SESSIONS_FILE, LEGACY_SESSIONS_BACKUP_FILE
@@ -28,7 +27,6 @@ def activate_workspace(config: Any, workspace_id: str) -> Path:
     if ws_path is None:
         raise RuntimeError("Workspace path missing")
     reload_session_store(ws_path)
-    reset_agent_cache()
     return ws_path
 
 
@@ -39,7 +37,6 @@ def delete_workspace_logic(config: Any, workspace_id: str, delete_files: bool = 
     registry.remove(workspace_id, delete_files=delete_files)
     if was_active:
         config.clear()
-        reset_agent_cache()
     return was_active
 
 
@@ -99,7 +96,7 @@ def import_legacy_sessions(workspace_path_str: str) -> dict:
             continue
 
         from server.session_model import Session
-        from server.schemas import MessageItem, StoredRun
+        from schemas import MessageItem, StoredRun
 
         session = Session(session_id=sid)
 

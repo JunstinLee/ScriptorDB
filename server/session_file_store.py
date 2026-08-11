@@ -22,7 +22,7 @@ from config.workspace import (
     LEGACY_SESSIONS_FILE,
 )
 from logging_setup import get_logger
-from server.schemas import MessageItem, StoredRun
+from schemas import MessageItem, StoredRun
 from server.session_model import Session, SessionStore
 
 logger = get_logger("session_file_store")

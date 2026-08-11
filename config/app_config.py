@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tools.undo_manager import UndoManager
+    from tools.undo import UndoManager
 
 from config.workspace import WorkspaceNotSelectedError
 

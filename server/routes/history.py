@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Query
 
 from server.dependencies import require_workspace
-from server.schemas import HistorySearchResponse
+from schemas import HistorySearchResponse
 from services.history_service import search_history
 
 router = APIRouter(prefix="/api/history", tags=["history"])

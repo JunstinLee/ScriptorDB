@@ -4,7 +4,6 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from agents.db_agent import reset_agent_cache
 from config.workspace import (
     WorkspaceAlreadyExistsError,
     WorkspaceNotFoundError,
@@ -12,7 +11,7 @@ from config.workspace import (
     WorkspaceSettings,
 )
 from server.dependencies import get_config
-from server.schemas import (
+from schemas import (
     ActiveWorkspaceResponse,
     MySQLConfigRequest,
     MySQLConfigResponse,

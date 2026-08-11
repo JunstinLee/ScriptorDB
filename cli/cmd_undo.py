@@ -5,7 +5,7 @@ from typing import Annotated
 import typer
 
 from cli.cmd_common import _get_config_ctx, ensure_workspace
-from tools.undo_repository import UndoRepository
+from tools.undo import UndoRepository
 
 undo_app = typer.Typer(help="Undo 操作")
 

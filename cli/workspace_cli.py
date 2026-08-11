@@ -5,7 +5,6 @@ from typing import Annotated, Optional
 
 import typer
 
-from agents.db_agent import reset_agent_cache
 from cli import app
 from cli.cmd_common import _get_config_ctx
 from config.settings import load_for_workspace
@@ -70,7 +69,6 @@ def workspace_switch(
     rec = _resolve_workspace(registry, workspace_id)
     load_for_workspace(config, rec.id)
     registry.set_last_active(rec.id)
-    reset_agent_cache()
     typer.echo(f"已切换到工作区: {rec.name} ({rec.id})")
 
 
@@ -112,7 +110,6 @@ def workspace_remove(
     registry.remove(rec.id, delete_files=delete_files)
     if was_active:
         config.clear()
-        reset_agent_cache()
     typer.echo(f"已移除工作区: {rec.name} ({rec.id})")
 
 

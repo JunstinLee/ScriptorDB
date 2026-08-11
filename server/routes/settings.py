@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from config.secrets import SUPPORTED_PROVIDERS, get_api_key
 from server.dependencies import get_config, require_workspace
-from server.schemas import (
+from schemas import (
     ProviderInfo,
     SettingsResponse,
     SettingsUpdateRequest,

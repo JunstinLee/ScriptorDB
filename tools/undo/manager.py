@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tools.undo_repository import UndoRepository
+from tools.undo.repository import UndoRepository
 
 
 class UndoManager:

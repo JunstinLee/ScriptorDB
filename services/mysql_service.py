@@ -5,12 +5,11 @@ from typing import Any
 
 import pymysql
 
-from agents.db_agent import reset_agent_cache
 from config.secrets import save_mysql_password
 from config.settings import load_for_workspace
 from config.workspace import WorkspaceSettings
 from database.session import clear_pools
-from server.schemas import MySQLConfigResponse
+from schemas import MySQLConfigResponse
 
 
 def test_connection(host: str, port: int, user: str, password: str, db: str) -> tuple[bool, str | None, str]:
@@ -64,7 +63,6 @@ def configure_mysql(
 
     if config.workspace_id == rec.id:
         load_for_workspace(config, rec.id)
-        reset_agent_cache()
 
     return MySQLConfigResponse(
         ok=True,
@@ -87,7 +85,6 @@ def reset_mysql_to_sqlite(rec: Any, config: Any) -> MySQLConfigResponse:
 
     if config.workspace_id == rec.id:
         load_for_workspace(config, rec.id)
-        reset_agent_cache()
 
     return MySQLConfigResponse(
         ok=True,
