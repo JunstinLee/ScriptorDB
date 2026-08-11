@@ -9,10 +9,9 @@ from typing import Any
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults
 from pydantic_ai.messages import ModelMessage
 
-from agents.db_agent import get_agent
+from agents.db_agent import resolve_agent
 from config.app_config import AppConfig
-from config.models import fuzzy_match_model
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from server.run_tracker import RunTracker
 from server.runner.errors import (
     CONNECTION_RETRY_EXCEPTIONS,
@@ -53,14 +52,7 @@ async def run_agent_stream(
     - text_delta
     - trace
     """
-    if provider:
-        config.llm_provider = provider
-    if model:
-        matched = fuzzy_match_model(config.llm_provider, model, config.workspace_id)
-        if matched:
-            config.llm_model = matched
-
-    agent = agent or get_agent(config, model, provider)
+    agent = agent or resolve_agent(config, model, provider)
     queue: asyncio.Queue[dict] = asyncio.Queue()
     local_tracker = tracker or RunTracker()
     checkpoint_id = uuid.uuid4().hex[:12]

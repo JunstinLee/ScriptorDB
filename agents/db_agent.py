@@ -4,7 +4,7 @@ from pydantic_ai import Agent, DeferredToolRequests
 
 from agents.capabilities import build_audit_hooks, build_undo_hooks
 from config.app_config import AppConfig
-from config.models import resolve_model
+from config.models import fuzzy_match_model, resolve_model
 from config.provider_adapter import build_model
 from config.settings import Settings
 from services.run_control import build_output_validator
@@ -78,3 +78,22 @@ def get_agent(
     if config.db_url:
         config.undo_manager = UndoManager(config.db_url, config.workspace_id or "")
     return _build_agent(config, resolved, browser_enabled=config.browser_enabled)
+
+
+def resolve_agent(
+    config: AppConfig,
+    model: str | None = None,
+    provider: str | None = None,
+) -> Agent[Settings, str | DeferredToolRequests]:
+    """Apply provider/model overrides and return an agent.
+
+    Shared by `server.runner.lifecycle.run_agent_stream` and
+    `server.approval_orchestrator` (previously duplicated inline).
+    """
+    if provider:
+        config.llm_provider = provider
+    if model:
+        matched = fuzzy_match_model(config.llm_provider, model, config.workspace_id)
+        if matched:
+            config.llm_model = matched
+    return get_agent(config, model, provider)
