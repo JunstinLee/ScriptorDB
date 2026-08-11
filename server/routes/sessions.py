@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from server.dependencies import require_workspace
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from schemas import (
     SessionCreateResponse,
     SessionInfo,

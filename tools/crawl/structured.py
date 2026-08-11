@@ -4,7 +4,7 @@ import json
 
 from crawl4ai import JsonCssExtractionStrategy
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 
 logger = get_logger("crawl.structured")
 

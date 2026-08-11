@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 
 if TYPE_CHECKING:
     from tools.tool_result import ToolResult, ToolErrorInfo

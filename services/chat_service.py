@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic_ai.messages import ModelMessage
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from schemas import StoredRun, StoredToolInvocation
 from server.sessions import get_session_store
 

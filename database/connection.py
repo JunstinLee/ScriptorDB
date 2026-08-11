@@ -6,7 +6,7 @@ from sqlalchemy import Engine, Connection, create_engine, inspect, text
 from sqlalchemy.pool import StaticPool
 
 from config.secrets import get_mysql_password
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 
 logger = get_logger("db_connection")
 

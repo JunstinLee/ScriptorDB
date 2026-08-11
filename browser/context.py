@@ -5,7 +5,7 @@ from typing import Literal
 
 from playwright.async_api import Page
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 
 logger = get_logger("browser.context")
 

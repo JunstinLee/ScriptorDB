@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from config.settings import Settings
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from pydantic_ai import RunContext
 from tools.browser_common import _check_blocked, _require_browser
 from tools.tool_decorators import db_tool

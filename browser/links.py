@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from playwright.async_api import Page
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from tools.policy.link_policy import is_internal_link
 
 logger = get_logger("browser.links")

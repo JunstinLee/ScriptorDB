@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import log_to_file  # noqa: F401  redirects stdout/stderr to logs/run_<timestamp>.log
+import core.log_to_file  # noqa: F401  redirects stdout/stderr to logs/run_<timestamp>.log
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager

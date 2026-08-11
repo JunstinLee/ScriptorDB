@@ -12,7 +12,7 @@ from playwright.async_api import Browser, BrowserContext, Page, Playwright
 from browser.tabs import TabManager
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
 from browser.trace import ClickTracer
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 
 logger = get_logger("browser.manager")
 

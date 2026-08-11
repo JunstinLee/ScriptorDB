@@ -6,7 +6,7 @@ from pathlib import Path
 from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
 from crawl4ai.processors.pdf import PDFContentScrapingStrategy, PDFCrawlerStrategy
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from schemas.pdf_models import PdfExtractResult
 
 logger = get_logger("pdf")

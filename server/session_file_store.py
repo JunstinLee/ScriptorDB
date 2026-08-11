@@ -21,7 +21,7 @@ from config.workspace import (
     LEGACY_SESSIONS_BACKUP_FILE,
     LEGACY_SESSIONS_FILE,
 )
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from schemas import MessageItem, StoredRun
 from server.session_model import Session, SessionStore
 

@@ -10,7 +10,7 @@ from pydantic_ai.messages import (
     TextPartDelta,
 )
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from server.runner.events import (
     normalize_tool_content,
     parse_tool_args,

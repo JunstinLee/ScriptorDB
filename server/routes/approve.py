@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from server.dependencies import get_config, require_workspace
 from schemas import ApprovalSubmitRequest
 from server.sessions import get_session_store

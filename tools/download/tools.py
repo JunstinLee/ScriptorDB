@@ -4,7 +4,7 @@ from pydantic_ai import RunContext
 
 from config.settings import Settings
 from config.workspace import workspace_outputs_dir
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from schemas.download_models import DownloadManifestEntry
 from tools.download import manifest as download_manifest
 from tools.download.service import download_file as download_service_download_file

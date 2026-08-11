@@ -8,7 +8,7 @@ from uuid import uuid4
 
 from crawl4ai import AsyncWebCrawler, CacheMode, CrawlerRunConfig
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from schemas.crawl_links import CrawlLink
 from schemas.crawl_models import CrawlResult
 from tools.crawl.links import extract_links, filter_document_links, is_document_url

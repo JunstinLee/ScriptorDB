@@ -6,7 +6,7 @@ import threading
 from typing import Any
 from urllib.parse import urlparse
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 
 logger = get_logger("tool_middleware")
 

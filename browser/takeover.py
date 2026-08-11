@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 
 logger = get_logger("browser.takeover")
 
