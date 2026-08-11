@@ -7,7 +7,7 @@ from pydantic_ai import RunContext
 from pydantic_ai.models.test import TestModel as PydanticTestModel
 from pydantic_ai.usage import RunUsage
 from config.settings import Settings
-from tools.db_repository import DatabaseRepository
+from database.repository import DatabaseRepository
 from tools.import_tools import import_csv_to_db, import_excel_to_db
 
 

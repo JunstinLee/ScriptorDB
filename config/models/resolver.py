@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from config.canonical_models import (
+from config.models.canonical import (
     CANONICAL_REGISTRY,
     get_canonical_by_slug,
     get_canonical_for_provider,
     get_canonical_for_provider_model,
 )
-from config.model_client import list_available_models
+from config.models.client import list_available_models
 from config.secrets import SUPPORTED_PROVIDERS
 
 

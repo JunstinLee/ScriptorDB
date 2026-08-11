@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from schemas import SchemaColumn, SchemaResponse, SchemaTable
-from tools.db_repository import DatabaseRepository
+from database.repository import DatabaseRepository
 
 HIDDEN_TABLES = {"_scriptordb_undo_groups", "_scriptordb_undo_entries"}
 

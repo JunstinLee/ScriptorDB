@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from config.canonical_models import get_canonical_by_slug
 from config.models import (
+    get_canonical_by_slug,
     get_recommended_models,
     list_available_models,
     list_canonical_models,

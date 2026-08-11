@@ -74,7 +74,7 @@ async def crawl_webpage(
     max_pages: int = 1,
     document_domains: str = "",
 ) -> str:
-    from services.crawl_service import crawl_url
+    from tools.crawl.service import crawl_url
 
     domains = _parse_domains(allowed_domains)
     doc_domains = _parse_domains(document_domains)

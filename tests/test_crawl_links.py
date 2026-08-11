@@ -7,9 +7,9 @@ import pytest
 from crawl4ai import CacheMode
 
 from schemas.crawl_links import CrawlLink
-from services.crawl_links import extract_links, filter_document_links
+from tools.crawl.links import extract_links, filter_document_links
 from tools.policy.crawl_policy import build_exclude_domains, is_allowed_domain, is_binary_content_type
-from services.crawl_structured import extract_with_schema
+from tools.crawl.structured import extract_with_schema
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -164,7 +164,7 @@ class TestCrawlStructured:
 class TestCrawlUrlRaw:
     @pytest.mark.asyncio
     async def test_crawl_raw_links_and_documents(self):
-        from services.crawl_service import crawl_url
+        from tools.crawl.service import crawl_url
 
         html = (
             "<html><head><title>Test</title></head><body>"
@@ -185,7 +185,7 @@ class TestCrawlUrlRaw:
 
     @pytest.mark.asyncio
     async def test_crawl_raw_allowed_domains_filters_documents(self):
-        from services.crawl_service import crawl_url
+        from tools.crawl.service import crawl_url
 
         html = (
             "<html><body>"
@@ -199,7 +199,7 @@ class TestCrawlUrlRaw:
 
     @pytest.mark.asyncio
     async def test_crawl_raw_extraction_schema(self):
-        from services.crawl_service import crawl_url
+        from tools.crawl.service import crawl_url
 
         html = (
             "<html><body>"
@@ -222,7 +222,7 @@ class TestCrawlUrlRaw:
 class TestCrawlUrlHttp:
     @pytest.mark.asyncio
     async def test_content_type_gate_routes_binary_to_downloader(self, http_server):
-        from services.crawl_service import crawl_url
+        from tools.crawl.service import crawl_url
 
         result = await crawl_url(http_server + "/doc.pdf")
         assert result.success
@@ -232,7 +232,7 @@ class TestCrawlUrlHttp:
 
     @pytest.mark.asyncio
     async def test_crawl_html_http(self, http_server):
-        from services.crawl_service import crawl_url
+        from tools.crawl.service import crawl_url
 
         result = await crawl_url(http_server + "/")
         assert result.success
@@ -241,7 +241,7 @@ class TestCrawlUrlHttp:
 
     @pytest.mark.asyncio
     async def test_cache_hit_avoids_refetch(self, http_server):
-        from services.crawl_service import crawl_url
+        from tools.crawl.service import crawl_url
 
         url = http_server + "/"
         first = await crawl_url(url)
@@ -255,7 +255,7 @@ class TestCrawlUrlHttp:
 
     @pytest.mark.asyncio
     async def test_cache_mode_enabled(self, monkeypatch):
-        from services import crawl_service
+        from tools.crawl import service as crawl_service
 
         captured: dict = {}
 

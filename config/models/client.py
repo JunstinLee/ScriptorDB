@@ -4,7 +4,7 @@ from typing import Protocol
 
 import httpx
 
-from config.model_cache import load_cache, save_cache
+from config.models.cache import load_cache, save_cache
 from config.secrets import SUPPORTED_PROVIDERS, get_api_key
 
 EXCLUDE_KEYWORDS = [

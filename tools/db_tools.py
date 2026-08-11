@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from config.settings import Settings
 from schemas.db import ColumnDef
-from tools.db_repository import DatabaseRepository
+from database.repository import DatabaseRepository
 from tools.errors import _to_tool_error
 from tools.schema_helpers import (
     extract_where_clause,

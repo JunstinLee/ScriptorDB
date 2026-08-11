@@ -25,7 +25,7 @@ async def augment_prompt(
         )
 
     if crawl_url:
-        from services.crawl_service import crawl_url as do_crawl
+        from tools.crawl.service import crawl_url as do_crawl
 
         try:
             result = await do_crawl(crawl_url)

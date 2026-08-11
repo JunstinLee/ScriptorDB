@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import text
 
-from tools.db_repository import DatabaseRepository
+from database.repository import DatabaseRepository
 
 
 def _now_iso() -> str:

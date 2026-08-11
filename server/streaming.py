@@ -6,8 +6,7 @@ from typing import Any
 from pydantic_ai.messages import ModelMessage
 
 from config.app_config import AppConfig
-from config.canonical_models import get_canonical_by_slug
-from config.models import resolve_canonical_slug
+from config.models import get_canonical_by_slug, resolve_canonical_slug
 
 from server.agent_runner import run_agent_stream
 from server.run_tracker import RunTracker

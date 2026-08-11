@@ -28,7 +28,7 @@ def build_exclude_domains(allowed_domains: list[str] | None) -> list[str]:
 
     crawl4ai has no whitelist primitive, so a whitelist cannot be expressed as
     exclude_domains; enforcement is done post-hoc by `is_allowed_domain` /
-    `services.crawl_links.filter_document_links`. Returns [] to keep crawl-time
+    `tools.crawl.links.filter_document_links`. Returns [] to keep crawl-time
     link collection unfiltered. `allowed_domains` restricts navigation links
     only; document links are treated as page content.
     """
