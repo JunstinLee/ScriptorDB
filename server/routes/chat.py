@@ -8,9 +8,9 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from server.approval_orchestrator import ApprovalOrchestrator
-from server.dependencies import get_config, require_workspace
+from server.dependencies import get_app_context, get_config, require_workspace
 from schemas import ChatRequest
 from server.sessions import get_session_store
 from server.sse_format import sse_done, sse_event
@@ -187,7 +187,11 @@ async def chat(session_id: str, req: ChatRequest):
     model_messages = session.get_model_messages()
 
     orchestrator = ApprovalOrchestrator(
-        session_id, config, model=req.model, provider=req.provider
+        session_id,
+        config,
+        model=req.model,
+        provider=req.provider,
+        app_context=get_app_context(),
     )
     _active_orchestrators[session_id] = orchestrator
 
