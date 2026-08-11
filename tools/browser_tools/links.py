@@ -7,7 +7,7 @@ from browser.links import LinkExtraction, extract_links, merge_extractions
 from config.settings import Settings
 from logging_setup import get_logger
 from pydantic_ai import RunContext
-from services.link_policy import domain_of, filter_links, is_document_url, is_internal_link
+from tools.policy.link_policy import domain_of, filter_links, is_document_url, is_internal_link
 from tools.browser_common import _check_blocked, _click_next, _require_browser, _settle_after_click
 from tools.tool_decorators import db_tool
 

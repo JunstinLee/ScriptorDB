@@ -5,7 +5,7 @@ import os
 from pydantic_ai import RunContext
 
 from config.settings import Settings
-from services.pdf_service import extract_pdf
+from tools.pdf.service import extract_pdf
 from tools.errors import _to_tool_error
 from tools.tool_decorators import db_tool
 from tools.tool_result import ToolErrorInfo, ToolResult

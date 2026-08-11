@@ -8,7 +8,7 @@ from crawl4ai import CacheMode
 
 from schemas.crawl_links import CrawlLink
 from services.crawl_links import extract_links, filter_document_links
-from services.crawl_policy import build_exclude_domains, is_allowed_domain, is_binary_content_type
+from tools.policy.crawl_policy import build_exclude_domains, is_allowed_domain, is_binary_content_type
 from services.crawl_structured import extract_with_schema
 
 

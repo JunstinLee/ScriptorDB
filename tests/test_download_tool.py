@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 
 from schemas.download_models import DownloadManifestEntry
-from services import download_manifest
-from services.download_policy import DownloadPolicyError, is_allowed_type, validate_domain
-from services.download_service import download_file
-from tools.download_tools import _parse_domains
+from tools.download import manifest as download_manifest
+from tools.download.service import download_file
+from tools.download.tools import _parse_domains
+from tools.policy.download_policy import DownloadPolicyError, is_allowed_type, validate_domain
 
 PDF_BODY = b"PDF-1.4 fake content\n" * 4
 CSV_BODY = b"name,value\na,1\nb,2\n"

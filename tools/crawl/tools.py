@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from schemas.crawl_models import CrawlResult
-from services.crawl_policy import is_allowed_domain
+from tools.policy.crawl_policy import is_allowed_domain
 from tools.tool_decorators import db_tool
 
 _ALL_LINKS_SUMMARY_LIMIT = 20

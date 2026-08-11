@@ -203,7 +203,7 @@ class TestBrowserExtractLinks:
 
     @pytest.mark.asyncio
     async def test_subdomain_is_internal(self):
-        from services.link_policy import is_internal_link
+        from tools.policy.link_policy import is_internal_link
 
         assert is_internal_link("https://docs.oracle.com/x", "https://investor.oracle.com/")
         assert is_internal_link("https://www.python.org/x", "https://python.org/")

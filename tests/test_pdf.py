@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from services.pdf_service import extract_pdf
-from tools.pdf_tools import read_pdf
+from tools.pdf.service import extract_pdf
+from tools.pdf.tools import read_pdf
 
 
 def _make_pdf(path: Path, title: str, lines: list[str]) -> Path:

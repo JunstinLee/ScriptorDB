@@ -8,7 +8,7 @@ import httpx
 
 from config.workspace_paths import workspace_outputs_dir
 from schemas.download_models import DownloadResult
-from services.download_policy import DownloadPolicyError, is_allowed_type, validate_domain
+from tools.policy.download_policy import DownloadPolicyError, is_allowed_type, validate_domain
 from logging_setup import get_logger
 
 logger = get_logger("download_service")

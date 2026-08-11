@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from schemas.crawl_links import CrawlLink
-from services.link_policy import (
+from tools.policy.link_policy import (
     DOCUMENT_EXTENSIONS,
     domain_of,
     filter_links,

@@ -12,7 +12,7 @@ from logging_setup import get_logger
 from schemas.crawl_links import CrawlLink
 from schemas.crawl_models import CrawlResult
 from services.crawl_links import extract_links, filter_document_links, is_document_url
-from services.crawl_policy import build_exclude_domains, is_binary_content_type
+from tools.policy.crawl_policy import build_exclude_domains, is_binary_content_type
 from services.crawl_rate_limit import RateLimiter
 from services.crawl_structured import extract_rows
 
