@@ -357,11 +357,6 @@ class FileSessionStore(SessionStore):
                 "runs": [r.model_dump() for r in session.runs],
             }
             file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
-            logger.info(
-                "session_file_written session_id=%s path=%s messages=%s model_messages=%s runs=%s",
-                session.session_id, file_path, len(session.messages),
-                len(session.model_messages), len(session.runs),
-            )
         except OSError as e:
             logger.exception(
                 "session_file_write_oserror session_id=%s path=%s err=%s",
