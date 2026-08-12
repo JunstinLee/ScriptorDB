@@ -4,7 +4,12 @@ from pathlib import Path
 
 import pytest
 from database.repository import DatabaseRepository
-from tools.import_tools import import_csv_to_db, import_excel_to_db
+from tools.import_tools import (
+    _import_csv_to_db_impl,
+    _import_excel_to_db_impl,
+    import_csv_to_db,
+    import_excel_to_db,
+)
 
 from tests.conftest import _make_ctx, _write_xlsx
 
@@ -84,7 +89,7 @@ class TestImportCsvToDb:
         def keep(row: dict) -> bool:
             return int(row["age"]) >= 18
 
-        result = import_csv_to_db(
+        result = _import_csv_to_db_impl(
             ctx,
             str(filepath),
             "csv_hooks",
@@ -137,7 +142,7 @@ class TestImportExcelToDb:
         def keep(row: dict) -> bool:
             return int(row["age"]) >= 18
 
-        result = import_excel_to_db(
+        result = _import_excel_to_db_impl(
             ctx,
             str(filepath),
             "excel_hooks",

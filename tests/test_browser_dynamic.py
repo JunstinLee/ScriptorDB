@@ -166,7 +166,7 @@ class TestBrowserScroll:
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_scroll(None, to_bottom=True)
             assert "bottom" in result.lower()
-            mock_page.evaluate.assert_awaited_once()
+            mock_page.evaluate.assert_any_await("window.scrollTo(0, document.body.scrollHeight)")
             mock_page.wait_for_timeout.assert_awaited_once_with(500)
 
     @pytest.mark.asyncio

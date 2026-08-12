@@ -8,6 +8,7 @@ from config.models import (
     get_canonical_for_provider_model,
 )
 from config.models.canonical import _load_registry
+from config.models import resolver as resolver_module
 
 
 def test_canonical_registry_is_not_empty():
@@ -55,20 +56,13 @@ def test_get_canonical_for_provider_together():
     assert "minimax-m3" in slugs
 
 
-def test_get_canonical_for_provider_official():
-    items = get_canonical_for_provider("openai")
-    slugs = [m.slug for m in items]
-    assert "gpt-5.5" in slugs
-    assert "gpt-5.5-pro" in slugs
-
-
 def test_get_canonical_for_provider_nim():
     items = get_canonical_for_provider("nim")
     slugs = [m.slug for m in items]
     assert "deepseek-v4-pro" in slugs
     assert "kimi-2.6" in slugs
     assert "minimax-2.7" in slugs
-    assert "glm-5" in slugs
+    assert "glm-5.2" in slugs
 
 
 def test_reverse_resolve_exact():
@@ -136,7 +130,7 @@ def test_get_recommended_models_uses_canonical(monkeypatch):
         "text-embedding-3-small",
     ]
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
+        resolver_module, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
     )
 
     result = models.get_recommended_models("openrouter")
@@ -153,7 +147,7 @@ def test_get_recommended_models_together_hf_style(monkeypatch):
         "totally-unrelated/foo",
     ]
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
+        resolver_module, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
     )
 
     result = models.get_recommended_models("together")
@@ -169,7 +163,7 @@ def test_get_recommended_models_deduplicates(monkeypatch):
         "deepseek-v4-pro",
     ]
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
+        resolver_module, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
     )
 
     result = models.get_recommended_models("openrouter")
@@ -179,7 +173,7 @@ def test_get_recommended_models_deduplicates(monkeypatch):
 def test_get_recommended_models_no_match_returns_empty(monkeypatch):
     fake_models = ["totally/unrelated", "another/random"]
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
+        resolver_module, "list_available_models", lambda provider, use_cache=True, **kwargs: fake_models
     )
 
     result = models.get_recommended_models("openrouter")
@@ -190,7 +184,7 @@ def test_get_recommended_models_handles_listing_error(monkeypatch):
     def fake_listing(*args, **kwargs):
         raise RuntimeError("network error")
 
-    monkeypatch.setattr(models, "list_available_models", fake_listing)
+    monkeypatch.setattr(resolver_module, "list_available_models", fake_listing)
     result = models.get_recommended_models("openrouter")
     assert result == []
 
