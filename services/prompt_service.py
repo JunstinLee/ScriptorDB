@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import traceback
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 
 logger = get_logger("services.prompt")
 
@@ -25,7 +25,7 @@ async def augment_prompt(
         )
 
     if crawl_url:
-        from services.crawl_service import crawl_url as do_crawl
+        from tools.crawl.service import crawl_url as do_crawl
 
         try:
             result = await do_crawl(crawl_url)

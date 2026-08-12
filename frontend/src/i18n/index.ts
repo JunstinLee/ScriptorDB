@@ -42,6 +42,10 @@ const en: Dict = {
   "tool.dml_update": "Updated",
   "tool.dml_delete": "Deleted",
   "tool.dml_write": "Wrote",
+  "table.rows": "{rows} rows x {cols} cols",
+  "table.page": "{page} / {total}",
+  "table.prev": "Prev",
+  "table.next": "Next",
 };
 
 const dictionaries: Record<string, Dict> = { en };

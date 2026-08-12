@@ -10,7 +10,7 @@ from sqlalchemy import text
 
 from config.settings import Settings
 from schemas.db import ColumnDef
-from tools.db_repository import DatabaseRepository
+from database.repository import DatabaseRepository
 from tools.errors import _to_tool_error
 from tools.schema_helpers import (
     extract_where_clause,
@@ -83,25 +83,42 @@ def get_schema(ctx: RunContext[Settings], table: str | None = None) -> ToolResul
         return _to_tool_error(e)
 
 
-@db_tool(name="run_python_code", category="write", timeout=35, max_retries=2, requires_approval=True, validator=validate_python_code, sequential=True)
-def run_python_code(ctx: RunContext[Settings], code: str) -> ToolResult:
+@db_tool(name="python_sandbox_execute", category="write", timeout=35, max_retries=2, requires_approval=True, validator=validate_python_code, sequential=True)
+def python_sandbox_execute(ctx: RunContext[Settings], code: str) -> ToolResult:
+    """执行用户明确要求或提供的 Python 代码（受控沙箱内）。
+
+    仅当任务本身需要执行 Python 程序时使用：复杂计算、算法实现、代码验证。
+    其他工具返回的结构化结果已是最终数据，可直接使用，无需再经本工具处理。
+    """
     from tools.sandbox import sandbox_execute
 
-    result = sandbox_execute(
-        code=code,
-        db_url=ctx.deps.db_url,
-        timeout=30,
-        max_output_kb=10,
-    )
+    try:
+        result = sandbox_execute(
+            code=code,
+            db_url=ctx.deps.db_url,
+            timeout=30,
+            max_output_kb=10,
+        )
+    except Exception as e:
+        from tools.errors import _to_tool_error
+
+        return _to_tool_error(e)
 
     if result.exit_code == 0:
+        output = f"Code executed successfully: {len(result.stdout)} bytes of output"
+        data: dict[str, object] = {
+            "stdout": result.stdout,
+            "execution_time_ms": result.elapsed_ms,
+        }
+        # stderr 可能包含沙箱拦截信息或用户代码的警告/错误输出，
+        # 不能静默丢弃，否则 agent 会把"0 bytes of output"误判为缓冲问题。
+        if result.stderr.strip():
+            output += f"\nstderr: {result.stderr.strip()[:2000]}"
+            data["stderr"] = result.stderr
         return ToolResult(
             success=True,
-            output=f"Code executed successfully: {len(result.stdout)} bytes of output",
-            data={
-                "stdout": result.stdout,
-                "execution_time_ms": result.elapsed_ms,
-            },
+            output=output,
+            data=data,
         )
 
     from tools.errors import ErrorCategory

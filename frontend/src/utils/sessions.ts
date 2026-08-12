@@ -20,7 +20,15 @@ export function deriveTitle(messages: { role: string; content: string }[]): stri
   const firstUser = messages.find((m) => m.role === "user" && m.content.trim());
   if (!firstUser) return DEFAULT_TITLE;
   const cleaned = firstUser.content.replace(/\s+/g, " ").trim();
-  return cleaned.length > TITLE_MAX_LEN ? `${cleaned.slice(0, TITLE_MAX_LEN)}…` : cleaned;
+  const title =
+    cleaned.length > TITLE_MAX_LEN ? `${cleaned.slice(0, TITLE_MAX_LEN)}…` : cleaned;
+  console.log(
+    "[deriveTitle] messages=%d firstUser=%s title=%s",
+    messages.length,
+    firstUser ? "yes" : "no",
+    title,
+  );
+  return title;
 }
 
 export function metaFromListItem(item: SessionListItem, fallbackTitle: string): SessionMeta {

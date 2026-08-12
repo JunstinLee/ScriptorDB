@@ -9,8 +9,10 @@ from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
+from browser.tabs import TabManager
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
-from logging_setup import get_logger
+from browser.trace import ClickTracer
+from core.logging_setup import get_logger
 
 logger = get_logger("browser.manager")
 
@@ -36,6 +38,8 @@ class BrowserManager:
         self._element_failure_count: dict[str, int] = {}
         self._screencast_connection: object | None = None
         self._idle_close_task: asyncio.Task | None = None
+        self.tabs = TabManager()
+        self.trace = ClickTracer()
 
     @property
     def takeover(self) -> HumanTakeoverManager:
@@ -102,10 +106,25 @@ class BrowserManager:
                 self._clear_browser_refs(log_warning=True)
                 launched = False
 
+        tabs_overview = []
+        if launched:
+            for i, tab in enumerate(self.tabs.pages()):
+                try:
+                    t_title = await tab.title()
+                except Exception:
+                    t_title = ""
+                tabs_overview.append({
+                    "index": i,
+                    "active": tab is self.tabs.active_page(),
+                    "url": tab.url,
+                    "title": t_title,
+                })
+
         return {
             "launched": launched,
             "url": url,
             "title": title,
+            "tabs": tabs_overview,
             "screenshot_available": (
                 self._last_screenshot is not None
                 and (time.monotonic() - self._last_screenshot_time) < SCREENSHOT_TTL
@@ -158,6 +177,7 @@ class BrowserManager:
             page_event: object = self._page.on("close", self._on_page_closed)
             if inspect.isawaitable(page_event):
                 await page_event
+            self.tabs.attach(self._context, self._page)
         except Exception as e:
             self.reset()
             return f"Browser launch failed: {e}"
@@ -215,9 +235,9 @@ class BrowserManager:
         if not self.is_launched() or not self._context:
             return
         try:
-            pages = self._context.pages
-            if pages:
-                await pages[0].bring_to_front()
+            page = self.tabs.active_page()
+            if page is not None:
+                await page.bring_to_front()
         except Exception:
             self._clear_browser_refs(log_warning=True)
 
@@ -249,7 +269,7 @@ class BrowserManager:
         if self._browser is None and self._context is None and self._playwright is None:
             return self._page
         if self._browser_is_alive():
-            return self._page
+            return self.tabs.active_page() or self._page
         if any((self._playwright, self._browser, self._context, self._page)):
             self._clear_browser_refs(log_warning=True)
         return None
@@ -279,6 +299,8 @@ class BrowserManager:
         self._launched_at = None
         self._screencast_connection = None
         self._takeover.reset()
+        self.tabs.detach()
+        self.trace.reset()
         if had_browser and log_warning:
             logger.warning("browser target unavailable; cleared Playwright state")
 

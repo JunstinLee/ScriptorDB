@@ -75,6 +75,61 @@ describe("MarkdownRenderer", () => {
     expect(screen.getByText("b")).toBeInTheDocument();
   });
 
+  it("paginates tables with more than one page of rows", async () => {
+    const user = userEvent.setup();
+    const rows = Array.from({ length: 25 }, (_, i) => `| ${i} | value ${i} |`)
+      .join("\n");
+    const content = `| id | val |\n|---|---|\n${rows}`;
+    renderWithTheme(<MarkdownRenderer content={content} />);
+
+    expect(screen.getByText("25 rows x 2 cols")).toBeInTheDocument();
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+
+    expect(screen.getByText("value 0")).toBeInTheDocument();
+    expect(screen.getByText("value 19")).toBeInTheDocument();
+    expect(screen.queryByText("value 20")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Next"));
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("value 20")).toBeInTheDocument();
+    expect(screen.queryByText("value 0")).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("Prev"));
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("value 0")).toBeInTheDocument();
+  });
+
+  it("keeps the current page when the renderer updates", async () => {
+    const user = userEvent.setup();
+    const rows = Array.from({ length: 25 }, (_, i) => `| ${i} | value ${i} |`)
+      .join("\n");
+    const content = `| id | val |\n|---|---|\n${rows}`;
+    const { rerender } = renderWithTheme(<MarkdownRenderer content={content} />);
+
+    await user.click(screen.getByText("Next"));
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+
+    rerender(
+      <ThemeProvider>
+        <MarkdownRenderer content={`${content}\n`} />
+      </ThemeProvider>,
+    );
+
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+    expect(screen.getByText("value 20")).toBeInTheDocument();
+  });
+
+  it("does not paginate small tables", () => {
+    const rows = Array.from({ length: 3 }, (_, i) => `| ${i} | value ${i} |`)
+      .join("\n");
+    const content = `| id | val |\n|---|---|\n${rows}`;
+    renderWithTheme(<MarkdownRenderer content={content} />);
+
+    expect(screen.queryByText(/rows x/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Next")).not.toBeInTheDocument();
+    expect(screen.getByText("value 2")).toBeInTheDocument();
+  });
+
   it("renders blockquotes", () => {
     const content = "> quoted text";
     renderWithTheme(<MarkdownRenderer content={content} />);

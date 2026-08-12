@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from config.app_config import AppConfig
+from core.logging_setup import get_logger
+
+logger = get_logger("run_tracker")
 
 
 def utc_now_iso() -> str:
@@ -58,6 +61,10 @@ class RunTracker:
             "status": "running",
             "started_at": utc_now_iso(),
         })
+        logger.info(
+            "tool_invocation_started run_id=%s call_id=%s tool=%s args=%s",
+            self.run_id, call_id, tool_name, args,
+        )
 
     def complete_tool(
         self,
@@ -76,6 +83,14 @@ class RunTracker:
                 inv["duration_ms"] = duration_ms
                 inv["data"] = data
                 inv["ended_at"] = utc_now_iso()
+                logger.info(
+                    "tool_invocation_completed run_id=%s call_id=%s tool=%s status=%s "
+                    "output_type=%s output=%r data_type=%s error_code=%s duration_ms=%s",
+                    self.run_id, call_id, inv["tool_name"], inv["status"],
+                    type(output).__name__, output,
+                    type(data).__name__ if data is not None else "None",
+                    error_code, duration_ms,
+                )
                 return
 
     def append_text(self, delta: str) -> None:
@@ -84,8 +99,13 @@ class RunTracker:
     def finish(self) -> None:
         self.status = "completed"
         self.ended_at = utc_now_iso()
+        logger.info(
+            "run_finished run_id=%s status=completed final_output_len=%s tool_count=%s",
+            self.run_id, len(self.final_output), len(self.tool_invocations),
+        )
 
     def fail(self, message: str) -> None:
         self.status = "error"
         self.error_message = message
         self.ended_at = utc_now_iso()
+        logger.error("run_failed run_id=%s error=%s", self.run_id, message)

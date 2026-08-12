@@ -117,6 +117,7 @@ function applyEventToRun(run: Run, event: StreamRunEvent): Run {
         ...run,
         status: "error",
         error_message: er.message,
+        error_type: er.error_type ?? null,
         ended_at: new Date().toISOString(),
       };
     }

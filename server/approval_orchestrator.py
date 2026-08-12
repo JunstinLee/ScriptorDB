@@ -7,9 +7,8 @@ from typing import Any
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, ToolApproved, ToolDenied
 from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
 
-from agents.db_agent import get_agent
+from agents.app_context import AppContext
 from config.app_config import AppConfig
-from config.models import fuzzy_match_model
 from server.agent_runner import run_agent_stream
 from server.approval_policy import (
     HIGH_RISK_IMPORT_TOOLS,
@@ -21,7 +20,7 @@ from server.approval_policy import (
 )
 from server.import_inspector import count_import_rows
 from server.run_tracker import RunTracker, utc_now_iso
-from server.schemas import StoredRun, StoredToolInvocation
+from schemas import StoredRun, StoredToolInvocation
 from server.sessions import get_session_store
 
 
@@ -39,12 +38,14 @@ class ApprovalOrchestrator:
         model: str | None = None,
         provider: str | None = None,
         agent: Any | None = None,
+        app_context: AppContext | None = None,
     ):
         self.session_id = session_id
         self.config = config
         self.model = model
         self.provider = provider
         self.agent = agent
+        self._app_context = app_context or AppContext(self.config)
         self._run_tracker: RunTracker | None = None
 
     @property
@@ -134,13 +135,7 @@ class ApprovalOrchestrator:
         return True
 
     def _resolve_agent(self) -> Any:
-        if self.provider:
-            self.config.llm_provider = self.provider
-        if self.model:
-            matched = fuzzy_match_model(self.config.llm_provider, self.model, self.config.workspace_id)
-            if matched:
-                self.config.llm_model = matched
-        return get_agent(self.config, self.model, self.provider)
+        return self._app_context.resolve_agent(self.model, self.provider)
 
     async def resume_with_approval(
         self,

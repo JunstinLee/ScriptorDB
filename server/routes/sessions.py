@@ -3,7 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from server.dependencies import require_workspace
-from server.schemas import (
+from core.logging_setup import get_logger
+from schemas import (
     SessionCreateResponse,
     SessionInfo,
     SessionListItem,
@@ -12,6 +13,7 @@ from server.schemas import (
 from server.sessions import get_session_store
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
+logger = get_logger("routes.sessions")
 
 
 @router.post("", response_model=SessionCreateResponse)
@@ -38,6 +40,11 @@ async def list_sessions():
             title = (
                 cleaned[:24] + "..." if len(cleaned) > 24 else cleaned
             )
+        logger.info(
+            "list_sessions item session_id=%s messages=%s first_user=%s title=%s",
+            s.session_id, len(s.messages),
+            bool(first_user), title,
+        )
         items.append(
             SessionListItem(
                 session_id=s.session_id,
@@ -56,6 +63,10 @@ async def get_session(session_id: str):
     session = get_session_store().get(session_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+    logger.info(
+        "get_session session_id=%s messages=%s runs=%s",
+        session_id, len(session.messages), len(session.runs),
+    )
     return SessionInfo(
         session_id=session.session_id,
         messages=session.messages,

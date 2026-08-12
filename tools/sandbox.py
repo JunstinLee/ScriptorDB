@@ -132,7 +132,10 @@ def sandbox_execute(
     workspace_path: Path | str | None = None,
 ) -> SandboxResult:
     if allowed_imports is None:
-        allowed_imports = ["pandas", "matplotlib", "openpyxl", "csv", "json", "math", "statistics", "sqlite3"]
+        allowed_imports = [
+            "pandas", "matplotlib", "openpyxl", "csv", "json", "math",
+            "statistics", "sqlite3", "pypdf",
+        ]
 
     work_dir = Path(tempfile.mkdtemp(prefix="scriptordb_sandbox_"))
     script_path = work_dir / "_script.py"
@@ -145,18 +148,26 @@ import builtins
 _original_import = builtins.__import__
 _allowed = {allowed_imports!r}
 
-def _sandbox_import(name, *args, **kwargs):
+def _sandbox_import(name, globals=None, locals=None, fromlist=(), level=0):
+    # 相对导入（如 pypdf 内部的 from ._crypt_providers import ...）只能发生在
+    # 已通过顶层白名单检查的包内部，直接透传给原始 import，避免误拦子模块。
+    # level>0 表示相对导入；注意 CPython 以第 5 个位置参数传入 level。
+    if level > 0:
+        return _original_import(name, globals, locals, fromlist, level)
     top = name.split(".")[0]
     if top not in _allowed and top not in sys.stdlib_module_names:
         raise ImportError(f"Module '{{name}}' is not allowed in sandbox")
-    return _original_import(name, *args, **kwargs)
+    return _original_import(name, globals, locals, fromlist, level)
 
 builtins.__import__ = _sandbox_import
 
 try:
 {chr(10).join("    " + line for line in code.split(chr(10)))}
+except SystemExit:
+    raise
 except Exception as e:
     print(f"__SANDBOX_ERROR__: {{type(e).__name__}}: {{e}}", file=sys.stderr)
+    sys.exit(1)
 '''
 
     script_path.write_text(sandbox_code, encoding="utf-8")

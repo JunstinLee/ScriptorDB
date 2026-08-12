@@ -221,6 +221,7 @@ __marimo__/
 DOCS/
 # Skills workspace
 .opencode/
+.agents/
 skills-lock.json
 
 node_modules/

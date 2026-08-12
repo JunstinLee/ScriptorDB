@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from config.canonical_models import get_canonical_by_slug
-from config.models import resolve_canonical_slug
+from config.models import get_canonical_by_slug, resolve_canonical_slug
 from server.sse_format import sse_done, sse_event
 
 

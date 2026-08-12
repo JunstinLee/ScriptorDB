@@ -119,8 +119,18 @@ export function useSessions(
     async (sessionId: string) => {
       try {
         const title = await loadSessionTitle(sessionId);
+        console.log(
+          "[useSessions] refreshSessionTitle sid=%s title=%s",
+          sessionId,
+          title,
+        );
         updateSessionTitle(sessionId, title);
-      } catch {
+      } catch (e) {
+        console.warn(
+          "[useSessions] refreshSessionTitle failed sid=%s err=%s",
+          sessionId,
+          e,
+        );
         // keep previous title on failure
       }
     },

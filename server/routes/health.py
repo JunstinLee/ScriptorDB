@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from server.dependencies import get_config
-from server.schemas import HealthResponse
+from schemas import HealthResponse
 
 router = APIRouter(tags=["health"])
 

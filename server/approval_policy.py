@@ -12,7 +12,7 @@ LOW_RISK_WRITE_TOOLS = frozenset({
     "create_table",
     "execute_ddl",
     "write_data",
-    "run_python_code",
+    "python_sandbox_execute",
 })
 
 HIGH_RISK_IMPORT_TOOLS = frozenset({

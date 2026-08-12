@@ -38,7 +38,7 @@ function getOperations(invocations: TI[]): OperationItem[] {
       case "query_database":
         queries++;
         break;
-      case "run_python_code":
+      case "python_sandbox_execute":
         pythons++;
         break;
       case "create_table":

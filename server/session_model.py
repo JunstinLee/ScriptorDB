@@ -12,7 +12,7 @@ from pydantic_ai.messages import (
     UserPromptPart,
 )
 
-from server.schemas import MessageItem, StoredRun
+from schemas import MessageItem, StoredRun
 
 
 class Session:

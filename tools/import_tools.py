@@ -9,7 +9,7 @@ from pydantic_ai import RunContext
 from sqlalchemy import text
 
 from config.settings import Settings
-from tools.db_repository import DatabaseRepository
+from database.repository import DatabaseRepository
 from tools.errors import _to_tool_error
 from tools.parsers.csv_parser import _apply_hooks, parse_csv
 from tools.parsers.excel_parser import parse_excel

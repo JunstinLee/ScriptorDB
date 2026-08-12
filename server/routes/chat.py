@@ -8,10 +8,10 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from server.approval_orchestrator import ApprovalOrchestrator
-from server.dependencies import get_config, require_workspace
-from server.schemas import ChatRequest
+from server.dependencies import get_app_context, get_config, require_workspace
+from schemas import ChatRequest
 from server.sessions import get_session_store
 from server.sse_format import sse_done, sse_event
 from services.chat_service import persist_chat_run
@@ -93,9 +93,17 @@ async def _stream_orchestrator_events(
             raise
         finally:
             if interrupted:
+                logger.warning(
+                    "chat_stream_interrupted session_id=%s run_task_done=%s",
+                    session_id, run_task.done(),
+                )
                 if run_task.done():
                     with suppress(Exception):
                         summary = run_task.result()
+                        logger.info(
+                            "chat_stream_interrupted summary status=%s run_id=%s",
+                            summary["status"], summary["run_id"],
+                        )
                         if summary["status"] == "completed":
                             new_messages_collector.extend(
                                 summary.get("new_messages", [])
@@ -109,6 +117,11 @@ async def _stream_orchestrator_events(
                             get_manager().schedule_idle_close()
                         elif summary["status"] == "running":
                             _persist_paused_run(session_id, summary)
+                        else:
+                            logger.warning(
+                                "chat_stream_interrupted: status=%s not persisted session_id=%s",
+                                summary["status"], session_id,
+                            )
                 else:
                     run_task.cancel()
                     with suppress(asyncio.CancelledError):
@@ -116,6 +129,10 @@ async def _stream_orchestrator_events(
                     remove_orchestrator(session_id)
             else:
                 summary = await run_task
+                logger.info(
+                    "chat_stream_finished session_id=%s status=%s run_id=%s",
+                    session_id, summary["status"], summary["run_id"],
+                )
                 if summary["status"] == "completed":
                     new_messages_collector.extend(summary.get("new_messages", []))
                     persist_chat_run(
@@ -130,6 +147,11 @@ async def _stream_orchestrator_events(
                     # and this turn's model messages (incl. the deferred tool calls)
                     # so a backend restart does not lose the turn.
                     _persist_paused_run(session_id, summary)
+                else:
+                    logger.warning(
+                        "chat_stream_finished: status=%s not persisted session_id=%s",
+                        summary["status"], session_id,
+                    )
 
     return StreamingResponse(
         generate(),
@@ -165,7 +187,11 @@ async def chat(session_id: str, req: ChatRequest):
     model_messages = session.get_model_messages()
 
     orchestrator = ApprovalOrchestrator(
-        session_id, config, model=req.model, provider=req.provider
+        session_id,
+        config,
+        model=req.model,
+        provider=req.provider,
+        app_context=get_app_context(),
     )
     _active_orchestrators[session_id] = orchestrator
 

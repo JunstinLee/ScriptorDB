@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from config import models
-from config.canonical_models import (
+from config.models import (
     CANONICAL_REGISTRY,
-    _load_registry,
     get_canonical_by_slug,
     get_canonical_for_provider,
     get_canonical_for_provider_model,
 )
+from config.models.canonical import _load_registry
 
 
 def test_canonical_registry_is_not_empty():
@@ -327,9 +327,8 @@ def test_loader_preserves_order(tmp_path):
 
 
 def test_json_file_matches_registry():
-    from pathlib import Path
-    json_path = Path(__file__).parent.parent / "config" / "recommended_models.json"
-    registry = _load_registry(json_path)
+    # 默认路径即 canonical 模块同目录的 recommended_models.json（已随集群移入 config/models/）
+    registry = _load_registry()
     assert len(registry) == len(CANONICAL_REGISTRY)
     for m_json, m_code in zip(registry, CANONICAL_REGISTRY):
         assert m_json.slug == m_code.slug

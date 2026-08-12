@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from logging_setup import get_logger
+from core.logging_setup import get_logger
 from server.dependencies import require_workspace
 from services.undo_service import _ensure_repo, revert_and_trim_session
 

@@ -19,7 +19,7 @@ function previewSql(sql: string): string {
 
 function getToolSummary(toolName: string, args: Record<string, unknown>): string {
   switch (toolName) {
-    case "run_python_code":
+    case "python_sandbox_execute":
       return t("tool.summary.ran_python_code");
 
     case "write_csv": {

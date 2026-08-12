@@ -14,14 +14,18 @@ from pydantic_ai.messages import (
     ToolReturnPart,
     UserPromptPart,
 )
+from pydantic_core import to_jsonable_python
 
 from config.workspace import (
     GLOBAL_CONFIG_DIR,
     LEGACY_SESSIONS_BACKUP_FILE,
     LEGACY_SESSIONS_FILE,
 )
-from server.schemas import MessageItem, StoredRun
+from core.logging_setup import get_logger
+from schemas import MessageItem, StoredRun
 from server.session_model import Session, SessionStore
+
+logger = get_logger("session_file_store")
 
 _DEFAULT_STORAGE = GLOBAL_CONFIG_DIR / "global_sessions"
 _PAYLOAD_VERSION = 2
@@ -46,9 +50,23 @@ def _part_to_data(part: Any) -> dict | None:
             "type": "ToolReturnPart",
             "tool_call_id": part.tool_call_id,
             "tool_name": part.tool_name,
-            "content": part.content,
+            "content": _content_to_data(part.content),
         }
     return None
+
+
+def _content_to_data(content: Any) -> str:
+    """把 ToolReturnPart.content 转为 JSON 可序列化的字符串。
+
+    工具函数可能直接返回 pydantic 模型（如 tools.tool_result.ToolResult），
+    这类对象无法被 json.dumps 直接序列化；统一转为 JSON 字符串存储。
+    """
+    if isinstance(content, str):
+        return content
+    try:
+        return json.dumps(to_jsonable_python(content), ensure_ascii=False)
+    except Exception:
+        return str(content)
 
 
 def _part_from_data(part_data: dict) -> Any | None:
@@ -338,9 +356,23 @@ class FileSessionStore(SessionStore):
                 "model_messages": model_msgs_data,
                 "runs": [r.model_dump() for r in session.runs],
             }
-            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
-        except OSError:
-            pass
+            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
+            logger.info(
+                "session_file_written session_id=%s path=%s messages=%s model_messages=%s runs=%s",
+                session.session_id, file_path, len(session.messages),
+                len(session.model_messages), len(session.runs),
+            )
+        except OSError as e:
+            logger.exception(
+                "session_file_write_oserror session_id=%s path=%s err=%s",
+                session.session_id, file_path, e,
+            )
+        except Exception:
+            logger.exception(
+                "session_file_write_failed session_id=%s path=%s",
+                session.session_id, file_path,
+            )
+            raise
 
     def _write_index(self) -> None:
         try:
@@ -357,13 +389,16 @@ class FileSessionStore(SessionStore):
                 },
             }
             self._index_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
-        except OSError:
-            pass
+            logger.info("session_index_written path=%s sessions=%s", self._index_file, len(self._sessions))
+        except OSError as e:
+            logger.exception("session_index_write_oserror path=%s err=%s", self._index_file, e)
 
     def save(self) -> None:
+        logger.info("session_store_save start sessions=%s", len(self._sessions))
         for session in self._sessions.values():
             self._write_session_file(session)
         self._write_index()
+        logger.info("session_store_save done sessions=%s", len(self._sessions))
 
     def create(self) -> Session:
         session = Session()
