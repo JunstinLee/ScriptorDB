@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import importlib
-import shutil
 from pathlib import Path
 
 import pytest
@@ -85,9 +83,8 @@ def _create_workspace(path: Path, name: str) -> dict:
 
 
 def _file_store() -> FileSessionStore:
-    import server.sessions as sm
-    assert sm.session_store is not None
-    return sm.session_store  # type: ignore[return-value]
+    assert sessions_module.session_store is not None
+    return sessions_module.session_store  # type: ignore[return-value]
 
 
 def test_activate_workspace_swaps_session_store(workspace_env, client):

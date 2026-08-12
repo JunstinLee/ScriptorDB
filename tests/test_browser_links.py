@@ -12,11 +12,7 @@ from browser.trace import ClickTracer
 from tools.browser import browser_click, browser_extract_links, browser_get_tabs, browser_switch_tab
 
 
-@pytest.fixture(autouse=True)
-def _cleanup_browser():
-    get_manager().reset()
-    yield
-    get_manager().reset()
+pytestmark = pytest.mark.usefixtures("cleanup_browser")
 
 
 class TestBrowserExtractLinks:

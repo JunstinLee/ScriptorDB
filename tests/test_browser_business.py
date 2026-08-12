@@ -15,11 +15,7 @@ from tools.browser import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _cleanup_browser():
-    get_manager().reset()
-    yield
-    get_manager().reset()
+pytestmark = pytest.mark.usefixtures("cleanup_browser")
 
 
 class TestBrowserGetCookies:

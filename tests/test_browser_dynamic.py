@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -14,11 +14,7 @@ from tools.browser import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _cleanup_browser():
-    get_manager().reset()
-    yield
-    get_manager().reset()
+pytestmark = pytest.mark.usefixtures("cleanup_browser")
 
 
 class TestBrowserLoadState:

@@ -3,20 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic_ai import RunContext
-from pydantic_ai.models.test import TestModel as PydanticTestModel
-from pydantic_ai.usage import RunUsage
 
-from config.settings import Settings
+from tests.conftest import _make_ctx, _write_xlsx
 from tools.export_tools import export_excel, read_excel
-
-
-def _make_ctx() -> RunContext[Settings]:
-    return RunContext(
-        deps=Settings(db_url="sqlite:///:memory:"),
-        model=PydanticTestModel(),
-        usage=RunUsage(),
-    )
 
 
 class TestExportExcel:
@@ -41,20 +30,10 @@ class TestExportExcel:
 
 
 class TestReadExcel:
-    def _write_xlsx(self, filepath: Path, sheet_name: str, rows: list[list]):
-        from openpyxl import Workbook
-
-        wb = Workbook()
-        ws = wb.active or wb.create_sheet()
-        ws.title = sheet_name
-        for row in rows:
-            ws.append(row)
-        wb.save(filepath)
-
     def test_read_excel_preview(self, tmp_path: Path):
         ctx = _make_ctx()
         filepath = tmp_path / "test.xlsx"
-        self._write_xlsx(
+        _write_xlsx(
             filepath,
             "Data",
             [["name", "age"], ["Alice", 30], ["Bob", 25], ["Carol", 27]],
@@ -71,7 +50,7 @@ class TestReadExcel:
     def test_read_excel_return_full(self, tmp_path: Path):
         ctx = _make_ctx()
         filepath = tmp_path / "test.xlsx"
-        self._write_xlsx(
+        _write_xlsx(
             filepath,
             "Data",
             [["name", "age"], ["Alice", 30], ["Bob", 25], ["Carol", 27]],
@@ -86,7 +65,7 @@ class TestReadExcel:
     def test_read_excel_max_rows(self, tmp_path: Path):
         ctx = _make_ctx()
         filepath = tmp_path / "test.xlsx"
-        self._write_xlsx(
+        _write_xlsx(
             filepath,
             "Data",
             [["name", "age"], ["Alice", 30], ["Bob", 25], ["Carol", 27]],
@@ -108,7 +87,7 @@ class TestReadExcel:
     def test_read_excel_invalid_sheet(self, tmp_path: Path):
         ctx = _make_ctx()
         filepath = tmp_path / "test.xlsx"
-        self._write_xlsx(filepath, "Data", [["a"], [1]])
+        _write_xlsx(filepath, "Data", [["a"], [1]])
 
         result = read_excel(ctx, str(filepath), sheet_name="Missing")
         assert not result.success

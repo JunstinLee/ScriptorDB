@@ -17,9 +17,8 @@ import argparse
 import asyncio
 import json
 import os
-import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -38,15 +37,11 @@ WS_URL = "ws://localhost:8000/api/ws/browser"
 
 _G = "\033[92m"
 _R = "\033[91m"
-_Y = "\033[93m"
-_C = "\033[96m"
 _B = "\033[1m"
 _N = "\033[0m"
 
 OK = _G + "PASS" + _N
 FAIL = _R + "FAIL" + _N
-SKIP = _Y + "SKIP" + _N
-WARN = _Y + "WARN" + _N
 
 
 def _tag(ok_: bool) -> str:
@@ -64,8 +59,6 @@ class CheckResult:
     title: str
     ok: bool = True
     message: str = ""
-    data: dict[str, Any] = field(default_factory=dict)
-    skipped: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +403,7 @@ class BrowserStreamDiagnostic:
         print()
 
         for r in self._results:
-            tag = SKIP if r.skipped else _tag(r.ok)
+            tag = _tag(r.ok)
             print(f"  [{tag}] L{r.layer}  {r.title}")
             for line in r.message.split("\n"):
                 print(f"        {line}")
