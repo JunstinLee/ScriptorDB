@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pytest
-from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, RunContext
+from pydantic_ai import Agent
 from pydantic_ai.capabilities import HandleDeferredToolCalls
 from pydantic_ai.models.test import TestModel as PydanticTestModel
 
@@ -11,6 +11,8 @@ from tools.data_tools import list_files, read_csv, read_file, write_csv, write_f
 from tools.export_tools import export_excel
 from tools.tool_decorators import get_all_tool_defs
 from tools.viz_tools import plot_chart
+
+from tests.conftest import _auto_approve_handler
 
 
 def test_browser_data_tools_return_object_schema():
@@ -29,17 +31,6 @@ def test_browser_data_tools_return_object_schema():
             assert d.to_tool().function_schema.return_schema["type"] == "object", d.name
 
 
-def _auto_approve_handler(
-    ctx: RunContext[Settings],
-    requests: DeferredToolRequests,
-) -> DeferredToolResults:
-    from pydantic_ai import ToolApproved
-    results = DeferredToolResults()
-    for call in requests.approvals:
-        results.approvals[call.tool_call_id] = ToolApproved()
-    return results
-
-
 @pytest.fixture
 def test_agent():
     return Agent(
@@ -54,13 +45,6 @@ def test_agent():
         ],
         capabilities=[HandleDeferredToolCalls(handler=_auto_approve_handler)],
     )
-
-
-
-@pytest.fixture
-def test_settings(tmp_path):
-    db_path = tmp_path / "test.db"
-    return Settings(db_url=f"sqlite:///{db_path}")
 
 
 def test_agent_structure(test_agent):

@@ -3,12 +3,24 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic_ai import RunContext
+from pydantic_ai import DeferredToolRequests, DeferredToolResults, RunContext
 from pydantic_ai.models.test import TestModel as PydanticTestModel
 from pydantic_ai.usage import RunUsage
 
 from browser import get_manager
 from config.settings import Settings
+
+
+def _auto_approve_handler(
+    ctx: RunContext[Settings],
+    requests: DeferredToolRequests,
+) -> DeferredToolResults:
+    from pydantic_ai import ToolApproved
+
+    results = DeferredToolResults()
+    for call in requests.approvals:
+        results.approvals[call.tool_call_id] = ToolApproved()
+    return results
 
 
 def _make_ctx() -> RunContext[Settings]:
@@ -36,3 +48,9 @@ def cleanup_browser():
     get_manager().reset()
     yield
     get_manager().reset()
+
+
+@pytest.fixture
+def test_settings(tmp_path):
+    db_path = tmp_path / "test.db"
+    return Settings(db_url=f"sqlite:///{db_path}")

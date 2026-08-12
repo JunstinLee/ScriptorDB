@@ -3,8 +3,8 @@
 WebRTC Browser Stream Diagnostic — 诊断 BrowserViewportStream 视频流为啥空白。
 
 用法:
-    uv run python tests/test_browser_stream_diag.py              # 纯 API 层 (Layer 0-3)
-    uv run python tests/test_browser_stream_diag.py --frames 3   # 收 3 帧然后退出
+    uv run python scripts/browser_stream_diag.py              # 纯 API 层 (Layer 0-3)
+    uv run python scripts/browser_stream_diag.py --frames 3   # 收 3 帧然后退出
 
 要求:
     - 后端运行在 localhost:8000
