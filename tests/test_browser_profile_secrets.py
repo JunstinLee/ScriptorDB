@@ -120,30 +120,50 @@ def test_failed_write_keeps_old_profile_and_cleans_new_chunks(fake_keyring, monk
     assert secrets.get_browser_profile("ws-test", "p") == old
 
 
-def test_missing_chunk_raises_corrupted(fake_keyring):
-    secrets.save_browser_profile("ws-test", "p", _large_state())
-    service = _service()
-    chunk_keys = [k for k in fake_keyring.store[service] if k.startswith("p:")]
-    del fake_keyring.store[service][chunk_keys[0]]
-    with pytest.raises(secrets.BrowserProfileCorruptedError):
-        secrets.get_browser_profile("ws-test", "p")
+def _delete_first_chunk(records: dict[str, str]) -> None:
+    chunk_keys = [k for k in records if k.startswith("p:")]
+    del records[chunk_keys[0]]
 
 
-def test_wrong_chunk_count_raises_corrupted(fake_keyring):
-    secrets.save_browser_profile("ws-test", "p", _large_state())
-    service = _service()
-    meta = json.loads(fake_keyring.store[service]["p"])
+def _bump_chunk_count(records: dict[str, str]) -> None:
+    meta = json.loads(records["p"])
     meta["chunk_count"] += 1
-    fake_keyring.set_password(service, "p", json.dumps(meta))
-    with pytest.raises(secrets.BrowserProfileCorruptedError):
-        secrets.get_browser_profile("ws-test", "p")
+    records["p"] = json.dumps(meta)
 
 
-def test_checksum_mismatch_raises_corrupted(fake_keyring):
+def _corrupt_last_chunk(records: dict[str, str]) -> None:
+    chunk_keys = [k for k in records if k.startswith("p:")]
+    records[chunk_keys[-1]] = "AAAA"
+
+
+def _truncate_meta(records: dict[str, str]) -> None:
+    records["p"] = json.dumps({"version": 2, "chunk_count": 1})
+
+
+def _future_version(records: dict[str, str]) -> None:
+    records["p"] = json.dumps({"version": 3, "generation": "g", "chunk_count": 1})
+
+
+def _absurd_chunk_count(records: dict[str, str]) -> None:
+    records["p"] = json.dumps(
+        {"version": 2, "generation": "g", "chunk_count": 10**9, "sha256": "a" * 64}
+    )
+
+
+@pytest.mark.parametrize(
+    "corrupt",
+    [
+        _delete_first_chunk,
+        _bump_chunk_count,
+        _corrupt_last_chunk,
+        _truncate_meta,
+        _future_version,
+        _absurd_chunk_count,
+    ],
+)
+def test_corrupted_storage_raises(fake_keyring, corrupt):
     secrets.save_browser_profile("ws-test", "p", _large_state())
-    service = _service()
-    chunk_keys = [k for k in fake_keyring.store[service] if k.startswith("p:")]
-    fake_keyring.set_password(service, chunk_keys[-1], "AAAA")
+    corrupt(fake_keyring.store[_service()])
     with pytest.raises(secrets.BrowserProfileCorruptedError):
         secrets.get_browser_profile("ws-test", "p")
 
@@ -177,33 +197,3 @@ def test_too_large_payload_raises(fake_keyring, monkeypatch):
         secrets.save_browser_profile("ws-test", "p", _small_state())
     assert secrets.get_browser_profile("ws-test", "p") is None
 
-
-def test_malformed_v2_metadata_raises_corrupted(fake_keyring):
-    fake_keyring.set_password(_service(), "p", json.dumps({"version": 2, "chunk_count": 1}))
-    with pytest.raises(secrets.BrowserProfileCorruptedError):
-        secrets.get_browser_profile("ws-test", "p")
-
-
-def test_future_version_metadata_raises_corrupted(fake_keyring):
-    fake_keyring.set_password(
-        _service(), "p", json.dumps({"version": 3, "generation": "g", "chunk_count": 1})
-    )
-    with pytest.raises(secrets.BrowserProfileCorruptedError):
-        secrets.get_browser_profile("ws-test", "p")
-
-
-def test_absurd_chunk_count_raises_corrupted(fake_keyring):
-    fake_keyring.set_password(
-        _service(),
-        "p",
-        json.dumps(
-            {
-                "version": 2,
-                "generation": "g",
-                "chunk_count": 10**9,
-                "sha256": "a" * 64,
-            }
-        ),
-    )
-    with pytest.raises(secrets.BrowserProfileCorruptedError):
-        secrets.get_browser_profile("ws-test", "p")

@@ -40,11 +40,6 @@ async def list_sessions():
             title = (
                 cleaned[:24] + "..." if len(cleaned) > 24 else cleaned
             )
-        logger.info(
-            "list_sessions item session_id=%s messages=%s first_user=%s title=%s",
-            s.session_id, len(s.messages),
-            bool(first_user), title,
-        )
         items.append(
             SessionListItem(
                 session_id=s.session_id,

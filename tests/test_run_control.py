@@ -48,27 +48,24 @@ def test_extract_markers_empty_messages():
     assert extract_result_markers([]) == set()
 
 
-def test_should_allow_end_with_result_text():
-    assert should_allow_end("结果共有 50 条，日期是 July 28, 2026。", messages=[_MARKERS_MSG]) is True
-    assert should_allow_end("提取到 50 条记录，Form 4。", messages=[_MARKERS_MSG]) is True
-    assert should_allow_end("来源 d18rn0p25nwr6d.cloudfront.net，共 50 条。", messages=[_MARKERS_MSG]) is True
-
-
-def test_should_allow_end_rejects_narration():
-    assert should_allow_end("让我用 Python 来解析并格式化这些数据。", messages=[_MARKERS_MSG]) is False
-    assert should_allow_end("好的，我已经完成查询。", messages=[_MARKERS_MSG]) is False
-    assert should_allow_end("", messages=[_MARKERS_MSG]) is False
-
-
-def test_should_allow_end_plain_qa():
-    assert should_allow_end("可以。", messages=[_PLAIN_MSG]) is True
-    assert should_allow_end("可以。", messages=None) is True
-
-
-def test_should_allow_end_pass_through_cases():
-    assert should_allow_end("任意", messages=[_MARKERS_MSG], partial_output=True) is True
-    assert should_allow_end({"not": "str"}, messages=[_MARKERS_MSG]) is True
-    assert should_allow_end("任何文本", messages=[_MARKERS_MSG], retry=1) is True
+@pytest.mark.parametrize(
+    ("output", "messages", "expected", "kwargs"),
+    [
+        ("结果共有 50 条，日期是 July 28, 2026。", [_MARKERS_MSG], True, {}),
+        ("提取到 50 条记录，Form 4。", [_MARKERS_MSG], True, {}),
+        ("来源 d18rn0p25nwr6d.cloudfront.net，共 50 条。", [_MARKERS_MSG], True, {}),
+        ("让我用 Python 来解析并格式化这些数据。", [_MARKERS_MSG], False, {}),
+        ("好的，我已经完成查询。", [_MARKERS_MSG], False, {}),
+        ("", [_MARKERS_MSG], False, {}),
+        ("可以。", [_PLAIN_MSG], True, {}),
+        ("可以。", None, True, {}),
+        ("任意", [_MARKERS_MSG], True, {"partial_output": True}),
+        ({"not": "str"}, [_MARKERS_MSG], True, {}),
+        ("任何文本", [_MARKERS_MSG], True, {"retry": 1}),
+    ],
+)
+def test_should_allow_end(output, messages, expected, kwargs):
+    assert should_allow_end(output, messages=messages, **kwargs) is expected
 
 
 def _tool_agent(handler):

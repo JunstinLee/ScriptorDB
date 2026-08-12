@@ -3,20 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic_ai import RunContext
-from pydantic_ai.models.test import TestModel as PydanticTestModel
-from pydantic_ai.usage import RunUsage
-from config.settings import Settings
 from database.repository import DatabaseRepository
-from tools.import_tools import import_csv_to_db, import_excel_to_db
+from tools.import_tools import (
+    _import_csv_to_db_impl,
+    _import_excel_to_db_impl,
+    import_csv_to_db,
+    import_excel_to_db,
+)
 
-
-def _make_ctx() -> RunContext[Settings]:
-    return RunContext(
-        deps=Settings(db_url="sqlite:///:memory:"),
-        model=PydanticTestModel(),
-        usage=RunUsage(),
-    )
+from tests.conftest import _make_ctx, _write_xlsx
 
 
 def _query_table(db_url: str, table_name: str):
@@ -94,7 +89,7 @@ class TestImportCsvToDb:
         def keep(row: dict) -> bool:
             return int(row["age"]) >= 18
 
-        result = import_csv_to_db(
+        result = _import_csv_to_db_impl(
             ctx,
             str(filepath),
             "csv_hooks",
@@ -117,20 +112,10 @@ class TestImportCsvToDb:
 
 
 class TestImportExcelToDb:
-    def _write_xlsx(self, filepath: Path, sheet_name: str, rows: list[list]):
-        from openpyxl import Workbook
-
-        wb = Workbook()
-        ws = wb.active or wb.create_sheet()
-        ws.title = sheet_name
-        for row in rows:
-            ws.append(row)
-        wb.save(filepath)
-
     def test_import_excel_basic(self, tmp_path: Path):
         ctx = _make_ctx()
         filepath = tmp_path / "data.xlsx"
-        self._write_xlsx(filepath, "People", [["name", "age"], ["Alice", 30], ["Bob", 25]])
+        _write_xlsx(filepath, "People", [["name", "age"], ["Alice", 30], ["Bob", 25]])
 
         result = import_excel_to_db(ctx, str(filepath), "excel_basic")
         assert result.success
@@ -144,7 +129,7 @@ class TestImportExcelToDb:
     def test_import_excel_hooks(self, tmp_path: Path):
         ctx = _make_ctx()
         filepath = tmp_path / "data.xlsx"
-        self._write_xlsx(
+        _write_xlsx(
             filepath,
             "People",
             [["name", "age"], ["Alice", 30], ["Bob", 12], ["Carol", 25]],
@@ -157,7 +142,7 @@ class TestImportExcelToDb:
         def keep(row: dict) -> bool:
             return int(row["age"]) >= 18
 
-        result = import_excel_to_db(
+        result = _import_excel_to_db_impl(
             ctx,
             str(filepath),
             "excel_hooks",
@@ -174,7 +159,7 @@ class TestImportExcelToDb:
     def test_import_excel_invalid_sheet(self, tmp_path: Path):
         ctx = _make_ctx()
         filepath = tmp_path / "data.xlsx"
-        self._write_xlsx(filepath, "People", [["a"], [1]])
+        _write_xlsx(filepath, "People", [["a"], [1]])
 
         result = import_excel_to_db(ctx, str(filepath), "excel_missing", sheet_name="Missing")
         assert not result.success

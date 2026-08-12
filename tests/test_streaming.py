@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import pytest
-from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, RunContext
+from pydantic_ai import Agent
 from pydantic_ai.capabilities import HandleDeferredToolCalls
 from pydantic_ai.models.test import TestModel
 
@@ -11,17 +11,7 @@ from config.settings import Settings
 from server.streaming import _sse_event, stream_agent_response
 from tools.db_tools import get_schema
 
-
-def _auto_approve_handler(
-    ctx: RunContext[Settings],
-    requests: DeferredToolRequests,
-) -> DeferredToolResults:
-    from pydantic_ai import ToolApproved
-
-    results = DeferredToolResults()
-    for call in requests.approvals:
-        results.approvals[call.tool_call_id] = ToolApproved()
-    return results
+from tests.conftest import _auto_approve_handler
 
 
 def _parse_sse(chunks: list[str]) -> tuple[str, dict]:
@@ -73,12 +63,6 @@ def _parse_events(chunks: list[str]) -> list[dict]:
                 except json.JSONDecodeError:
                     pass
     return events
-
-
-@pytest.fixture
-def test_settings(tmp_path):
-    db_path = tmp_path / "test.db"
-    return Settings(db_url=f"sqlite:///{db_path}")
 
 
 @pytest.mark.asyncio

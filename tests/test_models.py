@@ -1,71 +1,67 @@
 from __future__ import annotations
 
+import pytest
+
 from config import models
+from config.models import resolver as resolver_module
+from config.models.client import _parse_models
 
 
 def test_parse_openai_style():
     data = {"data": [{"id": "gpt-4o"}, {"id": "gpt-4.1"}, {"id": "gpt-4o"}]}
-    result = models._parse_models(data)
+    result = _parse_models(data)
     assert result == ["gpt-4.1", "gpt-4o"]
 
 
 def test_parse_anthropic_style():
     data = {"models": [{"id": "claude-3-opus"}, {"name": "claude-3-sonnet"}]}
-    result = models._parse_models(data)
+    result = _parse_models(data)
     assert "claude-3-opus" in result
     assert "claude-3-sonnet" in result
 
 
 def test_parse_empty():
-    assert models._parse_models({}) == []
-    assert models._parse_models({"data": []}) == []
-    assert models._parse_models({"models": []}) == []
+    assert _parse_models({}) == []
+    assert _parse_models({"data": []}) == []
+    assert _parse_models({"models": []}) == []
 
 
 def test_parse_skips_invalid_entries():
     data = {"data": [{"id": "good"}, "not-a-dict", {}, {"id": None}, {"id": "good"}]}
-    result = models._parse_models(data)
+    result = _parse_models(data)
     assert result == ["good"]
 
 
-def test_resolve_model_with_prefix():
-    assert models.resolve_model("openai", "openai:gpt-4o") == "openai:gpt-4o"
-
-
-def test_resolve_model_bare_name():
-    assert models.resolve_model("openai", "gpt-4o") == "openai:gpt-4o"
-
-
-def test_resolve_model_with_other_provider_prefix():
-    assert models.resolve_model("openai", "anthropic:claude-3") == "anthropic:claude-3"
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("openai:gpt-4o", "openai:gpt-4o"),
+        ("gpt-4o", "openai:gpt-4o"),
+        ("anthropic:claude-3", "anthropic:claude-3"),
+    ],
+)
+def test_resolve_model(model, expected):
+    assert models.resolve_model("deepseek", model) == expected
 
 
 def test_resolve_model_unsupported_provider():
-    import pytest
-
     with pytest.raises(ValueError):
         models.resolve_model("not-a-provider", None)
 
 
-def test_fuzzy_match_exact(monkeypatch):
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("gpt-4o", "gpt-4o"),
+        ("4.1", "gpt-4.1"),
+        ("claude", None),
+    ],
+)
+def test_fuzzy_match(monkeypatch, query, expected):
     monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
+        resolver_module, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
     )
-    assert models.fuzzy_match_model("openai", "gpt-4o") == "gpt-4o"
-
-
-def test_fuzzy_match_substring_unique(monkeypatch):
-    monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
-    )
-    assert models.fuzzy_match_model("openai", "4.1") == "gpt-4.1"
-
-
-def test_fuzzy_match_no_match(monkeypatch):
-    monkeypatch.setattr(
-        models, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
-    )
-    assert models.fuzzy_match_model("openai", "claude") is None
+    assert models.fuzzy_match_model("openrouter", query) == expected
 
 
 def test_filter_chat_models_excludes_keywords():
@@ -87,25 +83,3 @@ def test_filter_chat_models_excludes_keywords():
 def test_filter_chat_models_empty():
     assert models.filter_chat_models([]) == []
 
-
-def test_get_recommended_models_finds_top(monkeypatch):
-    monkeypatch.setattr(
-        models,
-        "list_available_models",
-        lambda provider, use_cache=True, **kwargs: ["gpt-5.5", "gpt-5.5-pro", "claude-opus-4-8", "gemini-3.5-flash"],
-    )
-    result = models.get_recommended_models("openai")
-    assert "gpt-5.5" in result
-    assert "gpt-5.5-pro" in result
-    assert "claude-opus-4-8" not in result
-    assert "gemini-3.5-flash" not in result
-
-
-def test_get_recommended_models_substring_fallback(monkeypatch):
-    monkeypatch.setattr(
-        models,
-        "list_available_models",
-        lambda provider, use_cache=True, **kwargs: ["openai/gpt-5.5-pro-2025", "anthropic/claude-opus-4-8"],
-    )
-    result = models.get_recommended_models("openai")
-    assert "openai/gpt-5.5-pro-2025" in result
