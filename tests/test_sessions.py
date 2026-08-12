@@ -82,7 +82,7 @@ def test_session_store_no_ttl_keeps_old_sessions(tmp_path: Path):
     assert "old001" in store._sessions
 
 
-def test_session_store_list_sorders_by_last_access(tmp_path: Path):
+def test_session_store_list_sorts_by_last_access(tmp_path: Path):
     storage = _storage(tmp_path)
     store = FileSessionStore(storage_path=storage)
     s1 = store.create()

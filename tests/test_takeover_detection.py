@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from browser.takeover import detect_human_needed
 
 
@@ -25,80 +27,34 @@ async def test_page_none_returns_none():
     assert await detect_human_needed(None) is None
 
 
-async def test_no_threats_returns_none():
-    page = FakePage(title="Oracle - Investor Relations - SEC Filings")
-    assert await detect_human_needed(page) is None
-
-
-async def test_hidden_captcha_image_ignored():
-    page = FakePage(
-        title="Oracle - Investor Relations - SEC Filings",
-        results={"img[id*=captcha]": False},
-    )
-    assert await detect_human_needed(page) is None
-
-
-async def test_visible_captcha_image_triggers():
-    page = FakePage(
-        title="Oracle - Investor Relations - SEC Filings",
-        results={"img[id*=captcha]": True},
-    )
+@pytest.mark.parametrize(
+    ("url", "title", "results", "expected"),
+    [
+        ("", "Oracle - Investor Relations - SEC Filings", {}, None),
+        ("", "Oracle - Investor Relations - SEC Filings", {"img[id*=captcha]": False}, None),
+        ("", "Oracle - Investor Relations - SEC Filings", {"img[id*=captcha]": True}, ("captcha", "检测到图形验证码")),
+        ("", "Some page", {"recaptcha": False}, None),
+        ("", "Some page", {"recaptcha": True}, ("captcha", "检测到 reCAPTCHA 验证码")),
+        ("", "Some page", {"hcaptcha": True}, ("captcha", "检测到 hCaptcha 验证码")),
+        ("", "Some page", {"challenges.cloudflare.com": False}, None),
+        ("", "Some page", {"challenges.cloudflare.com": True}, ("captcha", "检测到 Cloudflare Turnstile 验证码")),
+        ("", "Sign in to My Account", {"input[type=password]": True}, ("login", "检测到登录页面")),
+        ("", "Sign in to My Account", {"input[type=password]": False}, None),
+        ("https://accounts.google.com/signin/oauth", "Some page", {}, ("oauth", "检测到 Google OAuth 授权页面")),
+        ("https://login.microsoftonline.com/xyz", "Some page", {}, ("oauth", "检测到 Microsoft OAuth 授权页面")),
+        ("", "Checking your browser before accessing", {}, ("antibot", "检测到反爬虫页面")),
+        ("", "Cloudflare attention required", {}, ("antibot", "检测到 Cloudflare 防护")),
+    ],
+)
+async def test_detect_combinations(url, title, results, expected):
+    page = FakePage(url=url, title=title, results=results)
     trigger = await detect_human_needed(page)
-    assert trigger is not None
-    assert trigger.trigger == "captcha"
-    assert trigger.reason == "检测到图形验证码"
-
-
-async def test_hidden_recaptcha_ignored():
-    page = FakePage(title="Some page", results={"recaptcha": False})
-    assert await detect_human_needed(page) is None
-
-
-async def test_visible_recaptcha_triggers():
-    page = FakePage(title="Some page", results={"recaptcha": True})
-    trigger = await detect_human_needed(page)
-    assert trigger is not None
-    assert trigger.trigger == "captcha"
-    assert trigger.reason == "检测到 reCAPTCHA 验证码"
-
-
-async def test_visible_hcaptcha_triggers():
-    page = FakePage(title="Some page", results={"hcaptcha": True})
-    trigger = await detect_human_needed(page)
-    assert trigger is not None
-    assert trigger.trigger == "captcha"
-    assert trigger.reason == "检测到 hCaptcha 验证码"
-
-
-async def test_hidden_turnstile_ignored():
-    page = FakePage(title="Some page", results={"challenges.cloudflare.com": False})
-    assert await detect_human_needed(page) is None
-
-
-async def test_visible_turnstile_triggers():
-    page = FakePage(title="Some page", results={"challenges.cloudflare.com": True})
-    trigger = await detect_human_needed(page)
-    assert trigger is not None
-    assert trigger.trigger == "captcha"
-    assert trigger.reason == "检测到 Cloudflare Turnstile 验证码"
-
-
-async def test_login_page_with_visible_password_triggers():
-    page = FakePage(
-        title="Sign in to My Account",
-        results={"input[type=password]": True},
-    )
-    trigger = await detect_human_needed(page)
-    assert trigger is not None
-    assert trigger.trigger == "login"
-
-
-async def test_login_title_without_password_ignored():
-    page = FakePage(
-        title="Sign in to My Account",
-        results={"input[type=password]": False},
-    )
-    assert await detect_human_needed(page) is None
+    if expected is None:
+        assert trigger is None
+    else:
+        assert trigger is not None
+        assert trigger.trigger == expected[0]
+        assert expected[1] in trigger.reason
 
 
 async def test_injected_evaluate_used():

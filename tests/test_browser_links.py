@@ -6,6 +6,7 @@ from urllib.parse import quote
 import pytest
 
 from browser import get_manager
+from tests.conftest import _make_ctx
 from browser.links import LinkExtraction, StructuredLink, extract_links
 from browser.tabs import TabManager
 from browser.trace import ClickTracer
@@ -19,7 +20,7 @@ class TestBrowserExtractLinks:
     @pytest.mark.asyncio
     async def test_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_extract_links(None)
+            result = await browser_extract_links(_make_ctx())
             assert "not launched" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -49,7 +50,7 @@ class TestBrowserExtractLinks:
             ],
         })
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_extract_links(None, max_links=10)
+            result = await browser_extract_links(_make_ctx(), max_links=10)
         assert result["total"] == 2
         assert any(l["url"] == "https://example.com/docs" for l in result["links"])
         assert all("new_tab" in l for l in result["links"])
@@ -78,7 +79,7 @@ class TestBrowserExtractLinks:
             ],
         })
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_extract_links(None, include_metadata=True)
+            result = await browser_extract_links(_make_ctx(), include_metadata=True)
         assert result["links"][0]["title"] == "Docs page"
         assert result["links"][0]["base_domain"] == "example.com"
         assert result["links"][0]["target"] == "_blank"
@@ -102,7 +103,7 @@ class TestBrowserExtractLinks:
             ],
         })
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_extract_links(None, max_links=3, page=1)
+            result = await browser_extract_links(_make_ctx(), max_links=3, page=1)
         assert result["total"] == 5
         assert result["truncated"] is True
         assert any(l["url"] == "https://example.com/0" for l in result["links"])
@@ -112,7 +113,7 @@ class TestBrowserExtractLinks:
         mock_page = AsyncMock()
         mock_page.evaluate = AsyncMock(return_value={"total": 5, "links": []})
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_extract_links(None, max_links=3, page=9)
+            result = await browser_extract_links(_make_ctx(), max_links=3, page=9)
         assert result["links"] == []
         assert result["total"] == 5
 
@@ -132,7 +133,7 @@ class TestBrowserExtractLinks:
         mock_page = AsyncMock()
         mock_page.evaluate = AsyncMock(return_value={"total": 0, "links": []})
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_extract_links(None)
+            result = await browser_extract_links(_make_ctx())
             assert result["total"] == 0
             assert result["links"] == []
 
@@ -141,7 +142,7 @@ class TestBrowserExtractLinks:
         mock_page = AsyncMock()
         mock_page.evaluate = AsyncMock(side_effect=Exception("boom"))
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_extract_links(None)
+            result = await browser_extract_links(_make_ctx())
             assert "failed" in result["error"].lower()
 
     @pytest.mark.asyncio
@@ -194,7 +195,7 @@ class TestBrowserExtractLinks:
         mock_page.request.head = AsyncMock(return_value=resp)
         mock_page.request.get = AsyncMock(return_value=AsyncMock())
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_extract_links(None, document_only=True, resolve_redirects=True)
+            result = await browser_extract_links(_make_ctx(), document_only=True, resolve_redirects=True)
         assert any("cloudfront.net/report.xlsx" in l["url"] for l in result["links"])
 
     @pytest.mark.asyncio
@@ -210,7 +211,7 @@ class TestBrowserGetTabs:
     @pytest.mark.asyncio
     async def test_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_get_tabs(None)
+            result = await browser_get_tabs(_make_ctx())
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -231,7 +232,7 @@ class TestBrowserGetTabs:
         mock_page = MagicMock()
         mock_page.url = "https://example.com/a"
         with patch.object(mgr, "_page", mock_page):
-            result = await browser_get_tabs(None)
+            result = await browser_get_tabs(_make_ctx())
         assert "[0] ACTIVE https://example.com/a Title A" in result
         assert "[1] https://example.com/b Title B" in result
 
@@ -239,7 +240,7 @@ class TestBrowserGetTabs:
 class TestBrowserSwitchTab:
     @pytest.mark.asyncio
     async def test_without_launch(self):
-        result = await browser_switch_tab(None, 0)
+        result = await browser_switch_tab(_make_ctx(), 0)
         assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -260,7 +261,7 @@ class TestBrowserSwitchTab:
         mock_page = MagicMock()
         mock_page.url = "https://example.com/a"
         with patch.object(mgr, "_page", mock_page):
-            result = await browser_switch_tab(None, 1)
+            result = await browser_switch_tab(_make_ctx(), 1)
         assert "Switched to tab 1" in result
         assert "example.com/b" in result
         assert mgr.tabs.active_page() is page1
@@ -275,7 +276,7 @@ class TestBrowserSwitchTab:
         mock_page = MagicMock()
         mock_page.url = "https://example.com/a"
         with patch.object(mgr, "_page", mock_page):
-            result = await browser_switch_tab(None, 5)
+            result = await browser_switch_tab(_make_ctx(), 5)
         assert "out of range" in result
 
 
@@ -401,7 +402,7 @@ class TestBrowserClickTrace:
         mock_page.title = AsyncMock(return_value="End Page")
 
         with patch.object(mgr, "_page", mock_page):
-            result = await browser_click(None, ".button")
+            result = await browser_click(_make_ctx(), ".button")
         assert "Clicked" in result
         assert mgr._actions[-1]["detail"] == ".button -> https://example.com/end"
         mock_page.click.assert_awaited_once_with(".button")
@@ -446,7 +447,7 @@ class TestBrowserLinksReal:
     async def test_extract_links_and_tabs(self):
         from tools.browser import browser_launch, browser_navigate
 
-        result = await browser_launch(None)
+        result = await browser_launch(_make_ctx())
         assert "launched successfully" in result.lower()
 
         html = (
@@ -455,14 +456,14 @@ class TestBrowserLinksReal:
             "<a href='https://example.com/b' target='_blank'>B</a>"
             "</body></html>"
         )
-        result = await browser_navigate(None, "data:text/html," + quote(html))
+        result = await browser_navigate(_make_ctx(), "data:text/html," + quote(html))
         assert "navigated to" in result.lower()
 
-        result = await browser_extract_links(None)
+        result = await browser_extract_links(_make_ctx())
         assert result["total"] == 2
 
-        result = await browser_get_tabs(None)
+        result = await browser_get_tabs(_make_ctx())
         assert "ACTIVE" in result
 
-        result = await browser_switch_tab(None, 0)
+        result = await browser_switch_tab(_make_ctx(), 0)
         assert "Switched to tab 0" in result

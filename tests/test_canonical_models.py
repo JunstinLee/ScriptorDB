@@ -231,82 +231,45 @@ def test_loader_empty_array(tmp_path):
     assert registry == ()
 
 
-def test_loader_missing_file(tmp_path):
-    with pytest.raises(ValueError, match="Failed to read"):
-        _load_registry(tmp_path / "nonexistent.json")
+@pytest.mark.parametrize(
+    ("payload", "match"),
+    [
+        ({"slug": "x"}, "must contain a JSON array"),
+        (["not-a-dict"], "must be an object"),
+        ([{"display_name": "X", "aliases": {}}], "missing or invalid 'slug'"),
+        ([{"slug": "", "display_name": "X", "aliases": {}}], "missing or invalid 'slug'"),
+        ([{"slug": "x", "aliases": {}}], "missing or invalid 'display_name'"),
+        ([{"slug": "x", "display_name": "X"}], "missing or invalid 'aliases'"),
+        ([{"slug": "x", "display_name": "X", "aliases": "not-dict"}], "missing or invalid 'aliases'"),
+        (
+            [
+                {"slug": "dup", "display_name": "A", "aliases": {}},
+                {"slug": "dup", "display_name": "B", "aliases": {}},
+            ],
+            "Duplicate slug 'dup'",
+        ),
+        ([{"slug": "x", "display_name": "X", "aliases": {"": "alias"}}], "invalid provider key"),
+        ([{"slug": "x", "display_name": "X", "aliases": {"openai": ""}}], "invalid alias for provider 'openai'"),
+    ],
+)
+def test_loader_rejects_invalid_payload(tmp_path, payload, match):
+    p = make_json_file(tmp_path, payload)
+    with pytest.raises(ValueError, match=match):
+        _load_registry(p)
 
 
-def test_loader_invalid_json(tmp_path):
+@pytest.mark.parametrize(
+    ("content", "match"),
+    [
+        (None, "Failed to read"),
+        ("{invalid", "Invalid JSON"),
+    ],
+)
+def test_loader_file_errors(tmp_path, content, match):
     p = tmp_path / "models.json"
-    p.write_text("{invalid", encoding="utf-8")
-    with pytest.raises(ValueError, match="Invalid JSON"):
-        _load_registry(p)
-
-
-def test_loader_not_a_list(tmp_path):
-    p = make_json_file(tmp_path, {"slug": "x"})
-    with pytest.raises(ValueError, match="must contain a JSON array"):
-        _load_registry(p)
-
-
-def test_loader_entry_not_a_dict(tmp_path):
-    p = make_json_file(tmp_path, ["not-a-dict"])
-    with pytest.raises(ValueError, match="must be an object"):
-        _load_registry(p)
-
-
-def test_loader_missing_slug(tmp_path):
-    p = make_json_file(tmp_path, [{"display_name": "X", "aliases": {}}])
-    with pytest.raises(ValueError, match="missing or invalid 'slug'"):
-        _load_registry(p)
-
-
-def test_loader_empty_slug(tmp_path):
-    p = make_json_file(tmp_path, [{"slug": "", "display_name": "X", "aliases": {}}])
-    with pytest.raises(ValueError, match="missing or invalid 'slug'"):
-        _load_registry(p)
-
-
-def test_loader_missing_display_name(tmp_path):
-    p = make_json_file(tmp_path, [{"slug": "x", "aliases": {}}])
-    with pytest.raises(ValueError, match="missing or invalid 'display_name'"):
-        _load_registry(p)
-
-
-def test_loader_missing_aliases(tmp_path):
-    p = make_json_file(tmp_path, [{"slug": "x", "display_name": "X"}])
-    with pytest.raises(ValueError, match="missing or invalid 'aliases'"):
-        _load_registry(p)
-
-
-def test_loader_invalid_aliases_type(tmp_path):
-    p = make_json_file(tmp_path, [{"slug": "x", "display_name": "X", "aliases": "not-dict"}])
-    with pytest.raises(ValueError, match="missing or invalid 'aliases'"):
-        _load_registry(p)
-
-
-def test_loader_duplicate_slug(tmp_path):
-    p = make_json_file(tmp_path, [
-        {"slug": "dup", "display_name": "A", "aliases": {}},
-        {"slug": "dup", "display_name": "B", "aliases": {}},
-    ])
-    with pytest.raises(ValueError, match="Duplicate slug 'dup'"):
-        _load_registry(p)
-
-
-def test_loader_invalid_provider_key(tmp_path):
-    p = make_json_file(tmp_path, [
-        {"slug": "x", "display_name": "X", "aliases": {"": "alias"}},
-    ])
-    with pytest.raises(ValueError, match="invalid provider key"):
-        _load_registry(p)
-
-
-def test_loader_invalid_alias_value(tmp_path):
-    p = make_json_file(tmp_path, [
-        {"slug": "x", "display_name": "X", "aliases": {"openai": ""}},
-    ])
-    with pytest.raises(ValueError, match="invalid alias for provider 'openai'"):
+    if content is not None:
+        p.write_text(content, encoding="utf-8")
+    with pytest.raises(ValueError, match=match):
         _load_registry(p)
 
 

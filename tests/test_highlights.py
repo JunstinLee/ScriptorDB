@@ -13,44 +13,21 @@ from browser.highlights import (
 )
 
 
-@pytest.mark.asyncio
-async def test_inject_does_not_crash():
+@pytest.mark.parametrize(
+    ("action", "kwargs", "min_calls"),
+    [
+        (inject_highlight_runtime, {}, 1),
+        (highlight_click, {"selector": "#test", "duration_ms": 10}, 3),
+        (highlight_input, {"selector": "#test"}, 1),
+        (highlight_input_remove, {}, 1),
+        (highlight_scroll, {"pixels": 100}, 3),
+    ],
+)
+async def test_highlight_does_not_crash(action, kwargs, min_calls):
     page = AsyncMock()
     page.evaluate = AsyncMock(return_value=None)
-    await inject_highlight_runtime(page)
-    page.evaluate.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_highlight_click_does_not_crash():
-    page = AsyncMock()
-    page.evaluate = AsyncMock(return_value=None)
-    await highlight_click(page, "#test", duration_ms=10)
-    assert page.evaluate.call_count >= 3
-
-
-@pytest.mark.asyncio
-async def test_highlight_input_does_not_crash():
-    page = AsyncMock()
-    page.evaluate = AsyncMock(return_value=None)
-    await highlight_input(page, "#test")
-    page.evaluate.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_highlight_input_remove_does_not_crash():
-    page = AsyncMock()
-    page.evaluate = AsyncMock(return_value=None)
-    await highlight_input_remove(page)
-    page.evaluate.assert_called()
-
-
-@pytest.mark.asyncio
-async def test_highlight_scroll_does_not_crash():
-    page = AsyncMock()
-    page.evaluate = AsyncMock(return_value=None)
-    await highlight_scroll(page, 100)
-    assert page.evaluate.call_count >= 3
+    await action(page, **kwargs)
+    assert page.evaluate.call_count >= min_calls
 
 
 @pytest.mark.asyncio

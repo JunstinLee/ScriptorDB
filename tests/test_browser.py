@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from browser import get_manager
+from tests.conftest import _make_ctx
 from tools.browser import (
     browser_get_text,
     browser_launch,
@@ -25,7 +26,7 @@ class TestBrowserLaunch:
                 saved[key] = sys.modules.pop(key)
         try:
             with patch("builtins.__import__", side_effect=ImportError("No module named 'playwright'")):
-                result = await browser_launch(None)
+                result = await browser_launch(_make_ctx())
                 assert "not installed" in result.lower()
         finally:
             sys.modules.update(saved)
@@ -34,7 +35,7 @@ class TestBrowserLaunch:
     async def test_launch_already_running(self):
         mock_browser = AsyncMock()
         with patch.object(get_manager(), "_browser", mock_browser):
-            result = await browser_launch(None)
+            result = await browser_launch(_make_ctx())
             assert "already launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -54,7 +55,7 @@ class TestBrowserLaunch:
         with patch.object(mgr, "_browser", None), \
              patch.object(mgr, "_playwright", None), \
              patch("playwright.async_api.async_playwright", return_value=mock_ap):
-            result = await browser_launch(None)
+            result = await browser_launch(_make_ctx())
             assert "launched successfully" in result.lower()
 
 
@@ -62,7 +63,7 @@ class TestBrowserNavigate:
     @pytest.mark.asyncio
     async def test_navigate_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_navigate(None, "http://example.com")
+            result = await browser_navigate(_make_ctx(), "http://example.com")
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -70,7 +71,7 @@ class TestBrowserNavigate:
         mock_page = AsyncMock()
         mock_page.goto = AsyncMock()
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_navigate(None, "http://example.com")
+            result = await browser_navigate(_make_ctx(), "http://example.com")
             assert "navigated to" in result.lower()
             mock_page.goto.assert_awaited_once_with("http://example.com", wait_until="domcontentloaded")
 
@@ -79,7 +80,7 @@ class TestBrowserGetText:
     @pytest.mark.asyncio
     async def test_get_text_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_get_text(None)
+            result = await browser_get_text(_make_ctx())
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -88,7 +89,7 @@ class TestBrowserGetText:
         mock_page.title.return_value = "Example Domain"
         mock_page.inner_text.return_value = "This domain is for use in documentation examples"
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_get_text(None)
+            result = await browser_get_text(_make_ctx())
             assert "# Example Domain" in result
             assert "documentation examples" in result
 
@@ -97,19 +98,19 @@ class TestBrowserIntegration:
     @pytest.mark.asyncio
     @pytest.mark.slow
     async def test_real_browser_launch_navigate_and_get_text(self):
-        result = await browser_launch(None)
+        result = await browser_launch(_make_ctx())
         assert "launched successfully" in result.lower()
 
-        result = await browser_navigate(None, "http://example.com")
+        result = await browser_navigate(_make_ctx(), "http://example.com")
         assert "navigated to" in result.lower()
 
-        result = await browser_get_text(None)
+        result = await browser_get_text(_make_ctx())
         assert "Example Domain" in result
         assert "use in documentation examples" in result.lower()
 
     @pytest.mark.asyncio
     @pytest.mark.slow
     async def test_launch_twice_is_idempotent(self):
-        await browser_launch(None)
-        result = await browser_launch(None)
+        await browser_launch(_make_ctx())
+        result = await browser_launch(_make_ctx())
         assert "already launched" in result.lower()

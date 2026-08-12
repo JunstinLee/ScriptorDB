@@ -32,16 +32,16 @@ def test_parse_skips_invalid_entries():
     assert result == ["good"]
 
 
-def test_resolve_model_with_prefix():
-    assert models.resolve_model("deepseek", "openai:gpt-4o") == "openai:gpt-4o"
-
-
-def test_resolve_model_bare_name():
-    assert models.resolve_model("deepseek", "gpt-4o") == "openai:gpt-4o"
-
-
-def test_resolve_model_with_other_provider_prefix():
-    assert models.resolve_model("deepseek", "anthropic:claude-3") == "anthropic:claude-3"
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("openai:gpt-4o", "openai:gpt-4o"),
+        ("gpt-4o", "openai:gpt-4o"),
+        ("anthropic:claude-3", "anthropic:claude-3"),
+    ],
+)
+def test_resolve_model(model, expected):
+    assert models.resolve_model("deepseek", model) == expected
 
 
 def test_resolve_model_unsupported_provider():
@@ -49,25 +49,19 @@ def test_resolve_model_unsupported_provider():
         models.resolve_model("not-a-provider", None)
 
 
-def test_fuzzy_match_exact(monkeypatch):
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("gpt-4o", "gpt-4o"),
+        ("4.1", "gpt-4.1"),
+        ("claude", None),
+    ],
+)
+def test_fuzzy_match(monkeypatch, query, expected):
     monkeypatch.setattr(
         resolver_module, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
     )
-    assert models.fuzzy_match_model("openrouter", "gpt-4o") == "gpt-4o"
-
-
-def test_fuzzy_match_substring_unique(monkeypatch):
-    monkeypatch.setattr(
-        resolver_module, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
-    )
-    assert models.fuzzy_match_model("openrouter", "4.1") == "gpt-4.1"
-
-
-def test_fuzzy_match_no_match(monkeypatch):
-    monkeypatch.setattr(
-        resolver_module, "list_available_models", lambda provider, use_cache=True, **kwargs: ["gpt-4o", "gpt-4.1"]
-    )
-    assert models.fuzzy_match_model("openrouter", "claude") is None
+    assert models.fuzzy_match_model("openrouter", query) == expected
 
 
 def test_filter_chat_models_excludes_keywords():

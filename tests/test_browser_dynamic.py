@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from browser import get_manager
+from tests.conftest import _make_ctx
 from tools.browser import (
     browser_evaluate,
     browser_load_state,
@@ -21,7 +22,7 @@ class TestBrowserLoadState:
     @pytest.mark.asyncio
     async def test_load_state_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_load_state(None)
+            result = await browser_load_state(_make_ctx())
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -29,7 +30,7 @@ class TestBrowserLoadState:
         mock_page = AsyncMock()
         mock_page.wait_for_load_state = AsyncMock()
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_load_state(None, "load")
+            result = await browser_load_state(_make_ctx(), "load")
             assert "reached load state" in result.lower()
             assert "load" in result
             mock_page.wait_for_load_state.assert_awaited_once_with("load")
@@ -39,7 +40,7 @@ class TestBrowserLoadState:
         mock_page = AsyncMock()
         mock_page.wait_for_load_state = AsyncMock()
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_load_state(None, "networkidle")
+            result = await browser_load_state(_make_ctx(), "networkidle")
             assert "reached load state" in result.lower()
             assert "networkidle" in result
             mock_page.wait_for_load_state.assert_awaited_once_with("networkidle")
@@ -49,7 +50,7 @@ class TestBrowserEvaluate:
     @pytest.mark.asyncio
     async def test_evaluate_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_evaluate(None, "document.title")
+            result = await browser_evaluate(_make_ctx(), "document.title")
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -57,7 +58,7 @@ class TestBrowserEvaluate:
         mock_page = AsyncMock()
         mock_page.evaluate = AsyncMock(return_value="Apple")
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_evaluate(None, "document.title")
+            result = await browser_evaluate(_make_ctx(), "document.title")
             assert "Apple" in result
             mock_page.evaluate.assert_awaited_once()
 
@@ -66,7 +67,7 @@ class TestBrowserEvaluate:
         mock_page = AsyncMock()
         mock_page.evaluate = AsyncMock(side_effect=Exception("eval error"))
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_evaluate(None, "bad.code")
+            result = await browser_evaluate(_make_ctx(), "bad.code")
             assert "error" in result.lower()
 
 
@@ -74,7 +75,7 @@ class TestBrowserQuery:
     @pytest.mark.asyncio
     async def test_query_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_query(None, "h1")
+            result = await browser_query(_make_ctx(), "h1")
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -86,7 +87,7 @@ class TestBrowserQuery:
         mock_page.query_selector = AsyncMock(return_value=mock_element)
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(None, "h1")
+            result = await browser_query(_make_ctx(), "h1")
             assert "Hello World" in result
             mock_page.query_selector.assert_awaited_once_with("h1")
 
@@ -101,7 +102,7 @@ class TestBrowserQuery:
         mock_page.query_selector_all = AsyncMock(return_value=[mock_el_0, mock_el_1])
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(None, "li", all=True)
+            result = await browser_query(_make_ctx(), "li", all=True)
             assert "[0] First" in result
             assert "[1] Second" in result
             mock_page.query_selector_all.assert_awaited_once_with("li")
@@ -115,7 +116,7 @@ class TestBrowserQuery:
         mock_page.query_selector = AsyncMock(return_value=mock_element)
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(None, "a", attribute="href")
+            result = await browser_query(_make_ctx(), "a", attribute="href")
             assert "https://example.com" in result
             mock_page.query_selector.assert_awaited_once_with("a")
 
@@ -125,7 +126,7 @@ class TestBrowserQuery:
         mock_page.query_selector = AsyncMock(return_value=None)
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(None, ".nonexistent")
+            result = await browser_query(_make_ctx(), ".nonexistent")
             assert "No element found" in result
 
 
@@ -136,7 +137,7 @@ class TestBrowserQueryImages:
         mock_page.evaluate = AsyncMock(return_value=["/img/a.png", "/img/b.png"])
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(None, "img[src]", attribute="src", all=True)
+            result = await browser_query(_make_ctx(), "img[src]", attribute="src", all=True)
             assert "[0] /img/a.png" in result
             assert "[1] /img/b.png" in result
 
@@ -146,7 +147,7 @@ class TestBrowserQueryImages:
         mock_page.evaluate = AsyncMock(return_value=[])
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(None, "img[src]", attribute="src", all=True)
+            result = await browser_query(_make_ctx(), "img[src]", attribute="src", all=True)
             assert "no images" in result.lower()
 
 
@@ -154,7 +155,7 @@ class TestBrowserScroll:
     @pytest.mark.asyncio
     async def test_scroll_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_scroll(None)
+            result = await browser_scroll(_make_ctx())
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -164,7 +165,7 @@ class TestBrowserScroll:
         mock_page.wait_for_timeout = AsyncMock()
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_scroll(None, to_bottom=True)
+            result = await browser_scroll(_make_ctx(), to_bottom=True)
             assert "bottom" in result.lower()
             mock_page.evaluate.assert_any_await("window.scrollTo(0, document.body.scrollHeight)")
             mock_page.wait_for_timeout.assert_awaited_once_with(500)
@@ -176,7 +177,7 @@ class TestBrowserScroll:
         mock_page.wait_for_timeout = AsyncMock()
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_scroll(None, to_bottom=False, pixels=300)
+            result = await browser_scroll(_make_ctx(), to_bottom=False, pixels=300)
             assert "300px" in result
             mock_page.wait_for_timeout.assert_awaited_once_with(300)
 
@@ -185,7 +186,7 @@ class TestBrowserScreenshot:
     @pytest.mark.asyncio
     async def test_screenshot_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_screenshot(None)
+            result = await browser_screenshot(_make_ctx())
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -194,7 +195,7 @@ class TestBrowserScreenshot:
         mock_page.screenshot = AsyncMock()
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_screenshot(None, "/tmp/test.png")
+            result = await browser_screenshot(_make_ctx(), "/tmp/test.png")
             assert "Screenshot saved to /tmp/test.png" in result
             mock_page.screenshot.assert_awaited_once_with(path="/tmp/test.png", full_page=True)
 
@@ -204,7 +205,7 @@ class TestBrowserScreenshot:
         mock_page.screenshot = AsyncMock()
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_screenshot(None)
+            result = await browser_screenshot(_make_ctx())
             assert "Screenshot saved to" in result
             assert "outputs/browser/" in result
             mock_page.screenshot.assert_awaited_once()
@@ -216,26 +217,26 @@ class TestBrowserDynamicRender:
     async def test_apple_dynamic_render(self):
         from tools.browser import browser_launch, browser_navigate, browser_get_text
 
-        result = await browser_launch(None)
+        result = await browser_launch(_make_ctx())
         assert "launched successfully" in result.lower()
 
-        result = await browser_navigate(None, "https://www.apple.com")
+        result = await browser_navigate(_make_ctx(), "https://www.apple.com")
         assert "navigated to" in result.lower()
 
-        result = await browser_load_state(None, "networkidle")
+        result = await browser_load_state(_make_ctx(), "networkidle")
         assert "reached load state" in result.lower()
 
-        result = await browser_evaluate(None, "document.title")
+        result = await browser_evaluate(_make_ctx(), "document.title")
         assert "Apple" in result
 
-        result = await browser_query(None, "h1")
+        result = await browser_query(_make_ctx(), "h1")
         assert len(result) > 0
 
-        result = await browser_query(None, "img[src]", attribute="src", all=True)
+        result = await browser_query(_make_ctx(), "img[src]", attribute="src", all=True)
         assert len(result) > 0
 
-        result = await browser_scroll(None, to_bottom=True)
+        result = await browser_scroll(_make_ctx(), to_bottom=True)
         assert "bottom" in result.lower()
 
-        result = await browser_screenshot(None, "outputs/browser/apple_test.png")
+        result = await browser_screenshot(_make_ctx(), "outputs/browser/apple_test.png")
         assert "Screenshot saved to" in result
