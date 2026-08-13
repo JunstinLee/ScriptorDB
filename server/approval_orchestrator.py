@@ -254,6 +254,12 @@ class ApprovalOrchestrator:
 
         from browser import get_manager
         mgr = get_manager()
+        if mgr.auth_challenge_pending():
+            logger.warning(
+                "takeover resume blocked: auth challenge still pending (origin=%s)",
+                mgr.auth_challenge_origin(),
+            )
+            return False
         mgr.takeover.complete(takeover_result)
 
         session = get_session_store().get(self.session_id)

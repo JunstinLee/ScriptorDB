@@ -57,6 +57,10 @@ class BrowserTakeoverHook:
                     detail=latest.get("detail", ""),
                     timestamp=latest.get("timestamp", utc_now_iso()),
                 ))
+            try:
+                await mgr.detect_takeover()
+            except Exception as e:
+                logger.debug("takeover detection skipped: %s", e)
             takeover = mgr.takeover if mgr else None
             if takeover and takeover.should_pause_agent():
                 takeover.enter_waiting()

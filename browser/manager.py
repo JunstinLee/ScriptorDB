@@ -9,6 +9,7 @@ from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
+from browser.login_state import netloc_of
 from browser.tabs import TabManager
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
 from browser.trace import ClickTracer
@@ -36,6 +37,7 @@ class BrowserManager:
         self._takeover = HumanTakeoverManager()
         self._nav_timeout_count = 0
         self._element_failure_count: dict[str, int] = {}
+        self._auth_origin: str | None = None
         self._screencast_connection: object | None = None
         self._idle_close_task: asyncio.Task | None = None
         self.tabs = TabManager()
@@ -176,7 +178,9 @@ class BrowserManager:
                 else:
                     context_options["storage_state"] = storage_state
             self._context = await self._browser.new_context(**context_options)
+            self._context.on("page", lambda page: page.on("response", self._on_page_response))
             self._page = await self._context.new_page()
+            self._page.on("response", self._on_page_response)
             page_event: object = self._page.on("close", self._on_page_closed)
             if inspect.isawaitable(page_event):
                 await page_event
@@ -301,6 +305,7 @@ class BrowserManager:
         self._page = None
         self._launched_at = None
         self._screencast_connection = None
+        self._auth_origin = None
         self._takeover.reset()
         self.tabs.detach()
         self.trace.reset()
@@ -322,6 +327,13 @@ class BrowserManager:
             return False
         if self._takeover.state != HumanTakeoverState.RUNNING:
             return False
+        if self._auth_origin is not None:
+            logger.warning(f"takeover detected trigger=auth origin={self._auth_origin}")
+            return self._takeover.request_takeover(
+                reason="检测到 HTTP 认证需求（Basic Auth 等），需要人工完成认证",
+                trigger="auth",
+                url=self._page.url,
+            )
         trigger = await detect_human_needed(self._page)
         if trigger:
             logger.warning(f"takeover detected trigger={trigger.trigger} reason={trigger.reason}")
@@ -331,6 +343,48 @@ class BrowserManager:
                 url=self._page.url,
             )
         return False
+
+    def record_auth_challenge(self, origin: str) -> None:
+        """记录一个待满足的 HTTP 认证挑战（Basic/Digest/NTLM）。
+
+        认证弹框是浏览器原生 UI，DOM 检测不可见，只能靠网络层证据：
+        401/407 + WWW-Authenticate 头出现时置位。
+        """
+        if not origin:
+            return
+        self._auth_origin = origin
+        logger.warning(f"auth challenge recorded origin={origin}")
+
+    def clear_auth_challenge(self, origin: str) -> None:
+        if self._auth_origin is not None and self._auth_origin == origin:
+            self._auth_origin = None
+
+    def auth_challenge_pending(self) -> bool:
+        return self._auth_origin is not None
+
+    def auth_challenge_origin(self) -> str | None:
+        return self._auth_origin
+
+    def _on_page_response(self, response) -> None:
+        """网络层认证挑战跟踪：设置/清除 auth 标志位。
+
+        置位：401/407 且带 WWW-Authenticate 头（此时浏览器会弹认证框）。
+        清除：同 origin 出现任何非 401/407 响应（请求已通过认证门禁）。
+        """
+        try:
+            status = int(response.status)
+            headers = response.headers or {}
+            origin = netloc_of(response.url)
+            if not origin:
+                return
+            if status in (401, 407) and any(
+                k.lower() == "www-authenticate" for k in headers
+            ):
+                self.record_auth_challenge(origin)
+            elif self._auth_origin == origin and status not in (401, 407):
+                self._auth_origin = None
+        except Exception:
+            logger.debug("auth response tracking skipped", exc_info=True)
 
     def record_nav_timeout(self):
         self._nav_timeout_count += 1
