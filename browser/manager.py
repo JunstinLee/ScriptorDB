@@ -166,7 +166,10 @@ class BrowserManager:
             browser_event: object = self._browser.on("disconnected", self._on_browser_disconnected)
             if inspect.isawaitable(browser_event):
                 await browser_event
-            context_options: dict = {"viewport": {"width": 1280, "height": 720}}
+            context_options: dict = {
+                "viewport": {"width": 1280, "height": 720},
+                "accept_downloads": True,
+            }
             if storage_state:
                 if isinstance(storage_state, Path):
                     context_options["storage_state"] = str(storage_state)
