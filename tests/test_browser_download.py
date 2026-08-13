@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -63,16 +64,16 @@ async def test_browser_not_launched():
     assert "Browser not launched" in result
 
 
-async def test_no_workspace(tmp_path):
+async def test_no_workspace(tmp_path, monkeypatch):
     page, _ = _make_download(tmp_path)
-    get_manager()._page = page
+    monkeypatch.setattr(get_manager(), "_page", page)
     result = await browser_download(_make_ctx(), url="https://example.com/file.pdf")
     assert "没有活动工作区" in result
 
 
-async def test_download_success_by_url(tmp_path):
+async def test_download_success_by_url(tmp_path, monkeypatch):
     page, _ = _make_download(tmp_path)
-    get_manager()._page = page
+    monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
     result = await browser_download(ctx, url="https://example.com/report.pdf")
@@ -91,10 +92,10 @@ async def test_download_success_by_url(tmp_path):
     assert entries[0].sha256 == hashlib.sha256(PDF_CONTENT).hexdigest()
 
 
-async def test_download_success_by_selector(tmp_path):
+async def test_download_success_by_selector(tmp_path, monkeypatch):
     page, _ = _make_download(tmp_path)
     page.url = "https://example.com/docs/page"
-    get_manager()._page = page
+    monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
     result = await browser_download(ctx, selector="#download-btn")
@@ -106,7 +107,7 @@ async def test_download_success_by_selector(tmp_path):
     assert entries[0].source_url == "https://example.com/docs/page"
 
 
-async def test_download_succeeds_when_navigation_raises(tmp_path):
+async def test_download_succeeds_when_navigation_raises(tmp_path, monkeypatch):
     """导航触发下载时 goto 可能抛错，但下载事件已发出——应继续保存而不是报失败。"""
     page, _ = _make_download(tmp_path)
     page.url = "https://example.com/docs/page"
@@ -115,7 +116,7 @@ async def test_download_succeeds_when_navigation_raises(tmp_path):
         raise RuntimeError("navigation interrupted by download")
 
     page.goto = _boom
-    get_manager()._page = page
+    monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
     result = await browser_download(ctx, url="https://example.com/report.pdf")
@@ -124,7 +125,7 @@ async def test_download_succeeds_when_navigation_raises(tmp_path):
     assert (tmp_path / ".scriptordb" / "outputs" / "report.pdf").exists()
 
 
-async def test_download_failure_reported(tmp_path):
+async def test_download_failure_reported(tmp_path, monkeypatch):
     page = _FakePage()
     download = _SimpleNamespace(
         failure=lambda: "server aborted",
@@ -132,7 +133,7 @@ async def test_download_failure_reported(tmp_path):
         save_as=lambda path: None,
     )
     page.expect_download.return_value = _FakeDownloadInfo(download)
-    get_manager()._page = page
+    monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
     result = await browser_download(ctx, url="https://example.com/report.pdf")
@@ -140,7 +141,7 @@ async def test_download_failure_reported(tmp_path):
     assert "下载失败: server aborted" in result
 
 
-async def test_download_exceeds_max_size_removed(tmp_path):
+async def test_download_exceeds_max_size_removed(tmp_path, monkeypatch):
     page = _FakePage()
 
     async def _save_big(path):
@@ -148,7 +149,7 @@ async def test_download_exceeds_max_size_removed(tmp_path):
 
     download = _SimpleNamespace(failure=lambda: None, suggested_filename="big.bin", save_as=_save_big)
     page.expect_download.return_value = _FakeDownloadInfo(download)
-    get_manager()._page = page
+    monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
     result = await browser_download(ctx, url="https://example.com/big.bin", max_size_mb=1)
@@ -190,7 +191,7 @@ class _MagicWithReturn:
     """返回固定 return_value 的可调用对象（模拟 MagicMock 的调用语义）。"""
 
     def __init__(self):
-        self.return_value = None
+        self.return_value: Any = None
 
     def __call__(self, *args, **kwargs):
         return self.return_value
