@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from browser.manager import BrowserManager
+from browser.takeover import HumanTakeoverState
 
 
 def _response(url: str, status: int, headers: dict[str, str] | None = None):
@@ -29,6 +30,38 @@ def test_flag_api(manager: BrowserManager):
     assert manager.auth_challenge_pending()
     manager.clear_auth_challenge("example.com")
     assert not manager.auth_challenge_pending()
+    assert manager.auth_challenge_origin() is None
+
+
+def test_clear_auth_challenge_without_origin_clears_any(manager: BrowserManager):
+    manager.record_auth_challenge("example.com")
+    manager.clear_auth_challenge()
+    assert not manager.auth_challenge_pending()
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        HumanTakeoverState.DETECTED,
+        HumanTakeoverState.WAITING_HUMAN,
+        HumanTakeoverState.HUMAN_CONTROL,
+    ],
+)
+def test_response_tracking_skipped_while_takeover_active(manager: BrowserManager, state):
+    # 接管期间后端不记录认证状态
+    manager._takeover.state = state
+    manager._on_page_response(_response(
+        "https://example.com/", 401, {"www-authenticate": "Basic realm=x"},
+    ))
+    assert not manager.auth_challenge_pending()
+
+
+def test_response_tracking_skips_clear_while_takeover_active(manager: BrowserManager):
+    # 接管期间已有标志不被人工操作的响应清除
+    manager.record_auth_challenge("example.com")
+    manager._takeover.state = HumanTakeoverState.HUMAN_CONTROL
+    manager._on_page_response(_response("https://example.com/x", 200))
+    assert manager.auth_challenge_pending()
 
 
 def test_401_with_challenge_header_sets_flag(manager: BrowserManager):

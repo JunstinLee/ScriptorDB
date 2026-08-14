@@ -239,32 +239,29 @@ class ApprovalOrchestrator:
         event_callback: Callable[[dict[str, Any]], Awaitable[None]],
         run_collector: dict[str, Any],
         new_messages_collector: list[ModelMessage],
-    ) -> bool:
+    ) -> tuple[bool, str]:
         """Resume agent execution after human takeover completes.
 
         History comes from the takeover checkpoint (message history + this
         turn's tool calls/results), not only from the session's plain messages.
+
+        Returns (completed, reason); reason is non-empty when blocked.
         """
         if run_id and (self._run_tracker is None or self._run_tracker.run_id != run_id):
-            return False
+            return False, "接管所属的运行已不存在"
 
         checkpoint = get_takeover_checkpoint_store().get_for_run(self.session_id, run_id)
         if checkpoint is None:
-            return False
+            return False, "未找到该会话的接管 checkpoint"
 
         from browser import get_manager
         mgr = get_manager()
-        if mgr.auth_challenge_pending():
-            logger.warning(
-                "takeover resume blocked: auth challenge still pending (origin=%s)",
-                mgr.auth_challenge_origin(),
-            )
-            return False
         mgr.takeover.complete(takeover_result)
+        mgr.clear_auth_challenge()
 
         session = get_session_store().get(self.session_id)
         if session is None:
-            return False
+            return False, "会话不存在"
 
         message_history = list(checkpoint.message_history) + list(checkpoint.turn_new_messages)
         takeover_message = f"用户完成了人工操作: {takeover_result}"
@@ -289,7 +286,7 @@ class ApprovalOrchestrator:
         if completed:
             get_takeover_checkpoint_store().remove(self.session_id)
         mgr.takeover.reset()
-        return completed
+        return completed, ""
 
     def cancel_takeover(self, run_id: str = "", reason: str = "") -> dict[str, Any]:
         """Cancel the active takeover with terminate semantics.
@@ -327,7 +324,9 @@ class ApprovalOrchestrator:
         get_takeover_checkpoint_store().remove(self.session_id)
 
         from browser import get_manager
-        get_manager().takeover.cancel(reason or "用户取消接管")
+        mgr = get_manager()
+        mgr.takeover.cancel(reason or "用户取消接管")
+        mgr.clear_auth_challenge()
         return {"ok": True, "status": "cancelled", "reason": reason or "用户取消接管"}
 
 

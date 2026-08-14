@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from pydantic_ai.messages import ModelMessage
 
 from server.dependencies import get_config, require_workspace
+from server.run_tracker import utc_now_iso
 from server.sessions import get_session_store
 from server.sse_format import sse_done, sse_event
 from services.chat_service import persist_chat_run
@@ -79,7 +80,7 @@ def _stream_takeover_resume_events(
         try:
             while True:
                 if run_task.done() and event_queue.empty():
-                    completed = await run_task
+                    completed, reason = await run_task
                     if completed:
                         persist_chat_run(
                             session_id=session_id,
@@ -88,6 +89,13 @@ def _stream_takeover_resume_events(
                         )
                         remove_orchestrator(session_id)
                         persisted = True
+                    else:
+                        yield sse_event("error", {
+                            "type": "error",
+                            "message": f"恢复 Agent 失败：{reason or '接管状态已失效，请重新发起任务'}",
+                            "timestamp": utc_now_iso(),
+                        })
+                        yield sse_done()
                     break
 
                 event = await event_queue.get()
@@ -101,7 +109,7 @@ def _stream_takeover_resume_events(
                     continue
 
                 if ev_type == "run_end":
-                    completed = await run_task
+                    completed, _reason = await run_task
                     if completed:
                         persist_chat_run(
                             session_id=session_id,
@@ -128,7 +136,8 @@ def _stream_takeover_resume_events(
             if interrupted:
                 if run_task.done():
                     try:
-                        if run_task.result() and run_collector.get("run_id"):
+                        completed, _reason = run_task.result()
+                        if completed and run_collector.get("run_id"):
                             persist_chat_run(
                                 session_id=session_id,
                                 new_messages_collector=new_messages_collector,

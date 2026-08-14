@@ -355,8 +355,13 @@ class BrowserManager:
         self._auth_origin = origin
         logger.warning(f"auth challenge recorded origin={origin}")
 
-    def clear_auth_challenge(self, origin: str) -> None:
-        if self._auth_origin is not None and self._auth_origin == origin:
+    def clear_auth_challenge(self, origin: str | None = None) -> None:
+        """清除待认证标志：接管结束（完成/取消）时调用。
+
+        该标志只负责触发一次接管；人工处理结束后必须清除，
+        否则残留标志会在下一次浏览器动作时立即再次触发接管。
+        """
+        if origin is None or self._auth_origin == origin:
             self._auth_origin = None
 
     def auth_challenge_pending(self) -> bool:
@@ -370,7 +375,12 @@ class BrowserManager:
 
         置位：401/407 且带 WWW-Authenticate 头（此时浏览器会弹认证框）。
         清除：同 origin 出现任何非 401/407 响应（请求已通过认证门禁）。
+
+        仅在 agent 运行期间（takeover 状态为 RUNNING）跟踪。人工接管期间
+        用户自行处理认证，后端不观察、不记录、不干预。
         """
+        if self._takeover.state != HumanTakeoverState.RUNNING:
+            return
         try:
             status = int(response.status)
             headers = response.headers or {}

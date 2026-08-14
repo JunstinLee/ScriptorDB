@@ -232,14 +232,15 @@ async def test_resume_after_takeover_validates_run_id(monkeypatch, store):
 
     assert orchestrator.run_id
 
-    wrong = await orchestrator.resume_after_takeover(
+    wrong, wrong_reason = await orchestrator.resume_after_takeover(
         "wrong-run-id", "done", _noop_cb, {}, []
     )
     assert wrong is False
+    assert wrong_reason
 
     mgr.takeover.complete("done")
     agent.mode = "complete"
-    right = await orchestrator.resume_after_takeover(
+    right, _reason = await orchestrator.resume_after_takeover(
         orchestrator.run_id, "done", _noop_cb, {}, []
     )
     assert right is True
@@ -397,7 +398,7 @@ async def test_resume_history_comes_from_checkpoint(monkeypatch, store):
     assert get_takeover_checkpoint_store().get(sid) is not None
 
     agent.mode = "complete"
-    completed = await orchestrator.resume_after_takeover(
+    completed, _reason = await orchestrator.resume_after_takeover(
         orchestrator.run_id, "完成登录", _noop_cb, {}, []
     )
     assert completed is True

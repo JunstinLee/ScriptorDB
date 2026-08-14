@@ -1,4 +1,4 @@
-import { request } from "./core";
+import { request, WorkspaceNotSelectedError } from "./core";
 import type { InteractRequest, InteractByCoordsRequest, InteractResponse, ViewportSizeResponse, BrowserState, CookiesResponse, ProfilesResponse, SetCookieRequest } from "../types";
 import { processSseStream } from "./stream";
 import type { StreamRunEvent } from "../types";
@@ -42,6 +42,16 @@ export async function completeTakeover(
         body: JSON.stringify({ session_id: sessionId, result }),
         signal: abort.signal,
       });
+
+      if (!response.ok || !response.body) {
+        const text = await response.text().catch(() => "");
+        if (response.status === 409 && text.includes("WORKSPACE_NOT_SELECTED")) {
+          onError(new WorkspaceNotSelectedError(text));
+        } else {
+          onError(new Error(`HTTP ${response.status}${text ? `: ${text}` : ""}`));
+        }
+        return;
+      }
       await processSseStream(response, onEvent, onError, onDone);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
