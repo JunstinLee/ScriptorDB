@@ -19,7 +19,11 @@ from server.runner.events import (
     tool_result_event,
     trace_event,
 )
-from server.runner.takeover_hook import AfterToolContext, BrowserTakeoverHook
+from server.runner.takeover_hook import (
+    AfterToolContext,
+    BrowserTakeoverHook,
+    RunPauseState,
+)
 
 logger = get_logger("agent_runner.translator")
 
@@ -41,6 +45,7 @@ class EventTranslator:
         prompt: str,
         message_history: list,
         takeover_hook: BrowserTakeoverHook | None = None,
+        pause: RunPauseState | None = None,
     ) -> None:
         self._queue = queue
         self._tracker = tracker
@@ -49,6 +54,7 @@ class EventTranslator:
         self._prompt = prompt
         self._message_history = message_history
         self._takeover_hook = takeover_hook or BrowserTakeoverHook()
+        self._pause = pause
 
         # Mutable run state shared with the lifecycle layer.
         self.full_output = ""
@@ -62,7 +68,7 @@ class EventTranslator:
             if isinstance(event, FunctionToolCallEvent):
                 await self._handle_tool_call(event)
             elif isinstance(event, FunctionToolResultEvent):
-                await self._handle_tool_result(event)
+                await self._handle_tool_result(ctx, event)
             else:
                 await self._handle_text_delta(event)
 
@@ -85,7 +91,9 @@ class EventTranslator:
             message=f"调用工具 {event.part.tool_name}",
         ))
 
-    async def _handle_tool_result(self, event: FunctionToolResultEvent) -> None:
+    async def _handle_tool_result(
+        self, ctx: RunContext[Any], event: FunctionToolResultEvent
+    ) -> None:
         self.tool_parts.append(event.part)
         call_id = event.part.tool_call_id if event.part else "unknown"
         tool_name = event.part.tool_name if event.part else "unknown"
@@ -129,6 +137,8 @@ class EventTranslator:
             tool_parts=self.tool_parts,
             tool_invocations=self._tracker.tool_invocations,
             final_output=self.full_output,
+            ctx=ctx,
+            pause=self._pause,
         ))
 
         self.trace_step += 1

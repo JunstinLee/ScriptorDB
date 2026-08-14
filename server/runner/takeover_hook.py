@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import asyncio
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic_ai.messages import ModelMessage, ModelRequest
@@ -11,6 +12,33 @@ from server.run_tracker import utc_now_iso
 from server.runner.events import browser_action_event, human_takeover_request_event
 
 logger = get_logger("agent_runner.takeover")
+
+
+class TakeoverCancelledError(Exception):
+    """run 内信号：人工接管被取消/超时，终止本次 run。
+
+    hook 调用 ctx.cancel() 后抛出；lifecycle 捕获后转为 takeover_cancelled
+    终态事件。即使 pydantic-ai 对 event_stream_handler 的异常做包装，
+    ctx.cancel() 触发的 RunCancelled 也会由 lifecycle 兜底捕获。
+    """
+
+
+@dataclass
+class RunPauseState:
+    """当前 run 的人工接管暂停状态。
+
+    orchestrator 为每个活跃 run 持有一个实例：检测到接管后 hook 挂起在
+    resume_event.wait()，恢复端点 set() 唤醒继续原执行栈；取消/超时则置
+    cancelled 后唤醒，hook 转而调用 ctx.cancel() 终止本次 run。
+    """
+
+    resume_event: asyncio.Event = field(default_factory=asyncio.Event)
+    cancelled: bool = False
+
+    def cancel_run(self) -> None:
+        """取消语义：唤醒挂起的 run，并标记为取消（而非恢复）。"""
+        self.cancelled = True
+        self.resume_event.set()
 
 
 @dataclass
@@ -28,6 +56,8 @@ class AfterToolContext:
     tool_parts: list[Any]
     tool_invocations: list[dict[str, Any]]
     final_output: str
+    ctx: Any = None  # RunContext：取消 run / 注入接管结果消息
+    pause: RunPauseState | None = None
 
 
 class BrowserTakeoverHook:
@@ -63,7 +93,9 @@ class BrowserTakeoverHook:
                 logger.debug("takeover detection skipped: %s", e)
             takeover = mgr.takeover if mgr else None
             if takeover and takeover.should_pause_agent():
-                takeover.enter_waiting()
+                takeover.enter_waiting(
+                    on_timeout=ctx.pause.cancel_run if ctx.pause else None
+                )
                 logger.warning(
                     "agent paused for takeover reason=%s trigger=%s",
                     takeover.reason, takeover.trigger,
@@ -96,5 +128,33 @@ class BrowserTakeoverHook:
                     screenshot_available=state_after.get("screenshot_available", False),
                     timestamp=utc_now_iso(),
                 ))
-        except Exception as e:  # keep original swallow semantics; now observable
+                if ctx.pause is None:
+                    # 无暂停状态（理论不出现）：仅通知前端，不挂起。
+                    return
+                # 挂起：agent.run() 的执行停在这里，等待恢复或取消。
+                await ctx.pause.resume_event.wait()
+                if ctx.pause.cancelled:
+                    logger.warning(
+                        "takeover cancelled during pause, cancelling run run_id=%s",
+                        ctx.run_id,
+                    )
+                    if ctx.ctx is not None:
+                        try:
+                            ctx.ctx.cancel()  # 新版 pydantic-ai 的官方取消入口
+                        except Exception:
+                            pass
+                    # 主通道：自定义异常终止 run（不依赖 pydantic-ai 版本差异）
+                    raise TakeoverCancelledError(ctx.run_id)
+                # 恢复：允许下一次挂起，并把用户操作结果注入对话。
+                ctx.pause.resume_event.clear()
+                result = takeover.result or ""
+                logger.info("takeover resumed run_id=%s result=%s", ctx.run_id, result)
+                if ctx.ctx is not None and result:
+                    try:
+                        await ctx.ctx.enqueue(f"用户完成了人工操作: {result}")
+                    except Exception as e:
+                        logger.debug("enqueue takeover result failed: %s", e)
+        except Exception as e:
+            if isinstance(e, TakeoverCancelledError):
+                raise
             logger.debug("browser takeover check skipped: %s", e)

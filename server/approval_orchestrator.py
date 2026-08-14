@@ -5,7 +5,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
 
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, ToolApproved, ToolDenied
-from pydantic_ai.messages import ModelMessage, ModelRequest, UserPromptPart
+from pydantic_ai.messages import ModelMessage
 
 from agents.app_context import AppContext
 from config.app_config import AppConfig
@@ -20,6 +20,7 @@ from server.approval_policy import (
 )
 from server.import_inspector import count_import_rows
 from server.run_tracker import RunTracker, utc_now_iso
+from server.runner.takeover_hook import RunPauseState
 from schemas import StoredRun, StoredToolInvocation
 from server.sessions import get_session_store
 
@@ -47,6 +48,9 @@ class ApprovalOrchestrator:
         self.agent = agent
         self._app_context = app_context or AppContext(self.config)
         self._run_tracker: RunTracker | None = None
+        # 人工接管暂停状态：hook 挂起在 resume_event.wait()，
+        # resume_takeover() set() 唤醒，取消/超时置 cancelled 后终止 run。
+        self._pause = RunPauseState()
 
     @property
     def run_id(self) -> str:
@@ -63,6 +67,7 @@ class ApprovalOrchestrator:
         Returns a run summary dict.
         """
         self._run_tracker = RunTracker()
+        self._pause = RunPauseState()
         run_collector: dict[str, Any] = {}
         new_messages_collector: list[ModelMessage] = []
 
@@ -107,16 +112,29 @@ class ApprovalOrchestrator:
             agent=agent,
             tracker=self._run_tracker,
             deferred_results=deferred_results,
+            pause=self._pause,
         ):
             ev_type = event.get("type")
             if ev_type == "new_messages":
                 new_messages_collector.extend(event.get("messages", []))
                 continue
-            if ev_type in ("approval_request", "human_takeover_request"):
+            if ev_type == "approval_request":
                 await event_callback(event)
                 return False
+            if ev_type == "human_takeover_request":
+                # 人工接管：run 挂起在 hook 的 resume_event.wait() 上，
+                # 不结束 run；恢复后本循环继续消费后续事件。
+                await event_callback(event)
+                continue
             if ev_type == "takeover_cancelled":
                 # 终止语义：取消只记录终态，不再静默启动后台模型回合。
+                await event_callback(event)
+                from browser import get_manager
+                get_manager().takeover.reset()
+                # 超时/取消路径都要清掉 checkpoint，避免残留占用
+                get_takeover_checkpoint_store().remove(self.session_id)
+                return True
+            if ev_type == "run_end":
                 await event_callback(event)
                 from browser import get_manager
                 get_manager().takeover.reset()
@@ -232,61 +250,24 @@ class ApprovalOrchestrator:
 
         return completed
 
-    async def resume_after_takeover(
-        self,
-        run_id: str,
-        takeover_result: str,
-        event_callback: Callable[[dict[str, Any]], Awaitable[None]],
-        run_collector: dict[str, Any],
-        new_messages_collector: list[ModelMessage],
-    ) -> tuple[bool, str]:
-        """Resume agent execution after human takeover completes.
+    def resume_takeover(self, run_id: str, takeover_result: str) -> dict[str, Any]:
+        """从人工接管暂停中恢复当前 run，不重启 agent。
 
-        History comes from the takeover checkpoint (message history + this
-        turn's tool calls/results), not only from the session's plain messages.
-
-        Returns (completed, reason); reason is non-empty when blocked.
+        校验 run_id 后设置 resume_event；hook 中的 wait() 立刻返回，
+        原来的 tool call / agent 执行栈继续往下走。返回 {"ok": True, ...}。
         """
         if run_id and (self._run_tracker is None or self._run_tracker.run_id != run_id):
-            return False, "接管所属的运行已不存在"
-
-        checkpoint = get_takeover_checkpoint_store().get_for_run(self.session_id, run_id)
-        if checkpoint is None:
-            return False, "未找到该会话的接管 checkpoint"
+            return {"ok": False, "error": "run_mismatch"}
+        if self._pause.cancelled:
+            return {"ok": False, "error": "takeover_cancelled"}
 
         from browser import get_manager
         mgr = get_manager()
         mgr.takeover.complete(takeover_result)
         mgr.clear_auth_challenge()
 
-        session = get_session_store().get(self.session_id)
-        if session is None:
-            return False, "会话不存在"
-
-        message_history = list(checkpoint.message_history) + list(checkpoint.turn_new_messages)
-        takeover_message = f"用户完成了人工操作: {takeover_result}"
-        message_history.append(
-            ModelRequest(parts=[UserPromptPart(content=takeover_message)])
-        )
-
-        if self._run_tracker is None:
-            self._run_tracker = RunTracker(run_id=checkpoint.run_id)
-        self._run_tracker.tool_invocations = list(checkpoint.tool_invocations)
-        self._run_tracker.final_output = checkpoint.final_output
-
-        prompt = "Continue with the previous task based on the user's completed action."
-
-        completed = await self._run_loop(
-            prompt,
-            message_history,
-            event_callback,
-            run_collector=run_collector,
-            new_messages_collector=new_messages_collector,
-        )
-        if completed:
-            get_takeover_checkpoint_store().remove(self.session_id)
-        mgr.takeover.reset()
-        return completed, ""
+        self._pause.resume_event.set()
+        return {"ok": True, "status": "resumed", "run_id": self.run_id}
 
     def cancel_takeover(self, run_id: str = "", reason: str = "") -> dict[str, Any]:
         """Cancel the active takeover with terminate semantics.
@@ -327,6 +308,9 @@ class ApprovalOrchestrator:
         mgr = get_manager()
         mgr.takeover.cancel(reason or "用户取消接管")
         mgr.clear_auth_challenge()
+        # 唤醒挂起的 run：hook 检测到 cancelled 后调用 ctx.cancel()，
+        # pydantic-ai 停止 run 并抛 RunCancelled，lifecycle 转取消终态。
+        self._pause.cancel_run()
         return {"ok": True, "status": "cancelled", "reason": reason or "用户取消接管"}
 
 
@@ -339,11 +323,12 @@ async def run_agent_stream_resumable(
     agent: Any | None = None,
     tracker: RunTracker | None = None,
     deferred_results: DeferredToolResults | None = None,
+    pause: RunPauseState | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream agent events and handle deferred tool approval decisions.
 
     Yields run_start, run_end, error, metadata, tool_call, tool_result, text_delta,
-    trace, and approval_request events.
+    trace, takeover_cancelled, and approval_request events.
     """
     local_tracker = tracker or RunTracker()
 
@@ -356,6 +341,7 @@ async def run_agent_stream_resumable(
         agent=agent,
         tracker=local_tracker,
         deferred_results=deferred_results,
+        pause=pause,
     ):
         ev_type = event.get("type")
         if ev_type == "metadata":
@@ -402,6 +388,7 @@ async def run_agent_stream_resumable(
                 agent=agent,
                 tracker=local_tracker,
                 deferred_results=results,
+                pause=pause,
             ):
                 yield resumed_event
             return
