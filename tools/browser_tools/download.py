@@ -66,7 +66,7 @@ async def browser_download(
         manager.record_action("download", f"trigger failed: {trigger_error or e}", success=False)
         return f"下载触发失败: {trigger_error or e}"
 
-    if failure := download.failure():
+    if failure := await download.failure():
         manager.record_action("download", f"failed: {failure}", success=False)
         return f"下载失败: {failure}"
 
