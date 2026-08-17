@@ -184,7 +184,7 @@ async def chat(session_id: str, req: ChatRequest):
             req.prompt, attachments=req.attachments, crawl_url=req.crawl_url
         )
     except CrawlError as e:
-        raise HTTPException(status_code=502, detail=f"网页抓取失败: {e}")
+        raise HTTPException(status_code=502, detail=f"Crawl failed: {e}")
 
     model_messages = session.get_model_messages()
 

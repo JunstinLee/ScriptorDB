@@ -71,7 +71,7 @@ class HumanTakeoverManager:
     def enter_human_control(self):
         self._cancel_timeout()
         self.state = HumanTakeoverState.HUMAN_CONTROL
-        self.message = "请在 Chrome 窗口中操作"
+        self.message = "Operate in the Chrome window"
         logger.info("takeover enter human_control")
 
     def complete(self, result: str):
@@ -107,7 +107,7 @@ class HumanTakeoverManager:
         await asyncio.sleep(TAKEOVER_TIMEOUT)
         if self.state == HumanTakeoverState.WAITING_HUMAN:
             logger.warning(f"takeover timeout after {TAKEOVER_TIMEOUT}s")
-            self.cancel(f"超时：{TAKEOVER_TIMEOUT}秒内无用户响应")
+            self.cancel(f"Timed out: no user response in {TAKEOVER_TIMEOUT}s")
             if self._on_timeout:
                 self._on_timeout()
 
@@ -150,24 +150,24 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
         pass
 
     if await _visible_match(evaluate, '.g-recaptcha, iframe[src*="recaptcha"]'):
-        return HumanTrigger("检测到 reCAPTCHA 验证码", "captcha", 1.0)
+        return HumanTrigger("reCAPTCHA detected", "captcha", 1.0)
 
     if await _visible_match(evaluate, '.h-captcha, iframe[src*="hcaptcha"]'):
-        return HumanTrigger("检测到 hCaptcha 验证码", "captcha", 1.0)
+        return HumanTrigger("hCaptcha detected", "captcha", 1.0)
 
     if await _visible_match(
         evaluate,
         'iframe[src*="challenges.cloudflare.com"], [data-turnstile-sitekey], '
         'input[name="cf-turnstile-response"]',
     ):
-        return HumanTrigger("检测到 Cloudflare Turnstile 验证码", "captcha", 0.9)
+        return HumanTrigger("Cloudflare Turnstile detected", "captcha", 0.9)
 
     if await _visible_match(
         evaluate,
         "img[id*=captcha], img[class*=captcha], img[src*=captcha], "
         "img[id*=verify], img[class*=verify]",
     ):
-        return HumanTrigger("检测到图形验证码", "captcha", 0.9)
+        return HumanTrigger("Image captcha detected", "captcha", 0.9)
 
     mfa_queries = [
         "input[autocomplete='one-time-code']",
@@ -178,7 +178,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
     ]
     for q in mfa_queries:
         if await evaluate(f"() => !!document.querySelector({json.dumps(q)})"):
-            return HumanTrigger(f"检测到多因素认证(MFA)输入框: {q}", "mfa", 0.95)
+            return HumanTrigger(f"MFA input detected: {q}", "mfa", 0.95)
 
     oauth_patterns = [
         ("accounts.google.com/signin/oauth", "Google OAuth"),
@@ -187,7 +187,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
     ]
     for pattern, name in oauth_patterns:
         if pattern in url:
-            return HumanTrigger(f"检测到 {name} 授权页面", "oauth", 0.9)
+            return HumanTrigger(f"{name} authorization page detected", "oauth", 0.9)
 
     antibot_keywords = [
         "verify you are human", "are you a robot",
@@ -196,17 +196,17 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
     ]
     for kw in antibot_keywords:
         if kw in title:
-            return HumanTrigger(f"检测到反爬虫页面: {title}", "antibot", 0.95)
+            return HumanTrigger(f"Anti-bot page detected: {title}", "antibot", 0.95)
 
     if "cloudflare" in title and ("attention required" in title or "just a moment" in title):
-        return HumanTrigger("检测到 Cloudflare 防护", "antibot", 0.95)
+        return HumanTrigger("Cloudflare protection detected", "antibot", 0.95)
 
     if await evaluate(
         "() => { const e = document.querySelector('input[type=file]'); "
         "if (!e) return false; const r = e.getBoundingClientRect(); "
         "return r.width > 0 && r.height > 0; }"
     ):
-        return HumanTrigger("检测到文件上传选择器", "file_upload", 0.7)
+        return HumanTrigger("File upload dialog detected", "file_upload", 0.7)
 
     if ("checkout" in url.lower() or "payment" in url.lower()):
         has_payment = await evaluate(
@@ -214,7 +214,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
             "document.querySelector('[data-testid=payment]'))"
         )
         if has_payment:
-            return HumanTrigger("检测到支付确认页面", "payment", 0.8)
+            return HumanTrigger("Payment confirmation page detected", "payment", 0.8)
 
     login_keywords = ["sign in", "log in", "login", "signin"]
     if any(kw in title for kw in login_keywords):
@@ -222,7 +222,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
             "() => !!document.querySelector('input[type=password]')"
         )
         if has_password:
-            return HumanTrigger("检测到登录页面", "login", 0.75)
+            return HumanTrigger("Login page detected", "login", 0.75)
 
     return None
 
@@ -230,7 +230,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
 def detect_timeout_trigger(consecutive_timeout_count: int) -> HumanTrigger | None:
     if consecutive_timeout_count >= 3:
         return HumanTrigger(
-            f"连续 {consecutive_timeout_count} 次导航超时，可能需要人工处理",
+            f"{consecutive_timeout_count} consecutive navigation timeouts — manual action may be needed",
             "timeout", 0.8
         )
     return None
@@ -239,7 +239,7 @@ def detect_timeout_trigger(consecutive_timeout_count: int) -> HumanTrigger | Non
 def detect_element_failure_trigger(same_selector_failure_count: int) -> HumanTrigger | None:
     if same_selector_failure_count >= 3:
         return HumanTrigger(
-            f"同一元素操作连续失败 {same_selector_failure_count} 次",
+            f"Same element failed {same_selector_failure_count} times in a row",
             "element_failure", 0.7
         )
     return None

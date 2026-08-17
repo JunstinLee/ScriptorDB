@@ -56,7 +56,7 @@ def error_event(
     event: dict[str, Any] = {
         "type": "error",
         "run_id": run_id,
-        "message": f"运行失败（ID: {error_id}），请联系管理员",
+        "message": f"Run failed (ID: {error_id})",
         "error_id": error_id,
     }
     if rate_limit is not None:
@@ -65,7 +65,7 @@ def error_event(
         event["status_code"] = status_code
         event["model_name"] = model_name
         event["message"] = (
-            "模型限流（HTTP 429 Too Many Requests），请求过于频繁，"
-            "请稍等片刻后重试。"
+            "Rate limited (HTTP 429 Too Many Requests): too many requests. "
+            "Try again shortly."
         )
     return event

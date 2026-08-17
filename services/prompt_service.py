@@ -38,7 +38,7 @@ async def augment_prompt(
                 )
                 augmented = f"{augmented}{crawl_block}"
             else:
-                raise CrawlError(result.error or "网页抓取失败")
+                raise CrawlError(result.error or "Crawl failed")
         except CrawlError:
             raise
         except Exception as e:

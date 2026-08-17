@@ -128,7 +128,7 @@ export function AgentActivityTimeline({ events, isRunning }: AgentActivityTimeli
   if (events.length === 0) {
     return (
       <div className="px-3 py-4 text-center">
-        <p className="text-xs italic text-muted">等待智能体操作...</p>
+        <p className="text-xs italic text-muted">Waiting for agent actions...</p>
       </div>
     );
   }

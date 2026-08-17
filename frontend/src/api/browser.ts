@@ -57,7 +57,7 @@ export async function completeTakeover(
       if (body.status === "resumed") {
         onDone();
       } else {
-        onError(new Error("恢复失败：服务端未确认唤醒"));
+        onError(new Error("Resume failed: server did not confirm"));
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;

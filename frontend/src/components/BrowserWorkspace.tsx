@@ -45,7 +45,7 @@ function BrowserViewport({
           </div>
         </div>
         <p className="text-center text-sm text-muted">
-          等待智能体启动浏览器...
+          Waiting for the agent to launch the browser...
         </p>
       </div>
     );
@@ -55,7 +55,7 @@ function BrowserViewport({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <Loader2 className="size-6 animate-spin text-accent" />
-        <p className="text-sm text-muted">浏览器启动中...</p>
+        <p className="text-sm text-muted">Launching browser...</p>
       </div>
     );
   }
@@ -66,7 +66,7 @@ function BrowserViewport({
         {state.screenshot_available ? (
           <img
             src={getScreenshotUrl()}
-            alt={state.title ?? "页面截图"}
+            alt={state.title ?? "Page screenshot"}
             className="h-full w-full object-contain"
             style={{ cursor: "default" }}
           />
@@ -121,7 +121,7 @@ export function BrowserWorkspace({
         <div className="flex flex-col items-center gap-3 rounded-xl border border-danger/30 bg-danger/5 px-8 py-6">
           <X className="size-6 text-danger" />
           <p className="text-sm text-danger">{error}</p>
-          <p className="text-xs text-muted">检查后端服务是否正常运行</p>
+          <p className="text-xs text-muted">Check that the backend is running</p>
         </div>
       </div>
     );

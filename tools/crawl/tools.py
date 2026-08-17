@@ -32,17 +32,17 @@ def _doc_type(url: str) -> str:
 
 def _format_result(result: CrawlResult, domains: list[str] | None) -> str:
     if not result.success:
-        return f"抓取失败: {result.error}"
+        return f"Crawl failed: {result.error}"
 
     sections = [f"# {result.title or result.url}\n\n{result.markdown}"]
 
     info = []
     if result.document_links:
         docs = [
-            {"url": link.url, "text": link.text, "类型": _doc_type(link.url)}
+            {"url": link.url, "text": link.text, "type": _doc_type(link.url)}
             for link in result.document_links
         ]
-        info.append("文档链接：\n" + json.dumps(docs, ensure_ascii=False, indent=2))
+        info.append("Document links:\n" + json.dumps(docs, ensure_ascii=False, indent=2))
 
     if result.links:
         links = result.links
@@ -52,13 +52,13 @@ def _format_result(result: CrawlResult, domains: list[str] | None) -> str:
             {"url": link.url, "text": link.text, "internal": link.is_internal}
             for link in links[:_ALL_LINKS_SUMMARY_LIMIT]
         ]
-        info.append("全部链接（前 20 条）：\n" + json.dumps(summary, ensure_ascii=False, indent=2))
+        info.append("All links (first 20):\n" + json.dumps(summary, ensure_ascii=False, indent=2))
 
     if result.extracted_data:
-        info.append("结构化数据：\n" + result.extracted_data)
+        info.append("Structured data:\n" + result.extracted_data)
 
     if info:
-        sections.append("\n--- 结构化信息 ---\n" + "\n\n".join(info))
+        sections.append("\n--- Structured info ---\n" + "\n\n".join(info))
 
     return "\n".join(sections)
 

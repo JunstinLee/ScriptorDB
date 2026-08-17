@@ -38,26 +38,26 @@ _URL_PATH_SIGNALS = ("filings", "documents", "docs", "download", "archive")
 _URL_RE = re.compile(r"https?://[^\s\"'<>，。；）)】\]}]+")
 
 _SWITCH_LABEL = (
-    "[Middleware] {tool_name} 调用被拦截（当前任务属于文档提取场景，低级别浏览器工具不适合），"
-    "已自动切换执行 {replacement}，参数：{args}\n"
-    "返回结果即最终数据，请直接使用。如结果不满足需求，请直接向用户说明原因，"
-    "或改用 browser_extract_links / crawl_webpage。\n\n{result}"
+    "[Middleware] {tool_name} call intercepted (document-extraction task — low-level browser tools not suitable). "
+    "Automatically switched to {replacement} with args: {args}\n"
+    "The result is final data — use it directly. If it does not meet the request, explain why to the user, "
+    "or use browser_extract_links / crawl_webpage instead.\n\n{result}"
 )
 
 _REPEAT_LABEL = (
-    "[Middleware] {tool_name} 在本轮任务中已多次被拦截，请勿再次调用该工具。\n"
-    "如需网页数据，请直接调用 browser_extract_links（支持文档过滤/翻页/域名限制）或 "
-    "crawl_webpage；如结果不满足需求，请直接向用户说明原因。"
+    "[Middleware] {tool_name} has been intercepted multiple times this turn — do not call it again.\n"
+    "For web data, call browser_extract_links (supports document filtering / pagination / domain limits) or "
+    "crawl_webpage; if the result does not meet the request, explain why to the user."
 )
 
 _NO_PYTHON_LABEL = (
-    "[Middleware] python_sandbox_execute 已被拦截：浏览器/crawl 工具返回的结果已是最终数据，"
-    "无需再执行 Python 代码处理。请直接基于现有结果输出答案；如需额外计算，请直接向用户说明需求。"
+    "[Middleware] python_sandbox_execute intercepted: browser/crawl tool results are already final data, "
+    "no Python processing needed. Answer directly from the results; for extra computation, explain the need to the user."
 )
 
 _NO_PYTHON_REPEAT_LABEL = (
-    "[Middleware] python_sandbox_execute 已多次被拦截：请直接基于浏览器/crawl 工具已返回的最终数据输出答案，"
-    "无需再执行 Python 代码处理。"
+    "[Middleware] python_sandbox_execute intercepted repeatedly: answer directly from the final browser/crawl tool data, "
+    "no Python processing needed."
 )
 
 _EMPTY_RESULT_MARKERS = (
@@ -65,10 +65,10 @@ _EMPTY_RESULT_MARKERS = (
     "no elements found",
     "no items found",
     "link extraction failed",
-    "抓取失败",
+    "crawl failed",
     "no response",
     "timed out",
-    "请求超时",
+    "request timed out",
 )
 
 _lock = threading.Lock()
@@ -295,8 +295,8 @@ async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
         )
         original = await _run_original(ctx, tool_name, args)
         return (
-            f"[Middleware] {tool_name} 被拦截，已自动切换执行 {replacement}，但结果为空，"
-            f"已回退执行原调用。\n\n{original}"
+            f"[Middleware] {tool_name} intercepted and switched to {replacement}, but the result was empty — "
+            f"fell back to the original call.\n\n{original}"
         )
     return _label(tool_name, replacement, kwargs, inner)
 
@@ -304,5 +304,5 @@ async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
 async def _run_original(ctx, tool_name: str, args: dict) -> str:
     func = _find_tool_func(tool_name)
     if func is None:
-        return f"[Middleware] {tool_name} 切换失败：替换工具与原工具均不可用"
+        return f"[Middleware] {tool_name} switch failed: neither the replacement nor the original tool is available"
     return await func(ctx, **args)

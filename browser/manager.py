@@ -330,7 +330,7 @@ class BrowserManager:
         if self._auth_origin is not None:
             logger.warning(f"takeover detected trigger=auth origin={self._auth_origin}")
             return self._takeover.request_takeover(
-                reason="检测到 HTTP 认证需求（Basic Auth 等），需要人工完成认证",
+                reason="HTTP auth required (e.g. Basic Auth) — complete it manually",
                 trigger="auth",
                 url=self._page.url,
             )
