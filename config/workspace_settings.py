@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+from config.secrets import get_mysql_password
 from config.workspace_paths import workspace_dir, workspace_settings_file
 
 
@@ -69,10 +70,10 @@ class WorkspaceSettings:
             mysql_port=int(payload.get("mysql_port") or defaults.mysql_port),
             mysql_user=str(payload.get("mysql_user") or defaults.mysql_user),
             mysql_db=str(payload.get("mysql_db") or defaults.mysql_db),
-            mysql_password_set=bool(
-                payload.get("mysql_password_set", defaults.mysql_password_set)
-            ),
         )
+        # 密码标志不落盘（code scanning #1 py/clear-text-storage-sensitive-data）：
+        # mysql_password_set 由 keyring 中是否存在密码推导，keyring 是唯一事实来源。
+        ws.mysql_password_set = get_mysql_password(workspace_id) is not None
         if not ws.llm_model:
             ws.llm_model = ws.default_models.get(ws.llm_provider)
         return ws
@@ -95,7 +96,6 @@ class WorkspaceSettings:
             "mysql_port": self.mysql_port,
             "mysql_user": self.mysql_user,
             "mysql_db": self.mysql_db,
-            "mysql_password_set": self.mysql_password_set,
         }
         try:
             cfg_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))

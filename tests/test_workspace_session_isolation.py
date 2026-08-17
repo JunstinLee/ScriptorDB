@@ -180,6 +180,7 @@ def test_create_workspace_strips_mysql_password_into_keyring(workspace_env, monk
 
     raw = (path / ".scriptordb" / "settings.json").read_text()
     assert "supersecret" not in raw
+    assert "mysql_password_set" not in raw  # 密码派生标志不落盘，由 keyring 推导
 
     service = secrets_module._service(rec.id)
     assert fake.store[service][secrets_module.MYSQL_PASSWORD_USERNAME] == "supersecret"
