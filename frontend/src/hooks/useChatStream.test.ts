@@ -46,9 +46,8 @@ function makeParams(overrides: Partial<ReturnType<typeof makeParams>> = {}) {
 }
 
 type CapturedCallbacks = {
-  onEvent: (event: StreamRunEvent) => void;
   onError: (error: Error) => void;
-  onDone: (fullOutput: string) => void;
+  onDone: () => void;
 };
 
 function captureCompleteTakeover(): CapturedCallbacks {
@@ -57,18 +56,14 @@ function captureCompleteTakeover(): CapturedCallbacks {
     (
       _sid: string,
       _result: string,
-      onEvent: (e: StreamRunEvent) => void,
-      onDone: (o: string) => void,
+      onDone: () => void,
       onError: (e: Error) => void,
     ) => {
-      callbacks = { onEvent, onError, onDone };
+      callbacks = { onDone, onError };
       return new AbortController();
     },
   );
   return {
-    get onEvent() {
-      return callbacks!.onEvent;
-    },
     get onError() {
       return callbacks!.onError;
     },
@@ -93,7 +88,7 @@ describe("takeover resume lifecycle", () => {
     expect(result.current.takeoverInfo.phase).toBe("resuming");
 
     act(() => {
-      cb.onDone("final output");
+      cb.onDone();
     });
     expect(result.current.takeoverInfo.phase).toBe("none");
     expect(result.current.takeoverInfo.runId).toBe("");

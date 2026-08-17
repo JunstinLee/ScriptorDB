@@ -12,13 +12,13 @@ from pydantic_ai.messages import ModelMessage
 from agents.db_agent import resolve_agent
 from config.app_config import AppConfig
 from core.logging_setup import get_logger
-from server.run_tracker import RunTracker
+from server.run_tracker import RunTracker, utc_now_iso
 from server.runner.errors import (
     CONNECTION_RETRY_EXCEPTIONS,
     MAX_CONNECTION_RETRIES,
     find_rate_limit,
 )
-from server.runner.events import run_start_event
+from server.runner.events import run_start_event, takeover_cancelled_event
 from server.runner.finalize import (
     deferred_requests_event,
     error_event,
@@ -27,6 +27,7 @@ from server.runner.finalize import (
     run_end_event,
     strip_leading_user_prompt,
 )
+from server.runner.takeover_hook import RunPauseState, TakeoverCancelledError
 from server.runner.translator import EventTranslator
 
 logger = get_logger("agent_runner.lifecycle")
@@ -41,6 +42,7 @@ async def run_agent_stream(
     agent: Any | None = None,
     tracker: RunTracker | None = None,
     deferred_results: DeferredToolResults | None = None,
+    pause: RunPauseState | None = None,
 ) -> AsyncGenerator[dict[str, Any], None]:
     """纯编排层：启动 agent.run()，通过 asyncio.Queue 收集事件，产出标准化 dict 事件。
 
@@ -51,6 +53,7 @@ async def run_agent_stream(
     - tool_call, tool_result
     - text_delta
     - trace
+    - takeover_cancelled（接管取消时的终态）
     """
     agent = agent or resolve_agent(config, model, provider)
     queue: asyncio.Queue[dict] = asyncio.Queue()
@@ -64,6 +67,7 @@ async def run_agent_stream(
         checkpoint_id=checkpoint_id,
         prompt=prompt,
         message_history=message_history,
+        pause=pause,
     )
 
     yield run_start_event(local_tracker.run_id)
@@ -141,6 +145,20 @@ async def run_agent_stream(
 
         local_tracker.finish()
         yield metadata_event(local_tracker.run_id, translator.full_output)
+        yield run_end_event(local_tracker.run_id)
+    except TakeoverCancelledError:
+        # 人工接管被取消/超时：hook 抛出 TakeoverCancelledError 终止 run，
+        # 统一转为取消终态。
+        local_tracker.status = "cancelled"
+        local_tracker.ended_at = utc_now_iso()
+        reason = "接管已取消"
+        try:
+            from browser import get_manager
+            takeover = get_manager().takeover
+            reason = takeover.reason or reason
+        except Exception:
+            pass
+        yield takeover_cancelled_event(run_id=local_tracker.run_id, reason=reason)
         yield run_end_event(local_tracker.run_id)
     except Exception as e:
         error_id = uuid.uuid4().hex[:12]

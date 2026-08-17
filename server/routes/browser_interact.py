@@ -1,19 +1,9 @@
 from __future__ import annotations
 
-import asyncio
-from contextlib import suppress
-from typing import Any
-
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from pydantic_ai.messages import ModelMessage
 
 from server.dependencies import get_config, require_workspace
-from server.sessions import get_session_store
-from server.sse_format import sse_done, sse_event
-from services.chat_service import persist_chat_run
-
 from server.routes.chat import get_orchestrator, remove_orchestrator
 
 router = APIRouter(prefix="/api/browser", tags=["browser_interact"])
@@ -48,127 +38,6 @@ class InteractByCoordsRequest(BaseModel):
     viewport_height: int
 
 
-def _stream_takeover_resume_events(
-    orchestrator,
-    run_id: str,
-    takeover_result: str,
-    session_id: str,
-) -> StreamingResponse:
-    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-    run_collector: dict[str, Any] = {}
-    new_messages_collector: list[ModelMessage] = []
-    persisted = False
-
-    async def event_callback(event: dict[str, Any]) -> None:
-        await event_queue.put(event)
-
-    run_task = asyncio.create_task(
-        orchestrator.resume_after_takeover(
-            run_id,
-            takeover_result,
-            event_callback,
-            run_collector=run_collector,
-            new_messages_collector=new_messages_collector,
-        )
-    )
-
-    async def generate():
-        nonlocal run_collector, new_messages_collector, persisted
-
-        interrupted = False
-        try:
-            while True:
-                if run_task.done() and event_queue.empty():
-                    completed = await run_task
-                    if completed:
-                        persist_chat_run(
-                            session_id=session_id,
-                            new_messages_collector=new_messages_collector,
-                            run_collector=run_collector,
-                        )
-                        remove_orchestrator(session_id)
-                        persisted = True
-                    break
-
-                event = await event_queue.get()
-                ev_type = event.get("type", "")
-
-                if ev_type == "new_messages":
-                    new_messages_collector.extend(event.get("messages", []))
-                    continue
-
-                if ev_type == "metadata":
-                    continue
-
-                if ev_type == "run_end":
-                    completed = await run_task
-                    if completed:
-                        persist_chat_run(
-                            session_id=session_id,
-                            new_messages_collector=new_messages_collector,
-                            run_collector=run_collector,
-                        )
-                        remove_orchestrator(session_id)
-                        persisted = True
-                        from browser import get_manager
-                        get_manager().schedule_idle_close()
-                    yield sse_event(ev_type, event)
-                    yield sse_done()
-                    break
-
-                if ev_type == "human_takeover_request":
-                    yield sse_event(ev_type, event)
-                    return
-
-                yield sse_event(ev_type, event)
-        except asyncio.CancelledError:
-            interrupted = True
-            raise
-        finally:
-            if interrupted:
-                if run_task.done():
-                    try:
-                        if run_task.result() and run_collector.get("run_id"):
-                            persist_chat_run(
-                                session_id=session_id,
-                                new_messages_collector=new_messages_collector,
-                                run_collector=run_collector,
-                            )
-                            remove_orchestrator(session_id)
-                            from browser import get_manager
-                            get_manager().schedule_idle_close()
-                    except Exception:
-                        pass
-                else:
-                    run_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await run_task
-                    remove_orchestrator(session_id)
-            elif not persisted and run_task.done():
-                try:
-                    if run_task.result() and run_collector.get("run_id"):
-                        persist_chat_run(
-                            session_id=session_id,
-                            new_messages_collector=new_messages_collector,
-                            run_collector=run_collector,
-                        )
-                        remove_orchestrator(session_id)
-                        from browser import get_manager
-                        get_manager().schedule_idle_close()
-                except Exception:
-                    pass
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
 @router.post("/takeover/complete")
 async def complete_human_takeover(body: TakeoverCompleteRequest):
     require_workspace()
@@ -183,9 +52,12 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
             detail="Run mismatch: the takeover belongs to a different run",
         )
 
-    return _stream_takeover_resume_events(
-        orchestrator, body.run_id, body.result, body.session_id
-    )
+    # 不重启 run：仅唤醒原 run 内部挂起的 resume_event，返回 JSON；
+    # 后续事件继续由原 chat SSE 流推送。
+    result = orchestrator.resume_takeover(body.run_id, body.result)
+    if not result.get("ok"):
+        raise HTTPException(status_code=409, detail=result.get("error", "Cannot resume takeover"))
+    return result
 
 
 @router.post("/takeover/enter-human-control")

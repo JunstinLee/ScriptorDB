@@ -76,7 +76,9 @@ async def _stream_orchestrator_events(
                 if ev_type == "approval_request":
                     return
                 if ev_type == "human_takeover_request":
-                    return
+                    # 接管期间 run 挂起在 resume_event 上，SSE 流保持打开；
+                    # 恢复后继续推送同一 run 的后续事件。
+                    continue
                 if ev_type == "takeover_state_change":
                     yield sse_event(ev_type, event)
                     if event.get("state") == "cancelled":

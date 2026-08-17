@@ -24,11 +24,9 @@ from browser.takeover import HumanTakeoverState
 from config.app_config import AppConfig
 from server.agent_runner import run_agent_stream
 from server.approval_orchestrator import ApprovalOrchestrator
-from server.approval_policy import get_takeover_checkpoint_store
 from server.routes.browser_interact import (
     TakeoverCompleteRequest,
     complete_human_takeover,
-    _stream_takeover_resume_events,
 )
 from server.routes.chat import (
     _active_orchestrators,
@@ -218,34 +216,6 @@ async def test_deferred_pause_cleanup():
 
 
 @pytest.mark.asyncio
-async def test_resume_after_takeover_validates_run_id(monkeypatch, store):
-    _patch_store(monkeypatch, store)
-    sid = store.create().session_id
-    mgr = get_manager()
-    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
-
-    config = AppConfig()
-    config.chat_session_id = sid
-    agent = FakeAgent(mode="block")
-    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
-    await orchestrator.start_run("hi", [], _noop_cb)
-
-    assert orchestrator.run_id
-
-    wrong = await orchestrator.resume_after_takeover(
-        "wrong-run-id", "done", _noop_cb, {}, []
-    )
-    assert wrong is False
-
-    mgr.takeover.complete("done")
-    agent.mode = "complete"
-    right = await orchestrator.resume_after_takeover(
-        orchestrator.run_id, "done", _noop_cb, {}, []
-    )
-    assert right is True
-
-
-@pytest.mark.asyncio
 async def test_complete_route_rejects_wrong_run_id(monkeypatch, store):
     _patch_store(monkeypatch, store)
     from server.routes import browser_interact
@@ -292,176 +262,13 @@ async def test_chat_sse_disconnect_terminates_running_run(monkeypatch, store):
     assert agent.cancelled
 
 
-@pytest.mark.asyncio
-async def test_chat_sse_takeover_pause_keeps_orchestrator(monkeypatch, store):
-    _patch_store(monkeypatch, store)
-    sid = store.create().session_id
-    mgr = get_manager()
-    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
-
-    config = AppConfig()
-    config.chat_session_id = sid
-    agent = FakeAgent(mode="block")
-    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
-    _active_orchestrators[sid] = orchestrator
-
-    response = await _stream_orchestrator_events(orchestrator, "hi", [], sid)
-    chunks: list[Any] = []
-
-    async def consume():
-        async for chunk in response.body_iterator:
-            chunks.append(chunk)
-
-    await asyncio.wait_for(consume(), timeout=5.0)
-
-    assert any("human_takeover_request" in c for c in chunks)
-    assert get_orchestrator(sid) is not None
-    await _await_true(lambda: agent.cancelled)
 
 
-@pytest.mark.asyncio
-async def test_takeover_resume_sse_completes_run(monkeypatch, store):
-    _patch_store(monkeypatch, store)
-    sid = store.create().session_id
-    mgr = get_manager()
-    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
-
-    config = AppConfig()
-    config.chat_session_id = sid
-    agent = FakeAgent(mode="block")
-    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
-    _active_orchestrators[sid] = orchestrator
-
-    await orchestrator.start_run("hi", [], _noop_cb)
-    agent.mode = "complete"
-
-    response = _stream_takeover_resume_events(
-        orchestrator, orchestrator.run_id, "done", sid
-    )
-    chunks: list[Any] = []
-    async for chunk in response.body_iterator:
-        chunks.append(chunk)
-
-    assert any("run_end" in c for c in chunks)
-    assert get_orchestrator(sid) is None
 
 
-@pytest.mark.asyncio
-async def test_checkpoint_contains_tool_call_and_result(monkeypatch, store):
-    _patch_store(monkeypatch, store)
-    sid = store.create().session_id
-    mgr = get_manager()
-    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
-
-    config = AppConfig()
-    config.chat_session_id = sid
-    agent = FakeAgent(mode="block")
-    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
-
-    seen = []
-    async def _collect(ev):
-        seen.append(ev)
-    await orchestrator.start_run("hi", [], _collect)
-    assert any(ev["type"] == "human_takeover_request" for ev in seen)
-
-    ckpt = get_takeover_checkpoint_store().get(sid)
-    assert ckpt is not None
-    assert ckpt.run_id == orchestrator.run_id
-    assert ckpt.session_id == sid
-    assert ckpt.reason == "unit test"
-    assert ckpt.prompt == "hi"
-    assert len(ckpt.turn_new_messages) == 1
-    request = ckpt.turn_new_messages[0]
-    assert isinstance(request, ModelRequest)
-    assert any(isinstance(p, ToolCallPart) for p in request.parts)
-    assert any(isinstance(p, ToolReturnPart) for p in request.parts)
-
-    request_event = next(ev for ev in seen if ev["type"] == "human_takeover_request")
-    assert request_event.get("checkpoint_id") == ckpt.checkpoint_id
-    assert "messages" not in request_event
 
 
-@pytest.mark.asyncio
-async def test_resume_history_comes_from_checkpoint(monkeypatch, store):
-    _patch_store(monkeypatch, store)
-    sid = store.create().session_id
-    mgr = get_manager()
-    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
 
-    config = AppConfig()
-    config.chat_session_id = sid
-    agent = FakeAgent(mode="block")
-    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
-
-    await orchestrator.start_run("hi", [], _noop_cb)
-    assert get_takeover_checkpoint_store().get(sid) is not None
-
-    agent.mode = "complete"
-    completed = await orchestrator.resume_after_takeover(
-        orchestrator.run_id, "完成登录", _noop_cb, {}, []
-    )
-    assert completed is True
-    assert get_takeover_checkpoint_store().get(sid) is None
-
-    history = agent.last_history
-    assert any(isinstance(m, ModelRequest) for m in history)
-    tool_turn = next(
-        m for m in history
-        if isinstance(m, ModelRequest)
-        and any(isinstance(p, ToolCallPart) for p in m.parts)
-    )
-    assert any(isinstance(p, ToolReturnPart) for p in tool_turn.parts)
-    last = history[-1]
-    assert isinstance(last, ModelRequest)
-    user_parts = [p for p in last.parts if isinstance(p, UserPromptPart)]
-    assert any("用户完成了人工操作" in p.content for p in user_parts)
-
-
-@pytest.mark.asyncio
-async def test_cancel_takeover_terminates_and_persists(monkeypatch, store):
-    _patch_store(monkeypatch, store)
-    sid = store.create().session_id
-    mgr = get_manager()
-    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
-
-    config = AppConfig()
-    config.chat_session_id = sid
-    agent = FakeAgent(mode="block")
-    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
-    await orchestrator.start_run("hi", [], _noop_cb)
-    assert orchestrator.run_id
-
-    result = orchestrator.cancel_takeover(orchestrator.run_id, "用户取消接管")
-    assert result == {"ok": True, "status": "cancelled", "reason": "用户取消接管"}
-
-    assert get_takeover_checkpoint_store().get(sid) is None
-    assert mgr.takeover.state == HumanTakeoverState.CANCELLED
-
-    session = store.get(sid)
-    assert session is not None
-    assert any(r.run_id == orchestrator.run_id and r.status == "cancelled" for r in session.runs)
-    assert len(session.model_messages) == 1
-    assert any(isinstance(p, ToolCallPart) for p in session.model_messages[0].parts)
-
-    again = orchestrator.cancel_takeover(orchestrator.run_id, "重复取消")
-    assert again == {"ok": False, "error": "no_active_takeover", "status": "not_cancelled"}
-
-
-@pytest.mark.asyncio
-async def test_cancel_takeover_run_mismatch(monkeypatch, store):
-    _patch_store(monkeypatch, store)
-    sid = store.create().session_id
-    mgr = get_manager()
-    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
-
-    config = AppConfig()
-    config.chat_session_id = sid
-    orchestrator = ApprovalOrchestrator(sid, config, agent=FakeAgent(mode="block"))
-    await orchestrator.start_run("hi", [], _noop_cb)
-
-    result = orchestrator.cancel_takeover("wrong-run-id", "取消")
-    assert result == {"ok": False, "error": "run_mismatch", "status": "not_cancelled"}
-    assert get_takeover_checkpoint_store().get(sid) is not None
 
 
 @pytest.mark.asyncio
@@ -504,31 +311,6 @@ async def test_cancel_route_run_mismatch_returns_409(monkeypatch, store):
             )
         )
     assert exc.value.status_code == 409
-
-
-@pytest.mark.asyncio
-async def test_cancel_then_new_message_starts_new_run(monkeypatch, store):
-    _patch_store(monkeypatch, store)
-    sid = store.create().session_id
-    mgr = get_manager()
-    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
-
-    config = AppConfig()
-    config.chat_session_id = sid
-    agent = FakeAgent(mode="block")
-    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
-    await orchestrator.start_run("hi", [], _noop_cb)
-    run1 = orchestrator.run_id
-
-    orchestrator.cancel_takeover(run1, "取消")
-
-    config2 = AppConfig()
-    config2.chat_session_id = sid
-    agent2 = FakeAgent(mode="complete")
-    orchestrator2 = ApprovalOrchestrator(sid, config2, agent=agent2)
-    summary = await orchestrator2.start_run("next message", [], _noop_cb)
-    assert summary["status"] == "completed"
-    assert agent2.last_prompt == "next message"
 
 
 def test_model_message_serialization_roundtrip_tool_parts(tmp_path):

@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
+from browser.login_state import LoginState, detect_login_state, netloc_of
 from config.secrets import delete_browser_profile, get_browser_profile, save_browser_profile
+from core.logging_setup import get_logger
+
+logger = get_logger("browser.profiles")
 
 if TYPE_CHECKING:
     from browser.manager import BrowserManager
@@ -131,7 +135,47 @@ async def load_profile(manager: BrowserManager, name: str, workspace_id: str) ->
             )
     if original_url:
         await page.goto(original_url, wait_until="domcontentloaded")
+
+    expected = [c["name"] for c in storage_state.get("cookies", []) if c.get("name")]
+    state = await detect_login_state(page, expected_cookie_names=expected or None)
+    logger.info(
+        "profile '%s' restored: login_state=%s reason=%s domain=%s",
+        name, state.status, state.reason, state.domain,
+    )
     return True
+
+
+async def validate_profile(manager: BrowserManager, name: str, workspace_id: str) -> LoginState:
+    """校验已保存 profile 的登录态在当前浏览器会话中是否仍然有效。
+
+    依据：profile 保存时的 cookie 名集合。只要关键会话 cookie 仍在，视为有效。
+    不导航、不改动页面状态，可在任意页面调用。
+    """
+    storage_state = get_browser_profile(workspace_id, name)
+    if storage_state is None:
+        return LoginState(status="unknown", reason=f"profile '{name}' 不存在")
+
+    page = manager.page()
+    if not page:
+        raise BrowserNotLaunchedError()
+
+    cookies = storage_state.get("cookies", [])
+    expected = [c["name"] for c in cookies if c.get("name")]
+
+    # 当前页面无有效域名时，用 profile cookie 中出现最多的域名兜底
+    domain = None
+    if not netloc_of(page.url):
+        domains = [str(c.get("domain", "")).lstrip(".") for c in cookies if c.get("domain")]
+        if domains:
+            from collections import Counter
+
+            domain = Counter(domains).most_common(1)[0][0]
+
+    return await detect_login_state(
+        page,
+        domain=domain,
+        expected_cookie_names=expected or None,
+    )
 
 
 def profile_exists(name: str, workspace_id: str, workspace_path: Path) -> bool:

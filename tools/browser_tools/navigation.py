@@ -47,6 +47,9 @@ async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
         manager.reset_element_failures()
         await manager.detect_takeover()
         logger.info(f"browser_navigate detect_takeover result takeover_state={manager.takeover.state.value}")
+    else:
+        # 兜底：认证/网络等失败持续 3 次时直接触发人工接管（Layer 4）。
+        manager.record_nav_timeout()
 
     return result
 

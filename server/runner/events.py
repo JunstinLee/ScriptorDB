@@ -128,6 +128,15 @@ def browser_action_event(
     }
 
 
+def takeover_cancelled_event(*, run_id: str, reason: str) -> dict[str, Any]:
+    return {
+        "type": "takeover_cancelled",
+        "run_id": run_id,
+        "reason": reason,
+        "timestamp": utc_now_iso(),
+    }
+
+
 def human_takeover_request_event(
     *,
     run_id: str,

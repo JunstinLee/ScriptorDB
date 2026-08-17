@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from typing import Any, Generator, Sequence
 
 import pymysql
-from dbutils.pooled_db import PooledDB
+from dbutils.pooled_db import PooledDB, PooledDedicatedDBConnection, PooledSharedDBConnection
 from pymysql.cursors import DictCursor
 
 _pool_cache: dict[str, PooledDB] = {}
@@ -65,7 +65,10 @@ class _CursorProxy:
 
 
 class _ConnectionWrapper:
-    def __init__(self, conn: pymysql.Connection) -> None:
+    def __init__(
+        self,
+        conn: pymysql.Connection | PooledSharedDBConnection | PooledDedicatedDBConnection,
+    ) -> None:
         self._conn = conn
 
     def cursor(self) -> _CursorProxy:

@@ -5,6 +5,7 @@ from typing import Literal
 
 from playwright.async_api import Page
 
+from browser.login_state import netloc_of
 from core.logging_setup import get_logger
 
 logger = get_logger("browser.context")
@@ -25,6 +26,12 @@ async def navigate(page: Page, url: str, wait_until: WaitUntil = "domcontentload
             pass
         return f"Navigated to {url}"
     except Exception as e:
+        if "ERR_INVALID_AUTH" in str(e):
+            try:
+                from browser import get_manager
+                get_manager().record_auth_challenge(netloc_of(url))
+            except Exception:
+                pass
         logger.error(f"page.goto failed url={url} error={e}")
         return f"Navigation failed: {e}"
 

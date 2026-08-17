@@ -266,19 +266,15 @@ export function useChatStream(params: UseChatStreamParams) {
 
   const handleTakeoverComplete = useCallback(
     async (sessionId: string, result: string) => {
-      abortRef.current?.abort();
+      // 不 abort 原 chat SSE 流：恢复是唤醒同一 run，后续事件继续由原流推送。
       takeoverAbortRef.current?.abort();
       takeover.enterResuming();
 
       takeoverAbortRef.current = completeTakeoverApi(
         sessionId,
         result,
-        makeEventCallback(sessionId),
-        (fullOutput: string) => {
-          finalizeAssistantMessage(fullOutput);
-          setLoading(false);
-          void refreshSessionTitle(sessionId);
-          void refreshUndo();
+        () => {
+          // 唤醒成功；run 继续，最终由原流的 onDone 完成消息落库。
           takeover.reset();
         },
         (error: Error) => {
@@ -294,11 +290,7 @@ export function useChatStream(params: UseChatStreamParams) {
     },
     [
       takeover,
-      makeEventCallback,
-      finalizeAssistantMessage,
       setLoading,
-      refreshSessionTitle,
-      refreshUndo,
       handleWorkspaceMissing,
       appendStreamingText,
     ],
