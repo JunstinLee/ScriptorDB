@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from config.global_settings import apply_global_defaults
+from config.secrets import save_mysql_password
 from config.workspace_paths import (
     DEFAULT_WORKSPACES_DIR,
     GLOBAL_CONFIG_DIR,
@@ -24,6 +25,37 @@ from config.workspace_settings import WorkspaceSettings
 
 def _new_workspace_id() -> str:
     return f"ws_{uuid.uuid4().hex[:10]}"
+
+
+def _store_db_url_credentials(db_url: str, workspace_id: str) -> tuple[str, bool]:
+    """将 mysql URL 内嵌的密码提取到 keyring，返回 (无密码 URL, 是否提取到密码)。
+
+    settings.json 中不允许明文保存数据库凭据；运行时密码统一从 keyring 解析
+    （见 database/connection.py 与 database/repository.py）。
+    """
+    if not db_url.startswith("mysql"):
+        return db_url, False
+    try:
+        from sqlalchemy import URL, make_url
+
+        url = make_url(db_url)
+        if url.password:
+            save_mysql_password(workspace_id, url.password)
+            # URL.set() 对 None 是"保持不变"哨兵（官方文档），
+            # 显式移除密码需用 URL.create() 重新构造。
+            clean = URL.create(
+                url.drivername,
+                username=url.username,
+                password=None,
+                host=url.host,
+                port=url.port,
+                database=url.database,
+                query=url.query,
+            )
+            return str(clean), True
+    except Exception:
+        pass
+    return db_url, False
 
 
 @dataclass
@@ -186,7 +218,9 @@ class WorkspaceRegistry:
         (ws_dir / "browser_profiles").mkdir(parents=True, exist_ok=True)
         ws_settings = WorkspaceSettings.load(resolved, ws_id, rec.name)
         if db_url:
-            ws_settings.db_url = db_url
+            ws_settings.db_url, password_extracted = _store_db_url_credentials(db_url, ws_id)
+            if password_extracted:
+                ws_settings.mysql_password_set = True
         # 新工作区继承全局默认模型
         # TODO: 当支持"单个工作区覆盖"时，保留 use_global_defaults=True
         apply_global_defaults(ws_settings)

@@ -146,3 +146,51 @@ def test_get_session_after_workspace_switch_uses_correct_store(workspace_env, cl
     resp = client.get(f"/api/sessions/{sid}")
     assert resp.status_code == 404
     assert sid not in _file_store()._sessions
+
+
+def test_create_workspace_strips_mysql_password_into_keyring(workspace_env, monkeypatch):
+    """db_url 内嵌的 mysql 密码必须剥离到 keyring，settings.json 不允许明文凭据。"""
+    import config.secrets as secrets_module
+    from config.workspace import WorkspaceSettings
+
+    class _FakeKeyring:
+        def __init__(self):
+            self.store: dict[str, dict[str, str]] = {}
+
+        def set_password(self, service, username, password):
+            self.store.setdefault(service, {})[username] = password
+
+        def get_password(self, service, username):
+            return self.store.get(service, {}).get(username)
+
+    fake = _FakeKeyring()
+    monkeypatch.setattr(secrets_module, "keyring", fake)
+
+    path = workspace_env / "ws"
+    path.mkdir(parents=True, exist_ok=True)
+    rec = WorkspaceRegistry().create(
+        path,
+        name="ws",
+        db_url="mysql+pymysql://alice:supersecret@db.example.com:3306/appdb",
+    )
+
+    settings = WorkspaceSettings.load(path, rec.id, rec.name)
+    assert settings.db_url == "mysql+pymysql://alice@db.example.com:3306/appdb"
+    assert settings.mysql_password_set is True
+
+    raw = (path / ".scriptordb" / "settings.json").read_text()
+    assert "supersecret" not in raw
+
+    service = secrets_module._service(rec.id)
+    assert fake.store[service][secrets_module.MYSQL_PASSWORD_USERNAME] == "supersecret"
+
+    # 非 mysql URL 原样保留，不触发 keyring 写入
+    path2 = workspace_env / "ws2"
+    path2.mkdir(parents=True, exist_ok=True)
+    sqlite_url = f"sqlite:///{path2}/app.sqlite"
+    rec2 = WorkspaceRegistry().create(path2, name="ws2", db_url=sqlite_url)
+    settings2 = WorkspaceSettings.load(path2, rec2.id, rec2.name)
+    assert settings2.db_url == sqlite_url
+    assert settings2.mysql_password_set is False
+    service2 = secrets_module._service(rec2.id)
+    assert service2 not in fake.store or not fake.store[service2]
