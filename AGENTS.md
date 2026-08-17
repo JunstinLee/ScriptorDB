@@ -82,6 +82,7 @@ Most CLI commands and server endpoints require an active workspace. Without one,
 - The Vite dev server proxies `/api` to `http://localhost:8000`; backend CORS allows all origins.
 
 ## Operating conventions
+- 与用户交流时，禁止使用"冒烟"、"冒烟测试"等术语化或容易联想到硬件的词汇，也不要用任何晦涩的技术黑话；描述验证、检查、运行效果时一律使用大白话（如"直接运行看效果"、"打开浏览器实际执行一次"）。
 - NEVER verify framework/library behavior by reading third-party source code in `site-packages`, `node_modules`, or similar vendored locations. To confirm a library mechanism (e.g. pydantic-ai event/cancel semantics), consult official documentation or search the web instead.
 - Do NOT fix TypeScript / TSX type errors without explicit instruction — the user will inspect the files and provide the specific errors to address; do not modify `.ts` / `.tsx` files on your own initiative to resolve type issues.
 - If you change backend code, prompt the user to restart the backend.

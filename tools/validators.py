@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 
 from pydantic_ai import ModelRetry, RunContext
@@ -123,3 +124,37 @@ def validate_sql_dml(
                 f"{upper.split()[0]} statements must include a WHERE clause "
                 "to limit the affected rows."
             )
+
+
+_FILTER_ACTIONS = ("select", "input", "toggle", "set_range", "date_range")
+
+
+def validate_filter_apply_args(
+    ctx: RunContext[Settings],
+    action: str,
+    target: str,
+    value: str = "",
+    values: str = "",
+    submit: bool = True,
+    *args: object,
+    **kwargs: object,
+) -> None:
+    if action not in _FILTER_ACTIONS:
+        raise ModelRetry(
+            f"action 必须是 {sorted(_FILTER_ACTIONS)} 之一，收到 '{action}'"
+        )
+    if not target or not target.strip():
+        raise ModelRetry(
+            "target 不能为空（应为 browser_detect_filters 返回的筛选器 name 或 selector）"
+        )
+    if values and values.strip():
+        try:
+            parsed = json.loads(values)
+        except json.JSONDecodeError:
+            raise ModelRetry(
+                "values 必须是 JSON 数组字符串，如 '[\"2026-01-01\",\"2026-12-31\"]'"
+            )
+        if not isinstance(parsed, list):
+            raise ModelRetry("values 必须是 JSON 数组字符串")
+    if action == "date_range" and not (values and values.strip()):
+        raise ModelRetry("date_range 需要 values 提供起止值（JSON 数组字符串）")
