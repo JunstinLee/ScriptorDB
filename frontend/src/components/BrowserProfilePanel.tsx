@@ -13,13 +13,25 @@ interface BrowserProfilePanelProps {
   browserLaunched: boolean;
 }
 
+function normalizeHost(domain: string): string {
+  let host = domain.trim().toLowerCase();
+  host = host.replace(/^[a-z][a-z0-9+.-]*:\/\//, "");
+  host = host.split(/[/?#]/)[0].split(":")[0];
+  return host.replace(/^www\./, "");
+}
+
+function isHost(host: string, suffix: string): boolean {
+  return host === suffix || host.endsWith("." + suffix);
+}
+
 function domainIcon(domain: string) {
-  if (domain.includes("github.com")) return "gh";
-  if (domain.includes("gitlab.com")) return "gl";
-  if (domain.includes("amazon.com") || domain.includes("aws.")) return "aws";
-  if (domain.includes("google.com")) return "G";
-  if (domain.includes("stackoverflow.com")) return "SO";
-  return domain.charAt(0).toUpperCase();
+  const host = normalizeHost(domain);
+  if (isHost(host, "github.com")) return "gh";
+  if (isHost(host, "gitlab.com")) return "gl";
+  if (isHost(host, "amazon.com") || isHost(host, "amazonaws.com")) return "aws";
+  if (isHost(host, "google.com")) return "G";
+  if (isHost(host, "stackoverflow.com")) return "SO";
+  return (host || domain).charAt(0).toUpperCase();
 }
 
 function formatDate(iso: string) {
