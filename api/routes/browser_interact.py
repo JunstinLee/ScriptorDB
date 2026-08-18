@@ -153,3 +153,14 @@ async def browser_interact_coords(body: InteractByCoordsRequest):
     actual_y = (body.y / body.viewport_height) * vh
     await page.mouse.click(actual_x, actual_y)
     return {"ok": True}
+
+
+@router.post("/close")
+async def close_browser():
+    from browser import get_manager
+    require_workspace()
+    mgr = get_manager()
+    if not mgr.is_launched():
+        return {"ok": True, "detail": "Browser not running"}
+    await mgr.close()
+    return {"ok": True, "detail": "Browser closed"}

@@ -27,6 +27,7 @@ interface BrowserWorkspaceProps {
   sessionId?: string;
   filterSchema?: FilterSchema | null;
   onFiltersApplied?: () => void;
+  onCloseBrowser?: () => void;
 }
 
 function BrowserViewport({
@@ -119,6 +120,7 @@ export function BrowserWorkspace({
   isRunning,
   filterSchema,
   onFiltersApplied,
+  onCloseBrowser,
 }: BrowserWorkspaceProps) {
   if (error) {
     return (
@@ -140,6 +142,9 @@ export function BrowserWorkspace({
         trigger={takeoverInfo.trigger}
         remainingSeconds={takeoverInfo.remainingSeconds}
         browserRunning={!!state?.launched}
+        idleCloseActive={state?.idle_close_active ?? false}
+        idleCloseRemaining={state?.idle_close_remaining ?? 0}
+        onCloseBrowser={onCloseBrowser ?? (() => {})}
       />
 
       {state?.launched && (

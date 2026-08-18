@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import math
 import time
 from contextlib import suppress
 from datetime import datetime, timezone
@@ -18,7 +19,7 @@ from core.logging_setup import get_logger
 logger = get_logger("browser.manager")
 
 SCREENSHOT_TTL = 30
-IDLE_CLOSE_TIMEOUT = 150
+IDLE_CLOSE_TIMEOUT = 60
 
 
 class BrowserManager:
@@ -40,6 +41,7 @@ class BrowserManager:
         self._auth_origin: str | None = None
         self._screencast_connection: object | None = None
         self._idle_close_task: asyncio.Task | None = None
+        self._idle_close_deadline: float | None = None
         self.tabs = TabManager()
         self.trace = ClickTracer()
 
@@ -133,6 +135,8 @@ class BrowserManager:
             ),
             "screenshot_path": self._last_screenshot,
             "launched_at": self._launched_at,
+            "idle_close_active": self.is_idle_close_scheduled(),
+            "idle_close_remaining": self.idle_close_remaining(),
             "actions": list(self._actions),
             "history": list(self._history),
         }
@@ -221,22 +225,30 @@ class BrowserManager:
         if not self.is_launched():
             return
         logger.info(f"scheduling idle close in {timeout}s")
+        self._idle_close_deadline = time.monotonic() + timeout
         self._idle_close_task = asyncio.create_task(self._idle_close_after(timeout))
 
     async def _idle_close_after(self, timeout: float) -> None:
         await asyncio.sleep(timeout)
+        self._idle_close_deadline = None
         if not self.is_launched():
             return
         logger.info("idle close timer fired; closing browser")
         await self.close()
 
     def cancel_idle_close(self) -> None:
+        self._idle_close_deadline = None
         if self._idle_close_task and not self._idle_close_task.done():
             self._idle_close_task.cancel()
             self._idle_close_task = None
 
     def is_idle_close_scheduled(self) -> bool:
         return self._idle_close_task is not None and not self._idle_close_task.done()
+
+    def idle_close_remaining(self) -> int:
+        if self._idle_close_deadline is None:
+            return 0
+        return max(0, int(math.ceil(self._idle_close_deadline - time.monotonic())))
 
     async def show_window(self):
         if not self.is_launched() or not self._context:

@@ -30,6 +30,7 @@ import {
   deleteCookie,
   clearAllCookies,
   showTakeoverWindow,
+  closeBrowser,
 } from "./api/browser";
 import { useOverlayState } from "@heroui/react";
 import type {
@@ -437,6 +438,9 @@ function MainApp({
               sessionId={activeSessionId ?? ""}
               filterSchema={filterSchema}
               onFiltersApplied={refreshBrowser}
+              onCloseBrowser={() => {
+                void closeBrowser().then(() => refreshBrowser());
+              }}
             />
           </div>
 

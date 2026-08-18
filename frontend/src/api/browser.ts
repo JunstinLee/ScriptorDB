@@ -9,6 +9,10 @@ export function getScreenshotUrl(): string {
   return `/api/browser/screenshot?t=${Date.now()}`;
 }
 
+export async function closeBrowser(): Promise<void> {
+  await request("/browser/close", { method: "POST" });
+}
+
 export async function interactBrowser(req: InteractRequest): Promise<InteractResponse> {
   return request<InteractResponse>("/browser/interact", {
     method: "POST",
