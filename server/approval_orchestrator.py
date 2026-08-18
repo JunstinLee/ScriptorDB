@@ -12,6 +12,7 @@ from config.app_config import AppConfig
 from server.agent_runner import run_agent_stream
 from server.approval_policy import (
     HIGH_RISK_IMPORT_TOOLS,
+    HUMAN_APPROVAL_TOOLS,
     IMPORT_ROW_THRESHOLD,
     LOW_RISK_WRITE_TOOLS,
     PendingApproval,
@@ -162,8 +163,13 @@ class ApprovalOrchestrator:
         event_callback: Callable[[dict[str, Any]], Awaitable[None]],
         run_collector: dict[str, Any],
         new_messages_collector: list[ModelMessage],
+        override_args: dict | None = None,
     ) -> bool:
-        """Resume a previously paused run after the user approved/denied calls."""
+        """Resume a previously paused run after the user approved/denied calls.
+
+        override_args: call_id -> 用户修改后的最终参数（仅含被改字段）。
+        未提供或缺失该 call_id 时按原参数执行（与现状一致）。
+        """
         pending = get_pending_store().pop(request_id)
         if pending is None:
             return False
@@ -232,7 +238,10 @@ class ApprovalOrchestrator:
             call_id = call["tool_call_id"]
             approved = approved_map.get(call_id, False)
             if approved:
-                results.approvals[call_id] = ToolApproved()
+                if override_args and call_id in override_args:
+                    results.approvals[call_id] = ToolApproved(override_args=override_args[call_id])
+                else:
+                    results.approvals[call_id] = ToolApproved()
             else:
                 denied_ids.append(call_id)
                 self._run_tracker.add_tool_invocation(
@@ -429,6 +438,13 @@ def _process_deferred_requests(
                 })
                 continue
             auto_calls.append(call)
+            continue
+        if tool_name in HUMAN_APPROVAL_TOOLS:
+            pending_calls.append({
+                "tool_call_id": call.tool_call_id,
+                "tool_name": tool_name,
+                "args": args,
+            })
             continue
         auto_calls.append(call)
 

@@ -20,6 +20,9 @@ HIGH_RISK_IMPORT_TOOLS = frozenset({
     "import_excel_to_db",
 })
 
+# 人工确认工具：deferred 调用一律挂起等待用户在确认抽屉中审批（可改值后应用）。
+HUMAN_APPROVAL_TOOLS = frozenset({"browser_apply_filter"})
+
 IMPORT_ROW_THRESHOLD = 100
 
 

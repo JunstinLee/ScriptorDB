@@ -29,6 +29,10 @@ class InteractRequest(BaseModel):
     selector: str = ""
     value: str = ""
     scroll_pixels: int = 0
+    # 筛选动作字段（action 为 select/input/toggle/set_range/date_range 时使用）
+    target: str = ""
+    values: str = ""
+    submit: bool = True
 
 
 class InteractByCoordsRequest(BaseModel):
@@ -102,6 +106,7 @@ async def browser_interact(body: InteractRequest):
     from browser import get_manager
     from browser.actions import click, fill, press_key, scroll_by, go_back, go_forward
     from browser.context import navigate as ctx_navigate
+    from tools.browser_tools.filter_apply import FILTER_ACTIONS, execute_filter_action
 
     mgr = get_manager()
     mgr.cancel_idle_close()
@@ -120,6 +125,11 @@ async def browser_interact(body: InteractRequest):
         "go_back": lambda: go_back(page),
         "go_forward": lambda: go_forward(page),
     }
+    # 筛选动作：与 browser_apply_filter 共用同一执行实现，行为一致
+    for _act in FILTER_ACTIONS:
+        dispatch[_act] = lambda _a=_act: execute_filter_action(
+            page, _a, body.target, body.value, body.values, body.submit
+        )
     fn = dispatch.get(body.action)
     if not fn:
         raise HTTPException(400, f"Unknown action: {body.action}")

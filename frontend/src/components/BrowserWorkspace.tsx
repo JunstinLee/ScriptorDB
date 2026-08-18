@@ -1,9 +1,10 @@
 import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
-import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo } from "../types";
+import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo, FilterSchema } from "../types";
 import { getScreenshotUrl } from "../api/browser";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { BrowserViewportStream } from "./BrowserViewportStream";
 import { BrowserStatusBar } from "./BrowserStatusBar";
+import { FilterPanel } from "./FilterPanel";
 import { HumanTakeoverDrawer } from "./HumanTakeoverPanel";
 import type { TakeoverInfo } from "../hooks/useTakeoverState";
 
@@ -24,6 +25,8 @@ interface BrowserWorkspaceProps {
   cookiesLoading?: boolean;
   onLoadProfile?: (name: string) => void;
   sessionId?: string;
+  filterSchema?: FilterSchema | null;
+  onFiltersApplied?: () => void;
 }
 
 function BrowserViewport({
@@ -114,6 +117,8 @@ export function BrowserWorkspace({
   sessionId,
   actions,
   isRunning,
+  filterSchema,
+  onFiltersApplied,
 }: BrowserWorkspaceProps) {
   if (error) {
     return (
@@ -147,6 +152,15 @@ export function BrowserWorkspace({
           onLoadProfile={onLoadProfile}
           actions={actions}
           isRunning={isRunning}
+        />
+      )}
+
+      {state?.launched && (
+        <FilterPanel
+          schema={filterSchema ?? null}
+          isRunning={isRunning ?? false}
+          sessionId={sessionId ?? ""}
+          onApplied={onFiltersApplied}
         />
       )}
 

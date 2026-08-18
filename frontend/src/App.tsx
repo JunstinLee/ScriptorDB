@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Toast } from "@heroui/react";
 import ChatPanel from "./components/ChatPanel";
 import ConfirmDialog from "./components/common/ConfirmDialog";
+import { FilterConfirmDrawer } from "./components/FilterConfirmDrawer";
 import MainTabBar from "./components/MainTabBar";
 import SchemaSidebar from "./components/SchemaSidebar";
 import SettingsModal from "./components/SettingsModal";
@@ -205,7 +206,7 @@ function MainApp({
   const [browserActive, setBrowserActive] = useState(false);
   const [activeMainTab, setActiveMainTab] = useState<"chat" | "browser">("chat");
   const [browserEnabled, setBrowserEnabled] = useState(false);
-  const { state: browserState, loading: browserLoading, error: browserError } =
+  const { state: browserState, loading: browserLoading, error: browserError, refresh: refreshBrowser } =
     useBrowser(browserEnabled, workspace?.id ?? null);
   const { actions: browserActions, appendAction, clearActions } = useBrowserActions();
   const { profiles, loading: profilesLoading, refresh: refreshProfiles } = useProfiles(workspace?.id ?? null);
@@ -222,7 +223,7 @@ function MainApp({
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const { handleSend, handleApprovalSubmit, approvalRequest, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
+  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
     activeSessionId,
     addUserMessage,
     appendEvent,
@@ -434,6 +435,8 @@ function MainApp({
               cookiesLoading={cookiesLoading}
               onLoadProfile={handleLoadProfile}
               sessionId={activeSessionId ?? ""}
+              filterSchema={filterSchema}
+              onFiltersApplied={refreshBrowser}
             />
           </div>
 
@@ -518,18 +521,28 @@ function MainApp({
         confirmLabel="Undo"
       />
 
-      <ConfirmDialog
-        isOpen={approvalRequest !== null}
-        onClose={() => handleApprovalSubmit(false)}
-        onConfirm={() => handleApprovalSubmit(true)}
-        title="Confirm Import"
-        message={
-          approvalRequest
-            ? `${approvalRequest.calls[0]?.tool_name ?? "import"} will write ${approvalRequest.calls[0]?.row_count ?? ""} row(s) into table ${approvalRequest.calls[0]?.table_name ?? ""}. Proceed?`
-            : ""
-        }
-        confirmLabel="Confirm"
-      />
+      {approvalRequest !== null &&
+      approvalRequest.calls[0]?.tool_name === "browser_apply_filter" ? (
+        <FilterConfirmDrawer
+          request={approvalRequest}
+          schema={filterSchema}
+          onApprove={(overrideArgs) => handleApprovalSubmit(true, overrideArgs)}
+          onReject={() => handleApprovalSubmit(false)}
+        />
+      ) : (
+        <ConfirmDialog
+          isOpen={approvalRequest !== null}
+          onClose={() => handleApprovalSubmit(false)}
+          onConfirm={() => handleApprovalSubmit(true)}
+          title="Confirm Import"
+          message={
+            approvalRequest
+              ? `${approvalRequest.calls[0]?.tool_name ?? "import"} will write ${approvalRequest.calls[0]?.row_count ?? ""} row(s) into table ${approvalRequest.calls[0]?.table_name ?? ""}. Proceed?`
+              : ""
+          }
+          confirmLabel="Confirm"
+        />
+      )}
 
       <WorkspacePicker
         workspaces={workspaces}

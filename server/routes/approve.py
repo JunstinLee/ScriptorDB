@@ -45,6 +45,7 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
             event_callback,
             run_collector=run_collector,
             new_messages_collector=new_messages_collector,
+            override_args=req.override_args,
         )
     )
 

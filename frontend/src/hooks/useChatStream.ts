@@ -9,6 +9,7 @@ import { useTakeoverState } from "./useTakeoverState";
 import type {
   ApprovalRequestEvent,
   BrowserActionEvent,
+  FilterSchema,
   StreamRunEvent,
   ToolResultRunEvent,
   RunEndEvent,
@@ -58,6 +59,8 @@ export function useChatStream(params: UseChatStreamParams) {
   const approvalSessionIdRef = useRef<string | null>(null);
   const [approvalRequest, setApprovalRequest] =
     useState<ApprovalRequestEvent | null>(null);
+  // 最近一次 browser_detect_filters 的 Filter Schema（新 run 开始时清空）
+  const [filterSchema, setFilterSchema] = useState<FilterSchema | null>(null);
   const takeover = useTakeoverState(() => {
     const sid = approvalSessionIdRef.current;
     if (sid) {
@@ -82,6 +85,25 @@ export function useChatStream(params: UseChatStreamParams) {
           appendAction(event);
           setBrowserActive(true);
           setActiveMainTab("browser");
+        }
+        if (event.type === "run_start") {
+          // 新 run 开始时清空旧 schema，避免残留误导面板/抽屉
+          setFilterSchema(null);
+        }
+        if (
+          event.type === "tool_result" &&
+          event.tool_name === "browser_detect_filters"
+        ) {
+          try {
+            const parsed = event.output
+              ? (JSON.parse(event.output) as FilterSchema)
+              : null;
+            if (parsed && Array.isArray(parsed.filters)) {
+              setFilterSchema(parsed);
+            }
+          } catch {
+            // 忽略无法解析的 tool_result，保持现有 schema 不变
+          }
         }
         if (event.type === "human_takeover_request") {
           takeover.enterWaiting(
@@ -203,7 +225,10 @@ export function useChatStream(params: UseChatStreamParams) {
   );
 
   const handleApprovalSubmit = useCallback(
-    (approved: boolean) => {
+    (
+      approved: boolean,
+      overrideArgs?: Record<string, Record<string, unknown>>,
+    ) => {
       const request = approvalRequest;
       const sid = approvalSessionIdRef.current;
       setApprovalRequest(null);
@@ -252,6 +277,7 @@ export function useChatStream(params: UseChatStreamParams) {
         (event) => {
           setApprovalRequest(event);
         },
+        overrideArgs,
       );
     },
     [
@@ -320,6 +346,7 @@ export function useChatStream(params: UseChatStreamParams) {
     handleSend,
     handleApprovalSubmit,
     approvalRequest,
+    filterSchema,
     takeoverInfo: takeover.info,
     handleTakeoverComplete,
     handleTakeoverCancel,

@@ -155,6 +155,7 @@ export function streamApproval(
   onError: (error: Error) => void,
   onDone: (fullOutput: string) => void,
   onApprovalRequest?: (event: Extract<StreamRunEvent, { type: "approval_request" }>) => void,
+  overrideArgsByCallId?: Record<string, Record<string, unknown>>,
 ): AbortController {
   const controller = new AbortController();
 
@@ -163,7 +164,11 @@ export function streamApproval(
       const res = await fetch(`${BASE}/sessions/${sessionId}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ request_id: requestId, approved_map: approvedMap }),
+        body: JSON.stringify({
+          request_id: requestId,
+          approved_map: approvedMap,
+          ...(overrideArgsByCallId ? { override_args: overrideArgsByCallId } : {}),
+        }),
         signal: controller.signal,
       });
 
