@@ -56,6 +56,7 @@ export default function SchemaSidebar({
   onRefreshCookies,
 }: SchemaSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [selectedTab, setSelectedTab] = useState("schema");
   const [schemaView, setSchemaView] = useState<"map" | "list">("map");
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
@@ -104,7 +105,11 @@ export default function SchemaSidebar({
   }
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l">
+    <aside
+      className="flex w-[360px] shrink-0 flex-col border-l"
+      onMouseEnter={() => setSidebarHovered(true)}
+      onMouseLeave={() => setSidebarHovered(false)}
+    >
       <div className="flex items-center gap-2 border-b border-grid px-3 py-2">
         <Tabs
           selectedKey={effectiveSelectedTab}
@@ -202,7 +207,7 @@ export default function SchemaSidebar({
                 <p className="text-sm">No session selected</p>
               </div>
             ) : (
-              <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} browserState={browserState} browserLoading={browserLoading} onViewBrowser={onViewBrowser} />
+              <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} sidebarHovered={sidebarHovered} browserState={browserState} browserLoading={browserLoading} onViewBrowser={onViewBrowser} />
             )}
           </div>
         ) : (
