@@ -9,9 +9,9 @@ from fastapi.testclient import TestClient
 
 import config.global_settings as gs_module
 import config.secrets as secrets
-import server.dependencies as dependencies
+import api.dependencies as dependencies
 from config.app_config import AppConfig
-from server.app import app
+from api.app import app
 
 
 class FakeKeyring:

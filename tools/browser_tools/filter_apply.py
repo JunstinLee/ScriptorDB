@@ -161,7 +161,7 @@ async def browser_apply_filter(ctx: RunContext[Settings], action: str, target: s
     session_id = ctx.deps.chat_session_id if ctx.deps else None
     if session_id:
         try:
-            from server.filter_confirm import get_filter_confirm_store
+            from runtime.filter_confirm import get_filter_confirm_store
 
             override = get_filter_confirm_store().pop(session_id)
         except Exception:

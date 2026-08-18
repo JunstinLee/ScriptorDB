@@ -7,7 +7,7 @@ from config.app_config import AppConfig
 from config.models import fuzzy_match_model, resolve_model
 from config.provider_adapter import build_model
 from config.settings import Settings
-from services.run_control import build_output_validator
+from runtime.run_control import build_output_validator
 from tools.registry import get_all_tools
 from tools.toolsets import (
     _create_read_toolset as _,
@@ -87,8 +87,8 @@ def resolve_agent(
 ) -> Agent[Settings, str | DeferredToolRequests]:
     """Apply provider/model overrides and return an agent.
 
-    Shared by `server.runner.lifecycle.run_agent_stream` and
-    `server.approval_orchestrator` (previously duplicated inline).
+    Shared by `runtime.runner.lifecycle.run_agent_stream` and
+    `runtime.approval_orchestrator` (previously duplicated inline).
     """
     if provider:
         config.llm_provider = provider

@@ -8,8 +8,8 @@ from typing import Any
 from config.settings import load_for_workspace
 from config.workspace import WorkspaceRegistry, workspace_sessions_dir
 from config.workspace_paths import LEGACY_SESSIONS_FILE, LEGACY_SESSIONS_BACKUP_FILE
-import server.sessions as sessions_module
-from server.sessions import _DefaultSessionStore
+import runtime.sessions as sessions_module
+from runtime.sessions import _DefaultSessionStore
 
 
 def reload_session_store(workspace_path: Path) -> None:
@@ -95,7 +95,7 @@ def import_legacy_sessions(workspace_path_str: str) -> dict:
         if not isinstance(sid, str):
             continue
 
-        from server.session_model import Session
+        from runtime.session_model import Session
         from schemas import MessageItem, StoredRun
 
         session = Session(session_id=sid)

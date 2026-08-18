@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
+from typing import Any
+
+from pydantic_ai.messages import ModelMessage
+
+from config.app_config import AppConfig
+from config.models import get_canonical_by_slug, resolve_canonical_slug
+
+from runtime.agent_runner import run_agent_stream
+from runtime.run_tracker import RunTracker
+from api.sse_format import sse_done, sse_event
+
+
+_sse_event = sse_event  # 旧名称向后兼容
+
+
+async def stream_agent_response(
+    prompt: str,
+    message_history: list[ModelMessage],
+    config: AppConfig,
+    model: str | None = None,
+    provider: str | None = None,
+    agent: Any | None = None,
+    run_collector: dict[str, Any] | None = None,
+    new_messages_collector: list[ModelMessage] | None = None,
+) -> AsyncIterator[str]:
+    """薄协调层：把 agent_runner 产出 dict 事件转为 SSE 字符串。
+
+    接受外层传入的 run_collector 字典，结束时填充它（向后兼容）。
+    """
+    tracker = RunTracker()
+    if run_collector is not None:
+        run_collector.update(tracker.to_run_collector())
+
+    async for event in run_agent_stream(
+        prompt,
+        message_history,
+        config,
+        model=model,
+        provider=provider,
+        agent=agent,
+        tracker=tracker,
+    ):
+        ev_type = event.get("type", "")
+        if ev_type == "new_messages":
+            if new_messages_collector is not None:
+                new_messages_collector.extend(event.get("messages", []))
+            continue
+
+        if ev_type == "run_end":
+            yield sse_event(ev_type, event)
+            yield sse_done()
+            continue
+
+        yield sse_event(ev_type, event)
+
+    if run_collector is not None:
+        run_collector.update(tracker.to_run_collector())

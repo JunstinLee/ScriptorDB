@@ -26,16 +26,16 @@ from pydantic_ai.messages import (
 from browser import get_manager
 from browser.takeover import HumanTakeoverState
 from config.app_config import AppConfig
-from server.agent_runner import run_agent_stream
-from server.approval_orchestrator import ApprovalOrchestrator
-from server.approval_policy import get_takeover_checkpoint_store
-from server.runner.takeover_hook import RunPauseState, TakeoverCancelledError
-from server.routes.chat import (
+from runtime.agent_runner import run_agent_stream
+from runtime.approval_orchestrator import ApprovalOrchestrator
+from runtime.approval_policy import get_takeover_checkpoint_store
+from runtime.runner.takeover_hook import RunPauseState, TakeoverCancelledError
+from api.routes.chat import (
     _active_orchestrators,
     _stream_orchestrator_events,
     get_orchestrator,
 )
-from server.session_file_store import FileSessionStore
+from runtime.session_file_store import FileSessionStore
 
 
 class FakeRunContext:
@@ -124,10 +124,10 @@ def _reset_takeover():
 
 
 def _patch_store(monkeypatch, store):
-    monkeypatch.setattr("server.sessions.get_session_store", lambda: store)
+    monkeypatch.setattr("runtime.sessions.get_session_store", lambda: store)
     monkeypatch.setattr("services.chat_service.get_session_store", lambda: store)
     monkeypatch.setattr(
-        "server.approval_orchestrator.get_session_store", lambda: store
+        "runtime.approval_orchestrator.get_session_store", lambda: store
     )
 
 

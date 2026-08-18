@@ -13,8 +13,8 @@ from pydantic_ai import DeferredToolRequests, DeferredToolResults, ToolApproved
 from pydantic_ai.messages import ToolCallPart
 
 from schemas.approval import ApprovalSubmitRequest
-from server.approval_orchestrator import ApprovalOrchestrator, _process_deferred_requests
-from server.approval_policy import PendingApproval, get_pending_store
+from runtime.approval_orchestrator import ApprovalOrchestrator, _process_deferred_requests
+from runtime.approval_policy import PendingApproval, get_pending_store
 
 
 @pytest.fixture(autouse=True)

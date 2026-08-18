@@ -8,7 +8,7 @@ from pydantic_ai.models.test import TestModel
 
 import asyncio
 from config.settings import Settings
-from server.streaming import _sse_event, stream_agent_response
+from api.streaming import _sse_event, stream_agent_response
 from tools.db_tools import get_schema
 
 from tests.conftest import _auto_approve_handler

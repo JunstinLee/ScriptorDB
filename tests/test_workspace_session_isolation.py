@@ -9,10 +9,10 @@ import config.workspace_paths as workspace_paths
 import config.workspace_loader as workspace_loader
 import config.workspace_registry as workspace_registry_module
 import config.settings as settings_module
-import server.sessions as sessions_module
+import runtime.sessions as sessions_module
 from config.workspace_registry import WorkspaceRegistry
-from server.app import app
-from server.session_file_store import FileSessionStore
+from api.app import app
+from runtime.session_file_store import FileSessionStore
 
 
 @pytest.fixture
@@ -88,8 +88,8 @@ def _file_store() -> FileSessionStore:
 
 
 def test_activate_workspace_swaps_session_store(workspace_env, client):
-    """切换工作区时，server.sessions.session_store 必须指向新工作区。"""
-    import server.sessions as sm
+    """切换工作区时，runtime.sessions.session_store 必须指向新工作区。"""
+    import runtime.sessions as sm
 
     ws_a_path = workspace_env / "wsA"
     ws_b_path = workspace_env / "wsB"

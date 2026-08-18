@@ -22,18 +22,18 @@ from pydantic_ai.messages import (
 from browser import get_manager
 from browser.takeover import HumanTakeoverState
 from config.app_config import AppConfig
-from server.agent_runner import run_agent_stream
-from server.approval_orchestrator import ApprovalOrchestrator
-from server.routes.browser_interact import (
+from runtime.agent_runner import run_agent_stream
+from runtime.approval_orchestrator import ApprovalOrchestrator
+from api.routes.browser_interact import (
     TakeoverCompleteRequest,
     complete_human_takeover,
 )
-from server.routes.chat import (
+from api.routes.chat import (
     _active_orchestrators,
     _stream_orchestrator_events,
     get_orchestrator,
 )
-from server.session_file_store import FileSessionStore
+from runtime.session_file_store import FileSessionStore
 
 
 class FakeAgent:
@@ -115,10 +115,10 @@ def _reset_takeover():
 
 
 def _patch_store(monkeypatch, store):
-    monkeypatch.setattr("server.sessions.get_session_store", lambda: store)
+    monkeypatch.setattr("runtime.sessions.get_session_store", lambda: store)
     monkeypatch.setattr("services.chat_service.get_session_store", lambda: store)
     monkeypatch.setattr(
-        "server.approval_orchestrator.get_session_store", lambda: store
+        "runtime.approval_orchestrator.get_session_store", lambda: store
     )
 
 
@@ -218,7 +218,7 @@ async def test_deferred_pause_cleanup():
 @pytest.mark.asyncio
 async def test_complete_route_rejects_wrong_run_id(monkeypatch, store):
     _patch_store(monkeypatch, store)
-    from server.routes import browser_interact
+    from api.routes import browser_interact
 
     monkeypatch.setattr(browser_interact, "require_workspace", lambda: AppConfig())
     monkeypatch.setattr(browser_interact, "get_config", lambda: AppConfig())
@@ -274,7 +274,7 @@ async def test_chat_sse_disconnect_terminates_running_run(monkeypatch, store):
 @pytest.mark.asyncio
 async def test_cancel_route_stale_session_returns_error(monkeypatch, store):
     _patch_store(monkeypatch, store)
-    from server.routes import browser_interact
+    from api.routes import browser_interact
 
     monkeypatch.setattr(browser_interact, "require_workspace", lambda: AppConfig())
     monkeypatch.setattr(browser_interact, "get_config", lambda: AppConfig())
@@ -295,7 +295,7 @@ async def test_cancel_route_stale_session_returns_error(monkeypatch, store):
 @pytest.mark.asyncio
 async def test_cancel_route_run_mismatch_returns_409(monkeypatch, store):
     _patch_store(monkeypatch, store)
-    from server.routes import browser_interact
+    from api.routes import browser_interact
 
     monkeypatch.setattr(browser_interact, "require_workspace", lambda: AppConfig())
     monkeypatch.setattr(browser_interact, "get_config", lambda: AppConfig())

@@ -12,7 +12,7 @@ from pydantic_ai.messages import (
 from pydantic_ai.models.function import FunctionModel
 
 from config.settings import Settings
-from services.run_control import build_output_validator, extract_result_markers, should_allow_end
+from runtime.run_control import build_output_validator, extract_result_markers, should_allow_end
 
 _MARKERS_MSG = ModelRequest(
     parts=[

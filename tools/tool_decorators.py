@@ -31,7 +31,7 @@ def _wrap_browser_tool(func: Callable[..., Any], name: str) -> Callable[..., Any
         enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
         if not enabled:
             return await call_original()
-        from services.tool_middleware import evaluate_call, execute_switch
+        from runtime.tool_middleware import evaluate_call, execute_switch
 
         decision = await evaluate_call(ctx, name)
         if decision == "allow":
