@@ -9,7 +9,6 @@ from pydantic_ai.usage import RunUsage
 
 from browser import get_manager
 from config.settings import Settings
-from runtime.filter_confirm import FilterOverride, get_filter_confirm_store
 from tools.browser_tools.filters import _RESOLVE_SELECTOR_JS, browser_apply_filter, browser_detect_filters
 from tools.validators import validate_filter_apply_args
 
@@ -78,16 +77,6 @@ class TestFilterApplyValidator:
         )
 
 
-class TestFilterConfirmStore:
-    def test_override_pop_once(self):
-        store = get_filter_confirm_store()
-        store.add(FilterOverride(session_id="s1", run_id="r1", request_id="q1",
-                                 actions={"action": "select", "target": "Status", "value": "Active"}))
-        got = store.pop("s1")
-        assert got is not None and got.actions["value"] == "Active"
-        assert store.pop("s1") is None  # 一次性
-
-
 class TestDetectFiltersCleanup:
     @pytest.mark.asyncio
     async def test_cleanup_and_params(self):
@@ -119,30 +108,6 @@ class TestDetectFiltersCleanup:
 
 
 class TestApplyFilterOverride:
-    @pytest.mark.asyncio
-    async def test_override_replaces_args(self):
-        mock_page = AsyncMock()
-        mock_page.evaluate = AsyncMock(side_effect=lambda js, *a: (
-            "#status" if js == _RESOLVE_SELECTOR_JS
-            else [{"v": "Active", "t": "Active"}, {"v": "Inactive", "t": "Inactive"}]
-            if "Array.from(el.options)" in js
-            else None
-        ))
-        mock_page.select_option = AsyncMock()
-        mock_page.click = AsyncMock()
-        mock_page.wait_for_load_state = AsyncMock()
-        mock_page.wait_for_timeout = AsyncMock()
-
-        store = get_filter_confirm_store()
-        store.add(FilterOverride(session_id="s1", run_id="r1", request_id="q1",
-                                 actions={"action": "select", "target": "Status",
-                                          "value": "Inactive", "submit": False}))
-        with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_apply_filter(_ctx("s1"), action="select",
-                                                target="Status", value="Active")
-        assert "Inactive" in result  # 用户改值生效
-        mock_page.select_option.assert_awaited_once_with("#status", value="Inactive")
-
     @pytest.mark.asyncio
     async def test_without_launch(self):
         with patch.object(get_manager(), "_page", None):

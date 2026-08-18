@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-from typing import cast
 
 from config.settings import Settings
 from core.logging_setup import get_logger
@@ -158,22 +157,6 @@ async def execute_filter_action(page, action: str, target: str, value: str = "",
 async def browser_apply_filter(ctx: RunContext[Settings], action: str, target: str,
                                value: str = "", values: str = "", submit: bool = True) -> str:
     """在浏览器页面执行筛选动作（需用户确认后生效）。target 为 detect 返回的筛选器 name；date_range 用 values 提供起止值。"""
-    session_id = ctx.deps.chat_session_id if ctx.deps else None
-    if session_id:
-        try:
-            from runtime.filter_confirm import get_filter_confirm_store
-
-            override = get_filter_confirm_store().pop(session_id)
-        except Exception:
-            override = None
-        if override and override.actions:
-            acts = override.actions
-            action = acts.get("action") or action
-            target = acts.get("target") or target
-            value = cast(str, acts.get("value")) if "value" in acts else value
-            values = cast(str, acts.get("values")) if "values" in acts else values
-            submit = acts.get("submit", submit)
-
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
