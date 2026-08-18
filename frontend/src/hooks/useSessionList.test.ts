@@ -1,6 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useSessionList } from "./useSessionList";
+import { activeSessionKey } from "../utils/sessions";
+
+const WS_ID = "ws1";
 
 const { mockCreateSession, mockListSessions } = vi.hoisted(() => ({
   mockCreateSession: vi.fn(),
@@ -51,7 +54,7 @@ describe("useSessionList", () => {
       sessions: [makeItem("s1", "Chat 1"), makeItem("s2", "Chat 2")],
     });
 
-    const { result } = renderHook(() => useSessionList());
+    const { result } = renderHook(() => useSessionList(WS_ID));
 
     expect(result.current.isLoading).toBe(true);
 
@@ -66,13 +69,13 @@ describe("useSessionList", () => {
   });
 
   it("restores stored active session", async () => {
-    localStorage.setItem("scriptordb:active_session_id", "s2");
+    localStorage.setItem(activeSessionKey(WS_ID), "s2");
 
     mockListSessions.mockResolvedValueOnce({
       sessions: [makeItem("s1", "Chat 1"), makeItem("s2", "Chat 2")],
     });
 
-    const { result } = renderHook(() => useSessionList());
+    const { result } = renderHook(() => useSessionList(WS_ID));
 
     await waitFor(() => {
       expect(result.current.restored).toBe(true);
@@ -82,13 +85,13 @@ describe("useSessionList", () => {
   });
 
   it("ignores stored session id if not in list", async () => {
-    localStorage.setItem("scriptordb:active_session_id", "nonexistent");
+    localStorage.setItem(activeSessionKey(WS_ID), "nonexistent");
 
     mockListSessions.mockResolvedValueOnce({
       sessions: [makeItem("s1")],
     });
 
-    const { result } = renderHook(() => useSessionList());
+    const { result } = renderHook(() => useSessionList(WS_ID));
 
     await waitFor(() => {
       expect(result.current.restored).toBe(true);
@@ -103,7 +106,7 @@ describe("useSessionList", () => {
       session_id: "new-session",
     });
 
-    const { result } = renderHook(() => useSessionList());
+    const { result } = renderHook(() => useSessionList(WS_ID));
 
     await waitFor(() => {
       expect(result.current.restored).toBe(true);
@@ -118,7 +121,7 @@ describe("useSessionList", () => {
     expect(result.current.activeSessionId).toBe("new-session");
     expect(result.current.sessions).toHaveLength(1);
     expect(result.current.sessions[0].session_id).toBe("new-session");
-    expect(localStorage.getItem("scriptordb:active_session_id")).toBe(
+    expect(localStorage.getItem(activeSessionKey(WS_ID))).toBe(
       "new-session",
     );
   });
@@ -126,7 +129,7 @@ describe("useSessionList", () => {
   it("handles listSessions error gracefully", async () => {
     mockListSessions.mockRejectedValueOnce(new Error("unreachable"));
 
-    const { result } = renderHook(() => useSessionList());
+    const { result } = renderHook(() => useSessionList(WS_ID));
 
     await waitFor(() => {
       expect(result.current.restored).toBe(true);
@@ -141,7 +144,7 @@ describe("useSessionList", () => {
       sessions: [makeItem("s1", "Old Title")],
     });
 
-    const { result } = renderHook(() => useSessionList());
+    const { result } = renderHook(() => useSessionList(WS_ID));
 
     await waitFor(() => {
       expect(result.current.restored).toBe(true);
@@ -161,7 +164,7 @@ describe("useSessionList", () => {
         sessions: [makeItem("s1"), makeItem("s2")],
       });
 
-    const { result } = renderHook(() => useSessionList());
+    const { result } = renderHook(() => useSessionList(WS_ID));
 
     await waitFor(() => {
       expect(result.current.restored).toBe(true);
@@ -179,7 +182,7 @@ describe("useSessionList", () => {
   it("only initialises once on mount", async () => {
     mockListSessions.mockResolvedValue({ sessions: [] });
 
-    const { rerender } = renderHook(() => useSessionList());
+    const { rerender } = renderHook(() => useSessionList(WS_ID));
 
     await waitFor(() => {
       expect(mockListSessions).toHaveBeenCalledTimes(1);

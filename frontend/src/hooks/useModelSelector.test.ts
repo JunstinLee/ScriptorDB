@@ -1,29 +1,34 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { useModelSelector } from "./useModelSelector";
+import {
+  fetchSettings,
+  fetchRecommendedModels,
+  fetchModelsWithCanonical,
+} from "../api/client";
+import type { SettingsResponse } from "../types";
 
-vi.mock("../api/models", () => ({
-  health: vi.fn(),
-  fetchModels: vi.fn(),
+vi.mock("../api/client", () => ({
+  fetchSettings: vi.fn(),
   fetchRecommendedModels: vi.fn(),
-  fetchDefaultModel: vi.fn(),
-  fetchCanonicalModels: vi.fn(),
   fetchModelsWithCanonical: vi.fn(),
 }));
 
-import {
-  health,
-  fetchRecommendedModels,
-  fetchModelsWithCanonical,
-  fetchDefaultModel,
-} from "../api/client";
-import { renderHook, waitFor } from "@testing-library/react";
-import { useModelSelector } from "./useModelSelector";
+const emptySettings: SettingsResponse = {
+  workspace_id: null,
+  llm_provider: "",
+  db_url: "",
+  llm_model: null,
+  default_models: {},
+  auto_restore_sessions: false,
+  browser_enabled: false,
+  providers: [],
+  providers_with_keys: [],
+};
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  vi.mocked(fetchRecommendedModels).mockResolvedValue({ models: [] });
-  vi.mocked(fetchModelsWithCanonical).mockResolvedValue({ models: [] });
-  vi.mocked(fetchDefaultModel).mockResolvedValue({ model: "" });
-});
+function settings(overrides: Partial<SettingsResponse>): SettingsResponse {
+  return { ...emptySettings, ...overrides };
+}
 
 function makeEntry(id: string) {
   return {
@@ -34,13 +39,18 @@ function makeEntry(id: string) {
   };
 }
 
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(fetchSettings).mockResolvedValue(emptySettings);
+  vi.mocked(fetchRecommendedModels).mockResolvedValue({ models: [] });
+  vi.mocked(fetchModelsWithCanonical).mockResolvedValue({ models: [] });
+});
+
 describe("useModelSelector", () => {
-  it("fetches provider from health on mount", async () => {
-    vi.mocked(health).mockResolvedValueOnce({
-      status: "ok",
-      provider: "openai",
-      model: "gpt-4",
-    });
+  it("sets provider and saved model from fetchSettings on mount", async () => {
+    vi.mocked(fetchSettings).mockResolvedValueOnce(
+      settings({ llm_provider: "openai", llm_model: "gpt-4" }),
+    );
 
     const onSelectionChange = vi.fn();
     const { result } = renderHook(() =>
@@ -52,8 +62,8 @@ describe("useModelSelector", () => {
     });
   });
 
-  it("handles health fetch failure", async () => {
-    vi.mocked(health).mockRejectedValueOnce(new Error("down"));
+  it("clears state when fetchSettings fails", async () => {
+    vi.mocked(fetchSettings).mockRejectedValueOnce(new Error("down"));
 
     const onSelectionChange = vi.fn();
     const { result } = renderHook(() =>
@@ -65,51 +75,45 @@ describe("useModelSelector", () => {
     });
 
     expect(result.current.model).toBe("");
+    expect(result.current.models).toEqual([]);
   });
 
   it("fetches models when provider is set", async () => {
-    vi.mocked(health).mockResolvedValueOnce({
-      status: "ok",
-      provider: "openai",
-      model: "gpt-4",
-    });
-
+    vi.mocked(fetchSettings).mockResolvedValueOnce(
+      settings({ llm_provider: "openai", llm_model: null }),
+    );
     vi.mocked(fetchRecommendedModels).mockResolvedValueOnce({
       models: ["gpt-4o", "gpt-4o-mini"],
     });
     vi.mocked(fetchModelsWithCanonical).mockResolvedValueOnce({
       models: [makeEntry("gpt-4o"), makeEntry("gpt-4o-mini")],
     });
-    vi.mocked(fetchDefaultModel).mockResolvedValueOnce({ model: "gpt-4o" });
 
     const onSelectionChange = vi.fn();
-    renderHook(() => useModelSelector(0, onSelectionChange));
+    const { result } = renderHook(() =>
+      useModelSelector(0, onSelectionChange),
+    );
 
     await waitFor(() => {
       expect(fetchRecommendedModels).toHaveBeenCalledWith("openai");
     });
     await waitFor(() => {
-      expect(fetchModelsWithCanonical).toHaveBeenCalledWith("openai");
+      expect(result.current.models).toHaveLength(2);
     });
-    await waitFor(() => {
-      expect(fetchDefaultModel).toHaveBeenCalledWith("openai");
-    });
+
+    expect(result.current.models[0].provider_specific_id).toBe("gpt-4o");
+    expect(onSelectionChange).toHaveBeenCalledWith("gpt-4o", "openai");
   });
 
-  it("selects default model when it exists in list", async () => {
-    vi.mocked(health).mockResolvedValueOnce({
-      status: "ok",
-      provider: "openai",
-      model: "gpt-4",
-    });
+  it("selects saved model from settings when it exists in list", async () => {
+    vi.mocked(fetchSettings).mockResolvedValueOnce(
+      settings({ llm_provider: "openai", llm_model: "gpt-4o-mini" }),
+    );
     vi.mocked(fetchRecommendedModels).mockResolvedValueOnce({
       models: ["gpt-4o", "gpt-4o-mini"],
     });
     vi.mocked(fetchModelsWithCanonical).mockResolvedValueOnce({
       models: [makeEntry("gpt-4o"), makeEntry("gpt-4o-mini")],
-    });
-    vi.mocked(fetchDefaultModel).mockResolvedValueOnce({
-      model: "gpt-4o-mini",
     });
 
     const onSelectionChange = vi.fn();
@@ -124,25 +128,19 @@ describe("useModelSelector", () => {
     expect(onSelectionChange).toHaveBeenCalledWith("gpt-4o-mini", "openai");
   });
 
-  it("falls back to first model when default is not in list", async () => {
-    vi.mocked(health).mockResolvedValueOnce({
-      status: "ok",
-      provider: "groq",
-      model: "llama",
-    });
+  it("falls back to first model when saved model is not in list", async () => {
+    vi.mocked(fetchSettings).mockResolvedValueOnce(
+      settings({ llm_provider: "groq", llm_model: "nonexistent" }),
+    );
     vi.mocked(fetchRecommendedModels).mockResolvedValueOnce({
       models: ["llama-3", "mixtral"],
     });
     vi.mocked(fetchModelsWithCanonical).mockResolvedValueOnce({
       models: [makeEntry("llama-3"), makeEntry("mixtral")],
     });
-    vi.mocked(fetchDefaultModel).mockResolvedValueOnce({
-      model: "nonexistent",
-    });
 
-    const onSelectionChange = vi.fn();
     const { result } = renderHook(() =>
-      useModelSelector(0, onSelectionChange),
+      useModelSelector(0, vi.fn()),
     );
 
     await waitFor(() => {
@@ -151,21 +149,16 @@ describe("useModelSelector", () => {
   });
 
   it("re-fetches when settingsChanged increments", async () => {
-    vi.mocked(health)
-      .mockResolvedValueOnce({
-        status: "ok",
-        provider: "openai",
-        model: "gpt-4",
-      })
-      .mockResolvedValueOnce({
-        status: "ok",
-        provider: "anthropic",
-        model: "claude",
-      });
+    vi.mocked(fetchSettings)
+      .mockResolvedValueOnce(
+        settings({ llm_provider: "openai", llm_model: null }),
+      )
+      .mockResolvedValueOnce(
+        settings({ llm_provider: "anthropic", llm_model: null }),
+      );
 
-    const onSelectionChange = vi.fn();
     const { result, rerender } = renderHook(
-      ({ sc }) => useModelSelector(sc, onSelectionChange),
+      ({ sc }) => useModelSelector(sc, vi.fn()),
       { initialProps: { sc: 0 } },
     );
 
@@ -179,20 +172,18 @@ describe("useModelSelector", () => {
       expect(result.current.provider).toBe("anthropic");
     });
 
-    expect(health).toHaveBeenCalledTimes(2);
+    expect(fetchSettings).toHaveBeenCalledTimes(2);
   });
 
   describe("formatModelLabel", () => {
-    it("returns provider_specific_id when display_name is null", () => {
-      vi.mocked(health).mockResolvedValueOnce({
-        status: "ok",
-        provider: "test",
-        model: "",
-      });
-
+    it("returns provider_specific_id when display_name is null", async () => {
       const { result } = renderHook(() =>
         useModelSelector(0, vi.fn()),
       );
+
+      await waitFor(() => {
+        expect(fetchSettings).toHaveBeenCalled();
+      });
 
       const label = result.current.formatModelLabel({
         provider_specific_id: "gpt-4o",
@@ -203,16 +194,14 @@ describe("useModelSelector", () => {
       expect(label).toBe("gpt-4o");
     });
 
-    it("returns display name with provider id when different", () => {
-      vi.mocked(health).mockResolvedValueOnce({
-        status: "ok",
-        provider: "test",
-        model: "",
-      });
-
+    it("returns display name when present", async () => {
       const { result } = renderHook(() =>
         useModelSelector(0, vi.fn()),
       );
+
+      await waitFor(() => {
+        expect(fetchSettings).toHaveBeenCalled();
+      });
 
       const label = result.current.formatModelLabel({
         provider_specific_id: "gpt-4o-2024",
@@ -220,7 +209,7 @@ describe("useModelSelector", () => {
         display_name: "GPT-4o",
         family: "gpt",
       });
-      expect(label).toBe("GPT-4o  ·  gpt-4o-2024");
+      expect(label).toBe("GPT-4o");
     });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useSchema } from "./useSchema";
 import * as client from "../api/client";
@@ -24,7 +24,7 @@ describe("useSchema", () => {
       ],
     });
 
-    const { result } = renderHook(() => useSchema());
+    const { result } = renderHook(() => useSchema("ws1"));
 
     expect(result.current.loading).toBe(true);
 
@@ -46,7 +46,7 @@ describe("useSchema", () => {
   it("sets empty tables on fetch error", async () => {
     mockGetSchema.mockRejectedValueOnce(new Error("network error"));
 
-    const { result } = renderHook(() => useSchema());
+    const { result } = renderHook(() => useSchema("ws1"));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
@@ -55,12 +55,22 @@ describe("useSchema", () => {
     expect(result.current.tables).toEqual([]);
   });
 
+  it("skips fetching without workspaceId", () => {
+    mockGetSchema.mockClear();
+
+    const { result } = renderHook(() => useSchema());
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.tables).toEqual([]);
+    expect(mockGetSchema).not.toHaveBeenCalled();
+  });
+
   it("refresh calls fetchSchema again", async () => {
     mockGetSchema
       .mockResolvedValueOnce({ tables: [{ name: "t1", sql: "...", columns: [] }] })
       .mockResolvedValueOnce({ tables: [{ name: "t2", sql: "...", columns: [] }] });
 
-    const { result } = renderHook(() => useSchema());
+    const { result } = renderHook(() => useSchema("ws1"));
 
     await waitFor(() => {
       expect(result.current.loading).toBe(false);
