@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from pydantic_ai import ModelRetry, RunContext
@@ -9,7 +9,8 @@ from pydantic_ai.usage import RunUsage
 
 from browser import get_manager
 from config.settings import Settings
-from tools.browser_tools.filters import _RESOLVE_SELECTOR_JS, browser_apply_filter, browser_detect_filters
+from tools.browser_tools.filter_apply import browser_apply_filter
+from tools.browser_tools.filter_detect import browser_detect_filters
 from tools.validators import validate_filter_apply_args
 
 pytestmark = pytest.mark.usefixtures("cleanup_browser")
@@ -78,30 +79,68 @@ class TestFilterApplyValidator:
 
 
 class TestDetectFiltersCleanup:
-    @pytest.mark.asyncio
-    async def test_cleanup_and_params(self):
-        mock_page = AsyncMock()
-        mock_page.url = "https://example.com"
-        mock_page.evaluate = AsyncMock(return_value=[
-            {"name": "Status", "type": "select", "selector": "#status", "current": "Active",
-             "options": ["Active", "Inactive"], "multiple": False},
-            {"name": "", "type": "text", "selector": "input:nth-of-type(2)", "current": ""},
-            "junk",  # 非 dict 应被过滤
-        ])
-        with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_detect_filters(_ctx())
-        assert result["count"] == 2
-        assert result["filters"][0]["name"] == "Status"
-        assert result["filters"][1]["name"] == "Unnamed filter"  # 空名兜底
-        assert result["filters"][1]["fragile"] is True  # nth-of-type 标记
-        mock_page.evaluate.assert_awaited_once()
-        params = mock_page.evaluate.call_args.args[1]
-        assert params["maxFilters"] == 20  # JS 侧截断参数传递
+    @staticmethod
+    def _item(**over):
+        base = {"tag": "input", "type": "text", "nameAttr": "", "ariaLabel": "", "labelText": "",
+                "prev": "", "placeholder": "", "text": "", "visible": True, "disabled": False,
+                "value": "", "checked": False, "multiple": False, "min": "", "max": "", "step": "",
+                "pressed": None, "options": None, "parentKey": ""}
+        base.update(over)
+        return base
+
+    def test_build_filters_filters_junk_and_caps(self):
+        from tools.browser_tools.filter_detect import _build_filters
+
+        items = [
+            self._item(_kind="combobox", tag="select", labelText="Status", value="Active",
+                       options=["Active", "Inactive"], parentKey="form#f"),
+            self._item(_kind="textbox", placeholder="Search", parentKey="form#f"),
+            "junk",   # 非 dict 应被过滤
+            None,     # 非 dict 应被过滤
+        ]
+        out = _build_filters(items, max_filters=1)
+        assert len(out) == 1                      # max_filters 截断
+        assert out[0]["name"] == "Status"
+
+    def test_build_filters_unnamed_fallback(self):
+        from tools.browser_tools.filter_detect import _build_filters
+
+        out = _build_filters(
+            [self._item(_kind="combobox", tag="select", parentKey="form#f")],
+            max_filters=20,
+        )
+        assert out[0]["name"] == "Unnamed filter"  # 空名兜底
+
+    def test_build_filters_pairs_adjacent_dates(self):
+        from tools.browser_tools.filter_detect import _build_filters
+
+        items = [
+            self._item(_kind="textbox", type="date", nameAttr="start", labelText="Start",
+                       parentKey="form#f", value="2026-01-01"),
+            self._item(_kind="textbox", type="date", nameAttr="end", labelText="End",
+                       parentKey="form#f", value="2026-12-31"),
+        ]
+        out = _build_filters(items, max_filters=20)
+        assert len(out) == 1                      # 相邻同父 date input 配对
+        assert out[0]["type"] == "date_range"
+        assert out[0]["name"] == "Start"
+        assert out[0]["current"] == ["2026-01-01", "2026-12-31"]
+
+    def test_build_filters_single_date_not_paired(self):
+        from tools.browser_tools.filter_detect import _build_filters
+
+        out = _build_filters(
+            [self._item(_kind="textbox", type="date", nameAttr="only", labelText="Due",
+                        parentKey="form#f")],
+            max_filters=20,
+        )
+        assert len(out) == 1
+        assert out[0]["type"] == "date"           # 无相邻 date 时保持单条
 
     @pytest.mark.asyncio
     async def test_detect_error(self):
         mock_page = AsyncMock()
-        mock_page.evaluate = AsyncMock(side_effect=Exception("boom"))
+        mock_page.get_by_role = Mock(side_effect=Exception("boom"))
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_detect_filters(_ctx())
         assert "failed" in result["error"].lower()
@@ -137,7 +176,7 @@ class TestFiltersSlow:
         assert "select" in types and "text" in types and "checkbox" in types and "slider" in types
         assert by_name["Status"]["options"] == ["All", "Active", "Inactive"]
         assert by_name["Start"]["type"] == "date_range"  # 相邻 date input 配对
-        assert len(by_name["Start"]["selectors"]) == 2
+        assert len(by_name["Start"]["current"]) == 2
         assert by_name["PDF"]["type"] == "checkbox"  # checkbox 组条目以选项命名
         assert by_name["Range"]["current"] == "30"
 
@@ -157,3 +196,36 @@ class TestFiltersSlow:
         assert "已点击提交按钮" in result
         out = await browser_evaluate(_ctx(), "document.getElementById('result').textContent")
         assert "result:active:" in out  # 结果区已按筛选更新
+
+    @pytest.mark.asyncio
+    @pytest.mark.slow
+    async def test_date_pairing(self, tmp_path):
+        from tools.browser import browser_launch, browser_navigate
+
+        page_file = tmp_path / "filters.html"
+        page_file.write_text(_FILTERS_HTML, encoding="utf-8")
+        assert "launched successfully" in (await browser_launch(_ctx())).lower()
+        await browser_navigate(_ctx(), page_file.as_uri())
+
+        result = await browser_detect_filters(_ctx())
+        by_name = {f["name"]: f for f in result["filters"]}
+        start = by_name["Start"]
+        assert start["type"] == "date_range"
+        assert len(start["current"]) == 2          # 合并为 date_range 且保留两个输入值
+        assert "End" not in by_name                # 相邻配对后不再有独立 End 条目
+
+    @pytest.mark.asyncio
+    @pytest.mark.slow
+    async def test_apply_failure_records_failure(self, tmp_path):
+        from tools.browser import browser_launch, browser_navigate
+
+        page_file = tmp_path / "filters.html"
+        page_file.write_text(_FILTERS_HTML, encoding="utf-8")
+        assert "launched successfully" in (await browser_launch(_ctx())).lower()
+        await browser_navigate(_ctx(), page_file.as_uri())
+
+        with patch.object(get_manager(), "record_element_failure") as rec:
+            result = await browser_apply_filter(_ctx(), action="select",
+                                                target="不存在的筛选器", value="x", submit=False)
+        assert "失败" in result                     # 返回失败信息
+        rec.assert_called_once()                   # 元素失败被记录（触发接管检测）

@@ -86,6 +86,8 @@ def _build_filters(items: list[dict], max_filters: int) -> list[dict]:
             filters.append(rec)
 
     for item in items:
+        if not isinstance(item, dict):
+            continue
         kind = item["_kind"]
         if kind in ("textbox", "searchbox"):
             if item["type"] in _DATE_TYPES:

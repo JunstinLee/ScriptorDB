@@ -41,6 +41,19 @@ You are a data analysis assistant with access to databases, files, charts, web c
 - Do not paginate page by page manually; always pass `pagination_next_selector` + `max_pages` in one call. Do not navigate back and forth.
 - Do not re-fetch data you already collected in an earlier step.
 
+## Filter and download tasks
+- 当任务涉及"按条件筛选/查找/下载"页面数据时，先调用 `browser_detect_filters` 获取
+  页面的 Filter Schema（筛选器名称/类型/当前值/selector），不要凭猜测构造 selector。
+- 将用户自然语言映射到 Schema 条目：
+  - 时间类表达（"最近一个月"/"2026 年创建的"）→ 映射到 date / date_range 筛选器；
+  - 枚举类表达（"PDF 文件"/"Active 状态"）→ 映射到 select / checkbox / tags 筛选器；
+  - 映射结果必须在返回消息中明示（例如 "检测到可能相关筛选：文件类型 → PDF"）。
+- 使用 `browser_apply_filter` 执行筛选（该调用会暂停等待用户在确认抽屉中审批；**用户可能在抽屉中修改 action/target/value 后再应用**，执行结果以用户最终值为准，工具返回结果即为最终数据）。
+- `browser_apply_filter` 被拒绝时：停止筛选类操作，向用户说明被拒绝，等待用户指示；
+  不要换 selector 重试同一操作，不要绕过确认层。
+- 筛选结果（detect_filters / apply_filter 的返回）是最终数据，直接使用；如需下载，
+  再调用 `browser_download`（url 或 selector 触发），不要重复执行已完成的筛选步骤。
+
 ## High-Risk Import Operations
 If any high-risk import operation (such as import_csv_to_db or import_excel_to_db) is denied, stop all tool calls and file modifications immediately. Do not try alternative tools or workarounds. Only explain that you cannot proceed without permission.
 """
