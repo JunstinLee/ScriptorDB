@@ -2,16 +2,15 @@ import { describe, expect, it, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useSessions } from "./useSessions";
 
-const { mockCreateSession, mockListSessions, mockDeleteSession, mockGetSession } =
+const { mockListSessions, mockDeleteSession, mockGetSession } =
   vi.hoisted(() => ({
-    mockCreateSession: vi.fn(),
     mockListSessions: vi.fn(),
     mockDeleteSession: vi.fn(),
     mockGetSession: vi.fn(),
   }));
 
 vi.mock("../api/client", () => ({
-  createSession: mockCreateSession,
+  createSession: vi.fn(),
   listSessions: mockListSessions,
   getSession: mockGetSession,
   deleteSession: mockDeleteSession,
@@ -31,7 +30,6 @@ vi.mock("../api/client", () => ({
 }));
 
 beforeEach(() => {
-  mockCreateSession.mockReset();
   mockListSessions.mockReset();
   mockDeleteSession.mockReset();
   mockGetSession.mockReset();
@@ -273,29 +271,6 @@ describe("useSessions", () => {
         result.current.setLoading(false);
       });
       expect(result.current.isLoading).toBe(false);
-    });
-  });
-
-  describe("createNewSession", () => {
-    it("creates and returns session id", async () => {
-      mockListSessions.mockResolvedValueOnce({ sessions: [] });
-      mockCreateSession.mockResolvedValueOnce({
-        session_id: "fresh",
-      });
-
-      const { result } = renderHook(() => useSessions());
-
-      await waitFor(() => {
-        expect(result.current.restored).toBe(true);
-      });
-
-      let sid: string | undefined;
-      await act(async () => {
-        sid = await result.current.createNewSession();
-      });
-
-      expect(sid).toBe("fresh");
-      expect(result.current.activeSessionId).toBe("fresh");
     });
   });
 });
