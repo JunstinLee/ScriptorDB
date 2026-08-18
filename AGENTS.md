@@ -40,7 +40,9 @@ cd frontend && npm run test:watch  # vitest watch
 - `tools/`: SQLite schema/query (`db_tools.py`, `db_repository.py`), CSV/files, Excel export, matplotlib viz, Python sandbox, undo log/manager/repository, browser + crawl tools, validators.
 - `browser/`: Playwright browser automation — lifecycle manager, context, profiles, highlights, human-takeover checkpoint mechanism.
 - `cli/`: Typer app (`cli/__init__.py`), one handler per subcommand (`cmd_ask.py`, `cmd_serve.py`, ...), workspace subcommands (`cli/workspace_cli.py`), text dispatcher (`cli/dispatcher.py`).
-- `server/`: FastAPI app (`server/app.py`) + routers in `server/routes/` (health, workspaces, sessions, chat SSE, approve, schema, models, settings, api_keys, files, undo, history, browser_*). Service layer in `services/` (chat, undo, schema, mysql, history, ...), pydantic DTOs in `schemas/`.
+- `api/`: FastAPI app (`api/app.py`) + routers in `api/routes/` (health, workspaces, sessions, chat SSE, approve, schema, models, settings, api_keys, files, undo, history, browser_*) + HTTP/SSE transport helpers (`dependencies.py`, `sse_format.py`, `streaming.py`).
+- `runtime/`: agent 运行时与核心状态 — run pipeline (`runtime/runner/`), approval orchestration (`approval_orchestrator.py`, `approval_policy.py`, `filter_confirm.py`), session persistence (`session_model.py`, `session_file_store.py`, `sessions.py`), `run_tracker.py`, `import_inspector.py`, tool middleware (`tool_middleware.py`), output validation (`run_control.py`).
+- `services/`: business service layer (chat, undo, schema, mysql, history, prompt, workspace, settings, model, api_key, setup), pydantic DTOs in `schemas/`.
 - `database/session.py`: pooled MySQL connections (SQLAlchemy + PyMySQL + DBUtils pool).
 - `frontend/`: separate npm project — React 19 + Vite + TypeScript + HeroUI v3 + Tailwind CSS v4.
 
