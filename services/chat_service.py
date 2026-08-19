@@ -2,13 +2,56 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    ToolCallPart,
+    ToolReturnPart,
+)
 
 from core.logging_setup import get_logger
 from schemas import StoredRun, StoredToolInvocation
 from runtime.sessions import get_session_store
 
 logger = get_logger("chat_service")
+
+
+def repair_tool_message_pairs(messages: list[ModelMessage]) -> list[ModelMessage]:
+    """保证每个工具调用都有响应：缺的补一条失败说明，空消息丢弃。
+
+    pydantic-ai 框架层工具超时会产生空的 ModelRequest（parts=[]），使前面的
+    ToolCallPart 没有对应响应，历史重放时被模型 API 拒绝（400）。此函数补齐
+    缺失的 ToolReturnPart 并丢弃空消息。
+    """
+    returned = {
+        p.tool_call_id
+        for m in messages
+        if isinstance(m, ModelRequest)
+        for p in m.parts
+        if isinstance(p, ToolReturnPart)
+    }
+    out: list[ModelMessage] = []
+    for m in messages:
+        if isinstance(m, ModelRequest) and not m.parts:
+            continue  # 空消息直接丢掉（超时产物）
+        out.append(m)
+        if isinstance(m, ModelResponse):
+            missing = [
+                p for p in m.parts
+                if isinstance(p, ToolCallPart) and p.tool_call_id not in returned
+            ]
+            if missing:
+                out.append(ModelRequest(parts=[
+                    ToolReturnPart(
+                        tool_call_id=p.tool_call_id,
+                        tool_name=p.tool_name,
+                        content="工具执行未完成（超时或中断），结果不可用。",
+                    )
+                    for p in missing
+                ]))
+                returned.update(p.tool_call_id for p in missing)
+    return out
 
 
 def persist_chat_run(
@@ -32,7 +75,7 @@ def persist_chat_run(
     )
 
     if new_messages_collector:
-        session.add_model_messages(new_messages_collector)
+        session.add_model_messages(repair_tool_message_pairs(new_messages_collector))
 
     if run_collector.get("status") == "completed" and run_collector.get("final_output"):
         session.add_assistant_message(run_collector["final_output"])

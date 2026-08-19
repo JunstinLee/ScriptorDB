@@ -14,7 +14,7 @@ from api.dependencies import get_app_context, get_config, require_workspace
 from schemas import ChatRequest
 from runtime.sessions import get_session_store
 from api.sse_format import sse_done, sse_event
-from services.chat_service import persist_chat_run
+from services.chat_service import persist_chat_run, repair_tool_message_pairs
 from services.prompt_service import CrawlError, augment_prompt
 
 logger = get_logger("routes.chat")
@@ -186,7 +186,7 @@ async def chat(session_id: str, req: ChatRequest):
     except CrawlError as e:
         raise HTTPException(status_code=502, detail=f"Crawl failed: {e}")
 
-    model_messages = session.get_model_messages()
+    model_messages = repair_tool_message_pairs(session.get_model_messages())
 
     orchestrator = ApprovalOrchestrator(
         session_id,

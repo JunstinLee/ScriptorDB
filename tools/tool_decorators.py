@@ -9,7 +9,11 @@ from typing import Any
 from pydantic_ai import Tool
 
 
-def _wrap_browser_tool(func: Callable[..., Any], name: str) -> Callable[..., Any]:
+def _wrap_browser_tool(
+    func: Callable[..., Any],
+    name: str,
+    timeout: int = 15,
+) -> Callable[..., Any]:
     """Wrap browser-category tools (and python_sandbox_execute) with the middleware.
 
     The middleware may block a low-level browser call in document-discovery
@@ -17,6 +21,11 @@ def _wrap_browser_tool(func: Callable[..., Any], name: str) -> Callable[..., Any
     / crawl_webpage), returning its labeled result; it also blocks
     python_sandbox_execute once a task involves browser control. `functools.wraps`
     keeps the original signature so the tool schema is unchanged.
+
+    Tool execution is wrapped in `asyncio.wait_for`: on timeout it returns an
+    explicit error string instead of letting pydantic-ai produce an empty
+    ModelRequest (empty request leaves a tool call without a response, which
+    model APIs reject on history replay).
     """
 
     @functools.wraps(func)
@@ -28,14 +37,23 @@ def _wrap_browser_tool(func: Callable[..., Any], name: str) -> Callable[..., Any
             # 丢线程执行避免阻塞事件循环
             return await asyncio.to_thread(func, ctx, *args, **kwargs)
 
+        async def run_with_timeout():
+            try:
+                return await asyncio.wait_for(call_original(), timeout=timeout)
+            except asyncio.TimeoutError:
+                return (
+                    f"失败: 工具执行超时（{timeout} 秒），操作未完成，"
+                    "请重试或改用其他方式。"
+                )
+
         enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
         if not enabled:
-            return await call_original()
+            return await run_with_timeout()
         from runtime.tool_middleware import evaluate_call, execute_switch
 
         decision = await evaluate_call(ctx, name)
         if decision == "allow":
-            return await call_original()
+            return await run_with_timeout()
         return await execute_switch(ctx, name, kwargs, decision)
 
     return wrapped
@@ -76,13 +94,17 @@ class ToolDef:
 
     def to_tool(self) -> Tool:
         func = self.func
+        tool_timeout = self.timeout
         if self.category == "browser" or self.name == "python_sandbox_execute":
-            func = _wrap_browser_tool(func, self.name)
+            func = _wrap_browser_tool(func, self.name, timeout=self.timeout)
+            # 超时由 wrapper 统一管理：pydantic-ai 框架层超时会生成空的
+            # ModelRequest，导致工具调用没有响应，历史重放被模型 API 拒绝。
+            tool_timeout = None
         return Tool(
             func,
             takes_ctx=True,
             name=self.name,
-            timeout=self.timeout,
+            timeout=tool_timeout,
             max_retries=self.max_retries,
             requires_approval=self.requires_approval,
             args_validator=self.validator,
