@@ -84,7 +84,6 @@ export function useChatStream(params: UseChatStreamParams) {
         if (event.type === "browser_action") {
           appendAction(event);
           setBrowserActive(true);
-          setActiveMainTab("browser");
         }
         if (event.type === "run_start") {
           // 新 run 开始时清空旧 schema，避免残留误导面板/抽屉

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type Key } from "react";
+import { useCallback, useState, type Key } from "react";
 import { Tabs } from "@heroui/react";
 import { PanelRightClose, PanelRightOpen, Database, Wrench, List, Map, Globe } from "lucide-react";
 import type { BrowserState, Run, SchemaTable, BrowserProfileItem, CookieInfo } from "../types";
@@ -60,7 +60,6 @@ export default function SchemaSidebar({
   const [selectedTab, setSelectedTab] = useState("schema");
   const [schemaView, setSchemaView] = useState<"map" | "list">("map");
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const prevToolCountRef = useRef(0);
 
   const effectiveCollapsed = collapsed && !highlightedRunId;
   const effectiveSelectedTab = highlightedRunId ? "tools" : selectedTab;
@@ -68,19 +67,6 @@ export default function SchemaSidebar({
   const toggleCollapse = useCallback(() => {
     setCollapsed((prev) => !prev);
   }, []);
-
-  useEffect(() => {
-    prevToolCountRef.current = 0;
-  }, [activeSessionId]);
-
-  useEffect(() => {
-    const currentCount = runs.reduce((sum, r) => sum + r.tool_invocations.length, 0);
-    if (currentCount > prevToolCountRef.current) {
-      setCollapsed(false);
-      setSelectedTab("tools");
-    }
-    prevToolCountRef.current = currentCount;
-  }, [runs]);
 
   const handleTableClick = useCallback(
     (name: string) => {

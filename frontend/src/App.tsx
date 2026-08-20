@@ -216,7 +216,6 @@ function MainApp({
   const onBrowserActivity = useCallback(() => {
     setBrowserActive(true);
     setBrowserEnabled(true);
-    setActiveMainTab("browser");
   }, []);
 
   const handleWorkspaceMissing = useCallback(() => {
