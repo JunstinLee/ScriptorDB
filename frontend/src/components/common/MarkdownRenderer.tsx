@@ -229,7 +229,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   if (!content) return null;
 
   return (
-    <div className="text-[14px] leading-relaxed">
+    <div className="text-[14px] leading-relaxed [overflow-wrap:anywhere]">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
