@@ -163,7 +163,7 @@ async def run_agent_stream(
     except Exception as e:
         error_id = uuid.uuid4().hex[:12]
         local_tracker.fail(str(e))
-        yield error_event(local_tracker.run_id, error_id, find_rate_limit(e))
+        yield error_event(local_tracker.run_id, error_id, find_rate_limit(e), str(e))
         yield run_end_event(local_tracker.run_id)
     finally:
         if pending_get_task is not None and not pending_get_task.done():

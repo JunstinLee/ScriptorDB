@@ -33,6 +33,29 @@ _DOC_KEYWORDS = (
     "filing",
 )
 
+# 交互式任务（点击/填写/筛选/测试等）需要低层级 DOM 工具检查页面结构，
+# 不属于"文档提取"，命中即豁免，避免把合法排查误拦成 browser_extract_links。
+_INTERACTION_KEYWORDS = (
+    "点击",
+    "填写",
+    "输入",
+    "选择",
+    "选中",
+    "筛选",
+    "过滤",
+    "下拉",
+    "测试",
+    "切换",
+    "click",
+    "fill",
+    "type",
+    "select",
+    "filter",
+    "dropdown",
+    "test",
+    "choose",
+)
+
 _URL_PATH_SIGNALS = ("filings", "documents", "docs", "download", "archive")
 
 _URL_RE = re.compile(r"https?://[^\s\"'<>，。；）)】\]}]+")
@@ -155,6 +178,8 @@ def _target_url_from_prompt(ctx) -> str | None:
 def _is_document_discovery(ctx) -> bool:
     texts = _texts_from_context(ctx)
     blob = " ".join(texts).lower()
+    if any(keyword in blob for keyword in _INTERACTION_KEYWORDS):
+        return False
     hits = sum(1 for keyword in _DOC_KEYWORDS if keyword in blob)
     if hits >= 2:
         return True

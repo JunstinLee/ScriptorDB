@@ -52,6 +52,7 @@ def error_event(
     run_id: str,
     error_id: str,
     rate_limit: tuple[int, str] | None = None,
+    detail: str | None = None,
 ) -> dict[str, Any]:
     event: dict[str, Any] = {
         "type": "error",
@@ -59,6 +60,8 @@ def error_event(
         "message": f"Run failed (ID: {error_id})",
         "error_id": error_id,
     }
+    if detail:
+        event["message"] = f"Run failed (ID: {error_id}): {detail}"
     if rate_limit is not None:
         status_code, model_name = rate_limit
         event["error_type"] = "rate_limit"

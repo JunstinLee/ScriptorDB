@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from config.settings import Settings
 from core.logging_setup import get_logger
 from pydantic_ai import RunContext
@@ -7,6 +9,18 @@ from tools.browser_common import _check_blocked, _require_browser
 from tools.tool_decorators import db_tool
 
 logger = get_logger("tools.browser.dom")
+
+# Playwright 引擎选择器前缀（text=/xpath=/aria= 等）不是合法 CSS，
+# 不能传给 document.querySelector —— 高亮/跟踪前先识别并跳过。
+_PLAYWRIGHT_ENGINES = frozenset({
+    "css", "xpath", "text", "id", "data-testid", "data-test", "data-test-id",
+    "data-qa", "aria", "role", "nth", "internal",
+})
+
+
+def _is_engine_selector(selector: str) -> bool:
+    match = re.match(r"^([A-Za-z][A-Za-z0-9_-]*?)\s*=", selector)
+    return bool(match) and match.group(1).lower() in _PLAYWRIGHT_ENGINES
 
 
 @db_tool(name="browser_get_text", category="browser", timeout=15, sequential=True)
@@ -87,7 +101,8 @@ async def browser_wait_for_selector(
     if blocked := _check_blocked(manager):
         return blocked
     result = await _wait(page, selector, state)  # type: ignore[arg-type]
-    await highlight_click(page, selector)
+    if not _is_engine_selector(selector):
+        await highlight_click(page, selector)
     manager.record_action("wait_for_selector", selector, selector=selector)
     return result
 
@@ -103,8 +118,9 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
     if blocked := _check_blocked(manager):
         return blocked
     logger.info(f"browser_click selector={selector} takeover_state={manager.takeover.state.value}")
-    await highlight_click(page, selector)
-    await manager.trace.record_pre_click(page, selector)
+    if not _is_engine_selector(selector):
+        await highlight_click(page, selector)
+        await manager.trace.record_pre_click(page, selector)
     result = await _click(page, selector)
     trace = await manager.trace.record_post_nav(page)
     detail = selector
@@ -132,7 +148,8 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
     if blocked := _check_blocked(manager):
         return blocked
     logger.info(f"browser_fill selector={selector} takeover_state={manager.takeover.state.value}")
-    await highlight_input(page, selector)
+    if not _is_engine_selector(selector):
+        await highlight_input(page, selector)
     result = await _fill(page, selector, text)
     await highlight_input_remove(page)
     manager.record_action("fill", selector, selector=selector,
