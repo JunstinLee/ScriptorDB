@@ -41,7 +41,7 @@ cd frontend && npm run test:watch  # vitest watch
 - `browser/`: Playwright browser automation — lifecycle manager, context, profiles, highlights, human-takeover checkpoint mechanism.
 - `cli/`: Typer app (`cli/__init__.py`), one handler per subcommand (`cmd_ask.py`, `cmd_serve.py`, ...), workspace subcommands (`cli/workspace_cli.py`), text dispatcher (`cli/dispatcher.py`).
 - `api/`: FastAPI app (`api/app.py`) + routers in `api/routes/` (health, workspaces, sessions, chat SSE, approve, schema, models, settings, api_keys, files, undo, history, browser_*) + HTTP/SSE transport helpers (`dependencies.py`, `sse_format.py`, `streaming.py`).
-- `runtime/`: agent 运行时与核心状态 — run pipeline (`runtime/runner/`), approval orchestration (`approval_orchestrator.py`, `approval_policy.py`, `filter_confirm.py`), session persistence (`session_model.py`, `session_file_store.py`, `sessions.py`), `run_tracker.py`, `import_inspector.py`, tool middleware (`tool_middleware.py`), output validation (`run_control.py`).
+- `runtime/`: agent runtime & core state — run pipeline (`runtime/runner/`), approval orchestration (`approval_orchestrator.py`, `approval_policy.py`, `filter_confirm.py`), session persistence (`session_model.py`, `session_file_store.py`, `sessions.py`), `run_tracker.py`, `import_inspector.py`, tool middleware (`tool_middleware.py`), output validation (`run_control.py`).
 - `services/`: business service layer (chat, undo, schema, mysql, history, prompt, workspace, settings, model, api_key, setup), pydantic DTOs in `schemas/`.
 - `database/session.py`: pooled MySQL connections (SQLAlchemy + PyMySQL + DBUtils pool).
 - `frontend/`: separate npm project — React 19 + Vite + TypeScript + HeroUI v3 + Tailwind CSS v4.
@@ -62,6 +62,14 @@ Most CLI commands and server endpoints require an active workspace. Without one,
 ## Testing
 - Tests use `pydantic_ai.models.test.TestModel` — zero real LLM calls. No conftest; `asyncio_mode = "auto"`.
 - Tests marked `@pytest.mark.slow` (in `tests/test_browser*.py`) launch a real Playwright browser / hit the network and are NOT auto-skipped — `uv run pytest tests/` runs them. Use `-m "not slow"` for the fast suite.
+- Whether to run tests, and which ones, is governed by the "Acceptance criteria" section below — do not run the whole suite as a blanket acceptance check.
+
+## Acceptance criteria
+Acceptance is graded by change type — never run the full test suite as a blanket check:
+- **Logging statements and plain-text substitutions**: import verification only — confirm the modified module imports cleanly; do not run any tests.
+- **Other code changes**:
+  - Relevant tests exist: run only those tests (the relevant test file or cases), nothing unrelated.
+  - No relevant tests: run an import check plus an LSP diagnostics pass (via the lsp tool) to confirm the change is error-free.
 
 ## Documentation
 - Save project documentation, plans, and notes in `DOCS/` at the repo root.
@@ -84,7 +92,7 @@ Most CLI commands and server endpoints require an active workspace. Without one,
 - The Vite dev server proxies `/api` to `http://localhost:8000`; backend CORS allows all origins.
 
 ## Operating conventions
-- 与用户交流时，禁止使用"冒烟"、"冒烟测试"等术语化或容易联想到硬件的词汇，也不要用任何晦涩的技术黑话；描述验证、检查、运行效果时一律使用大白话（如"直接运行看效果"、"打开浏览器实际执行一次"）。
+- When communicating with the user, avoid jargon and hardware-sounding terms (e.g. "smoke test") as well as obscure technical slang; describe verification, checks, and run outcomes in plain language (e.g. "run it and see the result", "actually execute it in the browser").
 - NEVER verify framework/library behavior by reading third-party source code in `site-packages`, `node_modules`, or similar vendored locations. To confirm a library mechanism (e.g. pydantic-ai event/cancel semantics), consult official documentation or search the web instead.
 - Do NOT fix TypeScript / TSX type errors without explicit instruction — the user will inspect the files and provide the specific errors to address; do not modify `.ts` / `.tsx` files on your own initiative to resolve type issues.
 - If you change backend code, prompt the user to restart the backend.
