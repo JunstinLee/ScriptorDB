@@ -7,7 +7,11 @@ from config.settings import Settings
 from core.logging_setup import get_logger
 from pydantic_ai import RunContext
 from tools.browser_common import _check_blocked, _require_browser, _settle_after_click
-from tools.browser_tools.filter_contract import FILTER_ACTIONS, is_filter_failure
+from tools.browser_tools.filter_contract import (
+    FILTER_ACTIONS,
+    JS_TABLE_CAPABILITY_KINDS,
+    is_filter_failure,
+)
 from tools.tool_decorators import db_tool
 from tools.validators import validate_filter_apply_args
 
@@ -152,17 +156,55 @@ async def execute_filter_action(page, action: str, target: str, value: str = "",
     return "\n".join(line for line in lines if line)
 
 
+async def _execute_js_table_capability(page, target: str, value: str,
+                                       capability: dict | None) -> str:
+    """执行 JS 表格筛选能力（白名单 kind + 探测端模板值替换）。
+
+    框架知识只存在于 detect 端构造的 capability.call 模板；此处只做 kind 白名单
+    校验与占位符替换（JSON 转义），不耦合任何具体框架。
+    """
+    if not isinstance(capability, dict) or not capability:
+        return "失败: 缺少 capability（js_table_api 机制需要 detect 返回条目的 capability 字段）"
+    kind = capability.get("kind")
+    if kind not in JS_TABLE_CAPABILITY_KINDS:
+        return f"失败: 未知 capability.kind '{kind}'（白名单: {sorted(JS_TABLE_CAPABILITY_KINDS)}）"
+    call = capability.get("call")
+    if not isinstance(call, str) or not call.strip():
+        return "失败: capability.call 缺失或非法（应由 browser_detect_filters 构造）"
+    if kind == "set_filter":
+        placeholder = capability.get("value_placeholder", "$value")
+        if placeholder not in call:
+            return f"失败: capability.call 缺少值占位符 '{placeholder}'"
+        call = call.replace(placeholder, json.dumps(str(value)))
+    try:
+        await page.evaluate(call)
+    except Exception as e:
+        return f"失败: 执行 JS 表格筛选出错: {e}"
+    await _settle_after_click(page)
+    detail = f"已设置 {target} = {value}" if kind == "set_filter" else f"已清除 {target} 筛选"
+    return f"{detail}（js_table_api）"
+
+
 @db_tool(name="browser_apply_filter", category="browser", timeout=30, sequential=True,
          requires_approval=True, validator=validate_filter_apply_args)
 async def browser_apply_filter(ctx: RunContext[Settings], action: str, target: str,
-                               value: str = "", values: str = "", submit: bool = True) -> str:
-    """在浏览器页面执行筛选动作（需用户确认后生效）。target 为 detect 返回的筛选器 name；date_range 用 values 提供起止值。"""
+                               value: str = "", values: str = "", submit: bool = True,
+                               mechanism: str = "dom_action",
+                               capability: dict | None = None) -> str:
+    """在浏览器页面执行筛选动作（需用户确认后生效）。target 为 detect 返回的筛选器 name；date_range 用 values 提供起止值。
+
+    mechanism 由 detect 返回条目的 mechanism 字段给出：dom_action / ui_event 走 DOM
+    控件交互（execute_filter_action），js_table_api 走探测端构造的 capability 调用模板。
+    """
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
-    result = await execute_filter_action(page, action, target, value, values, submit)
+    if mechanism == "js_table_api":
+        result = await _execute_js_table_capability(page, target, value, capability)
+    else:
+        result = await execute_filter_action(page, action, target, value, values, submit)
     failed = is_filter_failure(result)
     manager.record_action("apply_filter", result.replace("\n", " | ")[:200], selector=target,
                           success=not failed)

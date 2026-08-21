@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from config.settings import Settings
 from core.logging_setup import get_logger
 from pydantic_ai import RunContext
@@ -140,14 +142,120 @@ def _build_filters(items: list[dict], max_filters: int) -> list[dict]:
     return filters
 
 
+# ---- L2：JS 表格 / 框架公开 API 探测 ----
+# 探测注册表：新增框架 = 追加一个探测函数（自包含特征检测 + 公开 API 读取 +
+# capability 调用模板构造）；探测失败仅跳过自身，不影响其他层与其他探测。
+
+_TABULATOR_PROBE_JS = """\
+() => {
+  const root = document.querySelector('.tabulator');
+  if (!root) return [];
+  if (!(window.Tabulator && typeof Tabulator.findTable === 'function')) return [];
+  let inst = null;
+  try { inst = Tabulator.findTable(root)[0] || null; } catch (e) { return []; }
+  if (!inst) return [];
+  let cols = [];
+  try { cols = inst.getColumns ? inst.getColumns() : []; } catch (e) { return []; }
+  let cur = [];
+  try { cur = inst.getFilters ? inst.getFilters() : []; } catch (e) {}
+  const currentByField = {};
+  for (const f of cur) {
+    if (f && typeof f === 'object' && f.field != null) currentByField[f.field] = f.value;
+  }
+  const out = [];
+  for (const col of cols) {
+    let def = null;
+    try { def = col.getDefinition ? col.getDefinition() : null; } catch (e) {}
+    if (!def) continue;
+    const field = (def.field || '').toString();
+    const title = (def.title || field || '').toString().trim();
+    if (!title || !field) continue;
+    let opts = [];
+    const hfp = def.headerFilterParams;
+    if (hfp && Array.isArray(hfp.values)) {
+      opts = hfp.values
+        .map(v => (v && typeof v === 'object' && 'label' in v) ? String(v.label) : String(v))
+        .filter(Boolean);
+    }
+    out.push({
+      name: title.slice(0, 60),
+      field: field,
+      options: Array.from(new Set(opts)),
+      current: currentByField[field] != null ? String(currentByField[field]) : '',
+    });
+  }
+  return out;
+}
+"""
+
+
+def _build_tabulator_filters(raw: list, max_filters: int = 20) -> list[dict]:
+    """Tabulator 探测结果 → js_table 条目（纯函数，可单测）。
+
+    每列即一个可经 setFilter 公开 API 筛选的能力；capability.call 为探测端用
+    公开 API 构造的调用模板（框架知识只存在于此处），apply 只做占位符替换。
+    """
+    out: list[dict] = []
+    for item in raw:
+        if not isinstance(item, dict) or len(out) >= max_filters:
+            continue
+        field = (item.get("field") or "").strip()
+        name = (item.get("name") or "").strip() or "Unnamed filter"
+        call = (
+            "Tabulator.findTable(document.querySelector('.tabulator'))[0]"
+            f".setFilter({json.dumps(field)}, '=', $value)"
+        )
+        out.append({
+            "name": name[:60],
+            "type": "select",
+            "options": [str(o) for o in (item.get("options") or []) if str(o).strip()],
+            "current": str(item.get("current", "") or ""),
+            "capability": {
+                "kind": "set_filter",
+                "field": field,
+                "call": call,
+                "value_placeholder": "$value",
+            },
+        })
+    return out
+
+
+async def _probe_tabulator(page) -> list[dict]:
+    raw = await page.evaluate(_TABULATOR_PROBE_JS)
+    return _build_tabulator_filters(raw or [])
+
+
+_FRAMEWORK_PROBES = [
+    _probe_tabulator,
+]
+
+
+async def _detect_js_table(page) -> list[dict]:
+    """L2 探测：遍历框架探测注册表，合并命中条目的原始结果。"""
+    entries: list[dict] = []
+    for probe in _FRAMEWORK_PROBES:
+        try:
+            entries.extend(await probe(page))
+        except Exception as e:
+            logger.debug("js table probe skipped: %s", e)
+    return entries
+
+
 async def _detect_filters(page, include_hidden: bool, max_filters: int) -> list[dict]:
-    """检测管线：DOM 控件采集 → Schema 组装（纯函数）。
+    """检测管线：L1 DOM 控件 + L2 JS 表格/框架能力 → 统一 Filter Schema 条目。
 
     与工具入口（_require_browser / record_action / 返回结构）解耦；
-    后续 JS 表格 / 框架能力探测（L2）在此管线内扩展。
+    新增框架探测 = 向 _FRAMEWORK_PROBES 追加探测函数。
     """
-    items = await _collect_candidates(page, include_hidden)
-    return _build_filters(items, max(max_filters, 1))
+    cap = max(max_filters, 1)
+    filters: list[dict] = []
+    for f in _build_filters(await _collect_candidates(page, include_hidden), cap):
+        filters.append({**f, "source": "dom", "mechanism": "dom_action"})
+    for entry in await _detect_js_table(page):
+        if not isinstance(entry, dict):
+            continue
+        filters.append({**entry, "source": "js_table", "mechanism": "js_table_api"})
+    return filters[:cap]
 
 
 @db_tool(name="browser_detect_filters", category="browser", timeout=15, sequential=False)

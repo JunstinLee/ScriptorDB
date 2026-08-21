@@ -6,7 +6,11 @@ import re
 from pydantic_ai import ModelRetry, RunContext
 
 from config.settings import Settings
-from tools.browser_tools.filter_contract import FILTER_ACTIONS
+from tools.browser_tools.filter_contract import (
+    FILTER_ACTIONS,
+    FILTER_MECHANISMS,
+    JS_TABLE_CAPABILITY_KINDS,
+)
 
 
 def validate_sql_readonly(ctx: RunContext[Settings], sql: str, *args: object, **kwargs: object) -> None:
@@ -134,13 +138,32 @@ def validate_filter_apply_args(
     value: str = "",
     values: str = "",
     submit: bool = True,
+    mechanism: str = "dom_action",
+    capability: dict | None = None,
     *args: object,
     **kwargs: object,
 ) -> None:
-    if action not in FILTER_ACTIONS:
+    if mechanism not in FILTER_MECHANISMS:
         raise ModelRetry(
-            f"action 必须是 {sorted(FILTER_ACTIONS)} 之一，收到 '{action}'"
+            f"mechanism 必须是 {sorted(FILTER_MECHANISMS)} 之一，收到 '{mechanism}'"
         )
+    if mechanism == "js_table_api":
+        if not isinstance(capability, dict) or not capability:
+            raise ModelRetry(
+                "mechanism=js_table_api 需要 capability"
+                "（browser_detect_filters 返回条目的 capability 字段）"
+            )
+        kind = capability.get("kind")
+        if kind not in JS_TABLE_CAPABILITY_KINDS:
+            raise ModelRetry(
+                f"capability.kind 必须是 {sorted(JS_TABLE_CAPABILITY_KINDS)} 之一，"
+                f"收到 '{kind}'"
+            )
+    else:
+        if action not in FILTER_ACTIONS:
+            raise ModelRetry(
+                f"action 必须是 {sorted(FILTER_ACTIONS)} 之一，收到 '{action}'"
+            )
     if not target or not target.strip():
         raise ModelRetry(
             "target 不能为空（应为 browser_detect_filters 返回的筛选器 name 或 selector）"

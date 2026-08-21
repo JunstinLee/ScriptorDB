@@ -43,11 +43,14 @@ def _write_xlsx(filepath: Path, sheet_name: str, rows: list[list]) -> None:
 
 
 @pytest.fixture
-def cleanup_browser():
-    """Reset the browser manager around each test in browser test files."""
+async def cleanup_browser():
+    """Reset before, destroy after each test in browser test files.
+
+    测试结束立即 close() 销毁浏览器实例，避免可见浏览器窗口跨用例残留。
+    """
     get_manager().reset()
     yield
-    get_manager().reset()
+    await get_manager().close()
 
 
 @pytest.fixture
