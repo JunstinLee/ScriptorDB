@@ -18,6 +18,7 @@ _DATE_EN_RE = re.compile(
 _ISO_DATE_RE = re.compile(r"\b\d{4}-\d{1,2}-\d{1,2}\b")
 _URL_RE = re.compile(r"https?://([^/\s?#]+)")
 _FORM_RE = re.compile(r"\bForm\s+[0-9][0-9A-Z-]*\b", re.IGNORECASE)
+_INT_RE = re.compile(r"\d+")
 
 _RETRY_MESSAGE = (
     "工具已经返回了结果，但你的回复没有把这些结果呈现给用户。"
@@ -33,6 +34,7 @@ def _collect_from_text(text: str, markers: set[str]) -> None:
     for host in _URL_RE.findall(text):
         markers.add(host.lower().removeprefix("www."))
     markers.update(m.lower() for m in _FORM_RE.findall(text))
+    markers.update(m for m in _INT_RE.findall(_strip_thousand_separators(text)) if int(m) >= 2)
 
 
 def _collect_value(value: Any, markers: set[str]) -> None:
@@ -104,6 +106,7 @@ def should_allow_end(
     - streaming partials and non-str outputs (deferred approval path) pass through
     - a run that used no tools (plain Q&A) has no markers and always passes
     - the final text must contain at least `_MIN_HITS` markers from tool results
+    - when the tool returns only one distinct marker, hitting it is enough
     - one output retry is allowed before we accept whatever the model produces
     """
     if partial_output:
@@ -115,7 +118,7 @@ def should_allow_end(
     markers = extract_result_markers(messages)
     if not markers:
         return True
-    return _hits(markers, output.lower()) >= _MIN_HITS
+    return _hits(markers, output.lower()) >= min(_MIN_HITS, len(markers))
 
 
 def build_output_validator() -> Callable[[RunContext[Any], Any], Awaitable[Any]]:

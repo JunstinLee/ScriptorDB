@@ -8,6 +8,7 @@ from typing import Any
 
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults
 from pydantic_ai.messages import ModelMessage
+from pydantic_ai.usage import UsageLimits
 
 from agents.db_agent import resolve_agent
 from config.app_config import AppConfig
@@ -78,6 +79,10 @@ async def run_agent_stream(
             "message_history": message_history if message_history else None,
             "deps": config,
             "event_stream_handler": translator.handle,
+            # pydantic-ai 默认 request_limit=50：浏览器任务每个工具调用消耗
+            # 2 次模型请求，长流程 25 个工具调用即触顶导致 run 被强制中止。
+            # usage_limits 是 run() 的运行时参数（非 Agent 构造参数），放宽到 200。
+            "usage_limits": UsageLimits(request_limit=200),
         }
         if deferred_results is not None:
             kwargs["deferred_tool_results"] = deferred_results

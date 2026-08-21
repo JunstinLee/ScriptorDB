@@ -8,6 +8,10 @@ from typing import Any
 
 from pydantic_ai import Tool
 
+from core.logging_setup import get_logger
+
+logger = get_logger("tools.tool_decorators")
+
 
 def _wrap_browser_tool(
     func: Callable[..., Any],
@@ -30,31 +34,40 @@ def _wrap_browser_tool(
 
     @functools.wraps(func)
     async def wrapped(ctx, *args, **kwargs):
-        async def call_original():
-            if inspect.iscoroutinefunction(func):
-                return await func(ctx, *args, **kwargs)
-            # sync 工具（如 python_sandbox_execute 返回 ToolResult）不能 await，
-            # 丢线程执行避免阻塞事件循环
-            return await asyncio.to_thread(func, ctx, *args, **kwargs)
+        # 兜底：任何工具级未捕获异常（如导航中页面上下文被销毁）都转为
+        # 失败字符串交还给模型，绝不向上冒泡终止整个 run。
+        try:
+            async def call_original():
+                if inspect.iscoroutinefunction(func):
+                    return await func(ctx, *args, **kwargs)
+                # sync 工具（如 python_sandbox_execute 返回 ToolResult）不能 await，
+                # 丢线程执行避免阻塞事件循环
+                return await asyncio.to_thread(func, ctx, *args, **kwargs)
 
-        async def run_with_timeout():
-            try:
-                return await asyncio.wait_for(call_original(), timeout=timeout)
-            except asyncio.TimeoutError:
-                return (
-                    f"失败: 工具执行超时（{timeout} 秒），操作未完成，"
-                    "请重试或改用其他方式。"
-                )
+            async def run_with_timeout():
+                try:
+                    return await asyncio.wait_for(call_original(), timeout=timeout)
+                except asyncio.TimeoutError:
+                    return (
+                        f"失败: 工具执行超时（{timeout} 秒），操作未完成，"
+                        "请重试或改用其他方式。"
+                    )
 
-        enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
-        if not enabled:
-            return await run_with_timeout()
-        from runtime.tool_middleware import evaluate_call, execute_switch
+            enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
+            if not enabled:
+                return await run_with_timeout()
+            from runtime.tool_middleware import evaluate_call, execute_switch
 
-        decision = await evaluate_call(ctx, name)
-        if decision == "allow":
-            return await run_with_timeout()
-        return await execute_switch(ctx, name, kwargs, decision)
+            decision = await evaluate_call(ctx, name)
+            if decision == "allow":
+                return await run_with_timeout()
+            return await execute_switch(ctx, name, kwargs, decision)
+        except Exception as e:
+            logger.exception("tool %s raised uncaught %s: %s", name, type(e).__name__, e)
+            return (
+                f"失败: 工具执行异常（{type(e).__name__}: {e}），"
+                "请重试或改用其他方式。"
+            )
 
     return wrapped
 

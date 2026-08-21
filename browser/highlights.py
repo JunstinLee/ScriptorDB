@@ -33,15 +33,21 @@ HIGHLIGHT_CSS = """
 
 
 async def inject_highlight_runtime(page: Page) -> None:
-    await page.evaluate(f"""
-    if (!window.__scdb_hl_ready) {{
-        const style = document.createElement('style');
-        style.id = '__scdb_hl_styles';
-        style.textContent = `{HIGHLIGHT_CSS}`;
-        document.head.appendChild(style);
-        window.__scdb_hl_ready = true;
-    }}
-    """)
+    # 高亮注入是纯装饰性的 best-effort 操作：页面导航中/上下文销毁时
+    # evaluate 会抛 "Execution context was destroyed" 等异常，必须吞掉，
+    # 否则会终止整个 run。
+    try:
+        await page.evaluate(f"""
+        if (!window.__scdb_hl_ready) {{
+            const style = document.createElement('style');
+            style.id = '__scdb_hl_styles';
+            style.textContent = `{HIGHLIGHT_CSS}`;
+            document.head.appendChild(style);
+            window.__scdb_hl_ready = true;
+        }}
+        """)
+    except Exception as e:
+        logger.warning(f"highlight runtime injection skipped error={e}")
 
 
 async def highlight_click(page: Page, selector: str, duration_ms: int = 600) -> None:
