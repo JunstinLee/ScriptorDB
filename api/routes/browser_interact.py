@@ -106,7 +106,8 @@ async def browser_interact(body: InteractRequest):
     from browser import get_manager
     from browser.actions import click, fill, press_key, scroll_by, go_back, go_forward
     from browser.context import navigate as ctx_navigate
-    from tools.browser_tools.filter_apply import FILTER_ACTIONS, execute_filter_action
+    from tools.browser_tools.filter_apply import execute_filter_action
+    from tools.browser_tools.filter_contract import FILTER_ACTIONS
 
     mgr = get_manager()
     mgr.cancel_idle_close()

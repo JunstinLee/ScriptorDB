@@ -140,6 +140,16 @@ def _build_filters(items: list[dict], max_filters: int) -> list[dict]:
     return filters
 
 
+async def _detect_filters(page, include_hidden: bool, max_filters: int) -> list[dict]:
+    """检测管线：DOM 控件采集 → Schema 组装（纯函数）。
+
+    与工具入口（_require_browser / record_action / 返回结构）解耦；
+    后续 JS 表格 / 框架能力探测（L2）在此管线内扩展。
+    """
+    items = await _collect_candidates(page, include_hidden)
+    return _build_filters(items, max(max_filters, 1))
+
+
 @db_tool(name="browser_detect_filters", category="browser", timeout=15, sequential=False)
 async def browser_detect_filters(
     ctx: RunContext[Settings],
@@ -153,8 +163,7 @@ async def browser_detect_filters(
     if blocked := _check_blocked(manager):
         return {"error": blocked}
     try:
-        items = await _collect_candidates(page_obj, include_hidden)
-        filters = _build_filters(items, max(max_filters, 1))
+        filters = await _detect_filters(page_obj, include_hidden, max_filters)
     except Exception as e:
         manager.record_action("detect_filters", f"error: {e}", success=False)
         return {"error": f"Filter detection failed: {e}"}

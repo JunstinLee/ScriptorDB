@@ -6,6 +6,7 @@ import re
 from pydantic_ai import ModelRetry, RunContext
 
 from config.settings import Settings
+from tools.browser_tools.filter_contract import FILTER_ACTIONS
 
 
 def validate_sql_readonly(ctx: RunContext[Settings], sql: str, *args: object, **kwargs: object) -> None:
@@ -126,9 +127,6 @@ def validate_sql_dml(
             )
 
 
-_FILTER_ACTIONS = ("select", "input", "toggle", "set_range", "date_range")
-
-
 def validate_filter_apply_args(
     ctx: RunContext[Settings],
     action: str,
@@ -139,9 +137,9 @@ def validate_filter_apply_args(
     *args: object,
     **kwargs: object,
 ) -> None:
-    if action not in _FILTER_ACTIONS:
+    if action not in FILTER_ACTIONS:
         raise ModelRetry(
-            f"action 必须是 {sorted(_FILTER_ACTIONS)} 之一，收到 '{action}'"
+            f"action 必须是 {sorted(FILTER_ACTIONS)} 之一，收到 '{action}'"
         )
     if not target or not target.strip():
         raise ModelRetry(

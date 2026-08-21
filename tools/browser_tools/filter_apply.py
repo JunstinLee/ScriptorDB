@@ -7,11 +7,11 @@ from config.settings import Settings
 from core.logging_setup import get_logger
 from pydantic_ai import RunContext
 from tools.browser_common import _check_blocked, _require_browser, _settle_after_click
+from tools.browser_tools.filter_contract import FILTER_ACTIONS, is_filter_failure
 from tools.tool_decorators import db_tool
 from tools.validators import validate_filter_apply_args
 
 logger = get_logger("tools.browser.filters")
-FILTER_ACTIONS = ("select", "input", "toggle", "set_range", "date_range")
 _SUBMIT_LABEL_RE = "apply|search|filter|query|go|运行|应用|筛选|查询|搜索|确定"
 
 
@@ -163,9 +163,10 @@ async def browser_apply_filter(ctx: RunContext[Settings], action: str, target: s
     if blocked := _check_blocked(manager):
         return blocked
     result = await execute_filter_action(page, action, target, value, values, submit)
+    failed = is_filter_failure(result)
     manager.record_action("apply_filter", result.replace("\n", " | ")[:200], selector=target,
-                          success="失败" not in result and "failed" not in result.lower())
-    if "失败" in result or "failed" in result.lower():
+                          success=not failed)
+    if failed:
         manager.record_element_failure(target)
         await manager.detect_takeover()
     return result
