@@ -83,14 +83,6 @@ class RunTracker:
                 inv["duration_ms"] = duration_ms
                 inv["data"] = data
                 inv["ended_at"] = utc_now_iso()
-                logger.info(
-                    "tool_invocation_completed run_id=%s call_id=%s tool=%s status=%s "
-                    "output_type=%s output=%r data_type=%s error_code=%s duration_ms=%s",
-                    self.run_id, call_id, inv["tool_name"], inv["status"],
-                    type(output).__name__, output,
-                    type(data).__name__ if data is not None else "None",
-                    error_code, duration_ms,
-                )
                 return
 
     def append_text(self, delta: str) -> None:

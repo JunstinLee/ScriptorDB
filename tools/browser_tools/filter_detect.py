@@ -324,8 +324,12 @@ _FRAMEWORK_PROBES: list[dict] = [
 ]
 
 
-async def _detect_js_table(page) -> list[dict]:
-    """L2 探测：先枚举全部表格根，再对每个根遍历探测注册表，合并命中条目。"""
+async def _detect_js_table(page) -> tuple[list[dict], list[dict]]:
+    """L2 探测：先枚举全部表格根，再对每个根遍历探测注册表，合并命中条目。
+
+    返回 (entries, roots)：roots 是完整表格清单（index/selector/label），
+    供上层暴露给模型识别目标表，独立于可能被截断的列级条目。
+    """
     selectors = _GENERIC_TABLE_SELECTORS + tuple(p["root_marker"] for p in _FRAMEWORK_PROBES)
     roots = await _collect_table_roots(page, selectors)
     entries: list[dict] = []
@@ -337,24 +341,31 @@ async def _detect_js_table(page) -> list[dict]:
                 logger.debug("js table probe skipped: %s", e)
                 continue
             entries.extend(_build_js_table_entries(raw, root))
-    return entries
+    return entries, roots
 
 
-async def _detect_filters(page, include_hidden: bool, max_filters: int) -> list[dict]:
+async def _detect_filters(page, include_hidden: bool, max_filters: int) -> tuple[list[dict], list[dict]]:
     """检测管线：L1 DOM 控件 + L2 JS 表格/框架能力 → 统一 Filter Schema 条目。
 
     与工具入口（_require_browser / record_action / 返回结构）解耦；
     新增框架探测 = 向 _FRAMEWORK_PROBES 追加探测函数。
+    返回 (filters, tables)：tables 为页面表格级清单（index/selector/label），
+    独立于 cap 截断，供模型识别目标表。
     """
     cap = max(max_filters, 1)
-    filters: list[dict] = []
-    for f in _build_filters(await _collect_candidates(page, include_hidden), cap):
-        filters.append({**f, "source": "dom", "mechanism": "dom_action"})
-    for entry in await _detect_js_table(page):
-        if not isinstance(entry, dict):
-            continue
-        filters.append({**entry, "source": "js_table", "mechanism": "js_table_api"})
-    return filters[:cap]
+    # js_table 条目优先：表格筛选能力先于页面 DOM 控件返回，
+    # 避免被大量页面控件挤掉（否则模型拿不到目标表的筛选能力）。
+    js_entries, tables = await _detect_js_table(page)
+    js_entries = [
+        {**entry, "source": "js_table", "mechanism": "js_table_api"}
+        for entry in js_entries
+        if isinstance(entry, dict)
+    ]
+    dom_cap = max(cap - len(js_entries), 0)
+    dom_entries = []
+    for f in _build_filters(await _collect_candidates(page, include_hidden), dom_cap):
+        dom_entries.append({**f, "source": "dom", "mechanism": "dom_action"})
+    return (js_entries + dom_entries)[:cap], tables
 
 
 @db_tool(name="browser_detect_filters", category="browser", timeout=15, sequential=False)
@@ -370,7 +381,7 @@ async def browser_detect_filters(
     if blocked := _check_blocked(manager):
         return {"error": blocked}
     try:
-        filters = await _detect_filters(page_obj, include_hidden, max_filters)
+        filters, tables = await _detect_filters(page_obj, include_hidden, max_filters)
     except Exception as e:
         manager.record_action("detect_filters", f"error: {e}", success=False)
         return {"error": f"Filter detection failed: {e}"}
@@ -382,4 +393,4 @@ async def browser_detect_filters(
         except Exception:
             pass
     manager.record_action("detect_filters", f"{len(filters)} filters")
-    return {"url": page_obj.url, "count": len(filters), "filters": filters}
+    return {"url": page_obj.url, "count": len(filters), "filters": filters, "tables": tables}
