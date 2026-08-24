@@ -143,12 +143,79 @@ def _build_filters(items: list[dict], max_filters: int) -> list[dict]:
 
 
 # ---- L2：JS 表格 / 框架公开 API 探测 ----
-# 探测注册表：新增框架 = 追加一个探测函数（自包含特征检测 + 公开 API 读取 +
-# capability 调用模板构造）；探测失败仅跳过自身，不影响其他层与其他探测。
+# 分层：先通用枚举页面全部表格根，再对每个根逐个执行框架探测。
+# 通用层不含任何框架专属定位表达式；框架容器标记一律经探测注册表声明。
+
+# 通用表格根标记（不含框架名）
+_GENERIC_TABLE_SELECTORS = ("table", "[role=table]", "[role=grid]")
+
+# 根枚举：收集全部候选根、去重、剔除嵌套在其他根内的根、按文档序编号，
+# 为每个根写入稳定的 data-scdb-tableroot 属性并计算可读 label（就近标题/
+# 表格标题/首行文本），供模型辨认目标表。
+_COLLECT_ROOTS_JS = """\
+(params) => {
+  const els = [];
+  for (const sel of params.selectors) {
+    for (const el of document.querySelectorAll(sel)) els.push(el);
+  }
+  const seen = new Set();
+  const uniq = [];
+  for (const el of els) {
+    if (seen.has(el)) continue;
+    seen.add(el);
+    uniq.push(el);
+  }
+  const roots = uniq.filter((el) => {
+    let p = el.parentElement;
+    while (p) {
+      if (seen.has(p)) return false;
+      p = p.parentElement;
+    }
+    return true;
+  });
+  roots.sort((a, b) => {
+    const pos = a.compareDocumentPosition(b);
+    return (pos & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+  });
+  const labelFor = (el) => {
+    if (el.tagName === 'TABLE' && el.caption && (el.caption.textContent || '').trim()) {
+      return el.caption.textContent.trim().slice(0, 60);
+    }
+    let cur = el;
+    for (let depth = 0; depth < 3; depth++) {
+      let n = cur.previousElementSibling;
+      while (n) {
+        if (/^H[1-6]$/.test(n.tagName) && (n.textContent || '').trim()) {
+          return n.textContent.trim().slice(0, 60);
+        }
+        n = n.previousElementSibling;
+      }
+      cur = cur.parentElement;
+      if (!cur || cur === document.documentElement) break;
+    }
+    return '';
+  };
+  return roots.map((el, i) => {
+    el.setAttribute('data-scdb-tableroot', String(i));
+    return {
+      index: i,
+      selector: '[data-scdb-tableroot="' + i + '"]',
+      label: labelFor(el),
+    };
+  });
+}
+"""
+
+
+async def _collect_table_roots(page, selectors: tuple[str, ...]) -> list[dict]:
+    """通用表格根枚举：返回 [{index, selector, label}]，按文档序编号。"""
+    raw = await page.evaluate(_COLLECT_ROOTS_JS, {"selectors": list(selectors)})
+    return [r for r in raw or [] if isinstance(r, dict)]
+
 
 _TABULATOR_PROBE_JS = """\
-() => {
-  const root = document.querySelector('.tabulator');
+(params) => {
+  const root = document.querySelector(params.root);
   if (!root) return [];
   if (!(window.Tabulator && typeof Tabulator.findTable === 'function')) return [];
   let inst = null;
@@ -189,55 +256,87 @@ _TABULATOR_PROBE_JS = """\
 """
 
 
-def _build_tabulator_filters(raw: list, max_filters: int = 20) -> list[dict]:
-    """Tabulator 探测结果 → js_table 条目（纯函数，可单测）。
+def _tabulator_call(root_selector: str, field: str) -> str:
+    """探测端构造：绑定根 selector 的 setFilter 调用模板（框架知识只存在于此处）。"""
+    root_expr = f"document.querySelector({json.dumps(root_selector)})"
+    return (
+        f"(() => {{ const el = {root_expr}; if (!el) return; "
+        f"const t = Tabulator.findTable(el)[0]; if (!t) return; "
+        f"t.setFilter({json.dumps(field)}, '=', $value); }})()"
+    )
 
-    每列即一个可经 setFilter 公开 API 筛选的能力；capability.call 为探测端用
-    公开 API 构造的调用模板（框架知识只存在于此处），apply 只做占位符替换。
+
+def _build_js_table_entries(raw: list, table: dict, max_filters: int = 20) -> list[dict]:
+    """探测条目 → js_table 条目（纯函数，可单测）。
+
+    每列即一个可经框架公开 API 筛选的能力；capability 由探测端构造（框架知识
+    只存在于探测端），此处统一组装 FilterSchema 字段与 table 身份，
+    apply 只做占位符替换。
     """
     out: list[dict] = []
     for item in raw:
         if not isinstance(item, dict) or len(out) >= max_filters:
             continue
-        field = (item.get("field") or "").strip()
+        cap = item.get("capability")
+        if not isinstance(cap, dict) or not cap.get("call"):
+            continue
         name = (item.get("name") or "").strip() or "Unnamed filter"
-        call = (
-            "Tabulator.findTable(document.querySelector('.tabulator'))[0]"
-            f".setFilter({json.dumps(field)}, '=', $value)"
-        )
         out.append({
             "name": name[:60],
             "type": "select",
             "options": [str(o) for o in (item.get("options") or []) if str(o).strip()],
             "current": str(item.get("current", "") or ""),
+            "table": {k: table.get(k, "") for k in ("index", "selector", "label")},
+            "capability": cap,
+        })
+    return out
+
+
+async def _probe_tabulator(page, root: dict) -> list[dict]:
+    """按根探测（注册表项）：root 为 _collect_table_roots 返回的表格身份。"""
+    raw = await page.evaluate(_TABULATOR_PROBE_JS, {"root": root["selector"]})
+    out = []
+    for col in raw or []:
+        if not isinstance(col, dict):
+            continue
+        field = (col.get("field") or "").strip()
+        if not field:
+            continue
+        out.append({
+            "name": (col.get("name") or field)[:60],
+            "options": col.get("options") or [],
+            "current": col.get("current") or "",
             "capability": {
                 "kind": "set_filter",
                 "field": field,
-                "call": call,
+                "table_selector": root["selector"],
+                "call": _tabulator_call(root["selector"], field),
                 "value_placeholder": "$value",
             },
         })
     return out
 
 
-async def _probe_tabulator(page) -> list[dict]:
-    raw = await page.evaluate(_TABULATOR_PROBE_JS)
-    return _build_tabulator_filters(raw or [])
-
-
-_FRAMEWORK_PROBES = [
-    _probe_tabulator,
+# 探测注册表：每项自报 root_marker（框架容器标记）+ 按根执行的探测函数。
+# 新增框架 = 追加一项；探测失败仅跳过自身，不影响其他根与其他探测。
+_FRAMEWORK_PROBES: list[dict] = [
+    {"root_marker": ".tabulator", "probe": _probe_tabulator},
 ]
 
 
 async def _detect_js_table(page) -> list[dict]:
-    """L2 探测：遍历框架探测注册表，合并命中条目的原始结果。"""
+    """L2 探测：先枚举全部表格根，再对每个根遍历探测注册表，合并命中条目。"""
+    selectors = _GENERIC_TABLE_SELECTORS + tuple(p["root_marker"] for p in _FRAMEWORK_PROBES)
+    roots = await _collect_table_roots(page, selectors)
     entries: list[dict] = []
-    for probe in _FRAMEWORK_PROBES:
-        try:
-            entries.extend(await probe(page))
-        except Exception as e:
-            logger.debug("js table probe skipped: %s", e)
+    for root in roots:
+        for item in _FRAMEWORK_PROBES:
+            try:
+                raw = await item["probe"](page, root)
+            except Exception as e:
+                logger.debug("js table probe skipped: %s", e)
+                continue
+            entries.extend(_build_js_table_entries(raw, root))
     return entries
 
 
@@ -264,7 +363,7 @@ async def browser_detect_filters(
     include_hidden: bool = False,
     max_filters: int = 20,
 ) -> dict:
-    """识别页面筛选组件，返回 Filter Schema（name/type/options/current）。name 可直接作为 browser_apply_filter 的 target。"""
+    """识别页面筛选组件，返回 Filter Schema（name/type/options/current）。name 可直接作为 browser_apply_filter 的 target；js_table 条目携带 table 身份（index/selector/label），按表筛选时将该字段一并传给 browser_apply_filter。"""
     manager, page_obj = _require_browser()
     if page_obj is None:
         return {"error": "Browser not launched. Please call browser_launch first."}

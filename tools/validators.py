@@ -140,6 +140,7 @@ def validate_filter_apply_args(
     submit: bool = True,
     mechanism: str = "dom_action",
     capability: dict | None = None,
+    table: dict | None = None,
     *args: object,
     **kwargs: object,
 ) -> None:
@@ -159,6 +160,15 @@ def validate_filter_apply_args(
                 f"capability.kind 必须是 {sorted(JS_TABLE_CAPABILITY_KINDS)} 之一，"
                 f"收到 '{kind}'"
             )
+        if table is not None:
+            if (not isinstance(table, dict)
+                    or not isinstance(table.get("index"), int)
+                    or not isinstance(table.get("selector"), str)
+                    or not table.get("selector")):
+                raise ModelRetry(
+                    "table must be a dict with index (int) and selector (non-empty str), "
+                    "from the table field of a browser_detect_filters entry"
+                )
     else:
         if action not in FILTER_ACTIONS:
             raise ModelRetry(

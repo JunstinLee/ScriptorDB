@@ -227,30 +227,36 @@ class TestFilterContract:
 
 
 class TestDetectJsTableBuilder:
-    def test_build_tabulator_filters_entries(self):
-        from tools.browser_tools.filter_detect import _build_tabulator_filters
+    def test_build_js_table_entries(self):
+        from tools.browser_tools.filter_detect import _build_js_table_entries
 
-        out = _build_tabulator_filters([
-            {"name": "Gender", "field": "gender", "options": ["male", "female"], "current": "female"},
-            {"name": "Name", "field": "name"},
+        table = {"index": 1, "selector": '[data-scdb-tableroot="1"]', "label": "JS Table"}
+        out = _build_js_table_entries([
+            {"name": "Gender", "options": ["male", "female"], "current": "female",
+             "capability": {"kind": "set_filter", "field": "gender", "call": "x $value",
+                            "value_placeholder": "$value", "table_selector": table["selector"]}},
+            {"name": "Name", "capability": {"kind": "set_filter", "field": "name", "call": "y"}},
             "junk",                                   # 非 dict 过滤
             None,
-        ])
+        ], table)
         assert len(out) == 2
         gender = out[0]
         assert gender["type"] == "select"
         assert gender["options"] == ["male", "female"]
         assert gender["current"] == "female"
+        assert gender["table"] == table               # 条目携带 table 身份
         assert gender["capability"]["kind"] == "set_filter"
-        assert gender["capability"]["field"] == "gender"
         assert "$value" in gender["capability"]["call"]
-        assert "gender" in gender["capability"]["call"]  # 探测端模板已嵌入列字段
 
-    def test_build_tabulator_filters_caps_and_fallback(self):
-        from tools.browser_tools.filter_detect import _build_tabulator_filters
+    def test_build_js_table_entries_caps_and_fallback(self):
+        from tools.browser_tools.filter_detect import _build_js_table_entries
 
-        items = [{"field": f"f{i}", "name": ""} for i in range(5)]
-        out = _build_tabulator_filters(items, max_filters=2)
+        table = {"index": 0, "selector": '[data-scdb-tableroot="0"]', "label": ""}
+        items = [
+            {"name": "", "capability": {"kind": "set_filter", "field": f"f{i}", "call": "x"}}
+            for i in range(5)
+        ]
+        out = _build_js_table_entries(items, table, max_filters=2)
         assert len(out) == 2                          # max_filters 截断
         assert out[0]["name"] == "Unnamed filter"     # 空名兜底
 
@@ -378,7 +384,8 @@ class TestFiltersSlow:
         res = await browser_apply_filter(_ctx(), action="select", target="Gender",
                                          value="female", submit=False,
                                          mechanism="js_table_api",
-                                         capability=gender["capability"])
+                                         capability=gender["capability"],
+                                         table=gender["table"])
         assert "已设置 Gender = female" in res
         n = await browser_evaluate(_ctx(), "document.querySelectorAll('.tabulator-row').length")
         assert int(n) == 2                     # 仅 female 两行（Mary May / Christine Lobowski）
@@ -386,4 +393,4 @@ class TestFiltersSlow:
             _ctx(),
             "JSON.stringify(Tabulator.findTable(document.querySelector('.tabulator'))[0].getFilters())",
         )
-        assert '"female"' in state             # 实例筛选状态已生效
+        assert "female" in state                # 实例筛选状态已生效（browser_evaluate 返回 JSON 编码串）

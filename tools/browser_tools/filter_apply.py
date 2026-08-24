@@ -157,29 +157,37 @@ async def execute_filter_action(page, action: str, target: str, value: str = "",
 
 
 async def _execute_js_table_capability(page, target: str, value: str,
-                                       capability: dict | None) -> str:
-    """执行 JS 表格筛选能力（白名单 kind + 探测端模板值替换）。
+                                       capability: dict | None,
+                                       table: dict | None = None) -> str:
+    """执行 JS 表格筛选能力（白名单 kind + 表身份校验 + 探测端模板值替换）。
 
     框架知识只存在于 detect 端构造的 capability.call 模板；此处只做 kind 白名单
-    校验与占位符替换（JSON 转义），不耦合任何具体框架。
+    校验、表身份一致性校验与占位符替换（JSON 转义），不耦合任何具体框架。
     """
     if not isinstance(capability, dict) or not capability:
-        return "失败: 缺少 capability（js_table_api 机制需要 detect 返回条目的 capability 字段）"
+        return "failed: missing capability (js_table_api requires the capability field from a detect entry)"
     kind = capability.get("kind")
     if kind not in JS_TABLE_CAPABILITY_KINDS:
-        return f"失败: 未知 capability.kind '{kind}'（白名单: {sorted(JS_TABLE_CAPABILITY_KINDS)}）"
+        return f"failed: unknown capability.kind '{kind}' (whitelist: {sorted(JS_TABLE_CAPABILITY_KINDS)})"
+    baked = capability.get("table_selector")
+    if not baked:
+        return "failed: capability lacks table_selector (must be built by browser_detect_filters)"
+    if not isinstance(table, dict) or not table.get("selector"):
+        return "failed: js_table_api requires the table identity from a detect entry"
+    if table.get("selector") != baked:
+        return f"failed: table identity mismatch (got {table.get('selector')!r}, capability targets {baked!r})"
     call = capability.get("call")
     if not isinstance(call, str) or not call.strip():
-        return "失败: capability.call 缺失或非法（应由 browser_detect_filters 构造）"
+        return "failed: capability.call missing or invalid (must be built by browser_detect_filters)"
     if kind == "set_filter":
         placeholder = capability.get("value_placeholder", "$value")
         if placeholder not in call:
-            return f"失败: capability.call 缺少值占位符 '{placeholder}'"
+            return f"failed: capability.call lacks value placeholder '{placeholder}'"
         call = call.replace(placeholder, json.dumps(str(value)))
     try:
         await page.evaluate(call)
     except Exception as e:
-        return f"失败: 执行 JS 表格筛选出错: {e}"
+        return f"failed: JS table filter execution error: {e}"
     await _settle_after_click(page)
     detail = f"已设置 {target} = {value}" if kind == "set_filter" else f"已清除 {target} 筛选"
     return f"{detail}（js_table_api）"
@@ -190,11 +198,13 @@ async def _execute_js_table_capability(page, target: str, value: str,
 async def browser_apply_filter(ctx: RunContext[Settings], action: str, target: str,
                                value: str = "", values: str = "", submit: bool = True,
                                mechanism: str = "dom_action",
-                               capability: dict | None = None) -> str:
+                               capability: dict | None = None,
+                               table: dict | None = None) -> str:
     """在浏览器页面执行筛选动作（需用户确认后生效）。target 为 detect 返回的筛选器 name；date_range 用 values 提供起止值。
 
     mechanism 由 detect 返回条目的 mechanism 字段给出：dom_action / ui_event 走 DOM
-    控件交互（execute_filter_action），js_table_api 走探测端构造的 capability 调用模板。
+    控件交互（execute_filter_action），js_table_api 走探测端构造的 capability 调用模板；
+    js_table_api 时 table 必须为 detect 返回条目携带的 table 身份（index/selector/label）。
     """
     manager, page = _require_browser()
     if page is None:
@@ -202,7 +212,7 @@ async def browser_apply_filter(ctx: RunContext[Settings], action: str, target: s
     if blocked := _check_blocked(manager):
         return blocked
     if mechanism == "js_table_api":
-        result = await _execute_js_table_capability(page, target, value, capability)
+        result = await _execute_js_table_capability(page, target, value, capability, table)
     else:
         result = await execute_filter_action(page, action, target, value, values, submit)
     failed = is_filter_failure(result)
