@@ -93,10 +93,32 @@ _EMPTY_RESULT_MARKERS = (
     "timed out",
     "request timed out",
 )
+# Filtering tasks: when the page exposes filter components, low-level DOM
+# probing tools must not be used to construct filters — the detect/apply
+# pipeline (browser_detect_filters → browser_apply_filter → browser_download)
+# is the only sanctioned path.
+_FILTER_PROBE_TOOLS = {"browser_evaluate"}          # blocked whenever the page has filter components
+_FILTER_POST_DETECT_TOOLS = {"browser_query"}       # blocked once browser_detect_filters has run this round
+
+_FILTER_LABEL = (
+    "[Middleware] {tool_name} intercepted: the current page exposes filter components. "
+    "Filtering must go through the detect/apply pipeline: "
+    "browser_detect_filters → browser_apply_filter → browser_download. "
+    "Do not use browser_evaluate / browser_query to probe page structure to construct filters. "
+    "Call browser_detect_filters to obtain the Filter Schema; if the detected capabilities are "
+    "insufficient, re-run browser_detect_filters or tell the user the filter cannot be completed."
+)
+
+_FILTER_REPEAT_LABEL = (
+    "[Middleware] {tool_name} has been intercepted repeatedly this round — do not call it again. "
+    "Use the browser_detect_filters / browser_apply_filter pipeline, or tell the user the filter cannot be completed."
+)
 
 _lock = threading.Lock()
 _round_blocks: dict[str, dict[str, int]] = {}
 _round_browser_used: set[str] = set()
+_round_detect_used: set[str] = set()       # rounds where browser_detect_filters already ran
+_page_filter_cache: dict[str, bool] = {}   # url -> page exposes filter components
 
 _MAX_ROUNDS = 1000
 
@@ -173,6 +195,44 @@ def _target_url_from_prompt(ctx) -> str | None:
         if match:
             return match.group(0)
     return None
+
+async def _page_has_filter_components() -> bool:
+    """True when the current page exposes filter components (table root + filter controls).
+
+    Framework-agnostic: table roots come from the generic selectors plus the
+    root markers registered in filter_detect._FRAMEWORK_PROBES (data-driven,
+    nothing hard-coded here). Cached per URL.
+    """
+    url = _current_page_url()
+    if url and url in _page_filter_cache:
+        return _page_filter_cache[url]
+    try:
+        from browser import get_manager
+
+        page = get_manager().page()
+        if page is None:
+            return False
+        from tools.browser_tools.filter_detect import _FRAMEWORK_PROBES
+
+        table_selectors = 'table, [role="table"], [role="grid"]' + "".join(
+            f', {p["root_marker"]}' for p in _FRAMEWORK_PROBES
+        )
+        has = await page.evaluate(
+            f"""() => {{
+                const hasTable = !!document.querySelector('{table_selectors}');
+                if (!hasTable) return false;
+                const hasFilterInput = !!document.querySelector(
+                    'input[placeholder*="filter" i], input[placeholder*="筛选" i]');
+                const hasFilterSelect = [...document.querySelectorAll('select')]
+                    .some(s => s.options.length > 1);
+                return hasFilterInput || hasFilterSelect;
+            }}"""
+        )
+    except Exception:
+        return False
+    if url:
+        _page_filter_cache[url] = bool(has)
+    return bool(has)
 
 
 def _is_document_discovery(ctx) -> bool:
@@ -266,9 +326,22 @@ async def evaluate_call(ctx, tool_name: str) -> str:
     if tool_name == "python_sandbox_execute":
         if round_id in _round_browser_used or _browser_launched():
             logger.info("tool middleware: blocking python_sandbox_execute — browser control active (round %s)", round_id)
-            if _bump_round_block(round_id, tool_name) >= 2:
-                return "no-python-repeat"
-            return "no-python"
+    if tool_name == "browser_detect_filters":
+        _round_detect_used.add(round_id)
+
+    # Pages exposing filter components: low-level probing tools must not be
+    # used to construct filters — the detect/apply pipeline is the only path.
+    if tool_name in _FILTER_PROBE_TOOLS or (
+        tool_name in _FILTER_POST_DETECT_TOOLS and round_id in _round_detect_used
+    ):
+        if await _page_has_filter_components():
+            count = _bump_round_block(round_id, tool_name)
+            if count >= 2:
+                return "filter-repeat"
+            return "filter-block"
+
+    if tool_name not in _BLOCKED_TOOLS:
+        return "allow"
 
     if tool_name not in _BLOCKED_TOOLS:
         return "allow"
@@ -289,8 +362,12 @@ async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
         return _NO_PYTHON_LABEL
     if decision == "no-python-repeat":
         return _NO_PYTHON_REPEAT_LABEL
-    if decision == "repeat":
-        return _REPEAT_LABEL.format(tool_name=tool_name)
+    if decision == "filter-block":
+        return _FILTER_LABEL.format(tool_name=tool_name)
+    if decision == "filter-repeat":
+        return _FILTER_REPEAT_LABEL.format(tool_name=tool_name)
+
+    current = _current_page_url()
 
     current = _current_page_url()
     target = _target_url_from_prompt(ctx)
