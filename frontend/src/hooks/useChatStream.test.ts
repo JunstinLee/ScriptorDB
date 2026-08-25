@@ -3,17 +3,17 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useChatStream } from "./useChatStream";
 import type { StreamRunEvent } from "../types";
 
-const { mockStreamChat, mockStreamApproval, mockCompleteTakeover, mockCancelTakeover } =
+const { mockStreamChat, mockSubmitApproval, mockCompleteTakeover, mockCancelTakeover } =
   vi.hoisted(() => ({
     mockStreamChat: vi.fn(),
-    mockStreamApproval: vi.fn(),
+    mockSubmitApproval: vi.fn(),
     mockCompleteTakeover: vi.fn(),
     mockCancelTakeover: vi.fn(),
   }));
 
 vi.mock("../api/client", () => ({
   streamChat: mockStreamChat,
-  streamApproval: mockStreamApproval,
+  submitApproval: mockSubmitApproval,
   WorkspaceNotSelectedError: class WorkspaceNotSelectedError extends Error {},
 }));
 
@@ -72,6 +72,34 @@ function captureCompleteTakeover(): CapturedCallbacks {
     },
   };
 }
+type ApprovalRequestLike = {
+  type: "approval_request";
+  run_id: string;
+  request_id: string;
+  calls: Array<{ tool_call_id: string; tool_name: string; args: Record<string, unknown> }>;
+};
+
+function captureApprovalRequest(): {
+  setApprovalRequest: (e: ApprovalRequestLike) => void;
+} {
+  let approvalCb: ((e: ApprovalRequestLike) => void) | null = null;
+  mockStreamChat.mockImplementation(
+    (
+      _sid: string,
+      _body: unknown,
+      _onEvent: unknown,
+      _onError: unknown,
+      _onDone: unknown,
+      onApprovalRequest?: (e: ApprovalRequestLike) => void,
+    ) => {
+      approvalCb = onApprovalRequest ?? null;
+      return new AbortController();
+    },
+  );
+  return {
+    setApprovalRequest: (e: ApprovalRequestLike) => approvalCb!(e),
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -124,5 +152,81 @@ describe("takeover resume lifecycle", () => {
     expect(result.current.takeoverInfo.phase).toBe("none");
     expect(mockCancelTakeover).toHaveBeenCalledWith("sess_1", "run-1");
     await waitFor(() => expect(result.current.takeoverInfo.phase).toBe("none"));
+  });
+});
+describe("approval submit", () => {
+  it("signals approval via short POST without local terminal events", async () => {
+    mockSubmitApproval.mockResolvedValue(undefined);
+    const stream = captureApprovalRequest();
+    const params = makeParams();
+    const { result } = renderHook(() => useChatStream(params));
+
+    act(() => {
+      void result.current.handleSend("hi", [], null);
+    });
+    act(() => {
+      stream.setApprovalRequest({
+        type: "approval_request",
+        run_id: "run-1",
+        request_id: "req-1",
+        calls: [
+          {
+            tool_call_id: "c1",
+            tool_name: "browser_apply_filter",
+            args: { action: "select", target: "Status", value: "Active" },
+          },
+        ],
+      });
+    });
+
+    await act(async () => {
+      await result.current.handleApprovalSubmit(true);
+    });
+    expect(mockSubmitApproval).toHaveBeenCalledWith(
+      "sess_1",
+      "req-1",
+      { c1: true },
+      undefined,
+    );
+    // 不再本地合成 tool_result/run_end：原流继续推送后续事件
+    expect(params.appendEvent).not.toHaveBeenCalled();
+    expect(params.setLoading).not.toHaveBeenCalledWith(false);
+  });
+
+  it("signals denial through the same short POST", async () => {
+    mockSubmitApproval.mockResolvedValue(undefined);
+    const stream = captureApprovalRequest();
+    const params = makeParams();
+    const { result } = renderHook(() => useChatStream(params));
+
+    act(() => {
+      void result.current.handleSend("hi", [], null);
+    });
+    act(() => {
+      stream.setApprovalRequest({
+        type: "approval_request",
+        run_id: "run-1",
+        request_id: "req-2",
+        calls: [
+          {
+            tool_call_id: "c2",
+            tool_name: "browser_apply_filter",
+            args: { action: "input", target: "Query", value: "x" },
+          },
+        ],
+      });
+    });
+
+    await act(async () => {
+      await result.current.handleApprovalSubmit(false);
+    });
+    expect(mockSubmitApproval).toHaveBeenCalledWith(
+      "sess_1",
+      "req-2",
+      { c2: false },
+      undefined,
+    );
+    expect(params.appendEvent).not.toHaveBeenCalled();
+    expect(params.setLoading).not.toHaveBeenCalledWith(false);
   });
 });

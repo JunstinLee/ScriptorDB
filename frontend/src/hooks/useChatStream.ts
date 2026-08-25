@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import {
-  streamApproval,
   streamChat,
+  submitApproval,
   WorkspaceNotSelectedError,
 } from "../api/client";
 import { completeTakeover as completeTakeoverApi, cancelTakeover as cancelTakeoverApi } from "../api/browser";
@@ -11,8 +11,6 @@ import type {
   BrowserActionEvent,
   FilterSchema,
   StreamRunEvent,
-  ToolResultRunEvent,
-  RunEndEvent,
 } from "../types";
 
 interface UseChatStreamParams {
@@ -224,7 +222,7 @@ export function useChatStream(params: UseChatStreamParams) {
   );
 
   const handleApprovalSubmit = useCallback(
-    (
+    async (
       approved: boolean,
       overrideArgs?: Record<string, Record<string, unknown>>,
     ) => {
@@ -233,60 +231,23 @@ export function useChatStream(params: UseChatStreamParams) {
       setApprovalRequest(null);
       if (!request || !sid) return;
 
-      if (!approved) {
-        console.log(
-          "[useChatStream] handleApprovalSubmit denied: run_id=%s calls=%s",
-          request.run_id,
-          request.calls.map((c) => c.tool_call_id).join(","),
-        );
-        for (const call of request.calls) {
-          const event: ToolResultRunEvent = {
-            type: "tool_result",
-            run_id: request.run_id,
-            call_id: call.tool_call_id,
-            tool_name: call.tool_name,
-            success: false,
-            output: "User cancelled the operation",
-            timestamp: new Date().toISOString(),
-          };
-          appendEvent(sid, event);
-        }
-        const runEndEvent: RunEndEvent = {
-          type: "run_end",
-          run_id: request.run_id,
-          timestamp: new Date().toISOString(),
-        };
-        appendEvent(sid, runEndEvent);
-        setLoading(false);
-        return;
-      }
-
+      // 批准/拒绝统一走短信号请求（与 /takeover/complete 同模式）：
+      // 只唤醒挂起的 run，工具结果、run_end 等后续事件继续由原 chat SSE 流
+      // 推送，前端不再本地合成终态事件，避免工具调用永久停留在 running。
       const approvedMap: Record<string, boolean> = {};
       for (const call of request.calls) {
         approvedMap[call.tool_call_id] = approved;
       }
 
-      abortRef.current = streamApproval(
-        sid,
-        request.request_id,
-        approvedMap,
-        makeEventCallback(sid),
-        makeErrorCallback(),
-        makeDoneCallback(sid),
-        (event) => {
-          setApprovalRequest(event);
-        },
-        overrideArgs,
-      );
+      try {
+        await submitApproval(sid, request.request_id, approvedMap, overrideArgs);
+      } catch (error) {
+        makeErrorCallback()(
+          error instanceof Error ? error : new Error("Unknown error"),
+        );
+      }
     },
-    [
-      approvalRequest,
-      appendEvent,
-      makeEventCallback,
-      makeErrorCallback,
-      makeDoneCallback,
-      setLoading,
-    ],
+    [approvalRequest, makeErrorCallback],
   );
 
   const handleTakeoverComplete = useCallback(
