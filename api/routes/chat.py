@@ -24,16 +24,6 @@ router = APIRouter(prefix="/api/sessions", tags=["chat"])
 _active_orchestrators: dict[str, ApprovalOrchestrator] = {}
 
 
-def _persist_paused_run(session_id: str, summary: dict[str, Any]) -> None:
-    session = get_session_store().get(session_id)
-    if session is None:
-        return
-    if summary.get("new_messages"):
-        session.add_model_messages(summary["new_messages"])
-    if summary.get("final_output"):
-        session.add_assistant_message(summary["final_output"])
-    get_session_store().save()
-
 
 async def _stream_orchestrator_events(
     orchestrator: ApprovalOrchestrator,
@@ -74,7 +64,8 @@ async def _stream_orchestrator_events(
                 yield sse_event(ev_type, event)
 
                 if ev_type == "approval_request":
-                    return
+                    # 与接管一致：流保持打开，等待审批决定后继续推送同一 run 的事件。
+                    continue
                 if ev_type == "human_takeover_request":
                     # 接管期间 run 挂起在 resume_event 上，SSE 流保持打开；
                     # 恢复后继续推送同一 run 的后续事件。
@@ -117,8 +108,6 @@ async def _stream_orchestrator_events(
                             )
                             from browser import get_manager
                             get_manager().schedule_idle_close()
-                        elif summary["status"] == "running":
-                            _persist_paused_run(session_id, summary)
                         else:
                             logger.warning(
                                 "chat_stream_interrupted: status=%s not persisted session_id=%s",
@@ -144,11 +133,6 @@ async def _stream_orchestrator_events(
                     )
                     from browser import get_manager
                     get_manager().schedule_idle_close()
-                elif summary["status"] == "running":
-                    # Paused for deferred-tool approval: checkpoint the user message
-                    # and this turn's model messages (incl. the deferred tool calls)
-                    # so a backend restart does not lose the turn.
-                    _persist_paused_run(session_id, summary)
                 else:
                     logger.warning(
                         "chat_stream_finished: status=%s not persisted session_id=%s",

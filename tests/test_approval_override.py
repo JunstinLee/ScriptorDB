@@ -2,14 +2,22 @@
 
 覆盖验收标准 3：
 - `_process_deferred_requests` 将 `browser_apply_filter` 归入 pending_calls（其余工具不受影响）
-- `resume_with_approval` 带 override_args → `ToolApproved(override_args=…)`（无 override_args 时与现状一致）
-- all_denied 分支回归
+- `signal_approval` 带 override_args → `ToolApproved(override_args=…)`（无 override_args 时与现状一致）
+- all-denied → `ToolDenied` 走标准 deferred 续跑（不再特判终止）
+- `_run_loop` 挂起等待审批、唤醒后同一流继续（接管同模式）
 - `ApprovalSubmitRequest.override_args` 结构校验
 """
 
+import asyncio
+
 import pytest
 from pydantic import ValidationError
-from pydantic_ai import DeferredToolRequests, DeferredToolResults, ToolApproved
+from pydantic_ai import (
+    DeferredToolRequests,
+    DeferredToolResults,
+    ToolApproved,
+    ToolDenied,
+)
 from pydantic_ai.messages import ToolCallPart
 
 from schemas.approval import ApprovalSubmitRequest
@@ -93,75 +101,43 @@ async def test_mixed_calls_only_filter_is_pending():
     assert [c["tool_call_id"] for c in ev["calls"]] == ["c1"]
 
 
-# ---------- resume_with_approval override_args ----------
+# ---------- signal_approval 构建审批结果 + _run_loop 挂起/唤醒 ----------
 
 
-async def test_resume_with_override_args_builds_toolapproved(monkeypatch):
+async def test_signal_approval_with_override_args_builds_toolapproved():
     _seed_pending(
         "req-override",
         [{"tool_call_id": "c1", "tool_name": "browser_apply_filter",
           "args": {"action": "select", "target": "Status", "value": "Active"}}],
     )
-    captured: dict = {}
-
-    async def fake_run_loop(self, prompt, message_history, event_callback,
-                            run_collector, new_messages_collector, deferred_results=None):
-        captured["results"] = deferred_results
-        return True
-
-    monkeypatch.setattr(ApprovalOrchestrator, "_run_loop", fake_run_loop)
-
-    events: list[dict] = []
-
-    async def cb(event):
-        events.append(event)
-
     orch = _make_orchestrator()
-    completed = await orch.resume_with_approval(
+    result = orch.signal_approval(
         "req-override",
         {"c1": True},
-        cb,
-        run_collector={},
-        new_messages_collector=[],
         override_args={"c1": {"action": "select", "target": "Status", "value": "Inactive"}},
     )
-    assert completed is True
-    results = captured["results"]
-    assert isinstance(results, DeferredToolResults)
-    approval = results.approvals["c1"]
+    assert result["ok"] is True
+    assert orch._approval.resume_event.is_set()
+    approval = orch._approval.decision.approvals["c1"]
     assert isinstance(approval, ToolApproved)
     assert approval.override_args == {"action": "select", "target": "Status", "value": "Inactive"}
 
 
-async def test_resume_without_override_args_plain_toolapproved(monkeypatch):
+async def test_signal_approval_without_override_args_plain_toolapproved():
     _seed_pending(
         "req-plain",
         [{"tool_call_id": "c1", "tool_name": "browser_apply_filter",
           "args": {"action": "select", "target": "Status", "value": "Active"}}],
     )
-    captured: dict = {}
-
-    async def fake_run_loop(self, prompt, message_history, event_callback,
-                            run_collector, new_messages_collector, deferred_results=None):
-        captured["results"] = deferred_results
-        return True
-
-    monkeypatch.setattr(ApprovalOrchestrator, "_run_loop", fake_run_loop)
-
-    async def cb(event):
-        pass
-
     orch = _make_orchestrator()
-    completed = await orch.resume_with_approval(
-        "req-plain", {"c1": True}, cb, run_collector={}, new_messages_collector=[]
-    )
-    assert completed is True
-    approval = captured["results"].approvals["c1"]
+    result = orch.signal_approval("req-plain", {"c1": True})
+    assert result["ok"] is True
+    approval = orch._approval.decision.approvals["c1"]
     assert isinstance(approval, ToolApproved)
     assert approval.override_args is None
 
 
-async def test_resume_all_denied_terminates_run(monkeypatch):
+async def test_signal_approval_all_denied_builds_tooldenied():
     _seed_pending(
         "req-denied",
         [
@@ -171,35 +147,63 @@ async def test_resume_all_denied_terminates_run(monkeypatch):
              "args": {"action": "input", "target": "Query", "value": "x"}},
         ],
     )
-    run_loop_called = False
+    orch = _make_orchestrator()
+    result = orch.signal_approval("req-denied", {"c1": False, "c2": False})
+    assert result["ok"] is True
+    decision = orch._approval.decision
+    assert isinstance(decision.approvals["c1"], ToolDenied)
+    assert isinstance(decision.approvals["c2"], ToolDenied)
 
-    async def fake_run_loop(self, *args, **kwargs):
-        nonlocal run_loop_called
-        run_loop_called = True
-        return True
 
-    monkeypatch.setattr(ApprovalOrchestrator, "_run_loop", fake_run_loop)
+async def test_signal_approval_unknown_request_id_fails():
+    orch = _make_orchestrator()
+    result = orch.signal_approval("req-missing", {"c1": True})
+    assert result["ok"] is False
+    assert result["error"] == "no_pending"
+    assert orch._approval.resume_event.is_set() is False
 
+
+async def test_run_loop_waits_for_approval_then_resumes(monkeypatch):
+    """approval_request 后 _run_loop 挂起等待；signal_approval() 唤醒后
+    以审批结果继续同一 run（不结束 run、事件走同一 callback）。"""
+    orch = _make_orchestrator()
+    monkeypatch.setattr(ApprovalOrchestrator, "_resolve_agent", lambda self: None)
+    _seed_pending(
+        "req-wait",
+        [{"tool_call_id": "c1", "tool_name": "browser_apply_filter", "args": {}}],
+    )
     events: list[dict] = []
 
     async def cb(event):
         events.append(event)
 
-    run_collector: dict = {}
-    orch = _make_orchestrator()
-    completed = await orch.resume_with_approval(
-        "req-denied", {"c1": False, "c2": False}, cb,
-        run_collector=run_collector,
-        new_messages_collector=[],
+    async def fake_resumable(prompt, message_history, config, model=None, provider=None,
+                             agent=None, tracker=None, deferred_results=None, pause=None):
+        if deferred_results is None:
+            yield {"type": "approval_request", "run_id": "run1",
+                   "request_id": "req-wait", "calls": []}
+        else:
+            yield {"type": "run_end", "run_id": "run1", "timestamp": "t"}
+
+    monkeypatch.setattr(
+        "runtime.approval_orchestrator.run_agent_stream_resumable", fake_resumable
     )
-    assert completed is True
-    assert run_loop_called is False
-    assert any(e["type"] == "run_end" for e in events)
-    assert any(e["type"] == "metadata" for e in events)
-    # 工具以失败终态记录，不残留 pending
-    invocations = run_collector.get("tool_invocations", [])
-    assert len(invocations) == 2
-    assert all(inv["status"] == "error" for inv in invocations)
+
+    async def signal_later():
+        await asyncio.sleep(0.01)
+        return orch.signal_approval("req-wait", {"c1": True})
+
+    signal_task = asyncio.create_task(signal_later())
+    done = await orch._run_loop(
+        "原始 prompt", [], cb, run_collector={}, new_messages_collector=[]
+    )
+    signaled = await signal_task
+    assert done is True
+    assert signaled["ok"] is True
+    # 唤醒后同一 callback 收到后续 run_end；事件顺序：approval_request → run_end
+    assert [e["type"] for e in events] == ["approval_request", "run_end"]
+    # pending 在唤醒后被消费
+    assert get_pending_store().get("req-wait") is None
 
 
 # ---------- ApprovalSubmitRequest 结构 ----------

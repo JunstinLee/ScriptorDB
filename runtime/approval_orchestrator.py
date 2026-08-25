@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from pydantic_ai import Agent, DeferredToolRequests, DeferredToolResults, ToolApproved, ToolDenied
@@ -24,6 +26,20 @@ from runtime.run_tracker import RunTracker, utc_now_iso
 from runtime.runner.takeover_hook import RunPauseState
 from schemas import StoredRun, StoredToolInvocation
 from runtime.sessions import get_session_store
+
+
+@dataclass
+class _ApprovalPauseState:
+    """审批暂停状态（镜像接管 RunPauseState）。
+
+    _run_loop 遇到 approval_request 后挂起在 resume_event.wait()（SSE 流保持
+    打开）；/approve 端点经 signal_approval() 写入 decision 并 set() 唤醒，
+    _run_loop 用审批结果继续同一 run。
+    """
+
+    resume_event: asyncio.Event = field(default_factory=asyncio.Event)
+    decision: DeferredToolResults | None = None
+    cancelled: bool = False
 
 
 class ApprovalOrchestrator:
@@ -51,6 +67,9 @@ class ApprovalOrchestrator:
         self._run_tracker: RunTracker | None = None
         # 人工接管暂停状态：hook 挂起在 resume_event.wait()，
         # resume_takeover() set() 唤醒，取消/超时置 cancelled 后终止 run。
+        # 审批暂停状态：_run_loop 挂起在 resume_event.wait()，
+        # signal_approval() 写入审批结果并 set() 唤醒，继续同一 run。
+        self._approval = _ApprovalPauseState()
         self._pause = RunPauseState()
 
     @property
@@ -69,6 +88,7 @@ class ApprovalOrchestrator:
         """
         self._run_tracker = RunTracker()
         self._pause = RunPauseState()
+        self._approval = _ApprovalPauseState()
         run_collector: dict[str, Any] = {}
         new_messages_collector: list[ModelMessage] = []
 
@@ -97,167 +117,140 @@ class ApprovalOrchestrator:
         event_callback: Callable[[dict[str, Any]], Awaitable[None]],
         run_collector: dict[str, Any],
         new_messages_collector: list[ModelMessage],
-        deferred_results: DeferredToolResults | None = None,
     ) -> bool:
-        """Run one iteration. Returns True if the run completed, False if paused for approval/takeover."""
+        """Run the agent loop, pausing for approvals and resuming in-place.
+
+        approval_request 时挂起在审批 resume_event 上（SSE 流保持打开，与接管
+        同一模式），signal_approval() 唤醒后用审批结果继续消费同一 run 的事件；
+        run 完成（run_end）返回 True。
+        """
         if self._run_tracker is None:
             self._run_tracker = RunTracker()
         agent = self.agent or self._resolve_agent()
 
-        async for event in run_agent_stream_resumable(
-            prompt,
-            message_history,
-            self.config,
-            model=self.model,
-            provider=self.provider,
-            agent=agent,
-            tracker=self._run_tracker,
-            deferred_results=deferred_results,
-            pause=self._pause,
-        ):
-            ev_type = event.get("type")
-            if ev_type == "new_messages":
-                new_messages_collector.extend(event.get("messages", []))
-                continue
-            if ev_type == "approval_request":
+        deferred_results: DeferredToolResults | None = None
+        current_prompt = prompt
+        current_history = message_history
+        while True:
+            async for event in run_agent_stream_resumable(
+                current_prompt,
+                current_history,
+                self.config,
+                model=self.model,
+                provider=self.provider,
+                agent=agent,
+                tracker=self._run_tracker,
+                deferred_results=deferred_results,
+                pause=self._pause,
+            ):
+                ev_type = event.get("type")
+                if ev_type == "new_messages":
+                    new_messages_collector.extend(event.get("messages", []))
+                    continue
+                if ev_type == "approval_request":
+                    await event_callback(event)
+                    # 挂起等待审批决定；/approve 端点经 signal_approval() 写入
+                    # decision 并 set() 唤醒，唤醒后不结束 run，继续同一流。
+                    await self._approval.resume_event.wait()
+                    if self._approval.cancelled:
+                        # 审批被取消：记录取消终态，结束 run
+                        self._run_tracker.status = "cancelled"
+                        self._run_tracker.ended_at = utc_now_iso()
+                        run_collector.update({
+                            "run_id": self._run_tracker.run_id,
+                            "status": self._run_tracker.status,
+                            "final_output": self._run_tracker.final_output,
+                            "tool_invocations": self._run_tracker.tool_invocations,
+                            "started_at": self._run_tracker.started_at,
+                            "ended_at": self._run_tracker.ended_at,
+                        })
+                        await event_callback({
+                            "type": "metadata",
+                            "run_id": self._run_tracker.run_id,
+                            "status": self._run_tracker.status,
+                            "final_output": self._run_tracker.final_output,
+                            "tool_invocations": self._run_tracker.tool_invocations,
+                            "started_at": self._run_tracker.started_at,
+                            "ended_at": self._run_tracker.ended_at,
+                        })
+                        await event_callback({
+                            "type": "run_end",
+                            "run_id": self._run_tracker.run_id,
+                            "timestamp": utc_now_iso(),
+                        })
+                        return True
+                    results = self._approval.decision
+                    request_id = event.get("request_id", "")
+                    pending = get_pending_store().pop(request_id) if request_id else None
+                    if pending is not None:
+                        current_history = list(pending.message_history)
+                    deferred_results = results
+                    current_prompt = "Continue"
+                    self._approval = _ApprovalPauseState()
+                    break
+                if ev_type == "human_takeover_request":
+                    # 人工接管：run 挂起在 hook 的 resume_event.wait() 上，
+                    # 不结束 run；恢复后本循环继续消费后续事件。
+                    await event_callback(event)
+                    continue
+                if ev_type == "takeover_cancelled":
+                    # 终止语义：取消只记录终态，不再静默启动后台模型回合。
+                    await event_callback(event)
+                    from browser import get_manager
+                    get_manager().takeover.reset()
+                    # 超时/取消路径都要清掉 checkpoint，避免残留占用
+                    get_takeover_checkpoint_store().remove(self.session_id)
+                    return True
+                if ev_type == "run_end":
+                    await event_callback(event)
+                    from browser import get_manager
+                    get_manager().takeover.reset()
+                    return True
+                if ev_type == "metadata":
+                    run_collector.update({
+                        "run_id": self._run_tracker.run_id,
+                        "status": self._run_tracker.status,
+                        "final_output": self._run_tracker.final_output,
+                        "tool_invocations": self._run_tracker.tool_invocations,
+                        "started_at": self._run_tracker.started_at,
+                        "ended_at": self._run_tracker.ended_at,
+                    })
                 await event_callback(event)
-                return False
-            if ev_type == "human_takeover_request":
-                # 人工接管：run 挂起在 hook 的 resume_event.wait() 上，
-                # 不结束 run；恢复后本循环继续消费后续事件。
-                await event_callback(event)
-                continue
-            if ev_type == "takeover_cancelled":
-                # 终止语义：取消只记录终态，不再静默启动后台模型回合。
-                await event_callback(event)
-                from browser import get_manager
-                get_manager().takeover.reset()
-                # 超时/取消路径都要清掉 checkpoint，避免残留占用
-                get_takeover_checkpoint_store().remove(self.session_id)
+            else:
+                # async for 正常耗尽（run_end 已推送）：run 完成
                 return True
-            if ev_type == "run_end":
-                await event_callback(event)
-                from browser import get_manager
-                get_manager().takeover.reset()
-                return True
-            if ev_type == "metadata":
-                run_collector.update({
-                    "run_id": self._run_tracker.run_id,
-                    "status": self._run_tracker.status,
-                    "final_output": self._run_tracker.final_output,
-                    "tool_invocations": self._run_tracker.tool_invocations,
-                    "started_at": self._run_tracker.started_at,
-                    "ended_at": self._run_tracker.ended_at,
-                })
-            await event_callback(event)
-
-        return True
 
     def _resolve_agent(self) -> Any:
         return self._app_context.resolve_agent(self.model, self.provider)
 
-    async def resume_with_approval(
+    def signal_approval(
         self,
         request_id: str,
         approved_map: dict[str, bool],
-        event_callback: Callable[[dict[str, Any]], Awaitable[None]],
-        run_collector: dict[str, Any],
-        new_messages_collector: list[ModelMessage],
         override_args: dict | None = None,
-    ) -> bool:
-        """Resume a previously paused run after the user approved/denied calls.
+    ) -> dict[str, Any]:
+        """/approve 端点信号：校验 pending 后构建审批结果并唤醒挂起的 run。
 
-        override_args: call_id -> 用户修改后的最终参数（仅含被改字段）。
-        未提供或缺失该 call_id 时按原参数执行（与现状一致）。
+        与 resume_takeover 同模式：不重启 run、不开新 SSE 流；pending 由
+        _run_loop 唤醒后按 request_id 消费（此处只读不弹，避免双点/过期
+        请求把状态消费掉）。后续事件继续由原 chat SSE 流推送。
         """
-        pending = get_pending_store().pop(request_id)
+        pending = get_pending_store().get(request_id)
         if pending is None:
-            return False
-
-        if self._run_tracker is None:
-            self._run_tracker = RunTracker(run_id=pending.run_id)
-            self._run_tracker.tool_invocations = list(pending.tool_invocations)
-
-        all_denied = all(not approved_map.get(call["tool_call_id"], False) for call in pending.deferred_calls)
-
-        if all_denied:
-            for call in pending.deferred_calls:
-                self._run_tracker.add_tool_invocation(
-                    call["tool_call_id"], call["tool_name"], call["args"]
-                )
-                self._run_tracker.complete_tool(
-                    call["tool_call_id"],
-                    False,
-                    "User cancelled the operation",
-                    None,
-                    None,
-                )
-            self._run_tracker.finish()
-            run_collector.update({
-                "run_id": self._run_tracker.run_id,
-                "status": self._run_tracker.status,
-                "final_output": self._run_tracker.final_output,
-                "tool_invocations": self._run_tracker.tool_invocations,
-                "started_at": self._run_tracker.started_at,
-                "ended_at": self._run_tracker.ended_at,
-            })
-            await event_callback({
-                "type": "metadata",
-                "run_id": self._run_tracker.run_id,
-                "status": self._run_tracker.status,
-                "final_output": self._run_tracker.final_output,
-                "tool_invocations": self._run_tracker.tool_invocations,
-                "started_at": self._run_tracker.started_at,
-                "ended_at": self._run_tracker.ended_at,
-            })
-            await event_callback({
-                "type": "run_end",
-                "run_id": self._run_tracker.run_id,
-                "timestamp": utc_now_iso(),
-            })
-            session = get_session_store().get(self.session_id)
-            if session is not None:
-                run = StoredRun(
-                    run_id=run_collector["run_id"],
-                    status=run_collector["status"],
-                    tool_invocations=[
-                        StoredToolInvocation(**inv)
-                        for inv in run_collector.get("tool_invocations", [])
-                    ],
-                    final_output=run_collector.get("final_output", ""),
-                    started_at=run_collector["started_at"],
-                    ended_at=run_collector.get("ended_at"),
-                )
-                session.add_run(run)
-                get_session_store().save()
-            return True
-
+            return {"ok": False, "error": "no_pending"}
         results = DeferredToolResults()
-        denied_ids = []
         for call in pending.deferred_calls:
             call_id = call["tool_call_id"]
-            approved = approved_map.get(call_id, False)
-            if approved:
+            if approved_map.get(call_id, False):
                 if override_args and call_id in override_args:
                     results.approvals[call_id] = ToolApproved(override_args=override_args[call_id])
                 else:
                     results.approvals[call_id] = ToolApproved()
             else:
-                denied_ids.append(call_id)
-                self._run_tracker.add_tool_invocation(
-                    call_id, call["tool_name"], call["args"]
-                )
-                results.approvals[call_id] = ToolDenied("User denied the import operation.")
-        completed = await self._run_loop(
-            "Continue",
-            pending.message_history,
-            event_callback,
-            run_collector=run_collector,
-            new_messages_collector=new_messages_collector,
-            deferred_results=results,
-        )
-
-        return completed
+                results.approvals[call_id] = ToolDenied("User denied the operation.")
+        self._approval.decision = results
+        self._approval.resume_event.set()
+        return {"ok": True, "run_id": self.run_id}
 
     def resume_takeover(self, run_id: str, takeover_result: str) -> dict[str, Any]:
         """从人工接管暂停中恢复当前 run，不重启 agent。
@@ -476,17 +469,3 @@ def _auto_approve_all(deferred: DeferredToolRequests) -> DeferredToolResults:
         results.approvals[call.tool_call_id] = ToolApproved()
     return results
 
-
-async def submit_approval(
-    request_id: str,
-    approved_map: dict[str, bool],
-) -> PendingApproval | None:
-    """Used by the approval endpoint to signal user decisions.
-
-    The actual resume happens in ApprovalOrchestrator.resume_with_approval.
-    """
-    pending = get_pending_store().get(request_id)
-    if pending is None:
-        return None
-    pending.approved_map = approved_map
-    return pending
