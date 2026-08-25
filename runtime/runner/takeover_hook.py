@@ -7,7 +7,7 @@ from typing import Any
 from pydantic_ai.messages import ModelMessage, ModelRequest
 
 from core.logging_setup import get_logger
-from runtime.approval_policy import PendingTakeover, get_takeover_checkpoint_store
+from approval_part.store import PendingTakeover, get_takeover_checkpoint_store
 from runtime.run_tracker import utc_now_iso
 from runtime.runner.events import browser_action_event, human_takeover_request_event
 

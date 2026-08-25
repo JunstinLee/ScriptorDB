@@ -21,8 +21,9 @@ from pydantic_ai import (
 from pydantic_ai.messages import ToolCallPart
 
 from schemas.approval import ApprovalSubmitRequest
-from runtime.approval_orchestrator import ApprovalOrchestrator, _process_deferred_requests
+from runtime.approval_orchestrator import ApprovalOrchestrator, _process_deferred_requests, _RunState
 from runtime.approval_policy import PendingApproval, get_pending_store
+from runtime.run_tracker import RunTracker
 
 
 @pytest.fixture(autouse=True)
@@ -186,7 +187,7 @@ async def test_run_loop_waits_for_approval_then_resumes(monkeypatch):
             yield {"type": "run_end", "run_id": "run1", "timestamp": "t"}
 
     monkeypatch.setattr(
-        "runtime.approval_orchestrator.run_agent_stream_resumable", fake_resumable
+        "approval_part.orchestrator.run_agent_stream_resumable", fake_resumable
     )
 
     async def signal_later():
@@ -194,9 +195,11 @@ async def test_run_loop_waits_for_approval_then_resumes(monkeypatch):
         return orch.signal_approval("req-wait", {"c1": True})
 
     signal_task = asyncio.create_task(signal_later())
-    done = await orch._run_loop(
-        "原始 prompt", [], cb, run_collector={}, new_messages_collector=[]
+    orch._run_tracker = RunTracker()
+    state = _RunState(
+        tracker=orch._run_tracker, agent=None, prompt="原始 prompt", history=[]
     )
+    done = await orch._run_loop(state, cb)
     signaled = await signal_task
     assert done is True
     assert signaled["ok"] is True

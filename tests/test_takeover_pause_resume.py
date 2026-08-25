@@ -127,7 +127,7 @@ def _patch_store(monkeypatch, store):
     monkeypatch.setattr("runtime.sessions.get_session_store", lambda: store)
     monkeypatch.setattr("services.chat_service.get_session_store", lambda: store)
     monkeypatch.setattr(
-        "runtime.approval_orchestrator.get_session_store", lambda: store
+        "approval_part.orchestrator.get_session_store", lambda: store
     )
 
 
