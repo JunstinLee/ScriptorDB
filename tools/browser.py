@@ -22,6 +22,7 @@ from tools.browser_tools.dom import (  # noqa: E402
     browser_press_key,
     browser_query,
     browser_scroll,
+    browser_select_option,
     browser_wait_for_selector,
 )
 from tools.browser_tools.download import browser_download  # noqa: E402
@@ -65,6 +66,7 @@ __all__ = [
     "browser_press_key",
     "browser_query",
     "browser_screenshot",
+    "browser_select_option",
     "browser_scroll",
     "browser_set_cookies",
     "browser_switch_tab",

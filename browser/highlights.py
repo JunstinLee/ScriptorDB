@@ -18,7 +18,7 @@ HIGHLIGHT_CSS = """
     0%   { opacity: 1; }
     100% { opacity: 0; }
 }
-#__scdb_highlight_input {
+.__scdb_highlight_input {
     border: 2px solid rgba(0, 122, 255, 0.9) !important;
     box-shadow: 0 0 8px rgba(0, 122, 255, 0.5) !important;
     transition: box-shadow 0.3s ease;
@@ -85,8 +85,7 @@ async def highlight_input(page: Page, selector: str) -> None:
             """(selector) => {
                 const el = document.querySelector(selector);
                 if (!el) return;
-                el.setAttribute('data-scdb-orig-id', el.id);
-                el.id = '__scdb_highlight_input';
+                el.classList.add('__scdb_highlight_input');
             }""",
             selector,
         )
@@ -97,10 +96,13 @@ async def highlight_input(page: Page, selector: str) -> None:
 async def highlight_input_remove(page: Page) -> None:
     await page.evaluate("""
     (() => {
-        const el = document.getElementById('__scdb_highlight_input');
-        if (el) {
-            el.id = el.getAttribute('data-scdb-orig-id') || '';
-            el.removeAttribute('data-scdb-orig-id');
+        document.querySelectorAll('.__scdb_highlight_input')
+            .forEach((el) => el.classList.remove('__scdb_highlight_input'));
+        // 兼容清理旧版改 id 残留：恢复被改写的原始 id
+        const legacy = document.getElementById('__scdb_highlight_input');
+        if (legacy && legacy.hasAttribute('data-scdb-orig-id')) {
+            legacy.id = legacy.getAttribute('data-scdb-orig-id') || '';
+            legacy.removeAttribute('data-scdb-orig-id');
         }
     })();
     """)
