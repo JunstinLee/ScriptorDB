@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-"""会话业务服务：run / 消息的落盘归档。
+"""取消接管终态的落盘归档（runtime 层，供编排器调用）。
 
-与 runtime/ 存储层解耦：编排器等调用方只调用服务方法，
-不直接操作 Session 结构或存储实现。
+原位于 services/session_service.py；该函数只操作 runtime 类型
+（SessionStore / PendingTakeover）与 schemas DTO，不依赖业务服务层，
+迁入 runtime 消除 runtime → services → runtime 的层环。
 """
 
 from runtime.approval.store import PendingTakeover
