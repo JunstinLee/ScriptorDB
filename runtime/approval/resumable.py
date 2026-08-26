@@ -19,6 +19,9 @@ from runtime.run_tracker import RunTracker
 from runtime.runner.takeover_hook import RunPauseState
 from runtime.approval.policy import _process_deferred_requests, build_auto_results
 
+# 审批/自动批准后续跑时使用的统一续跑提示词。
+RESUME_PROMPT = "Continue"
+
 
 async def run_agent_stream_resumable(
     prompt: str,
@@ -30,6 +33,7 @@ async def run_agent_stream_resumable(
     tracker: RunTracker | None = None,
     deferred_results: DeferredToolResults | None = None,
     pause: RunPauseState | None = None,
+    session_id: str = "",
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream agent events and handle deferred tool approval decisions.
 
@@ -54,6 +58,7 @@ async def run_agent_stream_resumable(
             tracker=local_tracker,
             deferred_results=results,
             pause=pause,
+            session_id=session_id,
         ):
             if event.get("type") == "_deferred_tool_requests":
                 deferred: DeferredToolRequests = event["deferred"]
@@ -61,7 +66,7 @@ async def run_agent_stream_resumable(
                 # deferred tool calls are present when the run is resumed.
                 all_messages = event.get("all_messages", current_history)
                 approval_event = _process_deferred_requests(
-                    event.get("session_id", ""),
+                    session_id,
                     local_tracker.run_id,
                     all_messages,
                     deferred,
@@ -72,7 +77,7 @@ async def run_agent_stream_resumable(
                     return  # Pause; caller will resume after POST /approve.
                 # All requests auto-approved; continue the run with results.
                 results = build_auto_results(deferred)
-                current_prompt = "Continue"
+                current_prompt = RESUME_PROMPT
                 current_history = all_messages
                 break
             yield event

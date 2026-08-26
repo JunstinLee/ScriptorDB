@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 from typing import Any
+from copy import copy
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -161,8 +162,12 @@ async def chat(session_id: str, req: ChatRequest):
 
     session.add_user_message(req.prompt, attachments=req.attachments, crawl_url=req.crawl_url)
 
-    config.chat_session_id = session_id
-    config.chat_prompt = req.prompt
+    # per-run 配置副本：会话级字段不再写入全局 settings 单例，
+    # 避免并发会话互相覆盖（undo 钩子/translator 经 deps 读取）。
+    run_config = copy(config)
+    run_config.chat_session_id = session_id
+    run_config.chat_prompt = req.prompt
+    run_config.run_id = ""
 
     try:
         augmented_prompt = await augment_prompt(
@@ -175,7 +180,7 @@ async def chat(session_id: str, req: ChatRequest):
 
     orchestrator = ApprovalOrchestrator(
         session_id,
-        config,
+        run_config,
         model=req.model,
         provider=req.provider,
         app_context=get_app_context(),

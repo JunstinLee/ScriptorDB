@@ -34,16 +34,32 @@ from runtime.runner.translator import EventTranslator
 logger = get_logger("agent_runner.lifecycle")
 
 
+def _is_cancellation(exc: BaseException | None) -> bool:
+    """沿异常链查找 TakeoverCancelledError。
+
+    pydantic-ai 可能包装 event_stream_handler 抛出的异常；命中链上任意
+    一环即视为用户取消（走取消终态而非 error 终态）。
+    """
+    seen: set[int] = set()
+    while exc is not None and id(exc) not in seen:
+        if isinstance(exc, TakeoverCancelledError):
+            return True
+        seen.add(id(exc))
+        exc = exc.__cause__ or exc.__context__
+    return False
+
+
 async def run_agent_stream(
     prompt: str,
     message_history: list[ModelMessage],
     config: AppConfig,
     model: str | None = None,
     provider: str | None = None,
-    agent: Any | None = None,
+    agent: Any = None,
     tracker: RunTracker | None = None,
     deferred_results: DeferredToolResults | None = None,
     pause: RunPauseState | None = None,
+    session_id: str = "",
 ) -> AsyncGenerator[dict[str, Any], None]:
     """纯编排层：启动 agent.run()，通过 asyncio.Queue 收集事件，产出标准化 dict 事件。
 
@@ -64,7 +80,7 @@ async def run_agent_stream(
     translator = EventTranslator(
         queue=queue,
         tracker=local_tracker,
-        config=config,
+        session_id=session_id,
         checkpoint_id=checkpoint_id,
         prompt=prompt,
         message_history=message_history,
@@ -138,37 +154,34 @@ async def run_agent_stream(
             yield deferred_requests_event(
                 local_tracker.run_id, result.output, result.all_messages()
             )
-            local_tracker.final_output = translator.full_output
             return
 
-        if not translator.full_output and result.output:
-            translator.full_output = str(result.output)
-            local_tracker.final_output = translator.full_output
+        if not local_tracker.final_output and result.output:
+            local_tracker.final_output = str(result.output)
 
         new_messages = strip_leading_user_prompt(result.new_messages())
         yield new_messages_event(local_tracker.run_id, new_messages)
 
         local_tracker.finish()
-        yield metadata_event(local_tracker.run_id, translator.full_output)
-        yield run_end_event(local_tracker.run_id)
-    except TakeoverCancelledError:
-        # 人工接管被取消/超时：hook 抛出 TakeoverCancelledError 终止 run，
-        # 统一转为取消终态。
-        local_tracker.status = "cancelled"
-        local_tracker.ended_at = utc_now_iso()
-        reason = "接管已取消"
-        try:
-            from browser import get_manager
-            takeover = get_manager().takeover
-            reason = takeover.reason or reason
-        except Exception:
-            pass
-        yield takeover_cancelled_event(run_id=local_tracker.run_id, reason=reason)
+        yield metadata_event(local_tracker.run_id, local_tracker.final_output)
         yield run_end_event(local_tracker.run_id)
     except Exception as e:
-        error_id = uuid.uuid4().hex[:12]
-        local_tracker.fail(str(e))
-        yield error_event(local_tracker.run_id, error_id, find_rate_limit(e), str(e))
+        if _is_cancellation(e):
+            # 取消（含被 pydantic-ai 包装后）：统一转为取消终态
+            local_tracker.status = "cancelled"
+            local_tracker.ended_at = utc_now_iso()
+            reason = "接管已取消"
+            try:
+                from browser import get_manager
+                takeover = get_manager().takeover
+                reason = takeover.reason or reason
+            except Exception:
+                pass
+            yield takeover_cancelled_event(run_id=local_tracker.run_id, reason=reason)
+        else:
+            error_id = uuid.uuid4().hex[:12]
+            local_tracker.fail(str(e))
+            yield error_event(local_tracker.run_id, error_id, find_rate_limit(e), str(e))
         yield run_end_event(local_tracker.run_id)
     finally:
         if pending_get_task is not None and not pending_get_task.done():

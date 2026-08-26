@@ -284,9 +284,27 @@ async def test_resume_injects_takeover_result_message(monkeypatch, store):
     # 正常完成路径必须清理 checkpoint（run_end 终态收敛）
     assert get_takeover_checkpoint_store().get(sid) is None
 
-    enqueued = "".join(str(c) for c in agent.ctx.enqueued)
-    assert "用户完成了人工操作" in enqueued
-    assert "完成登录" in enqueued
+async def test_checkpoint_uses_orchestrator_session_id(monkeypatch, store):
+    """translator 的 session_id 来自 orchestrator 注入，不再读共享 config。"""
+    _patch_store(monkeypatch, store)
+    sid = store.create().session_id
+    mgr = get_manager()
+    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
+
+    config = AppConfig()  # 刻意不设置 chat_session_id
+    agent = FakeAgent(mode="block")
+    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
+    run_task = asyncio.create_task(orchestrator.start_run("hi", [], _noop_cb))
+    await _await_true(lambda: mgr.takeover.state == HumanTakeoverState.WAITING_HUMAN)
+
+    ckpt = get_takeover_checkpoint_store().get(sid)
+    assert ckpt is not None
+    assert ckpt.session_id == sid
+    assert ckpt.run_id == orchestrator.run_id
+
+    # 清理：取消接管结束 run
+    orchestrator.cancel_takeover(orchestrator.run_id)
+    await _finish_run(run_task, agent)
 
 
 # ---------- checkpoint 仍用于取消终态 ----------

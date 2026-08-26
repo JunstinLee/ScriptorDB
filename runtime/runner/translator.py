@@ -43,16 +43,16 @@ class EventTranslator:
         *,
         queue: asyncio.Queue[dict],
         tracker: Any,
-        config: Any,
         checkpoint_id: str,
         prompt: str,
         message_history: list,
         takeover_hook: BrowserTakeoverHook | None = None,
         pause: RunPauseState | None = None,
+        session_id: str = "",
     ) -> None:
         self._queue = queue
         self._tracker = tracker
-        self._config = config
+        self._session_id = session_id
         self._checkpoint_id = checkpoint_id
         self._prompt = prompt
         self._message_history = message_history
@@ -60,7 +60,6 @@ class EventTranslator:
         self._pause = pause
 
         # Mutable run state shared with the lifecycle layer.
-        self.full_output = ""
         self.trace_step = 0
         self.handler_calls = 0
         self.tool_parts: list[Any] = []
@@ -74,14 +73,15 @@ class EventTranslator:
                 await self._handle_tool_result(ctx, event)
             elif isinstance(event, PartStartEvent):
                 await self._handle_part_start(event)
+            elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+                await self._handle_text_delta(event.delta)
             else:
-                await self._handle_text_delta(event)
+                logger.warning("unhandled run event type: %s", type(event).__name__)
 
     async def _handle_part_start(self, event: PartStartEvent) -> None:
         part = event.part
         if not isinstance(part, TextPart) or not part.content:
             return
-        self.full_output += part.content
         self._tracker.append_text(part.content)
         await self._queue.put(text_delta_event(
             run_id=self._tracker.run_id,
@@ -112,7 +112,7 @@ class EventTranslator:
     ) -> None:
         self.tool_parts.append(event.part)
         call_id = event.part.tool_call_id if event.part else "unknown"
-        tool_name = event.part.tool_name if event.part else "unknown"
+        tool_name = (event.part.tool_name if event.part else None) or "unknown"
         duration_ms = self._tracker.tool_duration_ms(call_id)
         content = event.part.content if event.part else None
         success, output, error_code, data = normalize_tool_content(content)
@@ -145,14 +145,14 @@ class EventTranslator:
             queue=self._queue,
             tool_name=tool_name,
             success=success,
-            session_id=getattr(self._config, "chat_session_id", "") or "",
+            session_id=self._session_id,
             run_id=self._tracker.run_id,
             checkpoint_id=self._checkpoint_id,
             prompt=self._prompt,
             message_history=self._message_history,
             tool_parts=self.tool_parts,
             tool_invocations=self._tracker.tool_invocations,
-            final_output=self.full_output,
+            final_output=self._tracker.final_output,
             ctx=ctx,
             pause=self._pause,
         ))
@@ -164,13 +164,11 @@ class EventTranslator:
             message=f"工具 {tool_name} 执行{'成功' if success else '失败'}: {output or error_code or ''}",
         ))
 
-    async def _handle_text_delta(self, event: Any) -> None:
-        if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
-            content_delta = event.delta.content_delta
-            if content_delta:
-                self.full_output += content_delta
-                self._tracker.append_text(content_delta)
-                await self._queue.put(text_delta_event(
-                    run_id=self._tracker.run_id,
-                    delta=content_delta,
-                ))
+    async def _handle_text_delta(self, delta: TextPartDelta) -> None:
+        content_delta = delta.content_delta
+        if content_delta:
+            self._tracker.append_text(content_delta)
+            await self._queue.put(text_delta_event(
+                run_id=self._tracker.run_id,
+                delta=content_delta,
+            ))
