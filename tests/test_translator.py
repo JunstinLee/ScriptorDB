@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any, cast
+from unittest.mock import patch
 
 import pytest
 from pydantic_ai.messages import (
@@ -27,7 +28,6 @@ async def test_translator_keeps_part_start_first_fragment():
     translator = EventTranslator(
         queue=queue,
         tracker=tracker,
-        config=None,
         checkpoint_id="test",
         prompt="",
         message_history=[],
@@ -41,7 +41,6 @@ async def test_translator_keeps_part_start_first_fragment():
     await translator.handle(cast(Any, None), events())
 
     expected = "Data Subtype 已加载选项 1-6。让我查看这些选项的文本标签。"
-    assert translator.full_output == expected
     assert tracker.final_output == expected
 
     deltas = []
@@ -60,7 +59,6 @@ async def test_translator_part_start_without_deltas_is_kept():
     translator = EventTranslator(
         queue=queue,
         tracker=tracker,
-        config=None,
         checkpoint_id="test",
         prompt="",
         message_history=[],
@@ -71,7 +69,6 @@ async def test_translator_part_start_without_deltas_is_kept():
 
     await translator.handle(cast(Any, None), events())
 
-    assert translator.full_output == "预览加载成功！"
     assert tracker.final_output == "预览加载成功！"
 
     deltas = []
@@ -80,3 +77,31 @@ async def test_translator_part_start_without_deltas_is_kept():
         if ev["type"] == "text_delta":
             deltas.append(ev["delta"])
     assert deltas == ["预览加载成功！"]
+
+
+@pytest.mark.asyncio
+async def test_translator_unknown_event_type_warns_not_raises():
+    """未识别的事件类型走 warning 分支：不静默吞掉、不抛错。"""
+    queue: asyncio.Queue[dict] = asyncio.Queue()
+    tracker = RunTracker()
+    translator = EventTranslator(
+        queue=queue,
+        tracker=tracker,
+        checkpoint_id="test",
+        prompt="",
+        message_history=[],
+    )
+
+    class UnknownEvent:
+        pass
+
+    async def events():
+        yield UnknownEvent()
+
+    with patch("runtime.runner.translator.logger.warning") as mock_warn:
+        await translator.handle(cast(Any, None), events())
+
+    assert tracker.final_output == ""
+    assert queue.empty()
+    mock_warn.assert_called_once()
+    assert "unhandled run event type" in mock_warn.call_args[0][0]

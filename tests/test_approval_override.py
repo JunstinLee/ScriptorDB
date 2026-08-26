@@ -10,6 +10,8 @@
 
 import asyncio
 
+from typing import Any, cast
+
 import pytest
 from pydantic import ValidationError
 from pydantic_ai import (
@@ -48,7 +50,9 @@ def _apply_filter_call(call_id: str = "c1") -> ToolCallPart:
 def _make_orchestrator(session_id: str = "s-test"):
     # config/app_context 仅需非 None：resume 流程不读取
     return ApprovalOrchestrator(
-        session_id=session_id, config=object(), app_context=object()
+        session_id=session_id,
+        config=cast(Any, object()),
+        app_context=cast(Any, object()),
     )
 
 
@@ -125,7 +129,9 @@ async def test_signal_approval_with_override_args_builds_toolapproved():
     )
     assert result["ok"] is True
     assert orch._approval.resume_event.is_set()
-    approval = orch._approval.decision.approvals["c1"]
+    decision = orch._approval.decision
+    assert decision is not None
+    approval = decision.approvals["c1"]
     assert isinstance(approval, ToolApproved)
     assert approval.override_args == {"action": "select", "target": "Status", "value": "Inactive"}
 
@@ -139,9 +145,30 @@ async def test_signal_approval_without_override_args_plain_toolapproved():
     orch = _make_orchestrator()
     result = orch.signal_approval("req-plain", {"c1": True})
     assert result["ok"] is True
-    approval = orch._approval.decision.approvals["c1"]
+    decision = orch._approval.decision
+    assert decision is not None
+    approval = decision.approvals["c1"]
     assert isinstance(approval, ToolApproved)
     assert approval.override_args is None
+
+
+async def test_signal_approval_all_denied_builds_tooldenied():
+    _seed_pending(
+        "req-denied",
+        [
+            {"tool_call_id": "c1", "tool_name": "browser_apply_filter",
+             "args": {"action": "select", "target": "Status", "value": "Active"}},
+            {"tool_call_id": "c2", "tool_name": "browser_apply_filter",
+             "args": {"action": "input", "target": "Query", "value": "x"}},
+        ],
+    )
+    orch = _make_orchestrator()
+    result = orch.signal_approval("req-denied", {"c1": False, "c2": False})
+    assert result["ok"] is True
+    decision = orch._approval.decision
+    assert decision is not None
+    assert isinstance(decision.approvals["c1"], ToolDenied)
+    assert isinstance(decision.approvals["c2"], ToolDenied)
 
 
 async def test_signal_approval_merges_auto_results():
@@ -154,7 +181,9 @@ async def test_signal_approval_merges_auto_results():
     orch = _make_orchestrator()
     result = orch.signal_approval("req-mixed", {"c1": True})
     assert result["ok"] is True
-    approvals = orch._approval.decision.approvals
+    decision = orch._approval.decision
+    assert decision is not None
+    approvals = decision.approvals
     assert set(approvals) == {"c1", "c4"}
     assert isinstance(approvals["c1"], ToolApproved)
     assert isinstance(approvals["c4"], ToolApproved)
@@ -183,7 +212,8 @@ async def test_run_loop_waits_for_approval_then_resumes(monkeypatch):
         events.append(event)
 
     async def fake_resumable(prompt, message_history, config, model=None, provider=None,
-                             agent=None, tracker=None, deferred_results=None, pause=None):
+                             agent=None, tracker=None, deferred_results=None, pause=None,
+                             session_id=""):
         if deferred_results is None:
             yield {"type": "approval_request", "run_id": "run1",
                    "request_id": "req-wait", "calls": []}
@@ -233,7 +263,7 @@ def test_approval_submit_request_rejects_non_dict_override():
     with pytest.raises(ValidationError):
         ApprovalSubmitRequest(
             request_id="r", approved_map={"c": True},
-            override_args={"c": "not-a-dict"},
+            override_args=cast(Any, {"c": "not-a-dict"}),
         )
 
 

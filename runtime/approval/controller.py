@@ -16,18 +16,21 @@ class TakeoverController(Protocol):
 class _BrowserTakeoverController:
     """默认实现：代理到全局浏览器管理器（延迟导入，与原有行为一致）。"""
 
-    def complete(self, result: str) -> None:
+    def _mgr(self):
         from browser import get_manager
-        mgr = get_manager()
+        return get_manager()
+
+    def complete(self, result: str) -> None:
+        mgr = self._mgr()
         mgr.takeover.complete(result)
         mgr.clear_auth_challenge()
 
     def cancel(self, reason: str = "") -> None:
-        from browser import get_manager
-        mgr = get_manager()
+        mgr = self._mgr()
         mgr.takeover.cancel(reason)
         mgr.clear_auth_challenge()
 
     def reset(self) -> None:
-        from browser import get_manager
-        get_manager().takeover.reset()
+        mgr = self._mgr()
+        mgr.takeover.reset()
+        mgr.clear_auth_challenge()
