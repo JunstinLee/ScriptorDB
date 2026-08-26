@@ -7,6 +7,9 @@ from pydantic_ai import RunContext
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
+    PartDeltaEvent,
+    PartStartEvent,
+    TextPart,
     TextPartDelta,
 )
 
@@ -69,8 +72,21 @@ class EventTranslator:
                 await self._handle_tool_call(event)
             elif isinstance(event, FunctionToolResultEvent):
                 await self._handle_tool_result(ctx, event)
+            elif isinstance(event, PartStartEvent):
+                await self._handle_part_start(event)
             else:
                 await self._handle_text_delta(event)
+
+    async def _handle_part_start(self, event: PartStartEvent) -> None:
+        part = event.part
+        if not isinstance(part, TextPart) or not part.content:
+            return
+        self.full_output += part.content
+        self._tracker.append_text(part.content)
+        await self._queue.put(text_delta_event(
+            run_id=self._tracker.run_id,
+            delta=part.content,
+        ))
 
     async def _handle_tool_call(self, event: FunctionToolCallEvent) -> None:
         self.tool_parts.append(event.part)
@@ -149,14 +165,12 @@ class EventTranslator:
         ))
 
     async def _handle_text_delta(self, event: Any) -> None:
-        event_str = str(event)
-        if "TextPartDelta" in event_str or "content_delta" in event_str:
-            if hasattr(event, "delta") and isinstance(event.delta, TextPartDelta):
-                content_delta = event.delta.content_delta
-                if content_delta:
-                    self.full_output += content_delta
-                    self._tracker.append_text(content_delta)
-                    await self._queue.put(text_delta_event(
-                        run_id=self._tracker.run_id,
-                        delta=content_delta,
-                    ))
+        if isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
+            content_delta = event.delta.content_delta
+            if content_delta:
+                self.full_output += content_delta
+                self._tracker.append_text(content_delta)
+                await self._queue.put(text_delta_event(
+                    run_id=self._tracker.run_id,
+                    delta=content_delta,
+                ))
