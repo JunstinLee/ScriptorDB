@@ -160,6 +160,10 @@ class ApprovalOrchestrator:
                 # async for 正常耗尽（run_end 已推送）：run 完成
                 return True
 
+    def _clear_checkpoint(self) -> None:
+        """清理当前 session 的接管 checkpoint（终态必经：取消/超时/正常完成）。"""
+        (self._checkpoint_store or get_takeover_checkpoint_store()).remove(self.session_id)
+
     async def _dispatch_event(
         self,
         event: dict[str, Any],
@@ -183,11 +187,12 @@ class ApprovalOrchestrator:
             await event_callback(event)
             self._takeover.reset()
             # 超时/取消路径都要清掉 checkpoint，避免残留占用
-            (self._checkpoint_store or get_takeover_checkpoint_store()).remove(self.session_id)
+            self._clear_checkpoint()
             return _LoopAction.END
         if ev_type == "run_end":
             await event_callback(event)
             self._takeover.reset()
+            self._clear_checkpoint()
             return _LoopAction.END
         await event_callback(event)
         return _LoopAction.CONTINUE
@@ -206,6 +211,9 @@ class ApprovalOrchestrator:
         await self._approval.resume_event.wait()
         if self._approval.cancelled:
             # 审批被取消：记录取消终态，结束 run
+            request_id = event.get("request_id", "")
+            if request_id:
+                (self._pending_store or get_pending_store()).pop(request_id)
             state.tracker.status = "cancelled"
             state.tracker.ended_at = utc_now_iso()
             await event_callback({"type": "metadata", **state.summary()})
@@ -295,7 +303,7 @@ class ApprovalOrchestrator:
             self._session_store or get_session_store(), self.session_id, checkpoint
         )
 
-        (self._checkpoint_store or get_takeover_checkpoint_store()).remove(self.session_id)
+        self._clear_checkpoint()
 
         self._takeover.cancel(reason or "用户取消接管")
         # 唤醒挂起的 run：hook 检测到 cancelled 后调用 ctx.cancel()，

@@ -80,6 +80,7 @@ async def _stream_orchestrator_events(
                     continue
                 if ev_type == "run_end":
                     yield sse_done()
+                    remove_orchestrator(session_id)
                     break
         except asyncio.CancelledError:
             interrupted = True

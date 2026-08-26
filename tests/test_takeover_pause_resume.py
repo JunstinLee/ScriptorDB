@@ -281,6 +281,8 @@ async def test_resume_injects_takeover_result_message(monkeypatch, store):
     assert ok["ok"] is True
     summary = await _finish_run(run_task, agent)
     assert summary["status"] == "completed"
+    # 正常完成路径必须清理 checkpoint（run_end 终态收敛）
+    assert get_takeover_checkpoint_store().get(sid) is None
 
     enqueued = "".join(str(c) for c in agent.ctx.enqueued)
     assert "用户完成了人工操作" in enqueued
@@ -472,6 +474,6 @@ async def test_chat_sse_takeover_pause_keeps_stream_open(monkeypatch, store):
     assert orchestrator.resume_takeover(orchestrator.run_id, "done")["ok"]
     await asyncio.wait_for(consumer, timeout=5.0)
 
-    assert not agent.cancelled
-    assert any("human_takeover_request" in c for c in chunks)
-    assert any("run_end" in c for c in chunks)
+    # run_end 终态收敛：编排器从注册表移除，checkpoint 清理
+    assert get_orchestrator(sid) is None
+    assert get_takeover_checkpoint_store().get(sid) is None
