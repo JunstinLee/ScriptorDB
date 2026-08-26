@@ -16,13 +16,14 @@ from pydantic_ai.messages import ModelMessage
 
 from agents.app_context import AppContext
 from config.app_config import AppConfig
+from runtime.runner.finalize import run_end_event
 from runtime.run_tracker import RunTracker, utc_now_iso
 from runtime.runner.takeover_hook import RunPauseState
 from runtime.sessions import SessionStore, get_session_store
-from services.session_service import persist_cancelled_takeover
+from runtime.approval.persist import persist_cancelled_takeover
 from runtime.approval.controller import TakeoverController, _BrowserTakeoverController
 from runtime.approval.pause import ApprovalPauseState
-from runtime.approval.resumable import run_agent_stream_resumable
+from runtime.approval.resumable import RESUME_PROMPT, run_agent_stream_resumable
 from runtime.approval.store import (
     PendingApprovalStore,
     TakeoverCheckpointStore,
@@ -88,11 +89,12 @@ class ApprovalOrchestrator:
         self.provider = provider
         self.agent = agent
         self._app_context = app_context or AppContext(self.config)
-        # 依赖注入：显式传入优先；未注入时在使用点懒解析到模块级单例，
-        # 与原有全局状态一致（对测试 monkeypatch 时序零敏感）。
-        self._pending_store = pending_store
-        self._checkpoint_store = checkpoint_store
-        self._session_store = session_store
+        # 依赖注入：显式传入优先；未注入时在构造点解析到模块级单例。
+        self._pending_store = pending_store if pending_store is not None else get_pending_store()
+        self._checkpoint_store = (
+            checkpoint_store if checkpoint_store is not None else get_takeover_checkpoint_store()
+        )
+        self._session_store = session_store if session_store is not None else get_session_store()
         self._takeover = takeover or _BrowserTakeoverController()
         self._run_tracker: RunTracker | None = None
         # 接管暂停：hook 挂起在 resume_event.wait()，resume_takeover() set() 唤醒，
@@ -150,6 +152,7 @@ class ApprovalOrchestrator:
                 tracker=state.tracker,
                 deferred_results=state.deferred_results,
                 pause=self._pause,
+                session_id=self.session_id,
             ):
                 action = await self._dispatch_event(event, state, event_callback)
                 if action is _LoopAction.END:
@@ -162,7 +165,7 @@ class ApprovalOrchestrator:
 
     def _clear_checkpoint(self) -> None:
         """清理当前 session 的接管 checkpoint（终态必经：取消/超时/正常完成）。"""
-        (self._checkpoint_store or get_takeover_checkpoint_store()).remove(self.session_id)
+        self._checkpoint_store.remove(self.session_id)
 
     async def _dispatch_event(
         self,
@@ -210,26 +213,21 @@ class ApprovalOrchestrator:
         await event_callback(event)
         await self._approval.resume_event.wait()
         if self._approval.cancelled:
-            # 审批被取消：记录取消终态，结束 run
+            # 审批被取消：记录取消终态，结束 run（metadata 事件无消费者，不构造）
             request_id = event.get("request_id", "")
             if request_id:
-                (self._pending_store or get_pending_store()).pop(request_id)
+                self._pending_store.pop(request_id)
             state.tracker.status = "cancelled"
             state.tracker.ended_at = utc_now_iso()
-            await event_callback({"type": "metadata", **state.summary()})
-            await event_callback({
-                "type": "run_end",
-                "run_id": state.tracker.run_id,
-                "timestamp": utc_now_iso(),
-            })
+            await event_callback(run_end_event(state.tracker.run_id))
             return _LoopAction.END
         results = self._approval.decision
         request_id = event.get("request_id", "")
-        pending = (self._pending_store or get_pending_store()).pop(request_id) if request_id else None
+        pending = self._pending_store.pop(request_id) if request_id else None
         if pending is not None:
             state.history = list(pending.message_history)
         state.deferred_results = results
-        state.prompt = "Continue"
+        state.prompt = RESUME_PROMPT
         self._approval = ApprovalPauseState()
         return _LoopAction.RESTART
 
@@ -247,7 +245,7 @@ class ApprovalOrchestrator:
         不重启 run、不开新 SSE 流；pending 由 _handle_approval_request 唤醒后
         按 request_id 消费（此处只读不弹）。后续事件继续由原 chat SSE 流推送。
         """
-        pending = (self._pending_store or get_pending_store()).get(request_id)
+        pending = self._pending_store.get(request_id)
         if pending is None:
             return {"ok": False, "error": "no_pending"}
         results = DeferredToolResults()
@@ -294,13 +292,13 @@ class ApprovalOrchestrator:
         if run_id and (self._run_tracker is None or self._run_tracker.run_id != run_id):
             return {"ok": False, "error": "run_mismatch", "status": "not_cancelled"}
 
-        checkpoint = (self._checkpoint_store or get_takeover_checkpoint_store()).get(self.session_id)
+        checkpoint = self._checkpoint_store.get(self.session_id)
         if checkpoint is None:
             return {"ok": False, "error": "no_active_takeover", "status": "not_cancelled"}
 
         # 终态落盘必须在唤醒挂起的 run 之前完成（顺序契约）
         persist_cancelled_takeover(
-            self._session_store or get_session_store(), self.session_id, checkpoint
+            self._session_store, self.session_id, checkpoint
         )
 
         self._clear_checkpoint()

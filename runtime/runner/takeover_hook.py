@@ -56,7 +56,7 @@ class AfterToolContext:
     tool_parts: list[Any]
     tool_invocations: list[dict[str, Any]]
     final_output: str
-    ctx: Any = None  # RunContext：取消 run / 注入接管结果消息
+    ctx: Any = None  # RunContext：恢复时注入接管结果消息（取消走 TakeoverCancelledError）
     pause: RunPauseState | None = None
 
 
@@ -138,12 +138,7 @@ class BrowserTakeoverHook:
                         "takeover cancelled during pause, cancelling run run_id=%s",
                         ctx.run_id,
                     )
-                    if ctx.ctx is not None:
-                        try:
-                            ctx.ctx.cancel()  # 新版 pydantic-ai 的官方取消入口
-                        except Exception:
-                            pass
-                    # 主通道：自定义异常终止 run（不依赖 pydantic-ai 版本差异）
+                    # 单一取消通道：自定义异常终止 run（不依赖 pydantic-ai 版本差异）
                     raise TakeoverCancelledError(ctx.run_id)
                 # 恢复：允许下一次挂起，并把用户操作结果注入对话。
                 ctx.pause.resume_event.clear()
