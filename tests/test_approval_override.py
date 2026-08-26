@@ -93,14 +93,19 @@ async def test_unknown_tool_still_auto_approved():
     assert _process_deferred_requests("s1", "run1", [], d, tracker=None) is None
 
 
-async def test_mixed_calls_only_filter_is_pending():
+async def test_mixed_calls_carry_auto_results_in_pending():
+    """混合批次：auto 组结果随 pending 保存，唤醒后与人工决定合并。"""
     d = _deferred(
         _apply_filter_call("c1"),
         ToolCallPart(tool_name="execute_ddl", args={"sql": "x"}, tool_call_id="c4"),
     )
     ev = _process_deferred_requests("s1", "run1", [], d, tracker=None)
     assert ev is not None
-    assert [c["tool_call_id"] for c in ev["calls"]] == ["c1"]
+    pending = get_pending_store().get(ev["request_id"])
+    assert pending is not None
+    assert pending.auto_results is not None
+    assert set(pending.auto_results.approvals) == {"c4"}
+    assert isinstance(pending.auto_results.approvals["c4"], ToolApproved)
 
 
 # ---------- signal_approval 构建审批结果 + _run_loop 挂起/唤醒 ----------
@@ -139,22 +144,20 @@ async def test_signal_approval_without_override_args_plain_toolapproved():
     assert approval.override_args is None
 
 
-async def test_signal_approval_all_denied_builds_tooldenied():
-    _seed_pending(
-        "req-denied",
-        [
-            {"tool_call_id": "c1", "tool_name": "browser_apply_filter",
-             "args": {"action": "select", "target": "Status", "value": "Active"}},
-            {"tool_call_id": "c2", "tool_name": "browser_apply_filter",
-             "args": {"action": "input", "target": "Query", "value": "x"}},
-        ],
+async def test_signal_approval_merges_auto_results():
+    """混合批次唤醒后：auto 组 ToolApproved 与人工决定合并进同一 DeferredToolResults。"""
+    pending = _seed_pending(
+        "req-mixed",
+        [{"tool_call_id": "c1", "tool_name": "browser_apply_filter", "args": {}}],
     )
+    pending.auto_results = DeferredToolResults(approvals={"c4": ToolApproved()})
     orch = _make_orchestrator()
-    result = orch.signal_approval("req-denied", {"c1": False, "c2": False})
+    result = orch.signal_approval("req-mixed", {"c1": True})
     assert result["ok"] is True
-    decision = orch._approval.decision
-    assert isinstance(decision.approvals["c1"], ToolDenied)
-    assert isinstance(decision.approvals["c2"], ToolDenied)
+    approvals = orch._approval.decision.approvals
+    assert set(approvals) == {"c1", "c4"}
+    assert isinstance(approvals["c1"], ToolApproved)
+    assert isinstance(approvals["c4"], ToolApproved)
 
 
 async def test_signal_approval_unknown_request_id_fails():

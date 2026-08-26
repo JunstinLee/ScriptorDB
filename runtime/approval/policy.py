@@ -11,7 +11,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic_ai import DeferredToolRequests
+from pydantic_ai import DeferredToolRequests, DeferredToolResults, ToolApproved
 from pydantic_ai.messages import ModelMessage
 
 from runtime.import_inspector import count_import_rows
@@ -42,6 +42,19 @@ IMPORT_ROW_THRESHOLD = 100
 class ApprovalPolicy:
     auto_approve_low_risk: bool = True
     row_threshold: int = IMPORT_ROW_THRESHOLD
+
+
+def _results_for_calls(calls: list[Any]) -> DeferredToolResults:
+    """为一组 deferred 调用构造全部 ToolApproved 的结果。"""
+    results = DeferredToolResults()
+    for call in calls:
+        results.approvals[call.tool_call_id] = ToolApproved()
+    return results
+
+
+def build_auto_results(deferred: DeferredToolRequests) -> DeferredToolResults:
+    """纯自动批准路径：为 deferred 请求中的全部调用构造 ToolApproved 结果。"""
+    return _results_for_calls(deferred.approvals)
 
 
 def _classify_deferred_calls(
@@ -94,7 +107,7 @@ def _process_deferred_requests(
 
     Returns an approval_request event if any calls require human confirmation.
     """
-    _, pending_calls = _classify_deferred_calls(deferred)
+    auto_calls, pending_calls = _classify_deferred_calls(deferred)
 
     if pending_calls:
         request_id = uuid.uuid4().hex[:12]
@@ -105,6 +118,7 @@ def _process_deferred_requests(
             message_history=list(message_history),
             deferred_calls=pending_calls,
             tool_invocations=list(tracker.tool_invocations) if tracker else [],
+            auto_results=_results_for_calls(auto_calls),
         )
         get_pending_store().add(request_id, pending)
 

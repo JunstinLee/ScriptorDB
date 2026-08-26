@@ -10,14 +10,14 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any
 
-from pydantic_ai import DeferredToolRequests, DeferredToolResults, ToolApproved
+from pydantic_ai import DeferredToolRequests, DeferredToolResults
 from pydantic_ai.messages import ModelMessage
 
 from config.app_config import AppConfig
 from runtime.agent_runner import run_agent_stream
 from runtime.run_tracker import RunTracker
 from runtime.runner.takeover_hook import RunPauseState
-from runtime.approval.policy import _process_deferred_requests
+from runtime.approval.policy import _process_deferred_requests, build_auto_results
 
 
 async def run_agent_stream_resumable(
@@ -71,7 +71,7 @@ async def run_agent_stream_resumable(
                     yield approval_event
                     return  # Pause; caller will resume after POST /approve.
                 # All requests auto-approved; continue the run with results.
-                results = _auto_approve_all(deferred)
+                results = build_auto_results(deferred)
                 current_prompt = "Continue"
                 current_history = all_messages
                 break
@@ -79,9 +79,3 @@ async def run_agent_stream_resumable(
         else:
             return
 
-
-def _auto_approve_all(deferred: DeferredToolRequests) -> DeferredToolResults:
-    results = DeferredToolResults()
-    for call in deferred.approvals:
-        results.approvals[call.tool_call_id] = ToolApproved()
-    return results

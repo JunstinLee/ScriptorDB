@@ -243,6 +243,8 @@ class ApprovalOrchestrator:
         if pending is None:
             return {"ok": False, "error": "no_pending"}
         results = DeferredToolResults()
+        if pending.auto_results is not None:
+            results.approvals.update(pending.auto_results.approvals)
         for call in pending.deferred_calls:
             call_id = call["tool_call_id"]
             if approved_map.get(call_id, False):

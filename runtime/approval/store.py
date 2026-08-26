@@ -8,6 +8,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from pydantic_ai import DeferredToolResults
+
 
 @dataclass
 class PendingApproval:
@@ -18,6 +20,7 @@ class PendingApproval:
     deferred_calls: list[dict[str, Any]]
     approved_map: dict[str, bool] = field(default_factory=dict)
     tool_invocations: list[dict[str, Any]] = field(default_factory=list)
+    auto_results: DeferredToolResults | None = None
 
 
 class PendingApprovalStore:
