@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """审批存储：pending 审批请求与接管 checkpoint 的内存存储（模块级单例）。
 
-原位于 runtime/approval_policy.py，随审批域迁移至 approval_part/。
+原位于 runtime/approval_policy.py，随审批域迁移至 runtime.approval/。
 """
 
 from dataclasses import dataclass, field

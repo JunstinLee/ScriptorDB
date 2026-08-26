@@ -21,8 +21,9 @@ from pydantic_ai import (
 from pydantic_ai.messages import ToolCallPart
 
 from schemas.approval import ApprovalSubmitRequest
-from runtime.approval_orchestrator import ApprovalOrchestrator, _process_deferred_requests, _RunState
-from runtime.approval_policy import PendingApproval, get_pending_store
+from runtime.approval.orchestrator import ApprovalOrchestrator, _RunState
+from runtime.approval.policy import _process_deferred_requests
+from runtime.approval.store import PendingApproval, get_pending_store
 from runtime.run_tracker import RunTracker
 
 
@@ -187,7 +188,7 @@ async def test_run_loop_waits_for_approval_then_resumes(monkeypatch):
             yield {"type": "run_end", "run_id": "run1", "timestamp": "t"}
 
     monkeypatch.setattr(
-        "approval_part.orchestrator.run_agent_stream_resumable", fake_resumable
+        "runtime.approval.orchestrator.run_agent_stream_resumable", fake_resumable
     )
 
     async def signal_later():

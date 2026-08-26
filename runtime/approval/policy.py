@@ -3,7 +3,7 @@ from __future__ import annotations
 """审批策略：工具分级、deferred 调用分流（纯函数）+ 分流落库与事件构造。
 
 原位于 runtime/approval_orchestrator.py / approval_policy.py，随审批域
-迁移至 approval_part/。策略判定（_classify_deferred_calls）与副作用
+迁移至 runtime.approval/。策略判定（_classify_deferred_calls）与副作用
 （落库、事件构造）分离，便于独立测试。
 """
 
@@ -15,7 +15,7 @@ from pydantic_ai import DeferredToolRequests
 from pydantic_ai.messages import ModelMessage
 
 from runtime.import_inspector import count_import_rows
-from approval_part.store import PendingApproval, get_pending_store
+from runtime.approval.store import PendingApproval, get_pending_store
 
 LOW_RISK_WRITE_TOOLS = frozenset({
     "write_csv",

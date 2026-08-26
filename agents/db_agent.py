@@ -105,7 +105,7 @@ def resolve_agent(
     """Apply provider/model overrides and return an agent.
 
     Shared by `runtime.runner.lifecycle.run_agent_stream` and
-    `runtime.approval_orchestrator` (previously duplicated inline).
+    `runtime.approval.orchestrator` (previously duplicated inline).
     """
     if provider:
         config.llm_provider = provider

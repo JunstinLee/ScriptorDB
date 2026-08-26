@@ -9,7 +9,7 @@ from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import ModelMessage
 
 from core.logging_setup import get_logger
-from runtime.approval_orchestrator import ApprovalOrchestrator
+from runtime.approval.orchestrator import ApprovalOrchestrator
 from api.dependencies import get_app_context, get_config, require_workspace
 from schemas import ChatRequest
 from runtime.sessions import get_session_store

@@ -6,7 +6,7 @@ from __future__ import annotations
 不直接操作 Session 结构或存储实现。
 """
 
-from approval_part.store import PendingTakeover
+from runtime.approval.store import PendingTakeover
 from runtime.run_tracker import utc_now_iso
 from runtime.session_model import SessionStore
 from schemas import StoredRun, StoredToolInvocation

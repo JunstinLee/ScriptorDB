@@ -27,8 +27,8 @@ from browser import get_manager
 from browser.takeover import HumanTakeoverState
 from config.app_config import AppConfig
 from runtime.agent_runner import run_agent_stream
-from runtime.approval_orchestrator import ApprovalOrchestrator
-from runtime.approval_policy import get_takeover_checkpoint_store
+from runtime.approval.orchestrator import ApprovalOrchestrator
+from runtime.approval.store import get_takeover_checkpoint_store
 from runtime.runner.takeover_hook import RunPauseState, TakeoverCancelledError
 from api.routes.chat import (
     _active_orchestrators,
@@ -127,7 +127,7 @@ def _patch_store(monkeypatch, store):
     monkeypatch.setattr("runtime.sessions.get_session_store", lambda: store)
     monkeypatch.setattr("services.chat_service.get_session_store", lambda: store)
     monkeypatch.setattr(
-        "approval_part.orchestrator.get_session_store", lambda: store
+        "runtime.approval.orchestrator.get_session_store", lambda: store
     )
 
 

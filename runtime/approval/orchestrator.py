@@ -3,7 +3,7 @@ from __future__ import annotations
 """审批编排器：拥有 agent run 的事件循环、审批/接管挂起唤醒、外部信号入口。
 
 依赖均经构造注入（store / takeover controller），未注入时懒解析到
-approval_part 模块级单例或默认浏览器实现。
+runtime.approval 模块级单例或默认浏览器实现。
 """
 
 from collections.abc import Awaitable, Callable
@@ -20,10 +20,10 @@ from runtime.run_tracker import RunTracker, utc_now_iso
 from runtime.runner.takeover_hook import RunPauseState
 from runtime.sessions import SessionStore, get_session_store
 from services.session_service import persist_cancelled_takeover
-from approval_part.controller import TakeoverController, _BrowserTakeoverController
-from approval_part.pause import ApprovalPauseState
-from approval_part.resumable import run_agent_stream_resumable
-from approval_part.store import (
+from runtime.approval.controller import TakeoverController, _BrowserTakeoverController
+from runtime.approval.pause import ApprovalPauseState
+from runtime.approval.resumable import run_agent_stream_resumable
+from runtime.approval.store import (
     PendingApprovalStore,
     TakeoverCheckpointStore,
     get_pending_store,

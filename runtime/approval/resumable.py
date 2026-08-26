@@ -17,7 +17,7 @@ from config.app_config import AppConfig
 from runtime.agent_runner import run_agent_stream
 from runtime.run_tracker import RunTracker
 from runtime.runner.takeover_hook import RunPauseState
-from approval_part.policy import _process_deferred_requests
+from runtime.approval.policy import _process_deferred_requests
 
 
 async def run_agent_stream_resumable(
