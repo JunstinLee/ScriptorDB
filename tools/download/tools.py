@@ -29,7 +29,7 @@ async def download_file(
     workspace_path = ctx.deps.workspace_path if ctx.deps else None
     if workspace_path is None:
         logger.warning("download_file skipped: no active workspace")
-        return "下载失败: 没有活动工作区，请先选择工作区"
+        return "Download failed: no active workspace"
 
     domains = _parse_domains(allowed_domains)
     logger.info(
@@ -48,7 +48,7 @@ async def download_file(
         result.success, result.filename, result.size, result.sha256, result.path, result.error,
     )
     if not result.success:
-        return f"下载失败: {result.error}"
+        return f"Download failed: {result.error}"
 
     manifest_path = download_manifest.manifest_path(workspace_outputs_dir(workspace_path))
     download_manifest.append(
@@ -64,10 +64,10 @@ async def download_file(
     )
     logger.info("download_manifest_updated path=%s", manifest_path)
     return (
-        f"下载成功:\n"
-        f"  文件名: {result.filename}\n"
-        f"  大小: {result.size} bytes\n"
+        f"Download successful:\n"
+        f"  Filename: {result.filename}\n"
+        f"  Size: {result.size} bytes\n"
         f"  SHA-256: {result.sha256}\n"
-        f"  保存路径: {result.path}\n"
-        f"  已写入来源清单 (downloads_manifest.json)"
+        f"  Path: {result.path}\n"
+        f"  Recorded in downloads_manifest.json"
     )

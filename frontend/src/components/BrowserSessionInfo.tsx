@@ -95,9 +95,9 @@ export function BrowserSessionInfo({
         )}
         <span className="text-[11px] font-medium">
           {isLoggedIn ? (
-            <span className="text-green-400">已登录</span>
+            <span className="text-green-400">Logged in</span>
           ) : (
-            <span className="text-muted">未登录</span>
+            <span className="text-muted">Not logged in</span>
           )}
         </span>
         {isLoggedIn && cookies.length > 0 && (
@@ -145,7 +145,7 @@ export function BrowserSessionInfo({
 
       <div className="flex items-center gap-1.5 ml-auto">
         <span className="text-[10px] text-muted">
-          {profiles.length > 0 ? `Profile: ${profiles.length} saved` : "Profile: 未加载"}
+          {profiles.length > 0 ? `Profile: ${profiles.length} saved` : "Profile: none saved"}
         </span>
         {profiles.length > 0 && (
           <Button
@@ -155,7 +155,7 @@ export function BrowserSessionInfo({
             className="h-6 text-[11px]"
           >
             <Upload className="mr-1 size-3" />
-            加载 Profile
+            Load Profile
           </Button>
         )}
       </div>

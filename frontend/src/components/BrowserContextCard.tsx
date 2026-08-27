@@ -40,7 +40,7 @@ export function BrowserContextCard({ state, loading, onViewInMain }: BrowserCont
             {safeHostname(state.url)}
           </p>
         ) : (
-          <p className="mb-2 text-xs text-muted">等待导航...</p>
+          <p className="mb-2 text-xs text-muted">Waiting for navigation...</p>
         )}
 
         {recentActions.length > 0 && (
@@ -64,7 +64,7 @@ export function BrowserContextCard({ state, loading, onViewInMain }: BrowserCont
           onClick={onViewInMain}
           className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] text-accent hover:bg-accent/10 transition-colors"
         >
-          <span>在主区域查看</span>
+          <span>View in main area</span>
           <ChevronRight className="size-3" />
         </button>
       </div>

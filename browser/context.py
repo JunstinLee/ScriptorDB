@@ -18,7 +18,11 @@ SelectorState = Literal["attached", "detached", "visible", "hidden"]
 async def navigate(page: Page, url: str, wait_until: WaitUntil = "domcontentloaded") -> str:
     logger.info(f"page.goto url={url}")
     try:
-        await page.goto(url, wait_until=wait_until)
+        # timeout=25s < 工具装饰器 30s 超时窗口：goto 先自行超时抛出，
+        # 由下方 except 接住返回失败字符串。若依赖 playwright 默认 30s，
+        # 会与装饰器的 wait_for 同时到点，底层任务泄漏（Future never
+        # retrieved）并残留并发导航，导致后续 evaluate 撞上被销毁的上下文。
+        await page.goto(url, wait_until=wait_until, timeout=25_000)
         try:
             from browser import get_manager
             await get_manager().notify_screencast_restart()

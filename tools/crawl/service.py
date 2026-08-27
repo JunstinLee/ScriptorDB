@@ -20,7 +20,7 @@ logger = get_logger("crawl")
 
 MAX_MARKDOWN_LENGTH = 50000
 
-DOCUMENT_MARKER = "这是一个文档（PDF/Excel/ZIP 等），请使用 download_file 工具下载后解析。"
+DOCUMENT_MARKER = "This is a document (PDF/Excel/ZIP, etc.) — download it with download_file and parse it."
 
 _CONTENT_TYPE_BY_EXT = {
     ".pdf": "application/pdf",

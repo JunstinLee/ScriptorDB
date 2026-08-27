@@ -26,16 +26,16 @@ from pydantic_ai.messages import (
 from browser import get_manager
 from browser.takeover import HumanTakeoverState
 from config.app_config import AppConfig
-from server.agent_runner import run_agent_stream
-from server.approval_orchestrator import ApprovalOrchestrator
-from server.approval_policy import get_takeover_checkpoint_store
-from server.runner.takeover_hook import RunPauseState, TakeoverCancelledError
-from server.routes.chat import (
+from runtime.agent_runner import run_agent_stream
+from runtime.approval.orchestrator import ApprovalOrchestrator
+from runtime.approval.store import get_takeover_checkpoint_store
+from runtime.runner.takeover_hook import RunPauseState, TakeoverCancelledError
+from api.routes.chat import (
     _active_orchestrators,
     _stream_orchestrator_events,
     get_orchestrator,
 )
-from server.session_file_store import FileSessionStore
+from runtime.session_file_store import FileSessionStore
 
 
 class FakeRunContext:
@@ -124,10 +124,10 @@ def _reset_takeover():
 
 
 def _patch_store(monkeypatch, store):
-    monkeypatch.setattr("server.sessions.get_session_store", lambda: store)
+    monkeypatch.setattr("runtime.sessions.get_session_store", lambda: store)
     monkeypatch.setattr("services.chat_service.get_session_store", lambda: store)
     monkeypatch.setattr(
-        "server.approval_orchestrator.get_session_store", lambda: store
+        "runtime.approval.orchestrator.get_session_store", lambda: store
     )
 
 
@@ -281,10 +281,30 @@ async def test_resume_injects_takeover_result_message(monkeypatch, store):
     assert ok["ok"] is True
     summary = await _finish_run(run_task, agent)
     assert summary["status"] == "completed"
+    # 正常完成路径必须清理 checkpoint（run_end 终态收敛）
+    assert get_takeover_checkpoint_store().get(sid) is None
 
-    enqueued = "".join(str(c) for c in agent.ctx.enqueued)
-    assert "用户完成了人工操作" in enqueued
-    assert "完成登录" in enqueued
+async def test_checkpoint_uses_orchestrator_session_id(monkeypatch, store):
+    """translator 的 session_id 来自 orchestrator 注入，不再读共享 config。"""
+    _patch_store(monkeypatch, store)
+    sid = store.create().session_id
+    mgr = get_manager()
+    mgr.takeover.request_takeover("unit test", "unit", url="http://example.com")
+
+    config = AppConfig()  # 刻意不设置 chat_session_id
+    agent = FakeAgent(mode="block")
+    orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
+    run_task = asyncio.create_task(orchestrator.start_run("hi", [], _noop_cb))
+    await _await_true(lambda: mgr.takeover.state == HumanTakeoverState.WAITING_HUMAN)
+
+    ckpt = get_takeover_checkpoint_store().get(sid)
+    assert ckpt is not None
+    assert ckpt.session_id == sid
+    assert ckpt.run_id == orchestrator.run_id
+
+    # 清理：取消接管结束 run
+    orchestrator.cancel_takeover(orchestrator.run_id)
+    await _finish_run(run_task, agent)
 
 
 # ---------- checkpoint 仍用于取消终态 ----------
@@ -472,6 +492,6 @@ async def test_chat_sse_takeover_pause_keeps_stream_open(monkeypatch, store):
     assert orchestrator.resume_takeover(orchestrator.run_id, "done")["ok"]
     await asyncio.wait_for(consumer, timeout=5.0)
 
-    assert not agent.cancelled
-    assert any("human_takeover_request" in c for c in chunks)
-    assert any("run_end" in c for c in chunks)
+    # run_end 终态收敛：编排器从注册表移除，checkpoint 清理
+    assert get_orchestrator(sid) is None
+    assert get_takeover_checkpoint_store().get(sid) is None

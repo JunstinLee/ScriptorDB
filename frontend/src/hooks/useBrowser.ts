@@ -38,7 +38,7 @@ export function useBrowser(
       }
     } catch (err: unknown) {
       if (isMountedRef.current) {
-        setError(err instanceof Error ? err.message : "获取浏览器状态失败");
+        setError(err instanceof Error ? err.message : "Failed to fetch browser state");
       }
     } finally {
       if (isMountedRef.current) {

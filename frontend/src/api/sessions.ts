@@ -35,10 +35,17 @@ export function submitApproval(
   sessionId: string,
   requestId: string,
   approvedMap: Record<string, boolean>,
+  overrideArgsByCallId?: Record<string, Record<string, unknown>>,
 ): Promise<ApprovalSubmitResponse> {
   return request<ApprovalSubmitResponse>(`/sessions/${sessionId}/approve`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ request_id: requestId, approved_map: approvedMap }),
+    body: JSON.stringify({
+      request_id: requestId,
+      approved_map: approvedMap,
+      ...(overrideArgsByCallId
+        ? { override_args: overrideArgsByCallId }
+        : {}),
+    }),
   });
 }

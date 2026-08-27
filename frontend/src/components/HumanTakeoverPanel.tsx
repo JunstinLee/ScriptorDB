@@ -39,7 +39,7 @@ export function HumanTakeoverDrawer({
       <div className="border-t border-grid bg-surface px-4 py-3">
         <div className="flex items-center gap-2 text-sm text-muted">
           <div className="size-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          Agent 恢复中...
+          Resuming agent...
         </div>
       </div>
     );
@@ -53,7 +53,7 @@ export function HumanTakeoverDrawer({
             <AlertTriangle className="size-5 shrink-0 text-amber-500" />
             <div className="min-w-0">
               <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                Agent 已暂停 — 需要人工操作
+                Agent paused — human action required
               </p>
               <p className="text-xs text-amber-600/80 dark:text-amber-300/70 truncate mt-0.5">
                 {reason}
@@ -72,13 +72,13 @@ export function HumanTakeoverDrawer({
               onClick={onCancel}
               className="rounded-lg border border-grid px-3 py-1.5 text-xs text-muted hover:bg-surface"
             >
-              忽略
+              Dismiss
             </button>
             <button
               onClick={onEnterControl}
               className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
             >
-              接管
+              Take over
             </button>
           </div>
         </div>
@@ -93,14 +93,14 @@ export function HumanTakeoverDrawer({
           <div className="flex items-center gap-2">
             <div className="size-2 rounded-full bg-blue-500" />
             <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">
-              Chrome 窗口已打开 — 请在窗口中直接操作
+              Chrome window opened — operate directly in it
             </span>
           </div>
         </div>
 
         <div className="flex gap-4 text-xs text-muted mb-3">
           <span className="flex items-center gap-1">
-            <Monitor className="size-3" /> 视频画面为只读预览，请在真实 Chrome 窗口中操作
+            <Monitor className="size-3" /> Read-only preview — operate in the real Chrome window
           </span>
         </div>
 
@@ -109,7 +109,7 @@ export function HumanTakeoverDrawer({
             id="takeover-result"
             value={resultText}
             onChange={(e) => setResultText(e.target.value)}
-            placeholder="描述你做了什么操作（可选）..."
+            placeholder="Describe what you did (optional)..."
             rows={2}
             className="w-full resize-none rounded-lg border border-grid bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:ring-1 focus:ring-accent"
           />
@@ -118,20 +118,20 @@ export function HumanTakeoverDrawer({
               onClick={onShowWindow}
               className="rounded-lg border border-grid px-3 py-1.5 text-xs text-muted hover:bg-surface"
             >
-              显示 Chrome 窗口
+              Show Chrome window
             </button>
             <div className="flex gap-2">
               <button
                 onClick={onCancel}
                 className="rounded-lg border border-grid px-4 py-1.5 text-xs text-muted hover:bg-surface"
               >
-                取消接管
+                Cancel takeover
               </button>
               <button
-                onClick={() => onComplete(resultText || "用户完成操作")}
+                onClick={() => onComplete(resultText || "User completed the operation")}
                 className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
               >
-                完成并恢复 Agent
+                Finish and resume agent
               </button>
             </div>
           </div>

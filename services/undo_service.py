@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from core.logging_setup import get_logger
-from server.sessions import get_session_store
+from runtime.sessions import get_session_store
 from tools.undo import UndoRepository
 
 logger = get_logger("services.undo")

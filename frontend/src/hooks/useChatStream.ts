@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 import {
-  streamApproval,
   streamChat,
+  submitApproval,
   WorkspaceNotSelectedError,
 } from "../api/client";
 import { completeTakeover as completeTakeoverApi, cancelTakeover as cancelTakeoverApi } from "../api/browser";
@@ -9,9 +9,8 @@ import { useTakeoverState } from "./useTakeoverState";
 import type {
   ApprovalRequestEvent,
   BrowserActionEvent,
+  FilterSchema,
   StreamRunEvent,
-  ToolResultRunEvent,
-  RunEndEvent,
 } from "../types";
 
 interface UseChatStreamParams {
@@ -58,6 +57,8 @@ export function useChatStream(params: UseChatStreamParams) {
   const approvalSessionIdRef = useRef<string | null>(null);
   const [approvalRequest, setApprovalRequest] =
     useState<ApprovalRequestEvent | null>(null);
+  // 最近一次 browser_detect_filters 的 Filter Schema（新 run 开始时清空）
+  const [filterSchema, setFilterSchema] = useState<FilterSchema | null>(null);
   const takeover = useTakeoverState(() => {
     const sid = approvalSessionIdRef.current;
     if (sid) {
@@ -81,7 +82,25 @@ export function useChatStream(params: UseChatStreamParams) {
         if (event.type === "browser_action") {
           appendAction(event);
           setBrowserActive(true);
-          setActiveMainTab("browser");
+        }
+        if (event.type === "run_start") {
+          // 新 run 开始时清空旧 schema，避免残留误导面板/抽屉
+          setFilterSchema(null);
+        }
+        if (
+          event.type === "tool_result" &&
+          event.tool_name === "browser_detect_filters"
+        ) {
+          try {
+            const parsed = event.output
+              ? (JSON.parse(event.output) as FilterSchema)
+              : null;
+            if (parsed && Array.isArray(parsed.filters)) {
+              setFilterSchema(parsed);
+            }
+          } catch {
+            // 忽略无法解析的 tool_result，保持现有 schema 不变
+          }
         }
         if (event.type === "human_takeover_request") {
           takeover.enterWaiting(
@@ -203,65 +222,32 @@ export function useChatStream(params: UseChatStreamParams) {
   );
 
   const handleApprovalSubmit = useCallback(
-    (approved: boolean) => {
+    async (
+      approved: boolean,
+      overrideArgs?: Record<string, Record<string, unknown>>,
+    ) => {
       const request = approvalRequest;
       const sid = approvalSessionIdRef.current;
       setApprovalRequest(null);
       if (!request || !sid) return;
 
-      if (!approved) {
-        console.log(
-          "[useChatStream] handleApprovalSubmit denied: run_id=%s calls=%s",
-          request.run_id,
-          request.calls.map((c) => c.tool_call_id).join(","),
-        );
-        for (const call of request.calls) {
-          const event: ToolResultRunEvent = {
-            type: "tool_result",
-            run_id: request.run_id,
-            call_id: call.tool_call_id,
-            tool_name: call.tool_name,
-            success: false,
-            output: "User cancelled the operation",
-            timestamp: new Date().toISOString(),
-          };
-          appendEvent(sid, event);
-        }
-        const runEndEvent: RunEndEvent = {
-          type: "run_end",
-          run_id: request.run_id,
-          timestamp: new Date().toISOString(),
-        };
-        appendEvent(sid, runEndEvent);
-        setLoading(false);
-        return;
-      }
-
+      // 批准/拒绝统一走短信号请求（与 /takeover/complete 同模式）：
+      // 只唤醒挂起的 run，工具结果、run_end 等后续事件继续由原 chat SSE 流
+      // 推送，前端不再本地合成终态事件，避免工具调用永久停留在 running。
       const approvedMap: Record<string, boolean> = {};
       for (const call of request.calls) {
         approvedMap[call.tool_call_id] = approved;
       }
 
-      abortRef.current = streamApproval(
-        sid,
-        request.request_id,
-        approvedMap,
-        makeEventCallback(sid),
-        makeErrorCallback(),
-        makeDoneCallback(sid),
-        (event) => {
-          setApprovalRequest(event);
-        },
-      );
+      try {
+        await submitApproval(sid, request.request_id, approvedMap, overrideArgs);
+      } catch (error) {
+        makeErrorCallback()(
+          error instanceof Error ? error : new Error("Unknown error"),
+        );
+      }
     },
-    [
-      approvalRequest,
-      appendEvent,
-      makeEventCallback,
-      makeErrorCallback,
-      makeDoneCallback,
-      setLoading,
-    ],
+    [approvalRequest, makeErrorCallback],
   );
 
   const handleTakeoverComplete = useCallback(
@@ -320,6 +306,7 @@ export function useChatStream(params: UseChatStreamParams) {
     handleSend,
     handleApprovalSubmit,
     approvalRequest,
+    filterSchema,
     takeoverInfo: takeover.info,
     handleTakeoverComplete,
     handleTakeoverCancel,

@@ -150,7 +150,7 @@ describe("streamChat", () => {
     streamChat("s1", { prompt: "hi" }, vi.fn(), onError, onDone);
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
-    expect(onError).toHaveBeenCalledWith("Something went wrong");
+    expect(onError).toHaveBeenCalledWith(new Error("Something went wrong"));
   });
 
   it("calls onError when response is not ok", async () => {
@@ -163,7 +163,7 @@ describe("streamChat", () => {
     streamChat("s1", { prompt: "hi" }, vi.fn(), onError, vi.fn());
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalled(), { timeout: 500 });
-    expect(onError).toHaveBeenCalledWith("HTTP 500");
+    expect(onError).toHaveBeenCalledWith(new Error("HTTP 500"));
   });
 
   it("calls onError on network failure", async () => {
@@ -174,7 +174,7 @@ describe("streamChat", () => {
     streamChat("s1", { prompt: "hi" }, vi.fn(), onError, vi.fn());
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalled(), { timeout: 500 });
-    expect(onError).toHaveBeenCalledWith("Network error");
+    expect(onError).toHaveBeenCalledWith(new Error("Network error"));
   });
 
   it("returns AbortController and ignores AbortError", async () => {

@@ -81,18 +81,20 @@ describe("useChatMessages", () => {
     expect(result.current.messages[0].content).toBe("Hello");
   });
 
-  it("finalizeAssistantMessage does nothing when last message is not assistant", () => {
+  it("finalizeAssistantMessage appends assistant message when last message is not assistant", () => {
     const { result } = renderHook(() => useChatMessages());
 
     act(() => {
       result.current.addUserMessage("Hi");
     });
     act(() => {
-      result.current.finalizeAssistantMessage("should not appear");
+      result.current.finalizeAssistantMessage("final output");
     });
 
-    expect(result.current.messages).toHaveLength(1);
+    expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages[0].role).toBe("user");
+    expect(result.current.messages[1].role).toBe("assistant");
+    expect(result.current.messages[1].content).toBe("final output");
   });
 
   it("setMessages replaces all messages", () => {

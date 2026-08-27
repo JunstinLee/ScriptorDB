@@ -44,11 +44,11 @@ class _Handler(BaseHTTPRequestHandler):
 def http_server():
     _Handler.request_count = 0
     server = HTTPServer(("127.0.0.1", 0), _Handler)
-    port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    port = runtime.server_address[1]
+    thread = threading.Thread(target=runtime.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{port}"
-    server.shutdown()
+    runtime.shutdown()
     thread.join()
 
 

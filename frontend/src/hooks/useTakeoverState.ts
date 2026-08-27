@@ -51,7 +51,7 @@ export function useTakeoverState(onTimeout?: () => void) {
         setInfo((prev) => ({
           ...prev,
           phase: "cancelled",
-          reason: `超时：${TAKEOVER_TIMEOUT}秒内无用户响应`,
+          reason: `Timed out: no user response in ${TAKEOVER_TIMEOUT}s`,
         }));
         onTimeout?.();
       }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type Key } from "react";
+import { useCallback, useState, type Key } from "react";
 import { Tabs } from "@heroui/react";
 import { PanelRightClose, PanelRightOpen, Database, Wrench, List, Map, Globe } from "lucide-react";
 import type { BrowserState, Run, SchemaTable, BrowserProfileItem, CookieInfo } from "../types";
@@ -56,10 +56,10 @@ export default function SchemaSidebar({
   onRefreshCookies,
 }: SchemaSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
   const [selectedTab, setSelectedTab] = useState("schema");
   const [schemaView, setSchemaView] = useState<"map" | "list">("map");
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
-  const prevToolCountRef = useRef(0);
 
   const effectiveCollapsed = collapsed && !highlightedRunId;
   const effectiveSelectedTab = highlightedRunId ? "tools" : selectedTab;
@@ -67,19 +67,6 @@ export default function SchemaSidebar({
   const toggleCollapse = useCallback(() => {
     setCollapsed((prev) => !prev);
   }, []);
-
-  useEffect(() => {
-    prevToolCountRef.current = 0;
-  }, [activeSessionId]);
-
-  useEffect(() => {
-    const currentCount = runs.reduce((sum, r) => sum + r.tool_invocations.length, 0);
-    if (currentCount > prevToolCountRef.current) {
-      setCollapsed(false);
-      setSelectedTab("tools");
-    }
-    prevToolCountRef.current = currentCount;
-  }, [runs]);
 
   const handleTableClick = useCallback(
     (name: string) => {
@@ -104,7 +91,11 @@ export default function SchemaSidebar({
   }
 
   return (
-    <aside className="flex w-[360px] shrink-0 flex-col border-l">
+    <aside
+      className="flex w-[360px] shrink-0 flex-col border-l"
+      onMouseEnter={() => setSidebarHovered(true)}
+      onMouseLeave={() => setSidebarHovered(false)}
+    >
       <div className="flex items-center gap-2 border-b border-grid px-3 py-2">
         <Tabs
           selectedKey={effectiveSelectedTab}
@@ -202,7 +193,7 @@ export default function SchemaSidebar({
                 <p className="text-sm">No session selected</p>
               </div>
             ) : (
-              <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} browserState={browserState} browserLoading={browserLoading} onViewBrowser={onViewBrowser} />
+              <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} sidebarHovered={sidebarHovered} browserState={browserState} browserLoading={browserLoading} onViewBrowser={onViewBrowser} />
             )}
           </div>
         ) : (

@@ -1,9 +1,10 @@
 import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
-import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo } from "../types";
+import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo, FilterSchema } from "../types";
 import { getScreenshotUrl } from "../api/browser";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { BrowserViewportStream } from "./BrowserViewportStream";
 import { BrowserStatusBar } from "./BrowserStatusBar";
+import { FilterPanel } from "./FilterPanel";
 import { HumanTakeoverDrawer } from "./HumanTakeoverPanel";
 import type { TakeoverInfo } from "../hooks/useTakeoverState";
 
@@ -24,6 +25,9 @@ interface BrowserWorkspaceProps {
   cookiesLoading?: boolean;
   onLoadProfile?: (name: string) => void;
   sessionId?: string;
+  filterSchema?: FilterSchema | null;
+  onFiltersApplied?: () => void;
+  onCloseBrowser?: () => void;
 }
 
 function BrowserViewport({
@@ -45,7 +49,7 @@ function BrowserViewport({
           </div>
         </div>
         <p className="text-center text-sm text-muted">
-          等待智能体启动浏览器...
+          Waiting for the agent to launch the browser...
         </p>
       </div>
     );
@@ -55,7 +59,7 @@ function BrowserViewport({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <Loader2 className="size-6 animate-spin text-accent" />
-        <p className="text-sm text-muted">浏览器启动中...</p>
+        <p className="text-sm text-muted">Launching browser...</p>
       </div>
     );
   }
@@ -66,7 +70,7 @@ function BrowserViewport({
         {state.screenshot_available ? (
           <img
             src={getScreenshotUrl()}
-            alt={state.title ?? "页面截图"}
+            alt={state.title ?? "Page screenshot"}
             className="h-full w-full object-contain"
             style={{ cursor: "default" }}
           />
@@ -114,6 +118,9 @@ export function BrowserWorkspace({
   sessionId,
   actions,
   isRunning,
+  filterSchema,
+  onFiltersApplied,
+  onCloseBrowser,
 }: BrowserWorkspaceProps) {
   if (error) {
     return (
@@ -121,7 +128,7 @@ export function BrowserWorkspace({
         <div className="flex flex-col items-center gap-3 rounded-xl border border-danger/30 bg-danger/5 px-8 py-6">
           <X className="size-6 text-danger" />
           <p className="text-sm text-danger">{error}</p>
-          <p className="text-xs text-muted">检查后端服务是否正常运行</p>
+          <p className="text-xs text-muted">Check that the backend is running</p>
         </div>
       </div>
     );
@@ -135,6 +142,9 @@ export function BrowserWorkspace({
         trigger={takeoverInfo.trigger}
         remainingSeconds={takeoverInfo.remainingSeconds}
         browserRunning={!!state?.launched}
+        idleCloseActive={state?.idle_close_active ?? false}
+        idleCloseRemaining={state?.idle_close_remaining ?? 0}
+        onCloseBrowser={onCloseBrowser ?? (() => {})}
       />
 
       {state?.launched && (
@@ -147,6 +157,15 @@ export function BrowserWorkspace({
           onLoadProfile={onLoadProfile}
           actions={actions}
           isRunning={isRunning}
+        />
+      )}
+
+      {state?.launched && (
+        <FilterPanel
+          schema={filterSchema ?? null}
+          isRunning={isRunning ?? false}
+          sessionId={sessionId ?? ""}
+          onApplied={onFiltersApplied}
         />
       )}
 

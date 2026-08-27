@@ -71,7 +71,7 @@ export function BrowserViewportStream({
         }
       } catch (err: unknown) {
         if (!disposed) {
-          setError(err instanceof Error ? err.message : "视频流协商失败");
+          setError(err instanceof Error ? err.message : "Video stream negotiation failed");
           setState("disconnected");
         }
       }
@@ -93,15 +93,15 @@ export function BrowserViewportStream({
 
     ws.onerror = () => {
       if (!disposed) {
-        setError("WebSocket 连接失败");
+        setError("WebSocket connection failed");
         setState("disconnected");
       }
     };
 
     ws.onclose = (event) => {
       if (disposed) return;
-      const reason = event.reason || `连接已关闭（代码 ${event.code}）`;
-      setError(reason === "Browser target unavailable" ? "浏览器页面已失效，请重新连接" : reason);
+      const reason = event.reason || `Connection closed (code ${event.code})`;
+      setError(reason === "Browser target unavailable" ? "Browser page no longer available. Reconnect." : reason);
       setState("disconnected");
     };
 
@@ -129,7 +129,7 @@ export function BrowserViewportStream({
             onClick={retry}
             className="text-sm text-accent hover:underline"
           >
-            重试
+            Retry
           </button>
         </div>
       </div>
@@ -150,8 +150,8 @@ export function BrowserViewportStream({
       {takeoverActive && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10 pointer-events-none">
           <div className="text-center space-y-2">
-            <p className="text-lg font-semibold text-white">请在 Chrome 窗口中直接操作</p>
-            <p className="text-sm text-white/70">不要在此视频画面中点击</p>
+            <p className="text-lg font-semibold text-white">Operate directly in the Chrome window</p>
+            <p className="text-sm text-white/70">Do not click inside this video view</p>
           </div>
         </div>
       )}
@@ -160,7 +160,7 @@ export function BrowserViewportStream({
         <div className="absolute inset-0 flex items-center justify-center bg-background/60">
           <div className="flex flex-col items-center gap-3">
             <div className="size-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-            <span className="text-sm text-muted">连接浏览器...</span>
+            <span className="text-sm text-muted">Connecting to browser...</span>
           </div>
         </div>
       )}
@@ -168,12 +168,12 @@ export function BrowserViewportStream({
       {state === "disconnected" && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/60">
           <div className="flex flex-col items-center gap-3">
-            <span className="text-sm text-muted">连接已断开</span>
+            <span className="text-sm text-muted">Connection lost</span>
             <button
               onClick={retry}
               className="rounded-lg bg-accent px-4 py-1.5 text-sm text-white"
             >
-              重新连接
+              Reconnect
             </button>
           </div>
         </div>

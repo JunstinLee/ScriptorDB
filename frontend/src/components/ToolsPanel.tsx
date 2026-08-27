@@ -99,12 +99,13 @@ function getCollapsedSummary(invocations: TI[]): string {
 interface ToolsPanelProps {
   runs: Run[];
   highlightedRunId: string | null;
+  sidebarHovered: boolean;
   browserState: BrowserState | null;
   browserLoading: boolean;
   onViewBrowser: () => void;
 }
 
-export default function ToolsPanel({ runs, highlightedRunId, browserState, browserLoading, onViewBrowser }: ToolsPanelProps) {
+export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, browserState, browserLoading, onViewBrowser }: ToolsPanelProps) {
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
   );
@@ -113,6 +114,7 @@ export default function ToolsPanel({ runs, highlightedRunId, browserState, brows
   );
 
   const runsWithTools = runs.filter((r) => r.tool_invocations.length > 0);
+  const prevRunIdsRef = useRef<string[]>([]);
 
   console.log(
     "[ToolsPanel] runsWithTools: %d runs, run_ids=%s",
@@ -131,9 +133,15 @@ export default function ToolsPanel({ runs, highlightedRunId, browserState, brows
   );
 
   const runsRef = useRef(runs);
-  runsRef.current = runs;
   const runsWithToolsRef = useRef(runsWithTools);
-  runsWithToolsRef.current = runsWithTools;
+  const highlightedRunIdRef = useRef(highlightedRunId);
+
+  // ref 同步放到 effect 中，避免渲染期间更新 ref（react-hooks/refs）
+  useEffect(() => {
+    runsRef.current = runs;
+    runsWithToolsRef.current = runsWithTools;
+    highlightedRunIdRef.current = highlightedRunId;
+  }, [runs, runsWithTools, highlightedRunId]);
 
   const toggleRound = (roundIndex: number) => {
     setCollapsedRounds((prev) => {
@@ -152,6 +160,48 @@ export default function ToolsPanel({ runs, highlightedRunId, browserState, brows
       return next;
     });
   };
+
+  // 会话切换（run 集合完全变化）时重置折叠状态
+  useEffect(() => {
+    const ids = runsWithTools.map((r) => r.run_id);
+    const prev = prevRunIdsRef.current;
+    if (ids.length > 0 && !ids.some((id) => prev.includes(id))) {
+      setCollapsedRounds(new Set());
+      setCollapsedTools(new Set());
+    }
+    prevRunIdsRef.current = ids;
+  }, [runsWithTools]);
+
+  // 鼠标不在侧边栏区域 5 秒后自动折叠：
+  // 旧轮次折叠、最新一轮保持展开；单轮超过 10 个工具的工具列表折叠
+  useEffect(() => {
+    if (sidebarHovered) return;
+    const timer = setTimeout(() => {
+      const list = runsWithToolsRef.current;
+      const highlighted = highlightedRunIdRef.current;
+      setCollapsedRounds((prev) => {
+        const next = new Set(prev);
+        list.forEach((run, i) => {
+          if (run.run_id === highlighted) return;
+          const runNumber = i + 1;
+          if (i === list.length - 1) next.delete(runNumber);
+          else next.add(runNumber);
+        });
+        return next;
+      });
+      setCollapsedTools((prev) => {
+        const next = new Set(prev);
+        list.forEach((run, i) => {
+          if (run.run_id === highlighted) return;
+          const runNumber = i + 1;
+          if (run.tool_invocations.length > 10) next.add(runNumber);
+          else next.delete(runNumber);
+        });
+        return next;
+      });
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [sidebarHovered]);
 
   useEffect(() => {
     if (!highlightedRunId) return;
@@ -213,7 +263,6 @@ export default function ToolsPanel({ runs, highlightedRunId, browserState, brows
         const runNumber = runIndex + 1;
         const isRoundCollapsed = collapsedRounds.has(runNumber);
         const isToolsCollapsed = collapsedTools.has(runNumber);
-        const operations = getOperations(run.tool_invocations);
         const collapsedSummary = getCollapsedSummary(run.tool_invocations);
 
         return (
@@ -249,25 +298,6 @@ export default function ToolsPanel({ runs, highlightedRunId, browserState, brows
                 isRoundCollapsed ? "tool-expand-collapsed" : "tool-expand-open"
               }`}
             >
-              {operations.length > 0 && (
-                <div className="px-3 py-2.5 bg-default/10 border-b border-grid">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-muted mb-1.5">
-                    Operations
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    {operations.map((op, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2 text-xs text-muted"
-                      >
-                        {op.icon}
-                        <span>{op.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <div className="p-2">
                 <button
                   type="button"

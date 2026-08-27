@@ -1,0 +1,200 @@
+from __future__ import annotations
+
+import asyncio
+from contextlib import suppress
+from typing import Any
+from copy import copy
+
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic_ai.messages import ModelMessage
+
+from core.logging_setup import get_logger
+from runtime.approval.orchestrator import ApprovalOrchestrator
+from api.dependencies import get_app_context, get_config, require_workspace
+from schemas import ChatRequest
+from runtime.sessions import get_session_store
+from api.sse_format import sse_done, sse_event
+from services.chat_service import persist_chat_run, repair_tool_message_pairs
+from services.prompt_service import CrawlError, augment_prompt
+
+logger = get_logger("routes.chat")
+
+router = APIRouter(prefix="/api/sessions", tags=["chat"])
+
+_active_orchestrators: dict[str, ApprovalOrchestrator] = {}
+
+
+
+async def _stream_orchestrator_events(
+    orchestrator: ApprovalOrchestrator,
+    prompt: str,
+    message_history: list[ModelMessage],
+    session_id: str,
+) -> StreamingResponse:
+    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+    run_collector: dict[str, Any] = {}
+    new_messages_collector: list[ModelMessage] = []
+
+    async def event_callback(event: dict[str, Any]) -> None:
+        await event_queue.put(event)
+
+    run_task = asyncio.create_task(
+        orchestrator.start_run(prompt, message_history, event_callback)
+    )
+
+    async def generate():
+        nonlocal run_collector, new_messages_collector
+
+        interrupted = False
+        try:
+            while True:
+                if run_task.done() and event_queue.empty():
+                    break
+
+                event = await event_queue.get()
+                ev_type = event.get("type", "")
+
+                if ev_type == "new_messages":
+                    new_messages_collector.extend(event.get("messages", []))
+                    continue
+
+                if ev_type == "metadata":
+                    continue
+
+                yield sse_event(ev_type, event)
+
+                if ev_type == "approval_request":
+                    # 与接管一致：流保持打开，等待审批决定后继续推送同一 run 的事件。
+                    continue
+                if ev_type == "human_takeover_request":
+                    # 接管期间 run 挂起在 resume_event 上，SSE 流保持打开；
+                    # 恢复后继续推送同一 run 的后续事件。
+                    continue
+                if ev_type == "takeover_state_change":
+                    yield sse_event(ev_type, event)
+                    if event.get("state") == "cancelled":
+                        return
+                    continue
+                if ev_type == "takeover_cancelled":
+                    yield sse_event(ev_type, event)
+                    continue
+                if ev_type == "run_end":
+                    yield sse_done()
+                    remove_orchestrator(session_id)
+                    break
+        except asyncio.CancelledError:
+            interrupted = True
+            raise
+        finally:
+            if interrupted:
+                logger.warning(
+                    "chat_stream_interrupted session_id=%s run_task_done=%s",
+                    session_id, run_task.done(),
+                )
+                if run_task.done():
+                    with suppress(Exception):
+                        summary = run_task.result()
+                        logger.info(
+                            "chat_stream_interrupted summary status=%s run_id=%s",
+                            summary["status"], summary["run_id"],
+                        )
+                        if summary["status"] == "completed":
+                            new_messages_collector.extend(
+                                summary.get("new_messages", [])
+                            )
+                            persist_chat_run(
+                                session_id=session_id,
+                                new_messages_collector=new_messages_collector,
+                                run_collector=summary,
+                            )
+                            from browser import get_manager
+                            get_manager().schedule_idle_close()
+                        else:
+                            logger.warning(
+                                "chat_stream_interrupted: status=%s not persisted session_id=%s",
+                                summary["status"], session_id,
+                            )
+                else:
+                    run_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await run_task
+                    remove_orchestrator(session_id)
+            else:
+                summary = await run_task
+                logger.info(
+                    "chat_stream_finished session_id=%s status=%s run_id=%s",
+                    session_id, summary["status"], summary["run_id"],
+                )
+                if summary["status"] == "completed":
+                    new_messages_collector.extend(summary.get("new_messages", []))
+                    persist_chat_run(
+                        session_id=session_id,
+                        new_messages_collector=new_messages_collector,
+                        run_collector=summary,
+                    )
+                    from browser import get_manager
+                    get_manager().schedule_idle_close()
+                else:
+                    logger.warning(
+                        "chat_stream_finished: status=%s not persisted session_id=%s",
+                        summary["status"], session_id,
+                    )
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.post("/{session_id}/chat")
+async def chat(session_id: str, req: ChatRequest):
+    require_workspace()
+    config = get_config()
+    session = get_session_store().get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    session.add_user_message(req.prompt, attachments=req.attachments, crawl_url=req.crawl_url)
+
+    # per-run 配置副本：会话级字段不再写入全局 settings 单例，
+    # 避免并发会话互相覆盖（undo 钩子/translator 经 deps 读取）。
+    run_config = copy(config)
+    run_config.chat_session_id = session_id
+    run_config.chat_prompt = req.prompt
+    run_config.run_id = ""
+
+    try:
+        augmented_prompt = await augment_prompt(
+            req.prompt, attachments=req.attachments, crawl_url=req.crawl_url
+        )
+    except CrawlError as e:
+        raise HTTPException(status_code=502, detail=f"Crawl failed: {e}")
+
+    model_messages = repair_tool_message_pairs(session.get_model_messages())
+
+    orchestrator = ApprovalOrchestrator(
+        session_id,
+        run_config,
+        model=req.model,
+        provider=req.provider,
+        app_context=get_app_context(),
+    )
+    _active_orchestrators[session_id] = orchestrator
+
+    return await _stream_orchestrator_events(
+        orchestrator, augmented_prompt, model_messages, session_id
+    )
+
+
+def get_orchestrator(session_id: str) -> ApprovalOrchestrator | None:
+    return _active_orchestrators.get(session_id)
+
+
+def remove_orchestrator(session_id: str) -> ApprovalOrchestrator | None:
+    return _active_orchestrators.pop(session_id, None)

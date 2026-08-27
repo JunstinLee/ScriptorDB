@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from config.settings import Settings
 from core.logging_setup import get_logger
 from pydantic_ai import RunContext
@@ -7,6 +9,18 @@ from tools.browser_common import _check_blocked, _require_browser
 from tools.tool_decorators import db_tool
 
 logger = get_logger("tools.browser.dom")
+
+# Playwright 引擎选择器前缀（text=/xpath=/aria= 等）不是合法 CSS，
+# 不能传给 document.querySelector —— 高亮/跟踪前先识别并跳过。
+_PLAYWRIGHT_ENGINES = frozenset({
+    "css", "xpath", "text", "id", "data-testid", "data-test", "data-test-id",
+    "data-qa", "aria", "role", "nth", "internal",
+})
+
+
+def _is_engine_selector(selector: str) -> bool:
+    match = re.match(r"^([A-Za-z][A-Za-z0-9_-]*?)\s*=", selector)
+    return bool(match) and match.group(1).lower() in _PLAYWRIGHT_ENGINES
 
 
 @db_tool(name="browser_get_text", category="browser", timeout=15, sequential=True)
@@ -87,7 +101,8 @@ async def browser_wait_for_selector(
     if blocked := _check_blocked(manager):
         return blocked
     result = await _wait(page, selector, state)  # type: ignore[arg-type]
-    await highlight_click(page, selector)
+    if not _is_engine_selector(selector):
+        await highlight_click(page, selector)
     manager.record_action("wait_for_selector", selector, selector=selector)
     return result
 
@@ -96,6 +111,8 @@ async def browser_wait_for_selector(
 async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
     from browser.actions import click as _click
     from browser.highlights import highlight_click
+    from config.workspace import workspace_outputs_dir
+    from tools.browser_tools.download import _save_download
 
     manager, page = _require_browser()
     if page is None:
@@ -103,9 +120,28 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
     if blocked := _check_blocked(manager):
         return blocked
     logger.info(f"browser_click selector={selector} takeover_state={manager.takeover.state.value}")
-    await highlight_click(page, selector)
-    await manager.trace.record_pre_click(page, selector)
-    result = await _click(page, selector)
+    if not _is_engine_selector(selector):
+        await highlight_click(page, selector)
+        await manager.trace.record_pre_click(page, selector)
+
+    result = ""
+    download = None
+    try:
+        async with page.expect_download(timeout=2000) as dl_info:
+            result = await _click(page, selector)
+            download = await dl_info.value
+    except Exception:
+        # 点击未触发下载（2s 内无 download 事件）或点击本身异常：按普通点击处理
+        download = None
+
+    if download is not None:
+        if ctx.deps and ctx.deps.workspace_path:
+            output_dir = workspace_outputs_dir(ctx.deps.workspace_path)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            result = f"{result}\n{await _save_download(download, output_dir, source_url=page.url)}"
+        else:
+            result = f"{result}\nDownload triggered but no active workspace to save it"
+
     trace = await manager.trace.record_post_nav(page)
     detail = selector
     pre = trace.get("pre_click") or {}
@@ -132,11 +168,46 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
     if blocked := _check_blocked(manager):
         return blocked
     logger.info(f"browser_fill selector={selector} takeover_state={manager.takeover.state.value}")
-    await highlight_input(page, selector)
-    result = await _fill(page, selector, text)
-    await highlight_input_remove(page)
+    if not _is_engine_selector(selector):
+        await highlight_input(page, selector)
+    try:
+        result = await _fill(page, selector, text)
+    finally:
+        await highlight_input_remove(page)
     manager.record_action("fill", selector, selector=selector,
                           success="Filled" in result)
+    if "failed" in str(result).lower() or "error" in str(result).lower():
+        manager.record_element_failure(selector)
+        await manager.detect_takeover()
+    return result
+
+
+@db_tool(name="browser_select_option", category="browser", timeout=15, sequential=True)
+async def browser_select_option(
+    ctx: RunContext[Settings],
+    selector: str,
+    value: str = "",
+    label: str = "",
+) -> str:
+    from browser.actions import select_option as _select
+    from browser.highlights import highlight_input, highlight_input_remove
+
+    manager, page = _require_browser()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    if blocked := _check_blocked(manager):
+        return blocked
+    if not value and not label:
+        return "browser_select_option requires a value or a label"
+    logger.info(f"browser_select_option selector={selector} takeover_state={manager.takeover.state.value}")
+    if not _is_engine_selector(selector):
+        await highlight_input(page, selector)
+    try:
+        result = await _select(page, selector, value=value, label=label)
+    finally:
+        await highlight_input_remove(page)
+    manager.record_action("select_option", f"{selector} = {value or label}", selector=selector,
+                          success="Selected" in result)
     if "failed" in str(result).lower() or "error" in str(result).lower():
         manager.record_element_failure(selector)
         await manager.detect_takeover()

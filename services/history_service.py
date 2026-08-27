@@ -6,7 +6,7 @@ from schemas import (
     HistorySearchResponse,
     HistorySearchResultItem,
 )
-from server.sessions import get_session_store
+from runtime.sessions import get_session_store
 
 
 def _build_title(content: str) -> str:

@@ -22,9 +22,12 @@ from tools.browser_tools.dom import (  # noqa: E402
     browser_press_key,
     browser_query,
     browser_scroll,
+    browser_select_option,
     browser_wait_for_selector,
 )
 from tools.browser_tools.download import browser_download  # noqa: E402
+from tools.browser_tools.filter_apply import browser_apply_filter  # noqa: E402
+from tools.browser_tools.filter_detect import browser_detect_filters  # noqa: E402
 from tools.browser_tools.inspect import browser_inspect_structure  # noqa: E402
 from tools.browser_tools.links import browser_extract_links  # noqa: E402
 from tools.browser_tools.navigation import (  # noqa: E402
@@ -40,8 +43,10 @@ from tools.browser_tools.tabs import browser_get_tabs, browser_switch_tab  # noq
 from tools.browser_tools.visual import browser_screenshot  # noqa: E402
 
 __all__ = [
+    "browser_apply_filter",
     "browser_clear_cookies",
     "browser_click",
+    "browser_detect_filters",
     "browser_download",
     "browser_evaluate",
     "browser_extract_links",
@@ -61,6 +66,7 @@ __all__ = [
     "browser_press_key",
     "browser_query",
     "browser_screenshot",
+    "browser_select_option",
     "browser_scroll",
     "browser_set_cookies",
     "browser_switch_tab",

@@ -1,6 +1,5 @@
-from __future__ import annotations
-
-import hashlib
+from pathlib import Path
+from typing import Any
 
 from config.settings import Settings
 from config.workspace import workspace_outputs_dir
@@ -16,6 +15,52 @@ logger = get_logger("tools.browser.download")
 
 DEFAULT_DOWNLOAD_TIMEOUT = 60
 DEFAULT_MAX_SIZE_MB = 50
+
+
+async def _save_download(
+    download: Any,
+    output_dir: Path,
+    filename_hint: str = "",
+    max_size_mb: int = DEFAULT_MAX_SIZE_MB,
+    source_url: str = "",
+) -> str:
+    """保存 Playwright Download 到 output_dir，返回成功描述或失败原因。"""
+    if failure := await download.failure():
+        return f"Download failed: {failure}"
+
+    filename = _sanitize_filename(filename_hint or download.suggested_filename or "download.bin")
+    path = _unique_path(output_dir, filename)
+    try:
+        await download.save_as(path)
+    except Exception as e:
+        return f"Download save failed: {e}"
+
+    size = path.stat().st_size
+    size_limit = max_size_mb * 1024 * 1024
+    if size > size_limit:
+        path.unlink(missing_ok=True)
+        return f"Download failed: file exceeds the {max_size_mb}MB size limit"
+
+    sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    download_manifest.append(
+        DownloadManifestEntry(
+            source_url=source_url,
+            title="",
+            publish_date="",
+            filename=path.name,
+            size=size,
+            sha256=sha256,
+        ),
+        download_manifest.manifest_path(output_dir),
+    )
+    return (
+        f"Download successful:\n"
+        f"  Filename: {path.name}\n"
+        f"  Size: {size} bytes\n"
+        f"  SHA-256: {sha256}\n"
+        f"  Path: {path}\n"
+        f"  Recorded in downloads_manifest.json"
+    )
 
 
 @db_tool(name="browser_download", category="browser", timeout=90, sequential=True)
@@ -34,7 +79,7 @@ async def browser_download(
     - 文件保存到工作区 outputs 目录，并写入 downloads_manifest.json。
     """
     if not url and not selector:
-        return "browser_download 需要提供 url 或 selector 之一"
+        return "browser_download requires a url or a selector"
 
     manager, page = _require_browser()
     if page is None:
@@ -45,7 +90,7 @@ async def browser_download(
     workspace_path = ctx.deps.workspace_path if ctx.deps else None
     if workspace_path is None:
         logger.warning("browser_download skipped: no active workspace")
-        return "下载失败: 没有活动工作区，请先选择工作区"
+        return "Download failed: no active workspace"
 
     output_dir = workspace_outputs_dir(workspace_path)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -64,47 +109,17 @@ async def browser_download(
             download = await dl_info.value
     except Exception as e:
         manager.record_action("download", f"trigger failed: {trigger_error or e}", success=False)
-        return f"下载触发失败: {trigger_error or e}"
+        return f"Download trigger failed: {trigger_error or e}"
 
-    if failure := await download.failure():
-        manager.record_action("download", f"failed: {failure}", success=False)
-        return f"下载失败: {failure}"
-
-    filename = _sanitize_filename(filename_hint or download.suggested_filename or "download.bin")
-    path = _unique_path(output_dir, filename)
-    try:
-        await download.save_as(path)
-    except Exception as e:
-        manager.record_action("download", f"save failed: {e}", success=False)
-        return f"下载保存失败: {e}"
-
-    size = path.stat().st_size
-    size_limit = max_size_mb * 1024 * 1024
-    if size > size_limit:
-        path.unlink(missing_ok=True)
-        manager.record_action("download", f"exceeds max size {max_size_mb}MB", success=False)
-        return f"下载失败: 文件超过大小上限 {max_size_mb}MB"
-
-    sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
-    source_url = url or page.url or ""
-    download_manifest.append(
-        DownloadManifestEntry(
-            source_url=source_url,
-            title="",
-            publish_date="",
-            filename=path.name,
-            size=size,
-            sha256=sha256,
-        ),
-        download_manifest.manifest_path(output_dir),
+    result = await _save_download(
+        download,
+        output_dir,
+        filename_hint=filename_hint,
+        max_size_mb=max_size_mb,
+        source_url=url or page.url or "",
     )
-
-    manager.record_action("download", f"source={source_url} -> {path.name}", success=True)
-    return (
-        f"下载成功:\n"
-        f"  文件名: {path.name}\n"
-        f"  大小: {size} bytes\n"
-        f"  SHA-256: {sha256}\n"
-        f"  保存路径: {path}\n"
-        f"  已写入来源清单 (downloads_manifest.json)"
-    )
+    if result.startswith("Download successful"):
+        manager.record_action("download", f"source={url or page.url or ''} -> saved", success=True)
+    else:
+        manager.record_action("download", result, success=False)
+    return result

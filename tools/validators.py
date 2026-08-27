@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import json
 import re
 
 from pydantic_ai import ModelRetry, RunContext
 
 from config.settings import Settings
+from tools.browser_tools.filter_contract import (
+    FILTER_ACTIONS,
+    FILTER_MECHANISMS,
+    JS_TABLE_CAPABILITY_KINDS,
+)
 
 
 def validate_sql_readonly(ctx: RunContext[Settings], sql: str, *args: object, **kwargs: object) -> None:
@@ -123,3 +129,63 @@ def validate_sql_dml(
                 f"{upper.split()[0]} statements must include a WHERE clause "
                 "to limit the affected rows."
             )
+
+
+def validate_filter_apply_args(
+    ctx: RunContext[Settings],
+    action: str,
+    target: str,
+    value: str = "",
+    values: str = "",
+    submit: bool = True,
+    mechanism: str = "dom_action",
+    capability: dict | None = None,
+    table: dict | None = None,
+    *args: object,
+    **kwargs: object,
+) -> None:
+    if mechanism not in FILTER_MECHANISMS:
+        raise ModelRetry(
+            f"mechanism 必须是 {sorted(FILTER_MECHANISMS)} 之一，收到 '{mechanism}'"
+        )
+    if mechanism == "js_table_api":
+        if not isinstance(capability, dict) or not capability:
+            raise ModelRetry(
+                "mechanism=js_table_api 需要 capability"
+                "（browser_detect_filters 返回条目的 capability 字段）"
+            )
+        kind = capability.get("kind")
+        if kind not in JS_TABLE_CAPABILITY_KINDS:
+            raise ModelRetry(
+                f"capability.kind 必须是 {sorted(JS_TABLE_CAPABILITY_KINDS)} 之一，"
+                f"收到 '{kind}'"
+            )
+        if table is not None:
+            if (not isinstance(table, dict)
+                    or not isinstance(table.get("index"), int)
+                    or not isinstance(table.get("selector"), str)
+                    or not table.get("selector")):
+                raise ModelRetry(
+                    "table must be a dict with index (int) and selector (non-empty str), "
+                    "from the table field of a browser_detect_filters entry"
+                )
+    else:
+        if action not in FILTER_ACTIONS:
+            raise ModelRetry(
+                f"action 必须是 {sorted(FILTER_ACTIONS)} 之一，收到 '{action}'"
+            )
+    if not target or not target.strip():
+        raise ModelRetry(
+            "target 不能为空（应为 browser_detect_filters 返回的筛选器 name 或 selector）"
+        )
+    if values and values.strip():
+        try:
+            parsed = json.loads(values)
+        except json.JSONDecodeError:
+            raise ModelRetry(
+                "values 必须是 JSON 数组字符串，如 '[\"2026-01-01\",\"2026-12-31\"]'"
+            )
+        if not isinstance(parsed, list):
+            raise ModelRetry("values 必须是 JSON 数组字符串")
+    if action == "date_range" and not (values and values.strip()):
+        raise ModelRetry("date_range 需要 values 提供起止值（JSON 数组字符串）")

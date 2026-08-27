@@ -13,7 +13,7 @@ class AppContext:
     The cached agent is rebuilt whenever the effective signature
     (provider, model, workspace, configured model) changes — e.g. after a
     workspace switch or a model-setting update. Shared across chat sessions
-    via `server.dependencies.get_app_context()`.
+    via `api.dependencies.get_app_context()`.
     """
 
     config: AppConfig

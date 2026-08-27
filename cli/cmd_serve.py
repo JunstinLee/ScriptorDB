@@ -25,4 +25,4 @@ def serve(
         )
     else:
         typer.echo("No active workspace — endpoints requiring one will return 409.")
-    uvicorn.run("server.app:app", host=host, port=port, reload=reload)
+    uvicorn.run("api.app:app", host=host, port=port, reload=reload)

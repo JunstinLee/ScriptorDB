@@ -102,18 +102,25 @@ body,
 
 /* 4. Tool invocation expand/collapse */
 .tool-expand {
-  transition: max-height 200ms ease, opacity 200ms ease;
-  overflow: hidden;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease, opacity 200ms ease;
+  opacity: 0;
 }
 
 .tool-expand-collapsed {
-  max-height: 0;
+  grid-template-rows: 0fr;
   opacity: 0;
 }
 
 .tool-expand-open {
-  max-height: 2000px;
+  grid-template-rows: 1fr;
   opacity: 1;
+}
+
+.tool-expand > * {
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* 5. Popover entrance */

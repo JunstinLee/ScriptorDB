@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from schemas import MessageItem, SessionCreateResponse
-from server.session_file_store import FileSessionStore
+from runtime.session_file_store import FileSessionStore
 
 
 def _storage(tmp_path: Path) -> Path:
@@ -174,8 +174,8 @@ def test_session_store_index_tracks_message_count(tmp_path: Path):
 
 
 def test_session_store_migrates_legacy_file(tmp_path: Path, monkeypatch):
-    monkeypatch.setattr("server.session_file_store.LEGACY_SESSIONS_FILE", tmp_path / "sessions.json")
-    monkeypatch.setattr("server.session_file_store.LEGACY_SESSIONS_BACKUP_FILE", tmp_path / "sessions.json.bak")
+    monkeypatch.setattr("runtime.session_file_store.LEGACY_SESSIONS_FILE", tmp_path / "sessions.json")
+    monkeypatch.setattr("runtime.session_file_store.LEGACY_SESSIONS_BACKUP_FILE", tmp_path / "sessions.json.bak")
     legacy_payload = {
         "version": 1,
         "sessions": [
