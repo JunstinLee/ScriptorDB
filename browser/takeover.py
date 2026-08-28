@@ -169,10 +169,36 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
     ):
         return HumanTrigger("Image captcha detected", "captcha", 0.9)
 
+    # 中文图形验证码：国产验证码组件可见标记
+    cn_captcha_components = [
+        ".geetest_panel, .geetest_holder, .geetest_slide",
+        "[id*=yidun], [class*=yidun]",
+        'iframe[id*=tcaptcha], [class*=tcaptcha]',
+        "[class*=aliyunCaptcha], #nc_1_wrapper",
+    ]
+    for selector in cn_captcha_components:
+        if await _visible_match(evaluate, selector):
+            return HumanTrigger("检测到图形验证码", "captcha", 0.9)
+
+    # 中文图形验证码：图片类标记（yzm / checkcode）
+    if await _visible_match(
+        evaluate,
+        "img[id*=yzm], img[class*=yzm], img[src*=yzm], "
+        "img[src*=checkcode], img[class*=checkcode]",
+    ):
+        return HumanTrigger("检测到图形验证码", "captcha", 0.85)
+
+    # 中文图形验证码：标题关键词
+    for kw in ["安全验证", "人机验证", "拖动滑块"]:
+        if kw in title:
+            return HumanTrigger("检测到图形验证码", "captcha", 0.85)
+
     mfa_queries = [
         "input[autocomplete='one-time-code']",
         "input[name*='otp']", "input[name*='totp']",
         "input[name*='mfa']", "input[name*='verification']",
+        "input[name*='yzm']", "input[name*='smscode']",
+        "input[placeholder*='验证码']",
         "input[type='tel'][maxlength='6']",
         "input[inputmode='numeric'][maxlength='6']",
     ]
@@ -188,6 +214,11 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
     for pattern, name in oauth_patterns:
         if pattern in url:
             return HumanTrigger(f"{name} authorization page detected", "oauth", 0.9)
+
+    # 国内 SSO / 授权 URL 通用规则（精确域名表之后）
+    url_lower = url.lower()
+    if any(marker in url_lower for marker in ("oauth", "sso", "/cas/login")):
+        return HumanTrigger("检测到第三方登录/SSO 授权页面", "oauth", 0.7)
 
     antibot_keywords = [
         "verify you are human", "are you a robot",
@@ -216,7 +247,29 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
         if has_payment:
             return HumanTrigger("Payment confirmation page detected", "payment", 0.8)
 
-    login_keywords = ["sign in", "log in", "login", "signin"]
+    login_keywords = ["sign in", "log in", "login", "signin", "登录", "登入", "logon"]
+
+    # 扫码登录：登录特征 + 无密码框 + 二维码可见
+    login_feature = any(kw in title for kw in login_keywords) or any(
+        marker in url_lower for marker in ("login", "signin", "登录", "登入")
+    )
+    if login_feature:
+        has_password = await evaluate(
+            "() => !!document.querySelector('input[type=password]')"
+        )
+        if not has_password:
+            qr_seen = await evaluate(
+                "() => { const q = document.querySelector('img[src*=qrcode]'); "
+                "if (q) { const r = q.getBoundingClientRect(); "
+                "if (r.width > 0 && r.height > 0) return true; } "
+                "const c = document.querySelector('canvas'); "
+                "if (c) { const r = c.getBoundingClientRect(); "
+                "if (r.width > 0 && r.height > 0) return true; } "
+                "return !!(document.body && document.body.innerText.includes('扫码')); }"
+            )
+            if qr_seen:
+                return HumanTrigger("检测到扫码登录页面，请扫码完成登录", "qrcode", 0.85)
+
     if any(kw in title for kw in login_keywords):
         has_password = await evaluate(
             "() => !!document.querySelector('input[type=password]')"

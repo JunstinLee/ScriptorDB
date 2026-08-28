@@ -44,6 +44,26 @@ async def test_page_none_returns_none():
         ("https://login.microsoftonline.com/xyz", "Some page", {}, ("oauth", "检测到 Microsoft OAuth 授权页面")),
         ("", "Checking your browser before accessing", {}, ("antibot", "检测到反爬虫页面")),
         ("", "Cloudflare attention required", {}, ("antibot", "检测到 Cloudflare 防护")),
+        # 中国互联网场景：中文登录页（login 关键词扩展）
+        ("", "国家税务总局广东省税务局-登录", {"input[type=password]": True}, ("login", "Login page detected")),
+        # 中国互联网场景：扫码登录（qrcode）
+        ("", "国家税务总局广东省税务局-登录", {"input[type=password]": False, "img[src*=qrcode]": True}, ("qrcode", "扫码登录")),
+        ("", "登录", {"input[type=password]": False, "canvas": True}, ("qrcode", "扫码登录")),
+        ("", "登录", {"input[type=password]": False, "img[src*=qrcode]": False}, None),
+        # 中国互联网场景：国产图形验证码
+        ("", "Some page", {".geetest_panel": True}, ("captcha", "验证码")),
+        ("", "Some page", {"[class*=yidun]": True}, ("captcha", "验证码")),
+        ("", "Some page", {"iframe[id*=tcaptcha]": True}, ("captcha", "验证码")),
+        ("", "Some page", {"[class*=aliyunCaptcha]": True}, ("captcha", "验证码")),
+        ("", "Some page", {"img[class*=yzm]": True}, ("captcha", "验证码")),
+        ("", "安全验证", {}, ("captcha", "验证码")),
+        ("", "人机验证", {}, ("captcha", "验证码")),
+        # 中国互联网场景：中文短信验证码（mfa selector 扩展）
+        ("", "Some page", {"input[name*='yzm']": True}, ("mfa", "MFA input detected")),
+        ("", "Some page", {"input[name*='smscode']": True}, ("mfa", "MFA input detected")),
+        # 中国互联网场景：国内 SSO / 授权 URL
+        ("https://sso.example.gov.cn/login", "Some page", {}, ("oauth", "SSO")),
+        ("https://cas.example.edu.cn/cas/login", "Some page", {}, ("oauth", "SSO")),
     ],
 )
 async def test_detect_combinations(url, title, results, expected):
@@ -64,6 +84,20 @@ async def test_injected_evaluate_used():
     async def fake_evaluate(js: str):
         called.append(js)
         return "img[id*=captcha]" in js
+
+    trigger = await detect_human_needed(page, evaluate=fake_evaluate)
+    assert trigger is not None
+    assert trigger.trigger == "captcha"
+    assert called
+
+
+async def test_injected_evaluate_used_for_cn_captcha():
+    page = SimpleNamespace(url="", title=lambda: _resolved("Some page"))
+    called: list[str] = []
+
+    async def fake_evaluate(js: str):
+        called.append(js)
+        return ".geetest_panel" in js
 
     trigger = await detect_human_needed(page, evaluate=fake_evaluate)
     assert trigger is not None
