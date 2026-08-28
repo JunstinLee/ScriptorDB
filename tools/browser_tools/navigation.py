@@ -12,9 +12,13 @@ logger = get_logger("tools.browser.navigation")
 
 @db_tool(name="browser_launch", category="browser", timeout=30, sequential=True)
 async def browser_launch(ctx: RunContext[Settings]) -> str:
+    from config.workspace_paths import workspace_outputs_dir
+
     manager = get_manager()
     manager.cancel_idle_close()
     logger.info("browser_launch called")
+    if ctx.deps and ctx.deps.workspace_path:
+        manager.set_downloads_dir(workspace_outputs_dir(ctx.deps.workspace_path))
     result = await manager.launch()
     manager.record_action("launch", result)
     return result
