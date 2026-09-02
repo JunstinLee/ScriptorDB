@@ -1,5 +1,5 @@
 import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
-import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo, FilterSchema } from "../types";
+import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo, FilterSchema, LoginFormPayload } from "../types";
 import { getScreenshotUrl } from "../api/browser";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { BrowserViewportStream } from "./BrowserViewportStream";
@@ -26,6 +26,7 @@ interface BrowserWorkspaceProps {
   onLoadProfile?: (name: string) => void;
   sessionId?: string;
   filterSchema?: FilterSchema | null;
+  loginForm?: LoginFormPayload | null;
   onFiltersApplied?: () => void;
   onCloseBrowser?: () => void;
 }
@@ -119,6 +120,7 @@ export function BrowserWorkspace({
   actions,
   isRunning,
   filterSchema,
+  loginForm,
   onFiltersApplied,
   onCloseBrowser,
 }: BrowserWorkspaceProps) {
@@ -188,6 +190,7 @@ export function BrowserWorkspace({
           currentUrl={state?.url ?? ""}
           trigger={takeoverInfo.trigger}
           remainingSeconds={takeoverInfo.remainingSeconds}
+          loginForm={loginForm}
           onEnterControl={onEnterHumanControl ?? (() => {})}
           onCancel={onTakeoverCancel ?? (() => {})}
           onComplete={onTakeoverComplete ?? (() => {})}

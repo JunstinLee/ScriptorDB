@@ -38,6 +38,7 @@ export function processSseStream(
                 currentEvent === "error" ||
                 currentEvent === "approval_request" ||
                 currentEvent === "browser_action" ||
+                currentEvent === "login_form_detected" ||
                 currentEvent === "human_takeover_request" ||
                 currentEvent === "takeover_state_change" ||
                 currentEvent === "takeover_cancelled"

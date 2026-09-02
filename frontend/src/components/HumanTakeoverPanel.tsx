@@ -1,6 +1,14 @@
 import { useState } from "react";
 import { AlertTriangle, Monitor } from "lucide-react";
 import type { TakeoverPhase } from "../hooks/useTakeoverState";
+import type { LoginFormPayload } from "../types";
+
+const ROLE_LABELS: Record<string, string> = {
+  username: "username",
+  password: "password",
+  otp: "otp",
+  unknown: "field",
+};
 
 interface HumanTakeoverDrawerProps {
   phase: TakeoverPhase;
@@ -14,6 +22,7 @@ interface HumanTakeoverDrawerProps {
   onShowWindow: () => void;
   runId: string;
   sessionId: string;
+  loginForm?: LoginFormPayload | null;
 }
 
 function formatTime(seconds: number): string {
@@ -31,6 +40,7 @@ export function HumanTakeoverDrawer({
   onCancel,
   onComplete,
   onShowWindow,
+  loginForm,
 }: HumanTakeoverDrawerProps) {
   const [resultText, setResultText] = useState("");
 
@@ -61,6 +71,29 @@ export function HumanTakeoverDrawer({
               <p className="text-[11px] text-muted truncate font-mono mt-0.5">
                 {currentUrl}
               </p>
+              {loginForm && loginForm.fields.length > 0 && (
+                <div className="mt-2 rounded-lg border border-grid bg-surface/60 px-3 py-2">
+                  <p className="text-[11px] font-semibold text-muted mb-1">
+                    Detected login form fields
+                  </p>
+                  <ul className="space-y-0.5">
+                    {loginForm.fields.map((f, idx) => (
+                      <li
+                        key={idx}
+                        className="text-[11px] font-mono text-muted truncate"
+                      >
+                        {ROLE_LABELS[f.role] ?? f.role}: {f.selector}
+                        {f.required ? " [required]" : ""}
+                      </li>
+                    ))}
+                    {loginForm.submit && (
+                      <li className="text-[11px] font-mono text-muted truncate">
+                        submit: {loginForm.submit.selector}
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
 

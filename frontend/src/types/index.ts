@@ -289,6 +289,26 @@ export interface ApprovalRequestEvent {
   }[];
 }
 
+export interface LoginFieldInfo {
+  role: "username" | "password" | "otp" | "unknown";
+  selector: string;
+  tag?: string;
+  type?: string;
+  name?: string;
+  id?: string;
+  label?: string;
+  placeholder?: string;
+  autocomplete?: string;
+  required?: boolean;
+}
+
+export interface LoginFormPayload {
+  url: string;
+  is_login_page: boolean;
+  fields: LoginFieldInfo[];
+  submit: LoginFieldInfo | null;
+}
+
 export interface HumanTakeoverRequestEvent {
   type: "human_takeover_request";
   run_id: string;
@@ -296,6 +316,14 @@ export interface HumanTakeoverRequestEvent {
   reason: string;
   current_url: string;
   screenshot_available: boolean;
+  timestamp: string;
+  login_form?: LoginFormPayload | null;
+}
+
+export interface LoginFormDetectedEvent {
+  type: "login_form_detected";
+  run_id: string;
+  login_form: LoginFormPayload;
   timestamp: string;
 }
 
@@ -326,6 +354,7 @@ export type StreamRunEvent =
   | RunErrorEvent
   | ApprovalRequestEvent
   | BrowserActionEvent
+  | LoginFormDetectedEvent
   | HumanTakeoverRequestEvent
   | TakeoverStateChangeEvent
   | TakeoverCancelledEvent;

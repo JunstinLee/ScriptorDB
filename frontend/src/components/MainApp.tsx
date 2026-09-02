@@ -124,7 +124,7 @@ export default function MainApp({
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
+  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, loginFormInfo, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
     activeSessionId,
     addUserMessage,
     appendEvent,
@@ -306,6 +306,7 @@ export default function MainApp({
               onLoadProfile={browserPanel.handleLoadProfile}
               sessionId={activeSessionId ?? ""}
               filterSchema={filterSchema}
+              loginForm={loginFormInfo}
               onFiltersApplied={browserPanel.refreshBrowser}
               onCloseBrowser={() => {
                 void closeBrowser().then(() => browserPanel.refreshBrowser());

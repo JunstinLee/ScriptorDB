@@ -10,6 +10,7 @@ import type {
   ApprovalRequestEvent,
   BrowserActionEvent,
   FilterSchema,
+  LoginFormPayload,
   StreamRunEvent,
 } from "../types";
 
@@ -59,6 +60,8 @@ export function useChatStream(params: UseChatStreamParams) {
     useState<ApprovalRequestEvent | null>(null);
   // 最近一次 browser_detect_filters 的 Filter Schema（新 run 开始时清空）
   const [filterSchema, setFilterSchema] = useState<FilterSchema | null>(null);
+  // 最近一次自动检测到的登录表单（login_form_detected / human_takeover_request 携带）
+  const [loginFormInfo, setLoginFormInfo] = useState<LoginFormPayload | null>(null);
   const takeover = useTakeoverState(() => {
     const sid = approvalSessionIdRef.current;
     if (sid) {
@@ -84,8 +87,9 @@ export function useChatStream(params: UseChatStreamParams) {
           setBrowserActive(true);
         }
         if (event.type === "run_start") {
-          // 新 run 开始时清空旧 schema，避免残留误导面板/抽屉
+          // 新 run 开始时清空旧 schema/登录表单，避免残留误导面板/抽屉
           setFilterSchema(null);
+          setLoginFormInfo(null);
         }
         if (
           event.type === "tool_result" &&
@@ -103,6 +107,7 @@ export function useChatStream(params: UseChatStreamParams) {
           }
         }
         if (event.type === "human_takeover_request") {
+          if (event.login_form) setLoginFormInfo(event.login_form);
           takeover.enterWaiting(
             event.reason,
             event.trigger || "",
@@ -110,6 +115,9 @@ export function useChatStream(params: UseChatStreamParams) {
           );
           setBrowserActive(true);
           setActiveMainTab("browser");
+        }
+        if (event.type === "login_form_detected") {
+          setLoginFormInfo(event.login_form);
         }
         if (event.type === "takeover_state_change") {
           switch (event.state) {
@@ -307,6 +315,7 @@ export function useChatStream(params: UseChatStreamParams) {
     handleApprovalSubmit,
     approvalRequest,
     filterSchema,
+    loginFormInfo,
     takeoverInfo: takeover.info,
     handleTakeoverComplete,
     handleTakeoverCancel,
