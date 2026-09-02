@@ -384,16 +384,13 @@ class FileSessionStore(SessionStore):
                 },
             }
             self._index_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
-            logger.info("session_index_written path=%s sessions=%s", self._index_file, len(self._sessions))
         except OSError as e:
             logger.exception("session_index_write_oserror path=%s err=%s", self._index_file, e)
 
     def save(self) -> None:
-        logger.info("session_store_save start sessions=%s", len(self._sessions))
         for session in self._sessions.values():
             self._write_session_file(session)
         self._write_index()
-        logger.info("session_store_save done sessions=%s", len(self._sessions))
 
     def create(self) -> Session:
         session = Session()

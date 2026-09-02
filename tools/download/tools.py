@@ -32,20 +32,12 @@ async def download_file(
         return "Download failed: no active workspace"
 
     domains = _parse_domains(allowed_domains)
-    logger.info(
-        "download_file start url=%s allowed_domains=%s domains=%s filename_hint=%r max_size_mb=%s workspace=%s",
-        url, allowed_domains, domains, filename_hint, max_size_mb, workspace_path,
-    )
     result = await download_service_download_file(
         url,
         domains,
         workspace_path,
         filename_hint=filename_hint or None,
         max_size_mb=max_size_mb,
-    )
-    logger.info(
-        "download_file result success=%s filename=%r size=%r sha256=%r path=%r error=%r",
-        result.success, result.filename, result.size, result.sha256, result.path, result.error,
     )
     if not result.success:
         return f"Download failed: {result.error}"
@@ -62,7 +54,6 @@ async def download_file(
         ),
         manifest_path,
     )
-    logger.info("download_manifest_updated path=%s", manifest_path)
     return (
         f"Download successful:\n"
         f"  Filename: {result.filename}\n"

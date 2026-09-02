@@ -3,12 +3,9 @@ from __future__ import annotations
 import re
 
 from config.settings import Settings
-from core.logging_setup import get_logger
 from pydantic_ai import RunContext
 from tools.browser_common import _check_blocked, _require_browser
 from tools.tool_decorators import db_tool
-
-logger = get_logger("tools.browser.dom")
 
 # Playwright 引擎选择器前缀（text=/xpath=/aria= 等）不是合法 CSS，
 # 不能传给 document.querySelector —— 高亮/跟踪前先识别并跳过。
@@ -119,7 +116,6 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
-    logger.info(f"browser_click selector={selector} takeover_state={manager.takeover.state.value}")
     if not _is_engine_selector(selector):
         await highlight_click(page, selector)
         await manager.trace.record_pre_click(page, selector)
@@ -150,7 +146,6 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
         detail = f"{selector} -> {final_url}"
     manager.record_action("click", detail, selector=selector,
                           success="Clicked" in result)
-    logger.info(f"browser_click trace pre={pre.get('url')} final={final_url} status={trace.get('status_code')}")
     if "failed" in str(result).lower() or "error" in str(result).lower():
         manager.record_element_failure(selector)
         await manager.detect_takeover()
@@ -167,7 +162,6 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
-    logger.info(f"browser_fill selector={selector} takeover_state={manager.takeover.state.value}")
     if not _is_engine_selector(selector):
         await highlight_input(page, selector)
     try:
@@ -199,7 +193,6 @@ async def browser_select_option(
         return blocked
     if not value and not label:
         return "browser_select_option requires a value or a label"
-    logger.info(f"browser_select_option selector={selector} takeover_state={manager.takeover.state.value}")
     if not _is_engine_selector(selector):
         await highlight_input(page, selector)
     try:

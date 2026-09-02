@@ -66,13 +66,6 @@ def persist_chat_run(
             session_id, run_collector.get("run_id", ""),
         )
         return
-    logger.info(
-        "persist_chat_run start session_id=%s run_id=%s status=%s "
-        "new_messages=%s final_output_len=%s tool_invocations=%s",
-        session_id, run_collector.get("run_id", ""), run_collector.get("status"),
-        len(new_messages_collector), len(run_collector.get("final_output", "")),
-        len(run_collector.get("tool_invocations", [])),
-    )
 
     if new_messages_collector:
         session.add_model_messages(repair_tool_message_pairs(new_messages_collector))
@@ -103,7 +96,5 @@ def persist_chat_run(
             )
             raise
         session.add_run(run)
-        logger.info("persist_chat_run adding run, saving store session_id=%s", session_id)
         get_session_store().save()
-        logger.info("persist_chat_run done session_id=%s messages=%s runs=%s", session_id, len(session.messages), len(session.runs))
 

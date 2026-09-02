@@ -35,7 +35,6 @@ async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
     if blocked := _check_blocked(manager):
         return blocked
 
-    logger.info(f"browser_navigate url={url} takeover_state={manager.takeover.state.value}")
     result = await _navigate(page, url)
     await inject_highlight_runtime(page)
 
@@ -50,7 +49,6 @@ async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
         manager.reset_nav_timeout_count()
         manager.reset_element_failures()
         await manager.detect_takeover()
-        logger.info(f"browser_navigate detect_takeover result takeover_state={manager.takeover.state.value}")
     else:
         # 兜底：认证/网络等失败持续 3 次时直接触发人工接管（Layer 4）。
         manager.record_nav_timeout()
@@ -89,7 +87,6 @@ async def browser_go_back(ctx: RunContext[Settings]) -> str:
         title = ""
     manager.record_navigate(page.url, title)
     await manager.detect_takeover()
-    logger.info(f"browser_go_back detect_takeover result takeover_state={manager.takeover.state.value}")
     return result
 
 
@@ -110,7 +107,6 @@ async def browser_go_forward(ctx: RunContext[Settings]) -> str:
         title = ""
     manager.record_navigate(page.url, title)
     await manager.detect_takeover()
-    logger.info(f"browser_go_forward detect_takeover result takeover_state={manager.takeover.state.value}")
     return result
 
 
