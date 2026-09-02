@@ -9,6 +9,7 @@ Consumers should keep importing `run_agent_stream` from `runtime.agent_runner`
 from runtime.runner.events import (
     browser_action_event,
     human_takeover_request_event,
+    login_form_detected_event,
     normalize_tool_content,
     parse_tool_args,
 )
@@ -22,6 +23,7 @@ __all__ = [
     "EventTranslator",
     "browser_action_event",
     "human_takeover_request_event",
+    "login_form_detected_event",
     "normalize_tool_content",
     "parse_tool_args",
     "run_agent_stream",

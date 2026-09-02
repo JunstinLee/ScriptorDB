@@ -146,6 +146,7 @@ def human_takeover_request_event(
     current_url: str,
     screenshot_available: bool,
     timestamp: str,
+    login_form: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "type": "human_takeover_request",
@@ -155,5 +156,20 @@ def human_takeover_request_event(
         "trigger": trigger,
         "current_url": current_url,
         "screenshot_available": screenshot_available,
+        "login_form": login_form,
+        "timestamp": timestamp,
+    }
+
+
+def login_form_detected_event(
+    *,
+    run_id: str,
+    login_form: dict[str, Any],
+    timestamp: str,
+) -> dict[str, Any]:
+    return {
+        "type": "login_form_detected",
+        "run_id": run_id,
+        "login_form": login_form,
         "timestamp": timestamp,
     }

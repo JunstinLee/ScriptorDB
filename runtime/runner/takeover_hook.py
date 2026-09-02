@@ -9,7 +9,11 @@ from pydantic_ai.messages import ModelMessage, ModelRequest
 from core.logging_setup import get_logger
 from runtime.approval.store import PendingTakeover, get_takeover_checkpoint_store
 from runtime.run_tracker import utc_now_iso
-from runtime.runner.events import browser_action_event, human_takeover_request_event
+from runtime.runner.events import (
+    browser_action_event,
+    human_takeover_request_event,
+    login_form_detected_event,
+)
 
 logger = get_logger("agent_runner.takeover")
 
@@ -91,6 +95,27 @@ class BrowserTakeoverHook:
                 await mgr.detect_takeover()
             except Exception as e:
                 logger.debug("takeover detection skipped: %s", e)
+            # 登录页字段自动提取（旁路，非 AI 工具）：命中即发事件并注入对话，
+            # 去重由 manager.detect_login_form 内部签名缓存保证。
+            login_form: dict[str, Any] | None = None
+            try:
+                info = await mgr.detect_login_form()
+            except Exception as e:
+                logger.debug("login form detection skipped: %s", e)
+                info = None
+            if info is not None:
+                login_form = info.to_dict()
+                await ctx.queue.put(login_form_detected_event(
+                    run_id=ctx.run_id,
+                    login_form=login_form,
+                    timestamp=utc_now_iso(),
+                ))
+                if ctx.ctx is not None:
+                    try:
+                        from browser.login_form import format_login_form_message
+                        await ctx.ctx.enqueue(format_login_form_message(info))
+                    except Exception as e:
+                        logger.debug("enqueue login form info failed: %s", e)
             takeover = mgr.takeover if mgr else None
             if takeover and takeover.should_pause_agent():
                 takeover.enter_waiting(
@@ -116,6 +141,7 @@ class BrowserTakeoverHook:
                     reason=takeover.reason,
                     trigger=takeover.trigger,
                     created_at=utc_now_iso(),
+                    login_form=login_form,
                 )
                 get_takeover_checkpoint_store().add(checkpoint)
                 state_after = await mgr.get_state()
@@ -126,6 +152,7 @@ class BrowserTakeoverHook:
                     trigger=takeover.trigger,
                     current_url=state_after.get("url", ""),
                     screenshot_available=state_after.get("screenshot_available", False),
+                    login_form=login_form,
                     timestamp=utc_now_iso(),
                 ))
                 if ctx.pause is None:

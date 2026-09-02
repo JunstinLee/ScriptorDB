@@ -62,6 +62,7 @@ class PendingTakeover:
     reason: str = ""
     trigger: str = ""
     created_at: str = ""
+    login_form: dict[str, Any] | None = None
 
 
 class TakeoverCheckpointStore:
