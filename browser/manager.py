@@ -402,8 +402,10 @@ class BrowserManager:
         否则返回 None（去重：同一 URL+字段签名只产出一次）。
         """
         if not self.is_launched() or self._page is None:
+            logger.info("login form detect: 浏览器未启动或页面不可用，跳过")
             return None
         if self._takeover.state != HumanTakeoverState.RUNNING:
+            logger.info("login form detect: takeover 非 RUNNING（state=%s），跳过", self._takeover.state.value)
             return None
         from browser.login_form import extract_login_form
         try:
@@ -416,8 +418,16 @@ class BrowserManager:
             return None
         signature = info.signature()
         if signature == self._login_form_signature:
+            logger.info(
+                "login form detect: 表单签名与上次一致，去重跳过 url=%s",
+                self._page.url,
+            )
             return None
         self._login_form_signature = signature
+        logger.info(
+            "login form detect: 新登录表单 url=%s fields=%d submit=%s",
+            info.url, len(info.fields), info.submit.selector if info.submit else None,
+        )
         return info
 
     def record_auth_challenge(self, origin: str) -> None:

@@ -171,11 +171,16 @@ async def validate_profile(manager: BrowserManager, name: str, workspace_id: str
 
             domain = Counter(domains).most_common(1)[0][0]
 
-    return await detect_login_state(
+    state = await detect_login_state(
         page,
         domain=domain,
         expected_cookie_names=expected or None,
     )
+    logger.info(
+        "profile '%s' validated: login_state=%s reason=%s domain=%s",
+        name, state.status, state.reason, state.domain,
+    )
+    return state
 
 
 def profile_exists(name: str, workspace_id: str, workspace_path: Path) -> bool:

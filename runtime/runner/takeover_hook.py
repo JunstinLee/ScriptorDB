@@ -105,6 +105,11 @@ class BrowserTakeoverHook:
                 info = None
             if info is not None:
                 login_form = info.to_dict()
+                logger.info(
+                    "takeover_hook: 检测到登录表单 tool=%s url=%s fields=%d submit=%s",
+                    ctx.tool_name, info.url, len(info.fields),
+                    info.submit.selector if info.submit else None,
+                )
                 await ctx.queue.put(login_form_detected_event(
                     run_id=ctx.run_id,
                     login_form=login_form,

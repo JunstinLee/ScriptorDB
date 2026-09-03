@@ -218,6 +218,7 @@ async def extract_login_form(page: LoginPage) -> LoginFormInfo | None:
     """检测登录页并提取字段结构；非登录页或提取失败返回 None。"""
     is_login, _ = await _login_page_signals(page)
     if not is_login:
+        logger.info("login form: 非登录页信号 url=%s", page.url)
         return None
     try:
         raw_controls = await page.evaluate(_EXTRACT_FORM_JS)
@@ -225,6 +226,7 @@ async def extract_login_form(page: LoginPage) -> LoginFormInfo | None:
         logger.debug("login form extraction failed: %s", e)
         return None
     if not isinstance(raw_controls, list):
+        logger.warning("login form: evaluate 未返回列表 url=%s", page.url)
         return None
 
     fields: list[LoginField] = []
@@ -245,8 +247,9 @@ async def extract_login_form(page: LoginPage) -> LoginFormInfo | None:
         submit=submit,
     )
     logger.info(
-        "login form extracted url=%s fields=%d submit=%s",
+        "login form extracted url=%s fields=%d submit=%s roles=%s",
         page.url, len(fields), submit.selector if submit else None,
+        [f.role for f in fields],
     )
     return info
 
