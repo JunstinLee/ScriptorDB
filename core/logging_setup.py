@@ -11,6 +11,15 @@ _LOGGER_NAME = "scriptordb"
 _CONFIGURED = False
 
 
+class _SuppressUnhandledRunEvent(logging.Filter):
+    """PartDeltaEvent 等未知事件逐 chunk 刷屏——仅拦控制台,文件日志保留。"""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name == "scriptordb.agent_runner.translator":
+            return not record.getMessage().startswith("unhandled run event type")
+        return True
+
+
 def configure_logging() -> None:
     global _CONFIGURED
     if _CONFIGURED:
@@ -30,6 +39,7 @@ def configure_logging() -> None:
 
     stderr_handler = logging.StreamHandler(stream=sys.stderr)
     stderr_handler.setFormatter(formatter)
+    stderr_handler.addFilter(_SuppressUnhandledRunEvent())
     logger.addHandler(stderr_handler)
 
     logs_dir = Path(os.environ.get("SCRIPTORDB_LOG_DIR", "logs"))

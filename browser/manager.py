@@ -398,14 +398,15 @@ class BrowserManager:
     async def detect_login_form(self) -> LoginFormInfo | None:
         """登录页字段提取（自动旁路，非 AI 工具）。
 
-        命中登录页且字段结构相对上次变化时返回 LoginFormInfo，
-        否则返回 None（去重：同一 URL+字段签名只产出一次）。
+        命中登录页且字段结构相对上次变化时返回 LoginFormInfo，否则返回 None
+        （去重：同一 URL+字段签名只产出一次）。仅取消态不提取——
+        登录触发接管后状态非 RUNNING，人工接管前后仍应能提取。
         """
         if not self.is_launched() or self._page is None:
             logger.info("login form detect: 浏览器未启动或页面不可用，跳过")
             return None
-        if self._takeover.state != HumanTakeoverState.RUNNING:
-            logger.info("login form detect: takeover 非 RUNNING（state=%s），跳过", self._takeover.state.value)
+        if self._takeover.state == HumanTakeoverState.CANCELLED:
+            logger.info("login form detect: takeover 已取消（state=%s），跳过", self._takeover.state.value)
             return None
         from browser.login_form import extract_login_form
         try:
