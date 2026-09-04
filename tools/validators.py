@@ -6,11 +6,6 @@ import re
 from pydantic_ai import ModelRetry, RunContext
 
 from config.settings import Settings
-from tools.browser_tools.filter_contract import (
-    FILTER_ACTIONS,
-    FILTER_MECHANISMS,
-    JS_TABLE_CAPABILITY_KINDS,
-)
 
 
 def validate_sql_readonly(ctx: RunContext[Settings], sql: str, *args: object, **kwargs: object) -> None:
@@ -144,6 +139,15 @@ def validate_filter_apply_args(
     *args: object,
     **kwargs: object,
 ) -> None:
+    # 惰性 import：filter_contract 位于 browser_tools 子包，顶层 import 会连带
+    # 加载 browser_tools/__init__ 全家（含 filter_apply 反向依赖本模块），
+    # 形成 validators → browser_tools → validators 的循环导入。
+    from tools.browser_tools.filter_contract import (
+        FILTER_ACTIONS,
+        FILTER_MECHANISMS,
+        JS_TABLE_CAPABILITY_KINDS,
+    )
+
     if mechanism not in FILTER_MECHANISMS:
         raise ModelRetry(
             f"mechanism 必须是 {sorted(FILTER_MECHANISMS)} 之一，收到 '{mechanism}'"
