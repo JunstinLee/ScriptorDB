@@ -6,6 +6,13 @@ from schemas.crawl_models import CrawlRequest, CrawlResult
 from schemas.db import ColumnDef
 from schemas.db_schema import SchemaColumn, SchemaResponse, SchemaTable
 from schemas.health import HealthResponse
+from schemas.login_credential import (
+    CredentialStatusResponse,
+    ExtraCredential,
+    LoginCredentialSpec,
+    MatchHints,
+    SiteStatusRequest,
+)
 from schemas.history import (
     HistoryMatchSegment,
     HistorySearchMatch,
