@@ -343,6 +343,45 @@ export interface TakeoverCancelledEvent {
   timestamp: string;
 }
 
+// ==================== Login Credentials ====================
+
+/** 保存时从当前页捕获的第三项字段特征（供 03 autofill 匹配） */
+export interface MatchHints {
+  name?: string;
+  id?: string;
+  label?: string;
+  placeholder?: string;
+}
+
+/** 附加登录信息（第三项）；无 extra 时传 null，不传空对象 */
+export interface ExtraCredential {
+  field_label: string;
+  value: string;
+  match_hints?: MatchHints | null;
+}
+
+/** POST /api/credentials 保存请求体 */
+export interface LoginCredentialSpec {
+  site?: string | null;
+  url?: string | null;
+  username: string;
+  password: string;
+  extra?: ExtraCredential | null;
+}
+
+/** POST /api/credentials/site-status 请求体 */
+export interface SiteStatusRequest {
+  url: string;
+}
+
+/** 状态响应（非敏感：不含 username/password/extra.value） */
+export interface CredentialStatus {
+  site: string;
+  configured: boolean;
+  extra_field_label?: string | null;
+  site_label?: string;
+}
+
 export type StreamRunEvent =
   | RunStartEvent
   | RunEndEvent
