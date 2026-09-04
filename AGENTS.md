@@ -133,3 +133,4 @@ cd frontend && npm run test              # vitest run
 - After changing backend code, prompt the user to restart the backend.
 - Save plans/design docs in `DOCS/` (gitignored). PR descriptions follow `DOCS/PULL_REQUEST_GUIDELINES.md`: short `Description` in the form `[类型] + [核心变更] + [目标/原因]`, plus a structured `Extended description` (Overview / Background / Changes / Design / Testing / Impact / Notes).
 - Describe verification in plain language ("run it and see the result"), not jargon.
+- NEVER split a single tool call into fragments: one call carries its complete, well-formed argument payload at once. For XML-bodied tools (e.g. `edit`), paired tags such as `<SM:FIND>`/`<SM:PUT>` MUST both appear inside the same `input` argument in the same call — never send one half without the other, and never route part of a call through an extra argument.
