@@ -60,6 +60,22 @@ class HumanTakeoverManager:
         logger.warning(f"takeover requested reason={reason} trigger={trigger} url={url}")
         return True
 
+    def retrigger(self, reason: str, trigger: str = "", url: str = "") -> bool:
+        """DETECTED 态下替换触发原因（otp/填失败覆盖误触发）。
+
+        状态机不变式：reason/trigger 只能由 request_takeover（RUNNING→DETECTED）
+        或本方法（已 DETECTED）写入；不改变 state，也不管理 timeout（由
+        enter_waiting 统一创建）。返回是否替换成功。
+        """
+        if self.state != HumanTakeoverState.DETECTED:
+            return False
+        self.reason = reason
+        self.trigger = trigger
+        if url:
+            self.current_url = url
+        logger.warning(f"takeover retriggered reason={reason} trigger={trigger}")
+        return True
+
     def enter_waiting(self, on_timeout: Callable | None = None):
         self.state = HumanTakeoverState.WAITING_HUMAN
         self._wait_start = datetime.now(timezone.utc).timestamp()

@@ -137,7 +137,7 @@ class TestHookAutofillOrchestration:
         page = _FakePage()
         info = _info()
         status = _flow_status(fill_ok=True)
-        decision = AutofillDecision(needs_human=False, reset_takeover=True)
+        decision = AutofillDecision(kind="reset")
         # 先制造一个 login 页误触发的 DETECTED 状态
         mgr = _FakeTakeoverMgr(page)
         import browser.autofill as autofill_mod
@@ -171,14 +171,14 @@ class TestHookAutofillOrchestration:
         assert status_ev["fill_ok"] is True
 
     async def test_manual_otp_pauses_with_mfa_copy(self, monkeypatch):
-        """otp 场景：决策 needs_human + override mfa 文案；挂起进 WAITING_HUMAN。"""
+        """otp 场景：决策 kind=pause + override mfa 文案（经 retrigger）；挂起进 WAITING_HUMAN。"""
         page = _FakePage()
         info = _info()
         status = _flow_status(
             needs_otp=True, manual_otp_guided=True,
         )
         decision = AutofillDecision(
-            needs_human=True,
+            kind="pause",
             override_reason=True,
             reason="Credentials were filled. Enter the verification code in the Chrome window, then press Finish.",
             trigger="mfa",
@@ -231,7 +231,7 @@ class TestHookAutofillOrchestration:
         page = _FakePage()
         info = _info()
         status = _flow_status(configured=False, fill_ok=False)
-        decision = AutofillDecision(needs_human=True, override_reason=False)
+        decision = AutofillDecision(kind="pause", override_reason=False)
         mgr = _FakeTakeoverMgr(page)
         import browser.autofill as autofill_mod
         import browser.login_form as login_form_mod

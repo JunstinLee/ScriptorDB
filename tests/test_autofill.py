@@ -150,8 +150,8 @@ class TestAutofillFill:
         assert st.fill_ok is True
         # otp 字段绝不被 fill
         assert all(sel != "#otp" for sel, _ in page._fills)
-        # 决策：needs_human + otp 文案（覆盖 reason）
-        assert result.decision.needs_human is True
+        # 决策：kind=pause + otp 文案（覆盖 reason）
+        assert result.decision.kind == "pause"
         assert result.decision.override_reason is True
         assert result.decision.trigger == "mfa"
 
@@ -181,7 +181,7 @@ class TestAutofillFill:
         assert st.fill_ok is False
         assert page._fills == []
         # 未配置：需要人工但不覆盖 reason（默认文案）
-        assert result.decision.needs_human is True
+        assert result.decision.kind == "pause"
         assert result.decision.override_reason is False
 
     async def test_idempotent_skip_already_filled(self):
@@ -267,7 +267,7 @@ class TestAutofillFill:
         st = result.status
         assert st.fill_ok is False
         assert "no password field" in st.fill_error
-        assert result.decision.needs_human is True
+        assert result.decision.kind == "pause"
         assert result.decision.override_reason is True
         assert "Auto-fill failed" in result.decision.reason
 
@@ -292,22 +292,21 @@ class TestDecideTakeover:
 
     def test_fill_ok_no_otp_resets(self):
         d = decide_takeover(self._st(fill_ok=True))
-        assert d.needs_human is False
-        assert d.reset_takeover is True
+        assert d.kind == "reset"
 
-    def test_manual_otp_needs_human_with_mfa(self):
+    def test_manual_otp_pause_with_mfa(self):
         d = decide_takeover(self._st(fill_ok=True, needs_otp=True, manual_otp_guided=True))
-        assert d.needs_human is True
+        assert d.kind == "pause"
         assert d.override_reason is True
         assert d.trigger == "mfa"
 
     def test_configured_fill_error_overrides(self):
         d = decide_takeover(self._st(fill_error="no password field"))
-        assert d.needs_human is True
+        assert d.kind == "pause"
         assert d.override_reason is True
         assert d.trigger == "autofill_error"
 
-    def test_unconfigured_needs_human_default_copy(self):
+    def test_unconfigured_pause_default_copy(self):
         d = decide_takeover(
             LoginFlowStatus(
                 site="example.com", login_form_detected=True, configured=False,
@@ -316,5 +315,5 @@ class TestDecideTakeover:
                 fill_ok=False,
             )
         )
-        assert d.needs_human is True
+        assert d.kind == "pause"
         assert d.override_reason is False

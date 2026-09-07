@@ -10,7 +10,7 @@ enter_waiting），只产出决策，编排由 runtime/runner/takeover_hook.py �
 
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 from browser.login_form import (
     ROLE_OTP,
@@ -99,14 +99,14 @@ def _contains_any(text: str, hints: tuple[str, ...]) -> bool:
 class AutofillDecision:
     """autofill 的接管决策（纯数据，不触碰 takeover manager）。
 
-    - `needs_human`: 是否需要人工（未配置 / otp 引导 / 填失败）。
-    - `reset_takeover`: fill_ok 且无 otp → 清掉登录页误触发的接管，agent 继续。
-    - `override_reason`: 为 True 时挂起块用 `reason`/`trigger` 覆盖接管值
+    - `kind == "reset"`: fill_ok 且无 otp → 清掉登录页误触发的接管，agent 继续。
+    - `kind == "pause"`: 需要人工挂起（未配置 / otp 引导 / 填失败）。
+    - `kind == "none"`: 无动作，走原 detect_takeover 触发路径。
+    - `override_reason`: pause 时是否用 `reason`/`trigger` 覆盖接管值
       （otp 引导 / 填失败文案）；为 False 时保留检测阶段的值（未配置走默认文案）。
     """
 
-    needs_human: bool = False
-    reset_takeover: bool = False
+    kind: Literal["none", "reset", "pause"] = "none"
     override_reason: bool = False
     reason: str = ""
     trigger: str = ""
@@ -307,16 +307,16 @@ def _build_status(
 def decide_takeover(status: LoginFlowStatus) -> AutofillDecision:
     """由登录状态推导接管决策（纯函数，不触碰 takeover manager）。"""
     if not status.login_form_detected:
-        return AutofillDecision(needs_human=False, reset_takeover=False)
+        return AutofillDecision(kind="none")
 
     # 已配置且填完、无 otp：清掉登录页误触发的接管，agent 继续原逻辑
     if status.fill_ok and not status.needs_otp:
-        return AutofillDecision(needs_human=False, reset_takeover=True)
+        return AutofillDecision(kind="reset")
 
     # 已配置、长凭证填完、发现 otp：引导用户在 Chrome 手动输验证码
     if status.manual_otp_guided:
         return AutofillDecision(
-            needs_human=True,
+            kind="pause",
             override_reason=True,
             reason="Credentials were filled. Enter the verification code in the Chrome window, then press Finish.",
             trigger="mfa",
@@ -325,14 +325,14 @@ def decide_takeover(status: LoginFlowStatus) -> AutofillDecision:
     # 已配置但填失败：覆盖为错误文案（不误填、提示人工处理）
     if status.configured and status.fill_error:
         return AutofillDecision(
-            needs_human=True,
+            kind="pause",
             override_reason=True,
             reason=f"Auto-fill failed: {status.fill_error}. Complete the form in the Chrome window.",
             trigger="autofill_error",
         )
 
     # 未配置 / 其余阻塞：需要人工（走既有接管默认文案，不覆盖 reason/trigger）
-    return AutofillDecision(needs_human=True)
+    return AutofillDecision(kind="pause")
 
 
 # ---- 主入口 ---------------------------------------------------------------------

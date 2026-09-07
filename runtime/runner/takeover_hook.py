@@ -149,9 +149,10 @@ class BrowserTakeoverHook:
          产出接管决策（decision 不触碰 takeover manager）。
       2) 原 detect_takeover()（保持原样）：处理非登录人工场景；登录页若
          decision 未要求接管，其 login/mfa 误触发在此置 DETECTED。
-      3) 唯一挂起块（唯一 enter_waiting 调用点）按 decision 归一：
-         reset_takeover → reset 掉误触发；needs_human → 覆盖 reason/trigger
-         （otp 引导/填失败）后挂起；decision=None → 原样挂起。
+      3) 唯一挂起块（唯一 enter_waiting 调用点）按 decision.kind 归一：
+         kind=reset → reset 掉误触发；kind=pause(+override_reason) →
+         经 takeover.retrigger() 覆盖 reason/trigger（otp 引导/填失败）后挂起；
+         decision=None / kind=none → 原样挂起（不做任何覆盖）。
     """
 
     async def after_tool_result(self, ctx: AfterToolContext) -> None:
@@ -232,26 +233,29 @@ class BrowserTakeoverHook:
                 logger.debug("takeover detection skipped: %s", e)
 
             takeover = mgr.takeover if mgr else None
-            # 2) 唯一挂起块（唯一 enter_waiting 调用点）按 decision 归一
+            # 2) 唯一挂起块（唯一 enter_waiting 调用点）按 decision.kind 归一：
+            #    reset → 清误触发；pause(+override) → retrigger 后挂起；
+            #    decision=None（非登录页）或 kind=none → 原样挂起。
             if takeover and takeover.should_pause_agent():
-                if decision is not None and decision.reset_takeover:
+                if decision is not None and decision.kind == "reset":
                     # fill_ok 且无 otp：清掉 login 页误触发的接管，agent 继续
                     logger.info(
                         "takeover_hook: autofill 完成无验证码，reset 登录页误触发接管 tool=%s",
                         ctx.tool_name,
                     )
                     takeover.reset()
-                elif decision is not None and decision.needs_human:
+                elif decision is not None and decision.kind == "pause":
                     if decision.override_reason:
-                        # otp 引导 / 填失败：覆盖为决策给的 reason/trigger
-                        takeover.reason = decision.reason
-                        takeover.trigger = decision.trigger
-                    # 未配置场景保留检测阶段触发值，仅进入挂起
-                    takeover.current_url = page.url if page is not None else ""
+                        # otp 引导 / 填失败：经状态机入口覆盖 reason/trigger
+                        takeover.retrigger(
+                            decision.reason, decision.trigger,
+                            url=page.url if page is not None else "",
+                        )
+                    # 未配置场景（override=False）保留检测阶段触发值，仅进入挂起
                     await _pause_and_wait(ctx, mgr, login_form)
                 else:
-                    # decision 既非 reset 也非 needs_human（理论不出现）或
-                    # decision=None 时 detect_takeover 触发的既有场景：原样挂起
+                    # decision=None（非登录页 detect_takeover 触发）或
+                    # decision.kind == "none"：原样挂起，不做任何覆盖
                     await _pause_and_wait(ctx, mgr, login_form)
         except Exception as e:
             if isinstance(e, TakeoverCancelledError):
