@@ -127,7 +127,7 @@ function BrowserViewport({
 
 /** 登录状态区（03 唯一挂载点）：otp 引导 / 进度面板 / 凭证采集互斥布局。 */
 function LoginArea({
-  loginFlowStatus,
+  status,
   configured,
   reconfigureOpen,
   site,
@@ -137,8 +137,9 @@ function LoginArea({
   onOpenReconfigure,
   onCloseReconfigure,
 }: {
-  loginFlowStatus: LoginFlowStatus | null;
-  configured: boolean;
+  status: LoginFlowStatus | null;
+  /** null=未知（site-status 查询在途）：不渲染采集面板，避免闪烁 */
+  configured: boolean | null;
   reconfigureOpen: boolean;
   site: string;
   url: string;
@@ -147,28 +148,33 @@ function LoginArea({
   onOpenReconfigure: () => void;
   onCloseReconfigure: () => void;
 }) {
-  const status = loginFlowStatus;
   const manualOtp = status?.manual_otp_guided === true;
-  const configuredEff = configured || reconfigureOpen;
+  const isConfigured = configured === true;
+  const knownUnconfigured = configured === false;
+
+  // 是否显示采集面板：reconfigure 时必显（含已配置态的覆盖编辑）；
+  // 否则仅当「确定未配置」且无 otp/无状态倒逼时显示。
+  const showSetup =
+    reconfigureOpen ||
+    (knownUnconfigured && !manualOtp && !status?.configured);
 
   return (
     <div className="mx-4 mb-3 flex flex-col gap-2">
       {/* 验证码引导：与进度面板并列，与凭证采集互斥 */}
       {manualOtp && <OtpGuidanceNotice status={status} />}
 
-      {/* 已配置（或收到状态）：显示进度面板；configured=true 面板含重新配置入口 */}
-      {(configuredEff || status?.configured) && status && (
+      {/* 进度面板：已配置或有状态时显示（configured=true 时含重新配置入口） */}
+      {(isConfigured || status?.configured) && status && (
         <LoginStatusPanel status={status} onReconfigure={onOpenReconfigure} />
       )}
 
-      {/* 凭证采集：未配置时首次采集；reconfigureOpen 时覆盖编辑 */}
-      {(!configuredEff && !manualOtp && !status?.configured) ||
-      (reconfigureOpen && (configured || status?.configured)) ? (
+      {/* 凭证采集：未配置首次采集 / reconfigureOpen 覆盖编辑 */}
+      {showSetup && (
         <CredentialSetupPanel
           site={site}
           url={url}
           username=""
-          configured={configured || !!status?.configured}
+          configured={isConfigured || !!status?.configured}
           fieldCandidates={fieldCandidates}
           onSaved={() => {
             onConfiguredChange(true);
@@ -179,7 +185,7 @@ function LoginArea({
             onCloseReconfigure();
           }}
         />
-      ) : null}
+      )}
     </div>
   );
 }
@@ -267,8 +273,8 @@ export function BrowserWorkspace({
 
       {isLoginPage && credentialSite && (
         <LoginArea
-          loginFlowStatus={loginFlowStatus ?? null}
-          configured={credentialConfigured ?? false}
+          status={loginFlowStatus ?? null}
+          configured={credentialConfigured ?? null}
           reconfigureOpen={reconfigureOpen}
           site={credentialSite}
           url={credentialUrl ?? loginForm.url}

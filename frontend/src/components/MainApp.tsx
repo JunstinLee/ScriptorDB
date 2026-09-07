@@ -143,7 +143,7 @@ export default function MainApp({
     setBrowserActive,
     setActiveMainTab,
   });
-  const loginAutofill = useLoginAutofillState(loginFormInfo, loginFlowStatus);
+  const loginAutofill = useLoginAutofillState(loginFormInfo);
 
   const handleNewSession = useCallback(() => {
     setBrowserActive(false);
