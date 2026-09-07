@@ -60,6 +60,7 @@ class _RunState:
             "tool_invocations": self.tracker.tool_invocations,
             "started_at": self.tracker.started_at,
             "ended_at": self.tracker.ended_at,
+            "error_message": self.tracker.error_message,
         }
 
 

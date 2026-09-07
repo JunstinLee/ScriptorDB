@@ -86,6 +86,7 @@ def persist_chat_run(
                 started_at=run_collector["started_at"],
                 ended_at=run_collector.get("ended_at"),
                 error_message=run_collector.get("error_message"),
+                error_type=run_collector.get("error_type"),
             )
         except Exception:
             logger.exception(

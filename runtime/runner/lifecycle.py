@@ -181,19 +181,32 @@ async def run_agent_stream(
             yield takeover_cancelled_event(run_id=local_tracker.run_id, reason=reason)
         elif site_detail := find_site_unavailable(e):
             # 站点级不可用（网关/DNS/连接失败）：确定性中止，error 终态
-            # 携带明确原因，复用现有 error 事件通道（前端零改动）。
+            # 携带明确原因，复用现有 error 事件通道。
             error_id = uuid.uuid4().hex[:12]
-            local_tracker.fail(site_detail)
+            message = (
+                "The target website is unavailable and the workflow was "
+                f"aborted automatically. Detail: {site_detail}"
+            )
+            local_tracker.fail(message)
             yield error_event(
                 local_tracker.run_id,
                 error_id,
                 None,
-                f"目标网站不可用，流程已中止: {site_detail}",
+                message,
             )
         else:
             error_id = uuid.uuid4().hex[:12]
+            rate_limit = find_rate_limit(e)
+            message = f"Run failed (ID: {error_id}): {e}"
+            if rate_limit is not None:
+                local_tracker.error_type = "rate_limit"
+                message = (
+                    "Rate limited (HTTP 429 Too Many Requests): too many requests. "
+                    "Try again shortly."
+                )
             local_tracker.fail(str(e))
-            yield error_event(local_tracker.run_id, error_id, find_rate_limit(e), str(e))
+            local_tracker.error_message = message
+            yield error_event(local_tracker.run_id, error_id, rate_limit, str(e))
         yield run_end_event(local_tracker.run_id)
     finally:
         if pending_get_task is not None and not pending_get_task.done():

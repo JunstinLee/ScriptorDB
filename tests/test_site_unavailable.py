@@ -135,10 +135,10 @@ def test_detect_ignores_non_network_tools():
 
 
 def test_find_site_unavailable_walks_chain():
-    inner = SiteUnavailableError("目标网站不可用: 502 Bad Gateway")
+    inner = SiteUnavailableError("The target website is unavailable: 502 Bad Gateway")
     wrapped = RuntimeError("wrapped") 
     wrapped.__cause__ = inner
-    assert find_site_unavailable(wrapped) == "目标网站不可用: 502 Bad Gateway"
+    assert find_site_unavailable(wrapped) == "The target website is unavailable: 502 Bad Gateway"
 
 
 def test_find_site_unavailable_none_for_other_errors():
@@ -150,7 +150,7 @@ def test_find_site_unavailable_none_for_other_errors():
 
 
 async def test_unavailable_aborts_run_with_error_terminal():
-    """命中站点不可用 → error 终态（含"目标网站不可用"），随后 run_end；
+    """命中站点不可用 → error 终态（英文提示），随后 run_end；
     不再产出任何后续工具/文本事件。"""
     agent = FakeUnavailableAgent(
         "browser_navigate",
@@ -167,7 +167,8 @@ async def test_unavailable_aborts_run_with_error_terminal():
 
     errors = [ev for ev in events if ev["type"] == "error"]
     assert len(errors) == 1
-    assert "目标网站不可用" in errors[0]["message"]
+    assert "The target website is unavailable" in errors[0]["message"]
+    assert "aborted automatically" in errors[0]["message"]
     assert "thedummysite.com" in errors[0]["message"]
 
     # 终态收敛：error 之后只有 run_end，无新工具/文本继续

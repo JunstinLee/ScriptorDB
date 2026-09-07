@@ -26,6 +26,7 @@ class RunTracker:
     started_at: str = field(default_factory=utc_now_iso)
     ended_at: str | None = None
     error_message: str | None = None
+    error_type: str | None = None
     status: str = "running"
 
     def to_run_collector(self) -> dict[str, Any]:
@@ -37,6 +38,7 @@ class RunTracker:
             "started_at": self.started_at,
             "ended_at": self.ended_at,
             "error_message": self.error_message,
+            "error_type": self.error_type,
         }
 
     def start_tool(self, call_id: str) -> None:
