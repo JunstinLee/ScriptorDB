@@ -18,6 +18,7 @@ from runtime.runner.errors import (
     CONNECTION_RETRY_EXCEPTIONS,
     MAX_CONNECTION_RETRIES,
     find_rate_limit,
+    find_site_unavailable,
 )
 from runtime.runner.events import run_start_event, takeover_cancelled_event
 from runtime.runner.finalize import (
@@ -178,6 +179,17 @@ async def run_agent_stream(
             except Exception:
                 pass
             yield takeover_cancelled_event(run_id=local_tracker.run_id, reason=reason)
+        elif site_detail := find_site_unavailable(e):
+            # 站点级不可用（网关/DNS/连接失败）：确定性中止，error 终态
+            # 携带明确原因，复用现有 error 事件通道（前端零改动）。
+            error_id = uuid.uuid4().hex[:12]
+            local_tracker.fail(site_detail)
+            yield error_event(
+                local_tracker.run_id,
+                error_id,
+                None,
+                f"目标网站不可用，流程已中止: {site_detail}",
+            )
         else:
             error_id = uuid.uuid4().hex[:12]
             local_tracker.fail(str(e))

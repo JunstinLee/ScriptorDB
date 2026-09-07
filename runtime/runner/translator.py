@@ -22,11 +22,13 @@ from runtime.runner.events import (
     tool_result_event,
     trace_event,
 )
+from runtime.runner.errors import SiteUnavailableError
 from runtime.runner.takeover_hook import (
     AfterToolContext,
     BrowserTakeoverHook,
     RunPauseState,
 )
+from runtime.site_unavailable import detect_site_unavailable
 
 logger = get_logger("agent_runner.translator")
 
@@ -140,6 +142,17 @@ class EventTranslator:
             duration_ms=duration_ms,
             data=data,
         ))
+
+        # 站点级不可用(网关/DNS/连接失败)是确定性中止信号:失败结果已完整
+        # 入队展示,raise 终止本次 run,不让模型继续重试或换方法。置于人工
+        # 接管 hook 之前:站点已死时中止优先于登录/接管检测。
+        detail = detect_site_unavailable(tool_name, content)
+        if detail:
+            logger.warning(
+                "site unavailable detected tool=%s detail=%s",
+                tool_name, detail,
+            )
+            raise SiteUnavailableError(detail)
 
         await self._takeover_hook.after_tool_result(AfterToolContext(
             queue=self._queue,
