@@ -72,6 +72,12 @@ def persist_chat_run(
 
     if run_collector.get("status") == "completed" and run_collector.get("final_output"):
         session.add_assistant_message(run_collector["final_output"])
+    elif (
+        run_collector.get("status") == "error"
+        and run_collector.get("error_type") == "site_unavailable"
+        and run_collector.get("error_message")
+    ):
+        session.add_assistant_message(run_collector["error_message"])
 
     if run_collector:
         try:

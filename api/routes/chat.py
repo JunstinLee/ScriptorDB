@@ -46,6 +46,12 @@ async def _stream_orchestrator_events(
     async def generate():
         nonlocal run_collector, new_messages_collector
 
+        def _should_persist(summary: dict[str, Any]) -> bool:
+            return (
+                summary["status"] == "completed"
+                or summary.get("error_type") == "site_unavailable"
+            )
+
         interrupted = False
         try:
             while True:
@@ -99,7 +105,7 @@ async def _stream_orchestrator_events(
                             "chat_stream_interrupted summary status=%s run_id=%s",
                             summary["status"], summary["run_id"],
                         )
-                        if summary["status"] == "completed":
+                        if _should_persist(summary):
                             new_messages_collector.extend(
                                 summary.get("new_messages", [])
                             )
@@ -126,7 +132,7 @@ async def _stream_orchestrator_events(
                     "chat_stream_finished session_id=%s status=%s run_id=%s",
                     session_id, summary["status"], summary["run_id"],
                 )
-                if summary["status"] == "completed":
+                if _should_persist(summary):
                     new_messages_collector.extend(summary.get("new_messages", []))
                     persist_chat_run(
                         session_id=session_id,

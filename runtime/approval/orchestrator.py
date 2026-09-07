@@ -61,6 +61,7 @@ class _RunState:
             "started_at": self.tracker.started_at,
             "ended_at": self.tracker.ended_at,
             "error_message": self.tracker.error_message,
+            "error_type": self.tracker.error_type,
         }
 
 

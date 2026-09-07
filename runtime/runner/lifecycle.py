@@ -187,6 +187,7 @@ async def run_agent_stream(
                 "The target website is unavailable and the workflow was "
                 f"aborted automatically. Detail: {site_detail}"
             )
+            local_tracker.error_type = "site_unavailable"
             local_tracker.fail(message)
             yield error_event(
                 local_tracker.run_id,
