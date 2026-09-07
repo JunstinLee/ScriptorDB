@@ -122,6 +122,15 @@ function applyEventToRun(run: Run, event: StreamRunEvent): Run {
       };
     }
     case "run_end": {
+      // run_end 是流结束信号，不是状态翻转：error/cancelled 等已定终态
+      // 必须保留，否则 error 横幅（RunContainer 按 status==="error" 渲染）
+      // 会被覆盖成 completed 而永不显示。
+      if (run.status === "error" || run.status === "cancelled") {
+        return {
+          ...run,
+          ended_at: event.timestamp,
+        };
+      }
       return {
         ...run,
         status: "completed",

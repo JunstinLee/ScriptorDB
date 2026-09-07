@@ -76,6 +76,12 @@ export function useChatStream(params: UseChatStreamParams) {
     (sid: string) =>
       (event: StreamRunEvent) => {
         appendEvent(sid, event);
+        if (event.type === "error") {
+          // 把错误提示写进 assistant 消息气泡（如站点不可用中止的英文提示），
+          // 而不只是 run 卡片的错误横幅。appendStreamingText 会附着/新建
+          // assistant 消息，跟随真实消息流落库。
+          appendStreamingText(`\n\n${event.message}`);
+        }
         if (event.type === "text_delta") {
           appendStreamingText(event.delta);
         }
@@ -162,10 +168,10 @@ export function useChatStream(params: UseChatStreamParams) {
       appendEvent,
       appendAction,
       appendStreamingText,
-        onBrowserActivity,
-        setBrowserActive,
-        setActiveMainTab,
-        takeover,
+      onBrowserActivity,
+      setBrowserActive,
+      setActiveMainTab,
+      takeover,
     ],
   );
 

@@ -240,6 +240,28 @@ describe("useRuns", () => {
     expect(run.ended_at).toBe(T0);
   });
 
+  it("keeps error status after run_end so the error banner renders", () => {
+    const { result } = renderHook(() => useRuns());
+
+    act(() => {
+      result.current.appendEvent("s1", runStart("r1"));
+      result.current.appendEvent("s1", {
+        type: "error",
+        run_id: "r1",
+        message: "The target website is unavailable and the workflow was aborted automatically.",
+      });
+      result.current.appendEvent("s1", {
+        type: "run_end",
+        run_id: "r1",
+        timestamp: T0,
+      });
+    });
+
+    const run = result.current.getRuns("s1")[0];
+    expect(run.status).toBe("error");
+    expect(run.error_message).toContain("aborted automatically");
+  });
+
   it("appends browser_action events", () => {
     const { result } = renderHook(() => useRuns());
 
