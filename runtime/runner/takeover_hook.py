@@ -153,7 +153,21 @@ class BrowserTakeoverHook:
          kind=reset → reset 掉误触发；kind=pause(+override_reason) →
          经 takeover.retrigger() 覆盖 reason/trigger（otp 引导/填失败）后挂起；
          decision=None / kind=none → 原样挂起（不做任何覆盖）。
+
+    调用点频率控制：extract_login_form 每次 tool 结果都做 DOM evaluate，是非
+    登录页大头成本。按「页面内容指纹」做短时跳过——URL/标题/密码框任一变即
+    失效；避免用签名去重（否则「未配置→保存→重登」的同 URL 新页会被吞）。
+    跨 run 场景安全：run 挂起时本对象不持有该 URL 的待办，恢复后由新 URL/
+    标题变化自然重提取。
     """
+
+    def __init__(self) -> None:
+        # 最近一次登录页字段签名（URL + role/selector 序列），页面未变时跳过重复 autofill
+        self._last_login_url: str | None = None
+        self._last_login_sig: tuple[tuple[str, str], ...] | None = None
+        # 非登录页短时跳过指纹：(url, title, has_password)
+        self._miss_url: str | None = None
+        self._miss_fp: tuple[str, bool] | None = None
 
     async def after_tool_result(self, ctx: AfterToolContext) -> None:
         if not ctx.tool_name.startswith("browser_"):
@@ -179,12 +193,59 @@ class BrowserTakeoverHook:
             decision: Any = None
             login_form: dict[str, Any] | None = None
             page: Any = None
+            info = None
+            skip_autofill = False  # 命中页面级缓存：跳过提取或跳过 autofill/事件
             try:
-                # 0) 裸提取登录表单：不走 mgr.detect_login_form()（签名去重退役）
                 from browser.login_form import extract_login_form
 
-                page = mgr.page()
-                info = await extract_login_form(page) if page is not None else None
+                page = mgr.page() if mgr else None
+                if page is not None:
+                    # 页面级指纹：URL + 标题 + 是否有密码框（轻量，非登录页大头成本）。
+                    # 指纹未变 → 跳过提取；变了 → 重新探测。
+                    title = ""
+                    has_password = False
+                    try:
+                        title = (await page.title()) or ""
+                        has_password = bool(
+                            await page.evaluate(
+                                "() => !!document.querySelector('input[type=password]')"
+                            )
+                        )
+                    except Exception:
+                        pass  # 指纹获取失败：退化为每次提取
+                    fp = (page.url, title, has_password)
+
+                    if self._miss_url is not None and fp == self._miss_fp:
+                        # 非登录页且页面未变：跳过本次提取
+                        info = None
+                    elif (
+                        self._last_login_url == page.url
+                        and self._last_login_sig is not None
+                    ):
+                        # 登录页且 URL 未变：重提取确认字段签名是否变化。
+                        # 签名未变 → 保留 info（供 checkpoint），但跳过 autofill/事件；
+                        # 签名变了（重登/表单变化）→ 走正常 autofill。
+                        info = await extract_login_form(page)
+                        if (
+                            info is not None
+                            and info.signature() == self._last_login_sig
+                        ):
+                            skip_autofill = True
+                        self._last_login_url = None
+                        self._last_login_sig = None
+                    else:
+                        info = await extract_login_form(page)
+
+                    # 记录本次指纹结果
+                    if info is not None:
+                        self._miss_url = None
+                        self._miss_fp = None
+                        if not skip_autofill:
+                            self._last_login_url = info.url
+                            self._last_login_sig = info.signature()
+                    else:
+                        self._miss_url = page.url
+                        self._miss_fp = fp
             except Exception as e:
                 logger.debug("login form extraction skipped: %s", e)
                 info = None
@@ -195,33 +256,24 @@ class BrowserTakeoverHook:
                     ctx.tool_name, info.url, len(info.fields),
                     info.submit.selector if info.submit else None,
                 )
-                result = None
-                try:
-                    from browser.autofill import try_autofill
+                if not skip_autofill:
+                    result = None
+                    try:
+                        from browser.autofill import try_autofill
 
-                    deps = getattr(ctx.ctx, "deps", None) if ctx.ctx is not None else None
-                    workspace_id = getattr(deps, "workspace_id", None)
-                    # workspace_id 为空（无活动工作区/测试）时按未配置处理：仍推状态
-                    result = await try_autofill(page, info, workspace_id)
-                except Exception as e:
-                    logger.debug("autofill skipped: %s", e)
-                if result is not None:
-                    # 登录页：无论配置与否都推 login_flow_status（非敏感状态）
-                    await ctx.queue.put(login_flow_status_event(
-                        run_id=ctx.run_id,
-                        site=result.status.site,
-                        login_form_detected=result.status.login_form_detected,
-                        configured=result.status.configured,
-                        username_filled=result.status.username_filled,
-                        password_filled=result.status.password_filled,
-                        extra_required=result.status.extra_required,
-                        extra_filled=result.status.extra_filled,
-                        needs_otp=result.status.needs_otp,
-                        manual_otp_guided=result.status.manual_otp_guided,
-                        fill_ok=result.status.fill_ok,
-                        fill_error=result.status.fill_error,
-                    ))
-                    decision = result.decision
+                        deps = getattr(ctx.ctx, "deps", None) if ctx.ctx is not None else None
+                        workspace_id = getattr(deps, "workspace_id", None)
+                        # workspace_id 为空（无活动工作区/测试）时按未配置处理：仍推状态
+                        result = await try_autofill(page, info, workspace_id)
+                    except Exception as e:
+                        logger.debug("autofill skipped: %s", e)
+                    if result is not None:
+                        # 登录页：无论配置与否都推 login_flow_status（非敏感状态）
+                        await ctx.queue.put(login_flow_status_event(
+                            run_id=ctx.run_id,
+                            status=result.status,
+                        ))
+                        decision = result.decision
 
             try:
                 # 1) 原有人工触发检测（保持原样）：非登录人工场景（图形验证码/滑块/

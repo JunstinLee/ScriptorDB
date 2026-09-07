@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from typing import Any
 
 import pytest
 
@@ -41,6 +42,13 @@ class _FakePage:
 
     def __init__(self):
         self._fills = []
+
+    async def title(self) -> str:
+        return "Login"
+
+    async def evaluate(self, expression: str) -> Any:
+        # 密码框指纹：默认登录页含密码框
+        return "input[type=password]" in expression
 
     def locator(self, selector: str):
         return _FakeLocator(self, selector)
@@ -294,3 +302,59 @@ class TestHookAutofillOrchestration:
         while not queue.empty():
             events.append(queue.get_nowait())
         assert all(e.get("type") != "login_flow_status" for e in events)
+
+    async def test_non_login_page_cached_skips_repeat_extract(self, monkeypatch):
+        """非登录页：同 URL+标题+密码框指纹的连续 tool 结果只提取一次。"""
+        page = _FakePage()
+        mgr = _FakeTakeoverMgr(page)
+        import browser.autofill as autofill_mod
+        import browser.login_form as login_form_mod
+
+        monkeypatch.setattr("browser.get_manager", lambda: mgr)
+        extract_calls = {"n": 0}
+        async def _extract(p):
+            extract_calls["n"] += 1
+            return None  # 非登录页
+
+        monkeypatch.setattr(login_form_mod, "extract_login_form", _extract)
+        monkeypatch.setattr(autofill_mod, "try_autofill",
+                            lambda p, i, ws: _await_result(
+                                _flow_status(configured=False), AutofillDecision(kind="pause")
+                            ))
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+        hook = BrowserTakeoverHook()
+        await hook.after_tool_result(_ctx(queue))
+        # 指纹命中：第二次调用不再 extract
+        await hook.after_tool_result(_ctx(queue))
+        assert extract_calls["n"] == 1
+        events: list[dict] = []
+        while not queue.empty():
+            events.append(queue.get_nowait())
+        assert all(e.get("type") != "login_flow_status" for e in events)
+
+    async def test_login_page_signature_cache_skips_repeat_autofill(self, monkeypatch):
+        """登录页：同 URL+同字段签名的连续 tool 结果只 autofill 一次、不重推事件。"""
+        page = _FakePage()
+        info = _info()
+        mgr = _FakeTakeoverMgr(page)
+        import browser.autofill as autofill_mod
+        import browser.login_form as login_form_mod
+
+        monkeypatch.setattr("browser.get_manager", lambda: mgr)
+        monkeypatch.setattr(
+            login_form_mod, "extract_login_form", lambda p: _await_ok(info)
+        )
+        autofill_calls = {"n": 0}
+        async def _autofill(p, i, ws):
+            autofill_calls["n"] += 1
+            return await _await_result(
+                _flow_status(fill_ok=True), AutofillDecision(kind="reset")
+            )
+
+        monkeypatch.setattr(autofill_mod, "try_autofill", _autofill)
+        queue: asyncio.Queue[dict] = asyncio.Queue()
+        hook = BrowserTakeoverHook()
+        await hook.after_tool_result(_ctx(queue))
+        # 同 URL 且 extract 返回同签名：第二次 skip_autofill（不再调 try_autofill）
+        await hook.after_tool_result(_ctx(queue))
+        assert autofill_calls["n"] == 1
