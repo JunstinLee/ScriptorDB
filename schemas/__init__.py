@@ -13,6 +13,7 @@ from schemas.login_credential import (
     MatchHints,
     SiteStatusRequest,
 )
+from schemas.login_flow import LoginFlowStatus
 from schemas.history import (
     HistoryMatchSegment,
     HistorySearchMatch,

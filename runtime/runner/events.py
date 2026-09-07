@@ -157,3 +157,37 @@ def human_takeover_request_event(
         "screenshot_available": screenshot_available,
         "timestamp": timestamp,
     }
+
+
+def login_flow_status_event(
+    *,
+    run_id: str,
+    site: str,
+    login_form_detected: bool,
+    configured: bool,
+    username_filled: bool,
+    password_filled: bool,
+    extra_required: bool,
+    extra_filled: bool,
+    needs_otp: bool,
+    manual_otp_guided: bool,
+    fill_ok: bool,
+    fill_error: str = "",
+) -> dict[str, Any]:
+    """登录流程状态事件（非敏感；供前端 01 面板 / 02 otp 引导消费）。"""
+    return {
+        "type": "login_flow_status",
+        "run_id": run_id,
+        "site": site,
+        "login_form_detected": login_form_detected,
+        "configured": configured,
+        "username_filled": username_filled,
+        "password_filled": password_filled,
+        "extra_required": extra_required,
+        "extra_filled": extra_filled,
+        "needs_otp": needs_otp,
+        "manual_otp_guided": manual_otp_guided,
+        "fill_ok": fill_ok,
+        "fill_error": fill_error,
+        "timestamp": utc_now_iso(),
+    }

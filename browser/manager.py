@@ -13,7 +13,6 @@ from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
-from browser.login_form import LoginFormInfo
 from browser.tabs import TabManager
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
 from browser.trace import ClickTracer
@@ -42,7 +41,6 @@ class BrowserManager:
         self._nav_timeout_count = 0
         self._element_failure_count: dict[str, int] = {}
         self._auth_origin: str | None = None
-        self._login_form_signature: tuple | None = None
         self._downloads_dir: Path | None = None
         self._screencast_connection: object | None = None
         self._idle_close_task: asyncio.Task | None = None
@@ -104,7 +102,6 @@ class BrowserManager:
         self._last_screenshot = None
         self._last_screenshot_time = 0
         self._launched_at = None
-        self._login_form_signature = None
 
     async def get_state(self) -> dict:
         launched = self.is_launched()
@@ -394,42 +391,6 @@ class BrowserManager:
                 url=self._page.url,
             )
         return False
-
-    async def detect_login_form(self) -> LoginFormInfo | None:
-        """登录页字段提取（自动旁路，非 AI 工具）。
-
-        命中登录页且字段结构相对上次变化时返回 LoginFormInfo，否则返回 None
-        （去重：同一 URL+字段签名只产出一次）。仅取消态不提取——
-        登录触发接管后状态非 RUNNING，人工接管前后仍应能提取。
-        """
-        if not self.is_launched() or self._page is None:
-            logger.info("login form detect: 浏览器未启动或页面不可用，跳过")
-            return None
-        if self._takeover.state == HumanTakeoverState.CANCELLED:
-            logger.info("login form detect: takeover 已取消（state=%s），跳过", self._takeover.state.value)
-            return None
-        from browser.login_form import extract_login_form
-        try:
-            info = await extract_login_form(self._page)
-        except Exception as e:
-            logger.debug("login form detection skipped: %s", e)
-            return None
-        if info is None:
-            self._login_form_signature = None
-            return None
-        signature = info.signature()
-        if signature == self._login_form_signature:
-            logger.info(
-                "login form detect: 表单签名与上次一致，去重跳过 url=%s",
-                self._page.url,
-            )
-            return None
-        self._login_form_signature = signature
-        logger.info(
-            "login form detect: 新登录表单 url=%s fields=%d submit=%s",
-            info.url, len(info.fields), info.submit.selector if info.submit else None,
-        )
-        return info
 
     def record_auth_challenge(self, origin: str) -> None:
         """记录一个待满足的 HTTP 认证挑战（Basic/Digest/NTLM）。

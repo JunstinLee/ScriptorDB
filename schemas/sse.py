@@ -111,3 +111,20 @@ class TakeoverCancelledEvent(BaseModel):
     run_id: str
     reason: str
     timestamp: str
+
+
+class LoginFlowStatusEvent(BaseModel):
+    type: Literal["login_flow_status"] = "login_flow_status"
+    run_id: str = ""
+    site: str = ""
+    login_form_detected: bool = False
+    configured: bool = False
+    username_filled: bool = False
+    password_filled: bool = False
+    extra_required: bool = False
+    extra_filled: bool = False
+    needs_otp: bool = False
+    manual_otp_guided: bool = False
+    fill_ok: bool = False
+    fill_error: str = ""
+    timestamp: str = ""

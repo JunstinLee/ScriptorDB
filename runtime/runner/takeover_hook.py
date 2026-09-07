@@ -9,9 +9,11 @@ from pydantic_ai.messages import ModelMessage, ModelRequest
 from core.logging_setup import get_logger
 from runtime.approval.store import PendingTakeover, get_takeover_checkpoint_store
 from runtime.run_tracker import utc_now_iso
+from browser.takeover import HumanTakeoverState
 from runtime.runner.events import (
     browser_action_event,
     human_takeover_request_event,
+    login_flow_status_event,
 )
 
 logger = get_logger("agent_runner.takeover")
@@ -63,11 +65,93 @@ class AfterToolContext:
     pause: RunPauseState | None = None
 
 
+async def _pause_and_wait(
+    ctx: AfterToolContext,
+    mgr: Any,
+    login_form: dict[str, Any] | None,
+) -> None:
+    """唯一挂起块：enter_waiting + 存 checkpoint + 推事件 + resume_event.wait()。
+
+    03 方案：autofill/decide_takeover 不触碰 takeover manager；所有决策分支
+    统一在此挂起，不复制挂起代码。
+    """
+    takeover = mgr.takeover
+    takeover.enter_waiting(
+        on_timeout=ctx.pause.cancel_run if ctx.pause else None
+    )
+    logger.warning(
+        "agent paused for takeover reason=%s trigger=%s",
+        takeover.reason, takeover.trigger,
+    )
+    checkpoint = PendingTakeover(
+        session_id=ctx.session_id,
+        run_id=ctx.run_id,
+        checkpoint_id=ctx.checkpoint_id,
+        prompt=ctx.prompt,
+        message_history=list(ctx.message_history),
+        turn_new_messages=(
+            [ModelRequest(parts=list(ctx.tool_parts))]
+            if ctx.tool_parts
+            else []
+        ),
+        tool_invocations=list(ctx.tool_invocations),
+        final_output=ctx.final_output,
+        reason=takeover.reason,
+        trigger=takeover.trigger,
+        created_at=utc_now_iso(),
+        login_form=login_form,
+    )
+    get_takeover_checkpoint_store().add(checkpoint)
+    state_after = await mgr.get_state()
+    await ctx.queue.put(human_takeover_request_event(
+        run_id=ctx.run_id,
+        checkpoint_id=ctx.checkpoint_id,
+        reason=takeover.reason,
+        trigger=takeover.trigger,
+        current_url=state_after.get("url", ""),
+        screenshot_available=state_after.get("screenshot_available", False),
+        timestamp=utc_now_iso(),
+    ))
+    if ctx.pause is None:
+        # 无暂停状态（理论不出现）：仅通知前端，不挂起。
+        return
+    # 挂起：agent.run() 的执行停在这里，等待恢复或取消。
+    await ctx.pause.resume_event.wait()
+    if ctx.pause.cancelled:
+        logger.warning(
+            "takeover cancelled during pause, cancelling run run_id=%s",
+            ctx.run_id,
+        )
+        # 单一取消通道：自定义异常终止 run（不依赖 pydantic-ai 版本差异）
+        raise TakeoverCancelledError(ctx.run_id)
+    # 恢复：允许下一次挂起，并把用户操作结果注入对话。
+    ctx.pause.resume_event.clear()
+    result = takeover.result or ""
+    logger.info("takeover resumed run_id=%s result=%s", ctx.run_id, result)
+    if ctx.ctx is not None and result:
+        try:
+            await ctx.ctx.enqueue(f"用户完成了人工操作: {result}")
+        except Exception as e:
+            logger.debug("enqueue takeover result failed: %s", e)
+
+
 class BrowserTakeoverHook:
     """Cross-cutting browser human-takeover check after browser tool results.
 
     Injectable: the translator depends on this interface rather than on the
     browser package, so it can be unit-tested with a fake hook.
+
+    决策时序（03 autofill 方案）：
+      0) 裸提取登录表单（extract_login_form，不走 manager.detect_login_form——
+         后者带签名去重会把「未配置→保存→重登」场景的表单吞掉）。非登录页
+         info=None → 跳过 autofill，走原 detect_takeover() 人工检测。
+      1) 登录页：autofill 填长凭证 + 推 login_flow_status + 纯函数 decide_takeover
+         产出接管决策（decision 不触碰 takeover manager）。
+      2) 原 detect_takeover()（保持原样）：处理非登录人工场景；登录页若
+         decision 未要求接管，其 login/mfa 误触发在此置 DETECTED。
+      3) 唯一挂起块（唯一 enter_waiting 调用点）按 decision 归一：
+         reset_takeover → reset 掉误触发；needs_human → 覆盖 reason/trigger
+         （otp 引导/填失败）后挂起；decision=None → 原样挂起。
     """
 
     async def after_tool_result(self, ctx: AfterToolContext) -> None:
@@ -90,18 +174,18 @@ class BrowserTakeoverHook:
                     detail=latest.get("detail", ""),
                     timestamp=latest.get("timestamp", utc_now_iso()),
                 ))
-            try:
-                await mgr.detect_takeover()
-            except Exception as e:
-                logger.debug("takeover detection skipped: %s", e)
-            # 登录页字段自动提取（旁路，非 AI 工具）：命中时仅随接管请求
-            # 记录到 checkpoint，不向会话注入、不推送前端界面。
-            # 去重由 manager.detect_login_form 内部签名缓存保证。
+
+            decision: Any = None
             login_form: dict[str, Any] | None = None
+            page: Any = None
             try:
-                info = await mgr.detect_login_form()
+                # 0) 裸提取登录表单：不走 mgr.detect_login_form()（签名去重退役）
+                from browser.login_form import extract_login_form
+
+                page = mgr.page()
+                info = await extract_login_form(page) if page is not None else None
             except Exception as e:
-                logger.debug("login form detection skipped: %s", e)
+                logger.debug("login form extraction skipped: %s", e)
                 info = None
             if info is not None:
                 login_form = info.to_dict()
@@ -110,65 +194,65 @@ class BrowserTakeoverHook:
                     ctx.tool_name, info.url, len(info.fields),
                     info.submit.selector if info.submit else None,
                 )
+                result = None
+                try:
+                    from browser.autofill import try_autofill
+
+                    deps = getattr(ctx.ctx, "deps", None) if ctx.ctx is not None else None
+                    workspace_id = getattr(deps, "workspace_id", None)
+                    # workspace_id 为空（无活动工作区/测试）时按未配置处理：仍推状态
+                    result = await try_autofill(page, info, workspace_id)
+                except Exception as e:
+                    logger.debug("autofill skipped: %s", e)
+                if result is not None:
+                    # 登录页：无论配置与否都推 login_flow_status（非敏感状态）
+                    await ctx.queue.put(login_flow_status_event(
+                        run_id=ctx.run_id,
+                        site=result.status.site,
+                        login_form_detected=result.status.login_form_detected,
+                        configured=result.status.configured,
+                        username_filled=result.status.username_filled,
+                        password_filled=result.status.password_filled,
+                        extra_required=result.status.extra_required,
+                        extra_filled=result.status.extra_filled,
+                        needs_otp=result.status.needs_otp,
+                        manual_otp_guided=result.status.manual_otp_guided,
+                        fill_ok=result.status.fill_ok,
+                        fill_error=result.status.fill_error,
+                    ))
+                    decision = result.decision
+
+            try:
+                # 1) 原有人工触发检测（保持原样）：非登录人工场景（图形验证码/滑块/
+                #    antibot/OAuth/超时/元素失败）由 detect_takeover() 触发；登录页
+                #    场景若上面 decision 未要求接管（fill_ok 且无 otp），这里会把
+                #    login/mfa 误触发置 DETECTED，交由下方挂起块按 decision reset。
+                await mgr.detect_takeover()
+            except Exception as e:
+                logger.debug("takeover detection skipped: %s", e)
+
             takeover = mgr.takeover if mgr else None
+            # 2) 唯一挂起块（唯一 enter_waiting 调用点）按 decision 归一
             if takeover and takeover.should_pause_agent():
-                takeover.enter_waiting(
-                    on_timeout=ctx.pause.cancel_run if ctx.pause else None
-                )
-                logger.warning(
-                    "agent paused for takeover reason=%s trigger=%s",
-                    takeover.reason, takeover.trigger,
-                )
-                checkpoint = PendingTakeover(
-                    session_id=ctx.session_id,
-                    run_id=ctx.run_id,
-                    checkpoint_id=ctx.checkpoint_id,
-                    prompt=ctx.prompt,
-                    message_history=list(ctx.message_history),
-                    turn_new_messages=(
-                        [ModelRequest(parts=list(ctx.tool_parts))]
-                        if ctx.tool_parts
-                        else []
-                    ),
-                    tool_invocations=list(ctx.tool_invocations),
-                    final_output=ctx.final_output,
-                    reason=takeover.reason,
-                    trigger=takeover.trigger,
-                    created_at=utc_now_iso(),
-                    login_form=login_form,
-                )
-                get_takeover_checkpoint_store().add(checkpoint)
-                state_after = await mgr.get_state()
-                await ctx.queue.put(human_takeover_request_event(
-                    run_id=ctx.run_id,
-                    checkpoint_id=ctx.checkpoint_id,
-                    reason=takeover.reason,
-                    trigger=takeover.trigger,
-                    current_url=state_after.get("url", ""),
-                    screenshot_available=state_after.get("screenshot_available", False),
-                    timestamp=utc_now_iso(),
-                ))
-                if ctx.pause is None:
-                    # 无暂停状态（理论不出现）：仅通知前端，不挂起。
-                    return
-                # 挂起：agent.run() 的执行停在这里，等待恢复或取消。
-                await ctx.pause.resume_event.wait()
-                if ctx.pause.cancelled:
-                    logger.warning(
-                        "takeover cancelled during pause, cancelling run run_id=%s",
-                        ctx.run_id,
+                if decision is not None and decision.reset_takeover:
+                    # fill_ok 且无 otp：清掉 login 页误触发的接管，agent 继续
+                    logger.info(
+                        "takeover_hook: autofill 完成无验证码，reset 登录页误触发接管 tool=%s",
+                        ctx.tool_name,
                     )
-                    # 单一取消通道：自定义异常终止 run（不依赖 pydantic-ai 版本差异）
-                    raise TakeoverCancelledError(ctx.run_id)
-                # 恢复：允许下一次挂起，并把用户操作结果注入对话。
-                ctx.pause.resume_event.clear()
-                result = takeover.result or ""
-                logger.info("takeover resumed run_id=%s result=%s", ctx.run_id, result)
-                if ctx.ctx is not None and result:
-                    try:
-                        await ctx.ctx.enqueue(f"用户完成了人工操作: {result}")
-                    except Exception as e:
-                        logger.debug("enqueue takeover result failed: %s", e)
+                    takeover.reset()
+                elif decision is not None and decision.needs_human:
+                    if decision.override_reason:
+                        # otp 引导 / 填失败：覆盖为决策给的 reason/trigger
+                        takeover.reason = decision.reason
+                        takeover.trigger = decision.trigger
+                    # 未配置场景保留检测阶段触发值，仅进入挂起
+                    takeover.current_url = page.url if page is not None else ""
+                    await _pause_and_wait(ctx, mgr, login_form)
+                else:
+                    # decision 既非 reset 也非 needs_human（理论不出现）或
+                    # decision=None 时 detect_takeover 触发的既有场景：原样挂起
+                    await _pause_and_wait(ctx, mgr, login_form)
         except Exception as e:
             if isinstance(e, TakeoverCancelledError):
                 raise
