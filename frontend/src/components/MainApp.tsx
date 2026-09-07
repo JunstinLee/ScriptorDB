@@ -9,6 +9,7 @@ import AppDialogs from "./AppDialogs";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { useBrowserPanel } from "../hooks/useBrowserPanel";
 import { useChatStream } from "../hooks/useChatStream";
+import { useLoginAutofillState } from "../hooks/useLoginAutofillState";
 import { useSchema } from "../hooks/useSchema";
 import { useSessions } from "../hooks/useSessions";
 import { useRuns } from "../hooks/useRuns";
@@ -124,7 +125,7 @@ export default function MainApp({
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, loginFormInfo, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
+  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, loginFormInfo, loginFlowStatus, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
     activeSessionId,
     addUserMessage,
     appendEvent,
@@ -142,6 +143,7 @@ export default function MainApp({
     setBrowserActive,
     setActiveMainTab,
   });
+  const loginAutofill = useLoginAutofillState(loginFormInfo, loginFlowStatus);
 
   const handleNewSession = useCallback(() => {
     setBrowserActive(false);
@@ -307,6 +309,12 @@ export default function MainApp({
               sessionId={activeSessionId ?? ""}
               filterSchema={filterSchema}
               loginForm={loginFormInfo}
+              loginFlowStatus={loginFlowStatus}
+              credentialConfigured={loginAutofill.configured}
+              credentialSite={loginAutofill.site}
+              credentialUrl={loginAutofill.url}
+              fieldCandidates={loginAutofill.fieldCandidates}
+              onCredentialStatusChange={(v) => loginAutofill.setConfigured(v)}
               onFiltersApplied={browserPanel.refreshBrowser}
               onCloseBrowser={() => {
                 void closeBrowser().then(() => browserPanel.refreshBrowser());

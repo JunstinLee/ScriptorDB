@@ -382,6 +382,38 @@ export interface CredentialStatus {
   site_label?: string;
 }
 
+/** 登录流程状态（autofill 服务构造，SSE login_flow_status 事件；全 snake_case、非敏感） */
+export interface LoginFlowStatus {
+  site: string;
+  login_form_detected: boolean;
+  configured: boolean;
+  username_filled: boolean;
+  password_filled: boolean;
+  extra_required: boolean;
+  extra_filled: boolean;
+  needs_otp: boolean;
+  manual_otp_guided: boolean;
+  fill_ok: boolean;
+  fill_error: string;
+}
+
+export interface LoginFlowStatusEvent {
+  type: "login_flow_status";
+  run_id: string;
+  site: string;
+  login_form_detected: boolean;
+  configured: boolean;
+  username_filled: boolean;
+  password_filled: boolean;
+  extra_required: boolean;
+  extra_filled: boolean;
+  needs_otp: boolean;
+  manual_otp_guided: boolean;
+  fill_ok: boolean;
+  fill_error: string;
+  timestamp: string;
+}
+
 export type StreamRunEvent =
   | RunStartEvent
   | RunEndEvent
@@ -396,7 +428,8 @@ export type StreamRunEvent =
   | LoginFormDetectedEvent
   | HumanTakeoverRequestEvent
   | TakeoverStateChangeEvent
-  | TakeoverCancelledEvent;
+  | TakeoverCancelledEvent
+  | LoginFlowStatusEvent;
 
 export interface ToolInvocation {
   call_id: string;

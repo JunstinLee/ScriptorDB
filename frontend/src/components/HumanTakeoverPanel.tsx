@@ -31,9 +31,22 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+/** 是否 MFA/验证码类接管（trigger=mfa 或文案含验证码关键词） */
+function isOtpTrigger(trigger: string, reason: string): boolean {
+  const t = `${trigger} ${reason}`.toLowerCase();
+  return (
+    trigger.toLowerCase() === "mfa" ||
+    t.includes("verification code") ||
+    t.includes("验证码") ||
+    t.includes("otp") ||
+    t.includes("one-time-code")
+  );
+}
+
 export function HumanTakeoverDrawer({
   phase,
   reason,
+  trigger,
   currentUrl,
   remainingSeconds,
   onEnterControl,
@@ -55,6 +68,8 @@ export function HumanTakeoverDrawer({
     );
   }
 
+  const otpGuidance = isOtpTrigger(trigger, reason);
+
   if (phase === "waiting_human") {
     return (
       <div className="border-t border-amber-500/40 bg-amber-500/5 px-4 py-4">
@@ -63,7 +78,9 @@ export function HumanTakeoverDrawer({
             <AlertTriangle className="size-5 shrink-0 text-amber-500" />
             <div className="min-w-0">
               <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-                Agent paused — human action required
+                {otpGuidance
+                  ? "Enter the verification code in the Chrome window"
+                  : "Agent paused — human action required"}
               </p>
               <p className="text-xs text-amber-600/80 dark:text-amber-300/70 truncate mt-0.5">
                 {reason}
@@ -126,7 +143,9 @@ export function HumanTakeoverDrawer({
           <div className="flex items-center gap-2">
             <div className="size-2 rounded-full bg-blue-500" />
             <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">
-              Chrome window opened — operate directly in it
+              {otpGuidance
+                ? "Chrome window opened — enter the verification code in it"
+                : "Chrome window opened — operate directly in it"}
             </span>
           </div>
         </div>

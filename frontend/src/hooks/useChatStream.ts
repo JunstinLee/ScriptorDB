@@ -10,6 +10,7 @@ import type {
   ApprovalRequestEvent,
   BrowserActionEvent,
   FilterSchema,
+  LoginFlowStatus,
   LoginFormPayload,
   StreamRunEvent,
 } from "../types";
@@ -62,6 +63,8 @@ export function useChatStream(params: UseChatStreamParams) {
   const [filterSchema, setFilterSchema] = useState<FilterSchema | null>(null);
   // 最近一次自动检测到的登录表单（login_form_detected / human_takeover_request 携带）
   const [loginFormInfo, setLoginFormInfo] = useState<LoginFormPayload | null>(null);
+  // 最近一次 autofill 登录流程状态（login_flow_status 携带；非敏感）
+  const [loginFlowStatus, setLoginFlowStatus] = useState<LoginFlowStatus | null>(null);
   const takeover = useTakeoverState(() => {
     const sid = approvalSessionIdRef.current;
     if (sid) {
@@ -87,9 +90,10 @@ export function useChatStream(params: UseChatStreamParams) {
           setBrowserActive(true);
         }
         if (event.type === "run_start") {
-          // 新 run 开始时清空旧 schema/登录表单，避免残留误导面板/抽屉
+          // 新 run 开始时清空旧 schema/登录表单/登录流程状态，避免残留误导面板/抽屉
           setFilterSchema(null);
           setLoginFormInfo(null);
+          setLoginFlowStatus(null);
         }
         if (
           event.type === "tool_result" &&
@@ -118,6 +122,21 @@ export function useChatStream(params: UseChatStreamParams) {
         }
         if (event.type === "login_form_detected") {
           setLoginFormInfo(event.login_form);
+        }
+        if (event.type === "login_flow_status") {
+          setLoginFlowStatus({
+            site: event.site,
+            login_form_detected: event.login_form_detected,
+            configured: event.configured,
+            username_filled: event.username_filled,
+            password_filled: event.password_filled,
+            extra_required: event.extra_required,
+            extra_filled: event.extra_filled,
+            needs_otp: event.needs_otp,
+            manual_otp_guided: event.manual_otp_guided,
+            fill_ok: event.fill_ok,
+            fill_error: event.fill_error,
+          });
         }
         if (event.type === "takeover_state_change") {
           switch (event.state) {
@@ -316,6 +335,7 @@ export function useChatStream(params: UseChatStreamParams) {
     approvalRequest,
     filterSchema,
     loginFormInfo,
+    loginFlowStatus,
     takeoverInfo: takeover.info,
     handleTakeoverComplete,
     handleTakeoverCancel,
