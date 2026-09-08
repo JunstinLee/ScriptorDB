@@ -210,6 +210,11 @@ async def run_agent_stream(
             yield error_event(local_tracker.run_id, error_id, rate_limit, str(e))
         yield run_end_event(local_tracker.run_id)
     finally:
+        # run 终结：停止本 run 注册的 LoginWatcher 常驻任务，防止跨 run 残留
+        try:
+            await translator._takeover_hook.shutdown(local_tracker.run_id)
+        except Exception:
+            pass
         if pending_get_task is not None and not pending_get_task.done():
             pending_get_task.cancel()
             with suppress(asyncio.CancelledError):

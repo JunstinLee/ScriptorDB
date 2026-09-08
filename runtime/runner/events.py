@@ -147,6 +147,7 @@ def human_takeover_request_event(
     current_url: str,
     screenshot_available: bool,
     timestamp: str,
+    login_form: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "type": "human_takeover_request",
@@ -157,6 +158,25 @@ def human_takeover_request_event(
         "current_url": current_url,
         "screenshot_available": screenshot_available,
         "timestamp": timestamp,
+        "login_form": login_form,
+    }
+
+
+def login_form_detected_event(
+    *,
+    run_id: str,
+    login_form: dict[str, Any],
+) -> dict[str, Any]:
+    """登录表单被（初始/增量）检测到时推送：前端凭此渲染密码凭据面板。
+
+    独立于 human_takeover_request —— 检测到登录表单即通知前端，
+    无需等待接管决策/挂起。
+    """
+    return {
+        "type": "login_form_detected",
+        "run_id": run_id,
+        "login_form": login_form,
+        "timestamp": utc_now_iso(),
     }
 
 

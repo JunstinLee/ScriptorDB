@@ -111,6 +111,7 @@ async def _pause_and_wait(
         current_url=state_after.get("url", ""),
         screenshot_available=state_after.get("screenshot_available", False),
         timestamp=utc_now_iso(),
+        login_form=login_form,
     ))
     if ctx.pause is None:
         # 无暂停状态（理论不出现）：仅通知前端，不挂起。
@@ -162,12 +163,67 @@ class BrowserTakeoverHook:
     """
 
     def __init__(self) -> None:
-        # 最近一次登录页字段签名（URL + role/selector 序列），页面未变时跳过重复 autofill
         self._last_login_url: str | None = None
-        self._last_login_sig: tuple[tuple[str, str], ...] | None = None
-        # 非登录页短时跳过指纹：(url, title, has_password)
+        self._last_login_sig: tuple[str, tuple[tuple[str, str], ...]] | None = None
         self._miss_url: str | None = None
-        self._miss_fp: tuple[str, bool] | None = None
+        # 非登录页跳过指纹：(url, title, has_password)
+        self._miss_fp: tuple[str, str, bool] | None = None
+        # key = (run_id, page)：同 run 同页只启动一次；run 终结由 shutdown 停止
+        self._watchers: dict[tuple[str, int], Any] = {}
+
+    async def _ensure_watcher(
+        self,
+        ctx: AfterToolContext,
+        page: Any,
+    ) -> None:
+        """确保当前 run 当前页面已启动 LoginWatcher（幂等）。"""
+        if page is None or ctx.queue is None:
+            return
+        key = (ctx.run_id, id(page))
+        if key in self._watchers:
+            return
+        try:
+            from browser.login_watcher import LoginWatcher
+
+            async def on_detected(login_form: dict[str, Any]) -> None:
+                try:
+                    from runtime.runner.events import login_form_detected_event
+
+                    await ctx.queue.put(login_form_detected_event(
+                        run_id=ctx.run_id,
+                        login_form=login_form,
+                    ))
+                except Exception as e:
+                    logger.debug(
+                        "takeover_hook: login_form_detected push failed: %s", e,
+                    )
+
+            watcher = LoginWatcher(page=page, on_detected=on_detected)
+            await watcher.start()
+            self._watchers[key] = watcher
+            logger.info(
+                "takeover_hook: login watcher started run=%s page=%s url=%s",
+                ctx.run_id, id(page), page.url,
+            )
+        except Exception as e:
+            # watcher 失败只影响弹窗增量检测；after_tool_result 快照仍兜底
+            logger.debug("takeover_hook: login watcher start failed: %s", e)
+
+    async def shutdown(self, run_id: str | None = None) -> None:
+        """停止该 run 注册的全部 LoginWatcher（run_id 为空时清理全部）。"""
+        keys = [
+            k for k in self._watchers
+            if run_id is None or k[0] == run_id
+        ]
+        for key in keys:
+            watcher = self._watchers.pop(key, None)
+            if watcher is not None:
+                try:
+                    await watcher.stop()
+                except Exception as e:
+                    logger.debug(
+                        "takeover_hook: login watcher stop failed: %s", e,
+                    )
 
     async def after_tool_result(self, ctx: AfterToolContext) -> None:
         if not ctx.tool_name.startswith("browser_"):
@@ -200,6 +256,8 @@ class BrowserTakeoverHook:
 
                 page = mgr.page() if mgr else None
                 if page is not None:
+                    # 初始 + DOM 突变驱动的增量检测（覆盖两次工具调用之间弹出的登录弹窗）
+                    await self._ensure_watcher(ctx, page)
                     # 页面级指纹：URL + 标题 + 是否有密码框（轻量，非登录页大头成本）。
                     # 指纹未变 → 跳过提取；变了 → 重新探测。
                     title = ""
