@@ -304,7 +304,6 @@ export function BrowserWorkspace({
           currentUrl={state?.url ?? ""}
           trigger={takeoverInfo.trigger}
           remainingSeconds={takeoverInfo.remainingSeconds}
-          loginForm={loginForm}
           onEnterControl={onEnterHumanControl ?? (() => {})}
           onCancel={onTakeoverCancel ?? (() => {})}
           onComplete={onTakeoverComplete ?? (() => {})}
