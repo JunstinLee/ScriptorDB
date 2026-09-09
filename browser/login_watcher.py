@@ -46,6 +46,22 @@ _POLL_INTERVAL_SECONDS = 1.5
 _PASSWORD_FINGERPRINT_JS = "() => !!document.querySelector('input[type=password]')"
 _Signature = tuple[str, tuple[tuple[str, str], ...]]
 
+# 活跃 LoginWatcher 注册表：供「凭证保存成功后重置该页填表记忆」使用
+# （保存动作与 watcher 分属不同请求/任务，需经注册表触达实例）。
+_active_watchers: set["LoginWatcher"] = set()
+
+
+def clear_autofill_memory() -> None:
+    """清空全部活跃 watcher 的「已试过填表」记忆。
+
+    登录表单样子没变时 watcher 不会重试填表；用户保存凭证后必须清掉
+    记忆，下一轮轮询才会带着新凭证重新尝试。没有活跃 watcher（无进行中
+    会话/浏览器未开）时为空操作，天然安全。
+    """
+    for w in list(_active_watchers):
+        w._autofill_sig = None
+        w._autofill_url = None
+
 
 class LoginWatcher:
     """页面登录表单观察器：初始检测 + DOM 突变驱动的增量检测。
@@ -60,15 +76,21 @@ class LoginWatcher:
         self,
         page: Any,
         on_detected: Callable[[dict[str, Any]], Any],
+        on_autofill_candidate: Callable[[dict[str, Any]], Any] | None = None,
     ) -> None:
         self._page = page
         self._on_detected = on_detected
+        self._on_autofill_candidate = on_autofill_candidate
         self._started = False
         self._running_task: asyncio.Task | None = None
         self._incremental_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._last_sig: _Signature | None = None
         self._last_reported_url: str | None = None
+        # 「这一页已试过填表」记忆：表单签名/URL 变了才重试。
+        # 凭证保存成功后由 clear_autofill_memory() 清空，触发重试。
+        self._autofill_sig: _Signature | None = None
+        self._autofill_url: str | None = None
 
     @property
     def started(self) -> bool:
@@ -79,6 +101,7 @@ class LoginWatcher:
         if self._started:
             return
         self._started = True
+        _active_watchers.add(self)
         try:
             await self._page.add_init_script(_MUTATION_OBSERVER_JS)
             await self._page.expose_function(
@@ -92,6 +115,7 @@ class LoginWatcher:
 
     async def stop(self) -> None:
         self._started = False
+        _active_watchers.discard(self)
         for task in (self._running_task, self._incremental_task):
             if task is not None and not task.done():
                 task.cancel()
@@ -167,7 +191,32 @@ class LoginWatcher:
             if info is None:
                 self._last_sig = None
                 self._last_reported_url = None
+                self._autofill_sig = None
+                self._autofill_url = None
                 return
+
+            # 填表尝试独立于事件上报去重：「表单没变就不重复报给前端」是对的，
+            # 但不能因此挡住填表——凭证可能刚保存（表单样子没变、键串里已有
+            # 新凭证）。填表记忆只在表单签名/URL 变化或 clear_autofill_memory()
+            # 时重置，见模块级 clear_autofill_memory()。
+            if (
+                self._on_autofill_candidate is not None
+                and (
+                    info.signature() != self._autofill_sig
+                    or info.url != self._autofill_url
+                )
+            ):
+                self._autofill_sig = info.signature()
+                self._autofill_url = info.url
+                try:
+                    # 填表回调需要结构化表单(供 try_autofill 读字段)，
+                    # 传对象而非 to_dict()
+                    await self._on_autofill_candidate(info)
+                except Exception as e:
+                    logger.debug(
+                        "login_watcher: on_autofill_candidate failed: %s", e,
+                    )
+
             if (
                 info.signature() == self._last_sig
                 and info.url == self._last_reported_url

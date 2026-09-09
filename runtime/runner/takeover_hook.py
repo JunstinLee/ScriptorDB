@@ -207,7 +207,40 @@ class BrowserTakeoverHook:
                         "takeover_hook: login_form_detected push failed: %s", e,
                     )
 
-            watcher = LoginWatcher(page=page, on_detected=on_detected)
+            async def on_autofill_candidate(login_form: Any) -> None:
+                # watcher 发现登录页(含保存凭证后表单未变的重试) → 试着填表。
+                # 只填 + 推状态，不唤醒 agent：agent 若正挂起，等用户点 Finish
+                # 恢复(保持既有接管语义)；若没挂起，其下一浏览器工具结果仍会
+                # 走 after_tool_result 原路径。try_autofill 只填空槽，重复安全。
+                try:
+                    from browser.autofill import try_autofill
+                    from runtime.runner.events import login_flow_status_event
+
+                    deps = getattr(ctx.ctx, "deps", None) if ctx.ctx is not None else None
+                    workspace_id = getattr(deps, "workspace_id", None)
+                    result = await try_autofill(page, login_form, workspace_id)
+                except Exception as e:
+                    logger.debug(
+                        "takeover_hook: watcher autofill failed: %s", e,
+                    )
+                    return
+                if result is None:
+                    return
+                try:
+                    await ctx.queue.put(login_flow_status_event(
+                        run_id=ctx.run_id,
+                        status=result.status,
+                    ))
+                except Exception as e:
+                    logger.debug(
+                        "takeover_hook: login_flow_status push failed: %s", e,
+                    )
+
+            watcher = LoginWatcher(
+                page=page,
+                on_detected=on_detected,
+                on_autofill_candidate=on_autofill_candidate,
+            )
             await watcher.start()
             self._watchers[key] = watcher
             logger.info(

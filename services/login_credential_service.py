@@ -109,6 +109,15 @@ def save(workspace_id: str, spec: LoginCredentialSpec) -> CredentialStatusRespon
         store_spec["extra"] = extra
     save_site_credential(workspace_id, store_spec)
 
+    # 凭证已保存：清掉登录监视器的「已试过填表」记忆，让下一轮轮询(≤1.5s)
+    # 带着新凭证重新尝试填表。无活跃监视器时为空操作。
+    try:
+        from browser.login_watcher import clear_autofill_memory
+
+        clear_autofill_memory()
+    except Exception:
+        logger.debug("login_credential_service: clear autofill memory failed", exc_info=True)
+
     logger.warning(
         "credential_store: keyring 后端可能为明文回退（无 Secret Service/桌面会话）site=%s",
         site,
