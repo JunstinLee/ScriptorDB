@@ -18,6 +18,13 @@ from runtime.runner.events import (
 
 logger = get_logger("agent_runner.takeover")
 
+# autofill 完成（configured + fill_ok）后注入模型的提示：让模型知道系统
+# 已代填凭证，不要读取/重填密码字段。同一实例只注入一次，避免长 run 中
+# 每次浏览器工具结果重复塞同句累积上下文（实例随 run 新建，标志随实例重置）。
+_SYSTEM_FILL_HINT = (
+    "系统站点凭证已自动填充至登录表单，请勿读取或重填密码字段，直接继续后续流程"
+)
+
 
 class TakeoverCancelledError(Exception):
     """run 内信号：人工接管被取消/超时，终止本次 run。
@@ -131,7 +138,7 @@ async def _pause_and_wait(
     logger.info("takeover resumed run_id=%s result=%s", ctx.run_id, result)
     if ctx.ctx is not None and result:
         try:
-            await ctx.ctx.enqueue(f"用户完成了人工操作: {result}")
+            await ctx.ctx.enqueue(f"{_SYSTEM_FILL_HINT}。用户完成了人工操作: {result}")
         except Exception as e:
             logger.debug("enqueue takeover result failed: %s", e)
 
@@ -170,6 +177,8 @@ class BrowserTakeoverHook:
         self._miss_fp: tuple[str, str, bool] | None = None
         # key = (run_id, page)：同 run 同页只启动一次；run 终结由 shutdown 停止
         self._watchers: dict[tuple[str, int], Any] = {}
+        # autofill 完成提示是否已注入（同实例只注入一次）
+        self._hint_injected: bool = False
 
     async def _ensure_watcher(
         self,
@@ -332,6 +341,22 @@ class BrowserTakeoverHook:
                             status=result.status,
                         ))
                         decision = result.decision
+                        # 系统凭证已自动填充且无填错：注入一次提示，让模型
+                        # 知道不要读取/重填密码字段（同一实例只注入一次）。
+                        if (
+                            result.status.configured
+                            and result.status.fill_ok
+                            and not self._hint_injected
+                            and ctx.ctx is not None
+                        ):
+                            self._hint_injected = True
+                            try:
+                                await ctx.ctx.enqueue(_SYSTEM_FILL_HINT)
+                            except Exception as e:
+                                logger.debug(
+                                    "takeover_hook: autofill hint enqueue failed: %s",
+                                    e,
+                                )
 
             try:
                 # 1) 原有人工触发检测（保持原样）：非登录人工场景（图形验证码/滑块/

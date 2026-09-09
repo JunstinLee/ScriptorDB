@@ -23,6 +23,7 @@ from browser.login_form import (
 from browser.login_state import netloc_of
 from config.credential_store import get_site_credential
 from core.logging_setup import get_logger
+from runtime.redact import register_password
 from schemas.login_flow import LoginFlowStatus
 
 logger = get_logger("browser.autofill")
@@ -450,6 +451,10 @@ async def try_autofill(
     """
     site = netloc_of(info.url)
     cred = get_site_credential(workspace_id, site) if workspace_id else None
+    if cred is not None:
+        # 系统密码已取出（将填入 DOM）：登记进脱敏注册表，供后续
+        # browser 工具参数/结果的实时与落盘脱敏使用。
+        register_password(str(cred.get("password") or ""))
     result = await autofill_login_form(page, info, cred)
     logger.info(
         "autofill done site=%s configured=%s fill_ok=%s needs_otp=%s manual_otp=%s error=%s",

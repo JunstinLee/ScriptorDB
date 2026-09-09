@@ -22,6 +22,7 @@ from config.workspace import (
     LEGACY_SESSIONS_FILE,
 )
 from core.logging_setup import get_logger
+from runtime.redact import redact
 from schemas import MessageItem, StoredRun
 from runtime.session_model import Session, SessionStore
 
@@ -39,18 +40,25 @@ def _part_to_data(part: Any) -> dict | None:
     if isinstance(part, TextPart):
         return {"type": "TextPart", "content": part.content}
     if isinstance(part, ToolCallPart):
+        # args 可能是 dict（框架/测试传 dict），redact 只接收 str：
+        # dict 先序列化（ensure_ascii=False，与 json 转义形态一致）再脱敏。
+        args_data = part.args
+        if isinstance(args_data, dict):
+            args_data = json.dumps(args_data, ensure_ascii=False)
+        if not isinstance(args_data, str):
+            args_data = str(args_data)
         return {
             "type": "ToolCallPart",
             "tool_call_id": part.tool_call_id,
             "tool_name": part.tool_name,
-            "args": part.args,
+            "args": redact(args_data),
         }
     if isinstance(part, ToolReturnPart):
         return {
             "type": "ToolReturnPart",
             "tool_call_id": part.tool_call_id,
             "tool_name": part.tool_name,
-            "content": _content_to_data(part.content),
+            "content": redact(_content_to_data(part.content)),
         }
     return None
 
@@ -60,13 +68,14 @@ def _content_to_data(content: Any) -> str:
 
     工具函数可能直接返回 pydantic 模型（如 tools.tool_result.ToolResult），
     这类对象无法被 json.dumps 直接序列化；统一转为 JSON 字符串存储。
+    返回前过 redact：content 可能携带系统密码明文（如 evaluate 结果）。
     """
     if isinstance(content, str):
-        return content
+        return redact(content)
     try:
-        return json.dumps(to_jsonable_python(content), ensure_ascii=False)
+        return redact(json.dumps(to_jsonable_python(content), ensure_ascii=False))
     except Exception:
-        return str(content)
+        return redact(str(content))
 
 
 def _part_from_data(part_data: dict) -> Any | None:
@@ -319,8 +328,8 @@ class FileSessionStore(SessionStore):
             self._write_index()
 
     def _write_session_file(self, session: Session) -> None:
+        file_path = self._session_abspath(session)
         try:
-            file_path = self._session_abspath(session)
             self._ensure_dir(file_path.parent)
             model_msgs_data = []
             for m in session.model_messages:

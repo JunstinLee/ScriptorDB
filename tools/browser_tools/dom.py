@@ -43,6 +43,7 @@ async def browser_query(
     all: bool = False,
 ) -> str:
     from browser.runtime import get_image_sources, query_attr, query_attr_all, query_text, query_text_all
+    from browser.sensitive import is_password_control
 
     manager, page = _require_browser()
     if page is None:
@@ -56,7 +57,11 @@ async def browser_query(
         return result
 
     if attribute:
-        if all:
+        if attribute == "value" and await is_password_control(page, selector):
+            # 密码控件（系统凭证已由 autofill 填入）：不读 DOM value，
+            # 返回占位；all=True 对 selector 首元素判定一次，命中整组占位。
+            result = "[redacted: password field]"
+        elif all:
             result = await query_attr_all(page, selector, attribute)
         else:
             result = await query_attr(page, selector, attribute)
@@ -72,13 +77,22 @@ async def browser_query(
 @db_tool(name="browser_evaluate", category="browser", timeout=15, sequential=False)
 async def browser_evaluate(ctx: RunContext[Settings], js: str) -> str:
     from browser.runtime import evaluate as _eval
+    from browser.sensitive import current_site_password
+    from runtime.redact import redact
 
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    pwd = current_site_password(
+        page.url, ctx.deps.workspace_id if ctx.deps else None
+    )
+    if pwd is not None and pwd in js:
+        # 脚本携带系统站点密码：禁止读取或回写密码字段。
+        return "拒绝：脚本包含系统站点密码，禁止读取或回写密码字段"
     result = await _eval(page, js)
+    result = redact(result)
     manager.record_action("evaluate", js[:50] + "..." if len(js) > 50 else js)
     return result
 
@@ -154,14 +168,30 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
 
 @db_tool(name="browser_fill", category="browser", timeout=15, sequential=True)
 async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> str:
-    from browser.actions import fill as _fill
     from browser.highlights import highlight_input, highlight_input_remove
+    from browser.sensitive import current_site_password, is_password_control
 
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    pwd = current_site_password(
+        page.url, ctx.deps.workspace_id if ctx.deps else None
+    )
+    if (
+        await is_password_control(page, selector)
+        and pwd is not None
+        and pwd in text
+    ):
+        # 密码控件且内容为系统密码：系统已自动填充，跳过二次填写。
+        # 不执行 record_element_failure/detect_takeover（非页面故障）。
+        manager.record_action(
+            "fill", "skipped (system-filled password)",
+            selector=selector, success=True,
+        )
+        return "该密码已由系统自动填充，请勿重复填写"
+    from browser.actions import fill as _fill
     if not _is_engine_selector(selector):
         await highlight_input(page, selector)
     try:
