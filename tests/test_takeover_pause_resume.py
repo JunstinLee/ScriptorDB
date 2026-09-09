@@ -228,7 +228,10 @@ async def test_takeover_resume_wakes_same_run():
 
     assert any(ev["type"] == "run_end" for ev in events)
     assert not agent.cancelled
-    assert "".join(str(c) for c in agent.ctx.enqueued) == "用户完成了人工操作: 完成登录"
+    assert "".join(str(c) for c in agent.ctx.enqueued) == (
+        "系统站点凭证已自动填充至登录表单，请勿读取或重填密码字段，"
+        "直接继续后续流程。用户完成了人工操作: 完成登录"
+    )
 
 
 # ---------- orchestrator 层 ----------

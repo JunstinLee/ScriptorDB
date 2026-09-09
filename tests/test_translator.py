@@ -6,10 +6,12 @@ from unittest.mock import patch
 
 import pytest
 from pydantic_ai.messages import (
+    FunctionToolCallEvent,
     PartDeltaEvent,
     PartStartEvent,
     TextPart,
     TextPartDelta,
+    ToolCallPart,
 )
 
 from runtime.run_tracker import RunTracker
@@ -105,3 +107,56 @@ async def test_translator_unknown_event_type_warns_not_raises():
     assert queue.empty()
     mock_warn.assert_called_once()
     assert "unhandled run event type" in mock_warn.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_translator_redacts_registered_password_in_tool_call():
+    """已登记密码出现在 browser_fill/browser_evaluate 参数时，
+    tracker/SSE/tool_parts 只见脱敏副本（实时层不留明文）。"""
+    from runtime.redact import register_password
+
+    register_password("SuperSecretPassword!")
+    queue: asyncio.Queue[dict] = asyncio.Queue()
+    tracker = RunTracker()
+    translator = EventTranslator(
+        queue=queue,
+        tracker=tracker,
+        checkpoint_id="test",
+        prompt="",
+        message_history=[],
+    )
+
+    async def events():
+        yield FunctionToolCallEvent(
+            part=ToolCallPart(
+                tool_name="browser_fill",
+                args={
+                    "selector": "#password",
+                    "text": "SuperSecretPassword!",
+                },  # type: ignore[arg-type]
+                tool_call_id="c1",
+            )
+        )
+
+    await translator.handle(cast(Any, None), events())
+
+    # SSE tool_call 事件
+    sse_args = None
+    while not queue.empty():
+        ev = queue.get_nowait()
+        if ev["type"] == "tool_call":
+            sse_args = ev["args"]
+    assert sse_args is not None
+    assert sse_args["text"] == "[redacted: password]"
+    assert "SuperSecretPassword!" not in str(sse_args)
+
+    # tracker tool_invocations
+    assert len(tracker.tool_invocations) == 1
+    assert tracker.tool_invocations[0]["args"]["text"] == "[redacted: password]"
+    assert "SuperSecretPassword!" not in str(tracker.tool_invocations)
+
+    # tool_parts（checkpoint 落盘源）
+    assert len(translator.tool_parts) == 1
+    part = translator.tool_parts[0]
+    assert isinstance(part, ToolCallPart)
+    assert "SuperSecretPassword!" not in str(part.args)
