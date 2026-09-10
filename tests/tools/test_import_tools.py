@@ -11,7 +11,7 @@ from tools.import_tools import (
     import_excel_to_db,
 )
 
-from tests.conftest import _make_ctx, _write_xlsx
+from tests.support.ctx import make_ctx, write_xlsx
 
 
 def _query_table(db_url: str, table_name: str):
@@ -35,7 +35,7 @@ def _query_data_columns(db_url: str, table_name: str):
 
 class TestImportCsvToDb:
     def test_import_csv_basic(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "data.csv"
         filepath.write_text("name,age\nAlice,30\nBob,25\n", encoding="utf-8")
 
@@ -49,7 +49,7 @@ class TestImportCsvToDb:
         assert rows == [["Alice", "30"], ["Bob", "25"]]
 
     def test_import_csv_batches(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "data.csv"
         lines = ["name,age"] + [f"User{i},{i}" for i in range(5)]
         filepath.write_text("\n".join(lines), encoding="utf-8")
@@ -63,7 +63,7 @@ class TestImportCsvToDb:
         assert len(rows) == 5
 
     def test_import_csv_if_exists_replace(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "data.csv"
         filepath.write_text("name,age\nAlice,30\n", encoding="utf-8")
 
@@ -78,7 +78,7 @@ class TestImportCsvToDb:
         assert rows == [["Bob", "25"]]
 
     def test_import_csv_hooks(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "data.csv"
         filepath.write_text("name,age\nAlice,30\nBob,12\nCarol,25\n", encoding="utf-8")
 
@@ -104,7 +104,7 @@ class TestImportCsvToDb:
         assert rows == [["ALICE", "30"], ["CAROL", "25"]]
 
     def test_import_csv_file_not_found(self):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         result = import_csv_to_db(ctx, "/nonexistent/data.csv", "missing")
         assert not result.success
         assert result.error is not None
@@ -113,9 +113,9 @@ class TestImportCsvToDb:
 
 class TestImportExcelToDb:
     def test_import_excel_basic(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "data.xlsx"
-        _write_xlsx(filepath, "People", [["name", "age"], ["Alice", 30], ["Bob", 25]])
+        write_xlsx(filepath, "People", [["name", "age"], ["Alice", 30], ["Bob", 25]])
 
         result = import_excel_to_db(ctx, str(filepath), "excel_basic")
         assert result.success
@@ -127,9 +127,9 @@ class TestImportExcelToDb:
         assert rows == [["Alice", "30"], ["Bob", "25"]]
 
     def test_import_excel_hooks(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "data.xlsx"
-        _write_xlsx(
+        write_xlsx(
             filepath,
             "People",
             [["name", "age"], ["Alice", 30], ["Bob", 12], ["Carol", 25]],
@@ -157,9 +157,9 @@ class TestImportExcelToDb:
         assert rows == [["ALICE", "30"], ["CAROL", "25"]]
 
     def test_import_excel_invalid_sheet(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "data.xlsx"
-        _write_xlsx(filepath, "People", [["a"], [1]])
+        write_xlsx(filepath, "People", [["a"], [1]])
 
         result = import_excel_to_db(ctx, str(filepath), "excel_missing", sheet_name="Missing")
         assert not result.success

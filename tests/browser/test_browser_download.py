@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from browser import get_manager
-from tests.conftest import _make_ctx
+from tests.support.ctx import make_ctx
 from tools.browser import browser_download
 from tools.download import manifest as download_manifest
 
@@ -49,25 +49,25 @@ def _make_download(tmp_path: Path) -> tuple:
 
 
 def _workspace_ctx(tmp_path):
-    ctx = _make_ctx()
+    ctx = make_ctx()
     ctx.deps.workspace_path = tmp_path
     return ctx
 
 
 async def test_missing_target_returns_usage():
-    result = await browser_download(_make_ctx())
+    result = await browser_download(make_ctx())
     assert "url 或 selector 之一" in result
 
 
 async def test_browser_not_launched():
-    result = await browser_download(_make_ctx(), url="https://example.com/file.pdf")
+    result = await browser_download(make_ctx(), url="https://example.com/file.pdf")
     assert "Browser not launched" in result
 
 
 async def test_no_workspace(tmp_path, monkeypatch):
     page, _ = _make_download(tmp_path)
     monkeypatch.setattr(get_manager(), "_page", page)
-    result = await browser_download(_make_ctx(), url="https://example.com/file.pdf")
+    result = await browser_download(make_ctx(), url="https://example.com/file.pdf")
     assert "没有活动工作区" in result
 
 

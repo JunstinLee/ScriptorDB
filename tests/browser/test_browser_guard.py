@@ -6,7 +6,7 @@ import pytest
 
 from browser import get_manager
 from runtime.redact import register_password
-from tests.conftest import _make_ctx
+from tests.support.ctx import make_ctx
 from tools.browser import browser_evaluate, browser_fill, browser_query
 
 pytestmark = pytest.mark.usefixtures("cleanup_browser")
@@ -36,7 +36,7 @@ class TestBrowserQueryPasswordGuard:
         query_attr = AsyncMock(return_value=_PWD)
         monkeypatch.setattr(runtime_mod, "query_attr", query_attr)
         with patch.object(get_manager(), "_page", _page_mock()):
-            result = await browser_query(_make_ctx(), "#password", attribute="value")
+            result = await browser_query(make_ctx(), "#password", attribute="value")
         assert result == "[redacted: password field]"
         query_attr.assert_not_awaited()
 
@@ -53,7 +53,7 @@ class TestBrowserQueryPasswordGuard:
         monkeypatch.setattr(runtime_mod, "query_attr_all", query_attr_all)
         with patch.object(get_manager(), "_page", _page_mock()):
             result = await browser_query(
-                _make_ctx(), "input", attribute="value", all=True
+                make_ctx(), "input", attribute="value", all=True
             )
         assert result == "[redacted: password field]"
         query_attr_all.assert_not_awaited()
@@ -71,7 +71,7 @@ class TestBrowserQueryPasswordGuard:
         page = _page_mock()
         page.query_selector = AsyncMock(return_value=mock_element)
         with patch.object(get_manager(), "_page", page):
-            result = await browser_query(_make_ctx(), "input", attribute="value")
+            result = await browser_query(make_ctx(), "input", attribute="value")
         assert "hello" in result
 
 
@@ -89,7 +89,7 @@ class TestBrowserEvaluatePasswordGuard:
         page = _page_mock()
         with patch.object(get_manager(), "_page", page):
             result = await browser_evaluate(
-                _make_ctx(),
+                make_ctx(),
                 f"document.querySelector('#password').value = '{_PWD}'",
             )
         assert "拒绝" in result
@@ -109,7 +109,7 @@ class TestBrowserEvaluatePasswordGuard:
         page.evaluate = AsyncMock(return_value=_PWD)
         with patch.object(get_manager(), "_page", page):
             result = await browser_evaluate(
-                _make_ctx(), "document.querySelector('#password').value"
+                make_ctx(), "document.querySelector('#password').value"
             )
         assert _PWD not in result
         assert "[redacted: password]" in result
@@ -125,7 +125,7 @@ class TestBrowserEvaluatePasswordGuard:
         page = _page_mock()
         page.evaluate = AsyncMock(return_value="42")
         with patch.object(get_manager(), "_page", page):
-            result = await browser_evaluate(_make_ctx(), "1 + 1")
+            result = await browser_evaluate(make_ctx(), "1 + 1")
         assert "42" in result
         page.evaluate.assert_awaited_once()
 
@@ -148,6 +148,6 @@ class TestBrowserFillPasswordGuard:
         page = _page_mock()
         page.fill = AsyncMock()
         with patch.object(get_manager(), "_page", page):
-            result = await browser_fill(_make_ctx(), "#password", _PWD)
+            result = await browser_fill(make_ctx(), "#password", _PWD)
         assert "已由系统自动填充" in result
         page.fill.assert_not_awaited()

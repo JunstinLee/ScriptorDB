@@ -11,7 +11,7 @@ from config.settings import Settings
 from api.streaming import _sse_event, stream_agent_response
 from tools.db_tools import get_schema
 
-from tests.conftest import _auto_approve_handler
+from tests.support.ctx import auto_approve_handler
 
 
 def _parse_sse(chunks: list[str]) -> tuple[str, dict]:
@@ -72,7 +72,7 @@ async def test_stream_emits_done_and_metadata(test_settings):
         model=TestModel(),
         deps_type=Settings,
         tools=[get_schema],
-        capabilities=[HandleDeferredToolCalls(handler=_auto_approve_handler)],
+        capabilities=[HandleDeferredToolCalls(handler=auto_approve_handler)],
     )
 
     chunks: list[str] = []
@@ -92,7 +92,7 @@ async def test_stream_emits_run_start_and_end(test_settings):
         model=TestModel(),
         deps_type=Settings,
         tools=[get_schema],
-        capabilities=[HandleDeferredToolCalls(handler=_auto_approve_handler)],
+        capabilities=[HandleDeferredToolCalls(handler=auto_approve_handler)],
     )
 
     chunks: list[str] = []

@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from tests.conftest import _make_ctx, _write_xlsx
+from tests.support.ctx import make_ctx, write_xlsx
 from tools.export_tools import export_excel, read_excel
 
 
 class TestExportExcel:
     def test_export_excel_basic(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "output.xlsx"
         result = export_excel(
             ctx,
@@ -31,9 +31,9 @@ class TestExportExcel:
 
 class TestReadExcel:
     def test_read_excel_preview(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "test.xlsx"
-        _write_xlsx(
+        write_xlsx(
             filepath,
             "Data",
             [["name", "age"], ["Alice", 30], ["Bob", 25], ["Carol", 27]],
@@ -48,9 +48,9 @@ class TestReadExcel:
         assert "data" not in result.data
 
     def test_read_excel_return_full(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "test.xlsx"
-        _write_xlsx(
+        write_xlsx(
             filepath,
             "Data",
             [["name", "age"], ["Alice", 30], ["Bob", 25], ["Carol", 27]],
@@ -63,9 +63,9 @@ class TestReadExcel:
         assert result.data["truncated"] is False
 
     def test_read_excel_max_rows(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "test.xlsx"
-        _write_xlsx(
+        write_xlsx(
             filepath,
             "Data",
             [["name", "age"], ["Alice", 30], ["Bob", 25], ["Carol", 27]],
@@ -78,16 +78,16 @@ class TestReadExcel:
         assert result.data["truncated"] is True
 
     def test_read_excel_not_found(self):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         result = read_excel(ctx, "/nonexistent/file.xlsx")
         assert not result.success
         assert result.error is not None
         assert result.error.category == "resource_not_found"
 
     def test_read_excel_invalid_sheet(self, tmp_path: Path):
-        ctx = _make_ctx()
+        ctx = make_ctx()
         filepath = tmp_path / "test.xlsx"
-        _write_xlsx(filepath, "Data", [["a"], [1]])
+        write_xlsx(filepath, "Data", [["a"], [1]])
 
         result = read_excel(ctx, str(filepath), sheet_name="Missing")
         assert not result.success

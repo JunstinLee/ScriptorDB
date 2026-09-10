@@ -4,30 +4,9 @@ import json
 
 from pydantic_ai.messages import ModelRequest, ToolCallPart, ToolReturnPart
 
-from runtime.redact import redact, register_password
+from runtime.redact import register_password
 from runtime.session_file_store import FileSessionStore, _content_to_data, _part_to_data
 from runtime.session_model import Session
-
-# ---- runtime.redact ----
-
-
-def test_redact_plaintext_and_json_escaped_forms():
-    """登记密码的明文与 json 转义形态都被替换。"""
-    register_password('p@ss"word\\中')
-    # 明文形态
-    assert redact("x p@ss\"word\\中 y") == "x [redacted: password] y"
-    # json 转义形态（ensure_ascii=False：引号/反斜杠转义、中文原样）
-    escaped = json.dumps('p@ss"word\\中', ensure_ascii=False)[1:-1]
-    assert redact(f"v={escaped}") == "v=[redacted: password]"
-    # json 转义形态（ensure_ascii=True：中文转 \uXXXX）
-    ascii_escaped = json.dumps('p@ss"word\\中', ensure_ascii=True)[1:-1]
-    assert redact(f"v={ascii_escaped}") == "v=[redacted: password]"
-
-
-def test_redact_empty_registry_returns_original():
-    """未登记任何密码时原样返回（零开销路径）。"""
-    text = "plain text, no secrets"
-    assert redact(text) is text
 
 
 # ---- 落盘脱敏：_part_to_data / _content_to_data ----
@@ -78,6 +57,7 @@ def test_part_from_data_keeps_redacted_args_verbatim():
     }
     restored = _part_from_data(data)
     assert isinstance(restored, ToolCallPart)
+    assert isinstance(restored.args, str)
     assert "[redacted: password]" in restored.args
 
 

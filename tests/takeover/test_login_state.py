@@ -4,7 +4,6 @@ import pytest
 
 from browser import get_manager
 from browser.login_state import detect_login_state, netloc_of
-from tests.conftest import _make_ctx  # noqa: F401  (fixture 注册)
 
 pytestmark = pytest.mark.usefixtures("cleanup_browser")
 
