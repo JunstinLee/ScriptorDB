@@ -49,7 +49,14 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
 
     orchestrator = get_orchestrator(body.session_id)
     if orchestrator is None:
-        raise HTTPException(status_code=404, detail="No active run for this session")
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No active run for this session. The run may have finished, or it was "
+                "terminated when its event stream dropped. Send a new message to start "
+                "a new run."
+            ),
+        )
     if body.run_id and orchestrator.run_id != body.run_id:
         raise HTTPException(
             status_code=409,
@@ -77,7 +84,14 @@ async def enter_human_control(body: TakeoverEnterControlRequest):
 async def cancel_takeover(body: TakeoverCancelRequest):
     orchestrator = get_orchestrator(body.session_id)
     if orchestrator is None:
-        raise HTTPException(status_code=404, detail="No active takeover for this session")
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No active run for this session. The run may have finished, or it was "
+                "terminated when its event stream dropped. Send a new message to start "
+                "a new run."
+            ),
+        )
 
     result = orchestrator.cancel_takeover(body.run_id, "用户取消接管")
     if not result.get("ok"):

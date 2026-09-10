@@ -19,7 +19,14 @@ async def approve(session_id: str, req: ApprovalSubmitRequest):
 
     orchestrator = get_orchestrator(session_id)
     if orchestrator is None:
-        raise HTTPException(status_code=404, detail="No pending approval for this session")
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No pending approval for this session. The run may have finished, or it "
+                "was terminated when its event stream dropped. Send a new message to "
+                "start a new run."
+            ),
+        )
 
     # 不重启 run、不开新 SSE 流：仅构建审批结果并唤醒挂起的 run
     # （与 /takeover/complete 同模式）；后续事件继续由原 chat SSE 流推送。

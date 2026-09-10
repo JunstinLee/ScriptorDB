@@ -125,6 +125,20 @@ async def _stream_orchestrator_events(
                     run_task.cancel()
                     with suppress(asyncio.CancelledError):
                         await run_task
+                    # 先杀 task 再收敛，避免落盘与 run 内部写 session 竞争。
+                    # outcome 必须预先绑定：收敛抛异常时下面的日志不能因变量未绑定
+                    # 再抛 NameError 盖掉真正的取消异常。
+                    outcome: dict[str, Any] = {}
+                    try:
+                        outcome = orchestrator.abort_paused_run("SSE 连接中断")
+                    except Exception:
+                        logger.exception(
+                            "chat_stream_abandon_failed session_id=%s", session_id
+                        )
+                    logger.warning(
+                        "chat_stream_abandoned session_id=%s run_id=%s outcome=%s",
+                        session_id, orchestrator.run_id, outcome,
+                    )
                     remove_orchestrator(session_id)
             else:
                 summary = await run_task

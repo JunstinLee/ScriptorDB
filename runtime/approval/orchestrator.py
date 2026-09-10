@@ -20,7 +20,7 @@ from runtime.runner.finalize import run_end_event
 from runtime.run_tracker import RunTracker, utc_now_iso
 from runtime.runner.takeover_hook import RunPauseState
 from runtime.sessions import SessionStore, get_session_store
-from runtime.approval.persist import persist_cancelled_takeover
+from runtime.approval.persist import persist_abandoned_approval, persist_cancelled_takeover
 from runtime.approval.controller import TakeoverController, _BrowserTakeoverController
 from runtime.approval.pause import ApprovalPauseState
 from runtime.approval.resumable import RESUME_PROMPT, run_agent_stream_resumable
@@ -99,6 +99,8 @@ class ApprovalOrchestrator:
         self._session_store = session_store if session_store is not None else get_session_store()
         self._takeover = takeover or _BrowserTakeoverController()
         self._run_tracker: RunTracker | None = None
+        # 当前 run 的运行期状态（收敛路径需要读 new_messages，故提升为实例字段）
+        self._state: _RunState | None = None
         # 接管暂停：hook 挂起在 resume_event.wait()，resume_takeover() set() 唤醒，
         # 取消/超时置 cancelled 后终止 run。审批暂停同模式，signal_approval() 唤醒。
         self._approval = ApprovalPauseState()
@@ -127,6 +129,7 @@ class ApprovalOrchestrator:
             prompt=prompt,
             history=list(message_history),
         )
+        self._state = state
 
         await self._run_loop(state, event_callback)
 
@@ -310,3 +313,48 @@ class ApprovalOrchestrator:
         # pydantic-ai 停止 run 并抛 RunCancelled，lifecycle 转取消终态。
         self._pause.cancel_run()
         return {"ok": True, "status": "cancelled", "reason": reason or "用户取消接管"}
+
+    def abort_paused_run(self, reason: str) -> dict[str, Any]:
+        """外部终止（SSE 断连/进程关闭）：把挂起的暂停态收敛为终态，避免残留。
+
+        不做唤醒：调用方已负责取消承载 run 的 task。
+        返回收敛结果，供调用方记日志。
+
+        调用契约（前置条件）：承载 run 的 task 已被取消。本函数不清 self._pause
+        （挂起中的 resume_event.wait() 已随 task 取消解除）。若将来出现「不取消
+        task 就调用」的路径（例如进程关闭时直接收敛残留 run），必须先补
+        self._pause.cancel_run() 再落盘，否则 hook 永远停在挂起点。
+        """
+        outcome: dict[str, Any] = {}
+
+        # 接管挂起：先落盘、再清内存、最后复位状态机（与 cancel_takeover 顺序契约一致）
+        checkpoint = self._checkpoint_store.get(self.session_id)
+        if checkpoint is not None:
+            persist_cancelled_takeover(self._session_store, self.session_id, checkpoint)
+            self._clear_checkpoint()
+            # 必须复位：否则 150s 超时任务残留，稍后触发 RunPauseState.cancel_run
+            self._takeover.reset()
+            outcome["takeover_persisted"] = True
+            outcome["run_id"] = checkpoint.run_id
+
+        # 审批挂起
+        if self._run_tracker is None:
+            # run 从未启动：无 tracker 可收敛，无操作（幂等）
+            return {}
+        cleared = self._pending_store.pop_session(self.session_id)
+        if cleared:
+            self._run_tracker.status = "cancelled"
+            self._run_tracker.ended_at = utc_now_iso()
+            # 断连路径原 SSE 流已死，落盘必须在此完成；用户主动取消审批的路径不落盘
+            # （那条路径原流仍活着，由 persist_chat_run 负责）——该不对称是有意为之。
+            persist_abandoned_approval(
+                self._session_store,
+                self.session_id,
+                cleared[0].run_id,
+                cleared[0].tool_invocations,
+                self._run_tracker.final_output,
+                list(self._state.new_messages) if self._state is not None else [],
+            )
+            outcome["approval_cleared"] = len(cleared)
+
+        return outcome
