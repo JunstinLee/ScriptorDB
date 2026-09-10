@@ -1,18 +1,15 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { request, WorkspaceNotSelectedError, ApiError } from "./core";
 
-const mockJson: ReturnType<typeof vi.fn> = vi.fn(() =>
-  Promise.resolve({ ok: true }),
-);
-const mockText: ReturnType<typeof vi.fn> = vi.fn(() =>
-  Promise.resolve("error body"),
-);
-const mockFetch: ReturnType<typeof vi.fn> = vi.fn(() =>
-  Promise.resolve({ ok: true, json: mockJson, text: mockText, status: 200 }),
-);
+import { stubFetch } from "../test/mockClient";
+
+const {
+  json: mockJson,
+  text: mockText,
+  fetch: mockFetch,
+} = stubFetch();
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", mockFetch);
   mockFetch.mockClear();
   mockJson.mockClear();
   mockText.mockClear();
