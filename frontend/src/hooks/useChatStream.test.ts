@@ -1,18 +1,27 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useChatStream } from "./useChatStream";
-import type { StreamRunEvent } from "../types";
 
-const { mockStreamChat, mockSubmitApproval, mockCompleteTakeover, mockCancelTakeover } =
-  vi.hoisted(() => ({
-    mockStreamChat: vi.fn(),
-    mockSubmitApproval: vi.fn(),
-    mockCompleteTakeover: vi.fn(),
-    mockCancelTakeover: vi.fn(),
-  }));
+const {
+  mockStreamChat,
+  mockAttachSessionStream,
+  mockFetchActiveRun,
+  mockSubmitApproval,
+  mockCompleteTakeover,
+  mockCancelTakeover,
+} = vi.hoisted(() => ({
+  mockStreamChat: vi.fn(),
+  mockAttachSessionStream: vi.fn(),
+  mockFetchActiveRun: vi.fn(),
+  mockSubmitApproval: vi.fn(),
+  mockCompleteTakeover: vi.fn(),
+  mockCancelTakeover: vi.fn(),
+}));
 
 vi.mock("../api/client", () => ({
   streamChat: mockStreamChat,
+  attachSessionStream: mockAttachSessionStream,
+  fetchActiveRun: mockFetchActiveRun,
   submitApproval: mockSubmitApproval,
   WorkspaceNotSelectedError: class WorkspaceNotSelectedError extends Error {},
 }));
@@ -23,7 +32,28 @@ vi.mock("../api/browser", () => ({
   enterHumanControl: vi.fn(),
 }));
 
-function makeParams(overrides: Partial<ReturnType<typeof makeParams>> = {}) {
+interface ChatStreamParams {
+  activeSessionId: string | null;
+  addUserMessage: (content: string, attachments: string[], crawlUrl: string | null) => void;
+  appendEvent: (sessionId: string, event: unknown) => void;
+  appendAction: (event: unknown) => void;
+  appendStreamingText: (delta: string) => void;
+  createNewSession: () => Promise<string | null>;
+  finalizeAssistantMessage: (fullOutput: string) => void;
+  handleWorkspaceMissing: () => void;
+  refreshSessionTitle: (sid: string) => Promise<void>;
+  refreshUndo: () => Promise<void>;
+  setLoading: (loading: boolean) => void;
+  selectedModel: string;
+  selectedProvider: string;
+  onBrowserActivity: () => void;
+  setBrowserActive: (v: boolean) => void;
+  setActiveMainTab: (v: "chat" | "browser") => void;
+  hasRunState: (sessionId: string, runId: string) => boolean;
+  resetRun: (sessionId: string, runId: string) => void;
+}
+
+function makeParams(overrides: Partial<ChatStreamParams> = {}): ChatStreamParams {
   return {
     activeSessionId: "sess_1",
     addUserMessage: vi.fn(),
@@ -41,6 +71,8 @@ function makeParams(overrides: Partial<ReturnType<typeof makeParams>> = {}) {
     onBrowserActivity: vi.fn(),
     setBrowserActive: vi.fn(),
     setActiveMainTab: vi.fn(),
+    hasRunState: vi.fn(() => false),
+    resetRun: vi.fn(),
     ...overrides,
   };
 }
@@ -87,12 +119,9 @@ function captureApprovalRequest(): {
     (
       _sid: string,
       _body: unknown,
-      _onEvent: unknown,
-      _onError: unknown,
-      _onDone: unknown,
-      onApprovalRequest?: (e: ApprovalRequestLike) => void,
+      callbacks: { onApprovalRequest?: (e: ApprovalRequestLike) => void },
     ) => {
-      approvalCb = onApprovalRequest ?? null;
+      approvalCb = callbacks.onApprovalRequest ?? null;
       return new AbortController();
     },
   );
@@ -103,6 +132,14 @@ function captureApprovalRequest(): {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // 页面挂载的重挂探测：默认无活动 run
+  mockFetchActiveRun.mockResolvedValue({
+    run_id: "",
+    suspended: null,
+    reason: "",
+    last_index: 0,
+  });
+  mockAttachSessionStream.mockReturnValue(new AbortController());
 });
 
 describe("takeover resume lifecycle", () => {

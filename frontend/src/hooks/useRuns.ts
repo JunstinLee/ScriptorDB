@@ -14,7 +14,8 @@ import type {
 type RunsAction =
   | { type: "append"; sessionId: string; event: StreamRunEvent }
   | { type: "set"; sessionId: string; runs: Run[] }
-  | { type: "clear"; sessionId?: string };
+  | { type: "clear"; sessionId?: string }
+  | { type: "resetRun"; sessionId: string; runId: string };
 
 function createDefaultRun(runId: string, timestamp?: string): Run {
   return {
@@ -215,6 +216,14 @@ function runsReducer(
         [sessionId]: runs,
       };
     }
+    case "resetRun": {
+      // 重挂前按 run_id 清空本地累积：避免 from_index=0 重放时二次追加
+      const { sessionId, runId } = action;
+      const sessionRuns = state[sessionId] ?? [];
+      const kept = sessionRuns.filter((r) => r.run_id !== runId);
+      if (kept.length === sessionRuns.length) return state;
+      return { ...state, [sessionId]: kept };
+    }
     case "clear": {
       if (action.sessionId) {
         const next = { ...state };
@@ -249,5 +258,9 @@ export function useRuns() {
     dispatch({ type: "clear", sessionId });
   }, []);
 
-  return { runsBySession, getRuns, appendEvent, setRuns, clearRuns };
+  const resetRun = useCallback((sessionId: string, runId: string) => {
+    dispatch({ type: "resetRun", sessionId, runId });
+  }, []);
+
+  return { runsBySession, getRuns, appendEvent, setRuns, clearRuns, resetRun };
 }

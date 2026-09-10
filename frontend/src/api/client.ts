@@ -15,8 +15,13 @@ export {
   deleteSession,
   getSchema,
   submitApproval,
+  fetchActiveRun,
 } from "./sessions";
-export { streamChat } from "./stream";
+export {
+  streamChat,
+  attachSessionStream,
+  type SseStreamCallbacks,
+} from "./stream";
 export {
   health,
   fetchModels,

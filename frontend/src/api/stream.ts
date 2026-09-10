@@ -3,14 +3,45 @@ import { WorkspaceNotSelectedError } from "./core";
 
 const BASE = "/api";
 
+/** 已识别的事件类型白名单（与 types/index.ts 的 StreamRunEvent union 同步） */
+const KNOWN_EVENT_TYPES: Record<string, true> = {
+  text_delta: true,
+  run_start: true,
+  run_end: true,
+  trace: true,
+  tool_call: true,
+  tool_result: true,
+  metadata: true,
+  error: true,
+  approval_request: true,
+  browser_action: true,
+  login_form_detected: true,
+  human_takeover_request: true,
+  takeover_state_change: true,
+  takeover_cancelled: true,
+  stream_truncated: true,
+  login_flow_status: true,
+};
+
+export interface SseStreamCallbacks {
+  onEvent: (event: StreamRunEvent) => void;
+  onError: (error: Error) => void;
+  /** 仅在收到终态事件（metadata / error）时调用，断连不再视为正常收尾 */
+  onDone: (fullOutput: string) => void;
+  /** 流结束时未收到终态事件：调用方需按 lastEventId 重挂 */
+  onDetached: (lastEventId: number) => void;
+  onApprovalRequest?: (
+    event: Extract<StreamRunEvent, { type: "approval_request" }>,
+  ) => void;
+}
+
 export function processSseStream(
   res: Response,
-  onEvent: (event: StreamRunEvent) => void,
-  onError: (error: Error) => void,
-  onDone: (fullOutput: string) => void,
+  callbacks: SseStreamCallbacks,
   signal?: AbortSignal,
-  onApprovalRequest?: (event: Extract<StreamRunEvent, { type: "approval_request" }>) => void,
 ): Promise<void> {
+  const { onEvent, onError, onDone, onDetached, onApprovalRequest } = callbacks;
+
   return new Promise((resolve) => {
     void (async () => {
       try {
@@ -18,38 +49,27 @@ export function processSseStream(
         const decoder = new TextDecoder();
         let buffer = "";
         let currentEvent = "message";
+        let lastEventId = 0;
         let doneCalled = false;
 
         const processLines = (lines: string[]) => {
           for (const line of lines) {
-            if (line.startsWith("event: ")) {
+            if (line.startsWith("id: ")) {
+              const parsed = Number.parseInt(line.slice(4).trim(), 10);
+              if (!Number.isNaN(parsed)) lastEventId = parsed;
+            } else if (line.startsWith("event: ")) {
               currentEvent = line.slice(7).trim();
             } else if (line.startsWith("data: ")) {
               const data = line.slice(6);
               if (data === "[DONE]") continue;
-              if (
-                currentEvent === "text_delta" ||
-                currentEvent === "run_start" ||
-                currentEvent === "run_end" ||
-                currentEvent === "trace" ||
-                currentEvent === "tool_call" ||
-                currentEvent === "tool_result" ||
-                currentEvent === "metadata" ||
-                currentEvent === "error" ||
-                currentEvent === "approval_request" ||
-                currentEvent === "browser_action" ||
-                currentEvent === "login_form_detected" ||
-                currentEvent === "human_takeover_request" ||
-                currentEvent === "takeover_state_change" ||
-                currentEvent === "takeover_cancelled" ||
-                currentEvent === "login_flow_status"
-              ) {
+              if (KNOWN_EVENT_TYPES[currentEvent]) {
                 try {
                   const obj = JSON.parse(data) as StreamRunEvent;
                   console.log(
-                    "[stream] SSE event: type=%s run_id=%s",
+                    "[stream] SSE event: type=%s run_id=%s id=%d",
                     obj.type,
-                    (obj as unknown as { run_id?: string }).run_id ?? "-",
+                    obj.run_id ?? "-",
+                    lastEventId,
                   );
                   onEvent(obj);
                   if (obj.type === "metadata") {
@@ -60,6 +80,11 @@ export function processSseStream(
                     onError(new Error(obj.message));
                   } else if (obj.type === "approval_request") {
                     onApprovalRequest?.(obj);
+                  } else if (obj.type === "stream_truncated") {
+                    console.warn(
+                      "[stream] stream_truncated dropped_before=%d",
+                      obj.dropped_before,
+                    );
                   }
                 } catch {
                   // non-JSON data line, ignore
@@ -85,8 +110,9 @@ export function processSseStream(
         buffer += decoder.decode();
         processLines(buffer.split("\n"));
 
+        // 只有终态事件才算正常收尾；流结束而未收终态 = 断连，交给调用方重挂
         if (!signal?.aborted && !doneCalled) {
-          onDone("");
+          onDetached(lastEventId);
         }
         resolve();
       } catch (err) {
@@ -101,50 +127,65 @@ export function processSseStream(
   });
 }
 
+async function consumeSse(
+  url: string,
+  init: RequestInit,
+  controller: AbortController,
+  callbacks: SseStreamCallbacks,
+): Promise<void> {
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+
+    if (!res.ok || !res.body) {
+      if (res.status === 409) {
+        const text = await res.text().catch(() => "");
+        if (text.includes("WORKSPACE_NOT_SELECTED")) {
+          callbacks.onError(new WorkspaceNotSelectedError(text));
+          return;
+        }
+      }
+      callbacks.onError(new Error(`HTTP ${res.status}`));
+      return;
+    }
+
+    await processSseStream(res, callbacks, controller.signal);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") return;
+    callbacks.onError(err instanceof Error ? err : new Error("Unknown error"));
+  }
+}
+
 export function streamChat(
   sessionId: string,
   body: ChatRequest,
-  onEvent: (event: StreamRunEvent) => void,
-  onError: (error: Error) => void,
-  onDone: (fullOutput: string) => void,
-  onApprovalRequest?: (event: Extract<StreamRunEvent, { type: "approval_request" }>) => void,
+  callbacks: SseStreamCallbacks,
 ): AbortController {
   const controller = new AbortController();
+  void consumeSse(
+    `${BASE}/sessions/${sessionId}/chat`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    controller,
+    callbacks,
+  );
+  return controller;
+}
 
-  void (async () => {
-    try {
-      const res = await fetch(`${BASE}/sessions/${sessionId}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-
-      if (!res.ok || !res.body) {
-        if (res.status === 409) {
-          const text = await res.text().catch(() => "");
-          if (text.includes("WORKSPACE_NOT_SELECTED")) {
-            onError(new WorkspaceNotSelectedError(text));
-            return;
-          }
-        }
-        onError(new Error(`HTTP ${res.status}`));
-        return;
-      }
-
-      await processSseStream(
-        res,
-        onEvent,
-        onError,
-        onDone,
-        controller.signal,
-        onApprovalRequest,
-      );
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") return;
-      onError(err instanceof Error ? err : new Error("Unknown error"));
-    }
-  })();
-
+/** 重挂活动 run 的流：按游标增量重放（GET 语义，无副作用）。 */
+export function attachSessionStream(
+  sessionId: string,
+  fromIndex: number,
+  callbacks: SseStreamCallbacks,
+): AbortController {
+  const controller = new AbortController();
+  void consumeSse(
+    `${BASE}/sessions/${sessionId}/stream?from_index=${fromIndex}`,
+    { method: "GET" },
+    controller,
+    callbacks,
+  );
   return controller;
 }

@@ -1,8 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  attachSessionStream,
+  fetchActiveRun,
   streamChat,
   submitApproval,
   WorkspaceNotSelectedError,
+  type SseStreamCallbacks,
 } from "../api/client";
 import { completeTakeover as completeTakeoverApi, cancelTakeover as cancelTakeoverApi } from "../api/browser";
 import { useTakeoverState } from "./useTakeoverState";
@@ -32,7 +35,16 @@ interface UseChatStreamParams {
   onBrowserActivity: () => void;
   setBrowserActive: (v: boolean) => void;
   setActiveMainTab: (v: "chat" | "browser") => void;
+  /** 本地是否已按 run_id 累积过状态：决定重挂用增量游标还是 from_index=0 重建 */
+  hasRunState: (sessionId: string, runId: string) => boolean;
+  /** 按 run_id 清空本地累积（重建前调用，避免重放时二次追加） */
+  resetRun: (sessionId: string, runId: string) => void;
 }
+
+/** 断连重挂的最大尝试次数与基础退避 */
+const MAX_REATTACH_ATTEMPTS = 5;
+const REATTACH_BASE_MS = 500;
+const REATTACH_MAX_MS = 5000;
 
 export function useChatStream(params: UseChatStreamParams) {
   const {
@@ -52,11 +64,18 @@ export function useChatStream(params: UseChatStreamParams) {
     onBrowserActivity,
     setBrowserActive,
     setActiveMainTab,
+    hasRunState,
+    resetRun,
   } = params;
 
   const abortRef = useRef<AbortController | null>(null);
   const takeoverAbortRef = useRef<AbortController | null>(null);
   const approvalSessionIdRef = useRef<string | null>(null);
+  // 最近收到的 SSE 事件序号（`id:` 行）：增量重挂的游标
+  const lastEventIdRef = useRef(0);
+  const reattachAttemptsRef = useRef(0);
+  // 已附加的 "session:run"：避免挂载 effect 重复重挂同一 run
+  const attachedRunRef = useRef("");
   const [approvalRequest, setApprovalRequest] =
     useState<ApprovalRequestEvent | null>(null);
   // 最近一次 browser_detect_filters 的 Filter Schema（新 run 开始时清空）
@@ -195,6 +214,10 @@ export function useChatStream(params: UseChatStreamParams) {
         sid,
         fullOutput.length,
       );
+      // 终态：清理重挂状态
+      reattachAttemptsRef.current = 0;
+      attachedRunRef.current = "";
+      lastEventIdRef.current = 0;
       finalizeAssistantMessage(fullOutput);
       setLoading(false);
       void refreshSessionTitle(sid);
@@ -202,6 +225,107 @@ export function useChatStream(params: UseChatStreamParams) {
     },
     [finalizeAssistantMessage, refreshSessionTitle, refreshUndo, setLoading],
   );
+
+  const markAttached = useCallback((sid: string, runId: string) => {
+    attachedRunRef.current = `${sid}:${runId}`;
+  }, []);
+
+  // 重挂与退避重挂互相调用：用 ref 打破 useCallback 循环依赖
+  const reattachRef = useRef<(sid: string, requireSuspended: boolean) => Promise<void>>(
+    async () => {},
+  );
+  const scheduleReattachRef = useRef<(sid: string) => void>(() => {});
+
+  const attachCallbacks = useCallback(
+    (sid: string): SseStreamCallbacks => ({
+      onEvent: makeEventCallback(sid),
+      onError: makeErrorCallback(),
+      onDone: makeDoneCallback(sid),
+      onDetached: (lastEventId) => {
+        lastEventIdRef.current = lastEventId;
+        scheduleReattachRef.current(sid);
+      },
+      onApprovalRequest: (event) => setApprovalRequest(event),
+    }),
+    [makeEventCallback, makeErrorCallback, makeDoneCallback],
+  );
+
+  /** 按本地状态选择重放起点：已有该 run 状态 → 增量；否则清空重建。 */
+  const openRunStream = useCallback(
+    (sid: string, runId: string) => {
+      const incremental = hasRunState(sid, runId);
+      const fromIndex = incremental ? lastEventIdRef.current : 0;
+      if (!incremental) {
+        resetRun(sid, runId);
+        lastEventIdRef.current = 0;
+      }
+      console.log(
+        "[useChatStream] reattach sid=%s run_id=%s from_index=%d",
+        sid,
+        runId,
+        fromIndex,
+      );
+      approvalSessionIdRef.current = sid;
+      markAttached(sid, runId);
+      abortRef.current = attachSessionStream(sid, fromIndex, attachCallbacks(sid));
+    },
+    [hasRunState, resetRun, markAttached, attachCallbacks],
+  );
+
+  // 断连后有限次退避重挂：从 /active-run 取回 run_id 再按本地状态选游标
+  const scheduleReattach = useCallback(
+    (sid: string) => {
+      if (reattachAttemptsRef.current >= MAX_REATTACH_ATTEMPTS) {
+        console.warn("[useChatStream] reattach giving up sid=%s", sid);
+        setLoading(false);
+        return;
+      }
+      const attempt = reattachAttemptsRef.current++;
+      const delay = Math.min(REATTACH_BASE_MS * 2 ** attempt, REATTACH_MAX_MS);
+      console.log(
+        "[useChatStream] detached sid=%s last_id=%d retry_in=%dms attempt=%d",
+        sid,
+        lastEventIdRef.current,
+        delay,
+        attempt + 1,
+      );
+      setTimeout(() => {
+        void reattachRef.current(sid, false);
+      }, delay);
+    },
+    [setLoading],
+  );
+
+  /** 取回活动 run 并重挂；requireSuspended=true 时仅在挂起态重挂（页面挂载用）。 */
+  const reattach = useCallback(
+    async (sid: string, requireSuspended: boolean) => {
+      let info;
+      try {
+        info = await fetchActiveRun(sid);
+      } catch (err) {
+        console.warn("[useChatStream] reattach: active-run failed sid=%s", sid, err);
+        return;
+      }
+      if (!info.run_id) return;
+      if (requireSuspended && info.suspended === null) return;
+      if (attachedRunRef.current === `${sid}:${info.run_id}`) return;
+      setLoading(true);
+      openRunStream(sid, info.run_id);
+    },
+    [openRunStream, setLoading],
+  );
+
+  useEffect(() => {
+    reattachRef.current = reattach;
+    scheduleReattachRef.current = scheduleReattach;
+  }, [reattach, scheduleReattach]);
+
+  // 页面挂载 / 会话切换：重放挂起态事件（human_takeover_request / approval_request），
+  // 既有抽屉与确认框由重放事件自行恢复
+  useEffect(() => {
+    if (!activeSessionId) return;
+    void reattachRef.current(activeSessionId, true);
+  }, [activeSessionId]);
 
   const handleSend = useCallback(
     (prompt: string, attachments: string[], crawlUrl: string | null) => {
@@ -211,6 +335,10 @@ export function useChatStream(params: UseChatStreamParams) {
         addUserMessage(prompt, attachments, crawlUrl);
         setLoading(true);
         approvalSessionIdRef.current = sid;
+        // 新 run：重置重挂状态
+        reattachAttemptsRef.current = 0;
+        attachedRunRef.current = "";
+        lastEventIdRef.current = 0;
 
         abortRef.current = streamChat(
           sid,
@@ -221,12 +349,7 @@ export function useChatStream(params: UseChatStreamParams) {
             provider: selectedProvider || null,
             crawl_url: crawlUrl,
           },
-          makeEventCallback(sid),
-          makeErrorCallback(),
-          makeDoneCallback(sid),
-          (event) => {
-            setApprovalRequest(event);
-          },
+          attachCallbacks(sid),
         );
       };
 
@@ -244,10 +367,8 @@ export function useChatStream(params: UseChatStreamParams) {
     [
       activeSessionId,
       addUserMessage,
+      attachCallbacks,
       createNewSession,
-      makeEventCallback,
-      makeErrorCallback,
-      makeDoneCallback,
       selectedModel,
       selectedProvider,
       setLoading,

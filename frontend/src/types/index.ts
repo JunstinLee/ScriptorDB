@@ -343,6 +343,22 @@ export interface TakeoverCancelledEvent {
   timestamp: string;
 }
 
+/** 总线历史被截断：订阅者拿到的是残缺历史，前端仅记 warn 后继续消费 */
+export interface StreamTruncatedEvent {
+  type: "stream_truncated";
+  run_id: string;
+  /** 该序号之前的事件已被丢弃 */
+  dropped_before: number;
+}
+
+/** GET /api/sessions/{id}/active-run 响应 */
+export interface ActiveRunResponse {
+  run_id: string;
+  suspended: "takeover" | "approval" | null;
+  reason: string;
+  last_index: number;
+}
+
 // ==================== Login Credentials ====================
 
 /** 保存时从当前页捕获的第三项字段特征（供 03 autofill 匹配） */
@@ -429,6 +445,7 @@ export type StreamRunEvent =
   | HumanTakeoverRequestEvent
   | TakeoverStateChangeEvent
   | TakeoverCancelledEvent
+  | StreamTruncatedEvent
   | LoginFlowStatusEvent;
 
 export interface ToolInvocation {

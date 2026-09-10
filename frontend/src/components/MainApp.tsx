@@ -50,7 +50,7 @@ export default function MainApp({
   onDeleteWorkspace,
   onRefreshWorkspaces,
 }: MainAppProps) {
-  const { getRuns, appendEvent, setRuns, clearRuns } = useRuns();
+  const { getRuns, appendEvent, setRuns, clearRuns, resetRun } = useRuns();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [undoConfirmGroupId, setUndoConfirmGroupId] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -142,6 +142,8 @@ export default function MainApp({
     onBrowserActivity: browserPanel.onBrowserActivity,
     setBrowserActive,
     setActiveMainTab,
+    hasRunState: (sid, runId) => getRuns(sid).some((r) => r.run_id === runId),
+    resetRun,
   });
   const loginAutofill = useLoginAutofillState(loginFormInfo);
 
