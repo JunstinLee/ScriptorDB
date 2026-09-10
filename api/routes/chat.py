@@ -1,174 +1,79 @@
 from __future__ import annotations
 
+"""chat 路由：只做「启动 run + 订阅事件总线」。
+
+run 的生存期由 `runtime/approval/run_owner.execute_run` 持有——订阅者（`/chat`
+或 `GET /sessions/{id}/stream`）断开不影响 run；恢复端点唤醒原 run，事件经
+`RunEventBus` 按 `from_index` 游标重放。
+"""
+
 import asyncio
-from contextlib import suppress
-from typing import Any
+from collections.abc import AsyncIterator
 from copy import copy
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic_ai.messages import ModelMessage
 
 from core.logging_setup import get_logger
+from runtime.approval.event_bus import RunEventBus
 from runtime.approval.orchestrator import ApprovalOrchestrator
+from runtime.approval.run_owner import execute_run
+from runtime.approval.run_registry import ActiveRun, get_run_registry
 from api.dependencies import get_app_context, get_config, require_workspace
 from schemas import ChatRequest
 from runtime.sessions import get_session_store
 from api.sse_format import sse_done, sse_event
-from services.chat_service import persist_chat_run, repair_tool_message_pairs
+from services.chat_service import repair_tool_message_pairs
 from services.prompt_service import CrawlError, augment_prompt
 
 logger = get_logger("routes.chat")
 
 router = APIRouter(prefix="/api/sessions", tags=["chat"])
 
-_active_orchestrators: dict[str, ApprovalOrchestrator] = {}
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+}
+
+# 挂起事件：推给订阅者后流保持打开，等待恢复端点唤醒同一 run
+_SUSPEND_EVENTS = frozenset({"approval_request", "human_takeover_request"})
 
 
+async def _stream_bus(
+    bus: RunEventBus, from_index: int, session_id: str
+) -> AsyncIterator[str]:
+    """把总线事件编码为 SSE 帧，直到 run 终态（run_end）或总线关闭。"""
+    try:
+        async for index, event in bus.subscribe(from_index):
+            ev_type = event.get("type", "")
+            if ev_type in _SUSPEND_EVENTS:
+                # 与接管一致：流保持打开，等待审批决定后继续推送同一 run 的事件
+                yield sse_event(ev_type, event, index)
+                continue
+            if ev_type == "run_end":
+                yield sse_event(ev_type, event, index)
+                yield sse_done()
+                return
+            # metadata / error / text_delta / tool_call / tool_result / trace /
+            # takeover_state_change / takeover_cancelled / stream_truncated：原样转发
+            yield sse_event(ev_type, event, index)
+    except asyncio.CancelledError:
+        # 订阅者断开：不 cancel run、不动 registry、不做落盘——run 由 owner 持有
+        logger.info(
+            "chat_stream_detached session_id=%s last_index=%s",
+            session_id, bus.last_index,
+        )
+        raise
 
-async def _stream_orchestrator_events(
-    orchestrator: ApprovalOrchestrator,
-    prompt: str,
-    message_history: list[ModelMessage],
-    session_id: str,
+
+def _streaming_response(
+    bus: RunEventBus, from_index: int, session_id: str
 ) -> StreamingResponse:
-    event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-    run_collector: dict[str, Any] = {}
-    new_messages_collector: list[ModelMessage] = []
-
-    async def event_callback(event: dict[str, Any]) -> None:
-        await event_queue.put(event)
-
-    run_task = asyncio.create_task(
-        orchestrator.start_run(prompt, message_history, event_callback)
-    )
-
-    async def generate():
-        nonlocal run_collector, new_messages_collector
-
-        def _should_persist(summary: dict[str, Any]) -> bool:
-            return (
-                summary["status"] == "completed"
-                or summary.get("error_type") == "site_unavailable"
-            )
-
-        interrupted = False
-        try:
-            while True:
-                if run_task.done() and event_queue.empty():
-                    break
-
-                event = await event_queue.get()
-                ev_type = event.get("type", "")
-
-                if ev_type == "new_messages":
-                    new_messages_collector.extend(event.get("messages", []))
-                    continue
-
-                if ev_type == "metadata":
-                    continue
-
-                yield sse_event(ev_type, event)
-
-                if ev_type == "approval_request":
-                    # 与接管一致：流保持打开，等待审批决定后继续推送同一 run 的事件。
-                    continue
-                if ev_type == "human_takeover_request":
-                    # 接管期间 run 挂起在 resume_event 上，SSE 流保持打开；
-                    # 恢复后继续推送同一 run 的后续事件。
-                    continue
-                if ev_type == "takeover_state_change":
-                    yield sse_event(ev_type, event)
-                    if event.get("state") == "cancelled":
-                        return
-                    continue
-                if ev_type == "takeover_cancelled":
-                    yield sse_event(ev_type, event)
-                    continue
-                if ev_type == "run_end":
-                    yield sse_done()
-                    remove_orchestrator(session_id)
-                    break
-        except asyncio.CancelledError:
-            interrupted = True
-            raise
-        finally:
-            if interrupted:
-                logger.warning(
-                    "chat_stream_interrupted session_id=%s run_task_done=%s",
-                    session_id, run_task.done(),
-                )
-                if run_task.done():
-                    with suppress(Exception):
-                        summary = run_task.result()
-                        logger.info(
-                            "chat_stream_interrupted summary status=%s run_id=%s",
-                            summary["status"], summary["run_id"],
-                        )
-                        if _should_persist(summary):
-                            new_messages_collector.extend(
-                                summary.get("new_messages", [])
-                            )
-                            persist_chat_run(
-                                session_id=session_id,
-                                new_messages_collector=new_messages_collector,
-                                run_collector=summary,
-                            )
-                            from browser import get_manager
-                            get_manager().schedule_idle_close()
-                        else:
-                            logger.warning(
-                                "chat_stream_interrupted: status=%s not persisted session_id=%s",
-                                summary["status"], session_id,
-                            )
-                else:
-                    run_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await run_task
-                    # 先杀 task 再收敛，避免落盘与 run 内部写 session 竞争。
-                    # outcome 必须预先绑定：收敛抛异常时下面的日志不能因变量未绑定
-                    # 再抛 NameError 盖掉真正的取消异常。
-                    outcome: dict[str, Any] = {}
-                    try:
-                        outcome = orchestrator.abort_paused_run("SSE 连接中断")
-                    except Exception:
-                        logger.exception(
-                            "chat_stream_abandon_failed session_id=%s", session_id
-                        )
-                    logger.warning(
-                        "chat_stream_abandoned session_id=%s run_id=%s outcome=%s",
-                        session_id, orchestrator.run_id, outcome,
-                    )
-                    remove_orchestrator(session_id)
-            else:
-                summary = await run_task
-                logger.info(
-                    "chat_stream_finished session_id=%s status=%s run_id=%s",
-                    session_id, summary["status"], summary["run_id"],
-                )
-                if _should_persist(summary):
-                    new_messages_collector.extend(summary.get("new_messages", []))
-                    persist_chat_run(
-                        session_id=session_id,
-                        new_messages_collector=new_messages_collector,
-                        run_collector=summary,
-                    )
-                    from browser import get_manager
-                    get_manager().schedule_idle_close()
-                else:
-                    logger.warning(
-                        "chat_stream_finished: status=%s not persisted session_id=%s",
-                        summary["status"], session_id,
-                    )
-
     return StreamingResponse(
-        generate(),
+        _stream_bus(bus, from_index, session_id),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
+        headers=dict(_SSE_HEADERS),
     )
 
 
@@ -198,23 +103,60 @@ async def chat(session_id: str, req: ChatRequest):
 
     model_messages = repair_tool_message_pairs(session.get_model_messages())
 
+    # 409 检查、槽位构造、注册、建 task 必须在同一段无 await 的同步代码里：
+    # 否则两个并发 POST /chat 都能通过检查，同一 session 起两个 run。
+    registry = get_run_registry()
+    if registry.get(session_id) is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="A run is already active for this session; attach to its stream instead",
+        )
+
+    bus = RunEventBus()
     orchestrator = ApprovalOrchestrator(
         session_id,
         run_config,
         model=req.model,
         provider=req.provider,
         app_context=get_app_context(),
+        suspend_callback=lambda kind, reason: registry.mark_suspended(
+            session_id, kind or "", reason
+        ),
     )
-    _active_orchestrators[session_id] = orchestrator
-
-    return await _stream_orchestrator_events(
-        orchestrator, augmented_prompt, model_messages, session_id
+    slot = ActiveRun(session_id=session_id, orchestrator=orchestrator, bus=bus)
+    registry.register(slot)
+    # 任务由 chat() 创建并回填槽位（owner 协程不建 task）；槽位持有强引用，
+    # 否则 asyncio 的弱引用语义会让 owner task 在执行中被回收。
+    slot.task = asyncio.create_task(
+        execute_run(slot=slot, prompt=augmented_prompt, message_history=model_messages)
     )
 
-
-def get_orchestrator(session_id: str) -> ApprovalOrchestrator | None:
-    return _active_orchestrators.get(session_id)
+    return _streaming_response(bus, 0, session_id)
 
 
-def remove_orchestrator(session_id: str) -> ApprovalOrchestrator | None:
-    return _active_orchestrators.pop(session_id, None)
+@router.get("/{session_id}/stream")
+async def attach_stream(session_id: str, from_index: int = 0):
+    """重挂订阅：按 from_index 游标重放活动 run 的历史事件。"""
+    require_workspace()
+    session = get_session_store().get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    slot = get_run_registry().get(session_id)
+    if slot is None:
+        raise HTTPException(status_code=404, detail="No active run for this session")
+    return _streaming_response(slot.bus, from_index, session_id)
+
+
+@router.get("/{session_id}/active-run")
+async def active_run(session_id: str):
+    """当前活动 run 的状态：run_id / 挂起类型 / 最新游标。"""
+    require_workspace()
+    slot = get_run_registry().get(session_id)
+    if slot is None:
+        return {"run_id": "", "suspended": None, "reason": "", "last_index": 0}
+    return {
+        "run_id": slot.run_id,
+        "suspended": slot.suspended,
+        "reason": slot.suspend_reason,
+        "last_index": slot.bus.last_index,
+    }

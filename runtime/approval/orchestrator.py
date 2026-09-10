@@ -84,6 +84,7 @@ class ApprovalOrchestrator:
         checkpoint_store: TakeoverCheckpointStore | None = None,
         session_store: SessionStore | None = None,
         takeover: TakeoverController | None = None,
+        suspend_callback: Callable[[str | None, str], None] | None = None,
     ):
         self.session_id = session_id
         self.config = config
@@ -105,6 +106,13 @@ class ApprovalOrchestrator:
         # 取消/超时置 cancelled 后终止 run。审批暂停同模式，signal_approval() 唤醒。
         self._approval = ApprovalPauseState()
         self._pause = RunPauseState()
+        # 挂起标记回调（chat() 注入 registry.mark_suspended）：runtime 不反向依赖 API 层
+        self._suspend_callback = suspend_callback
+
+    def _notify_suspend(self, kind: str | None, reason: str = "") -> None:
+        """写挂起标记；kind 为 None 表示已恢复/进入终态。未注入回调时空操作。"""
+        if self._suspend_callback is not None:
+            self._suspend_callback(kind, reason)
 
     @property
     def run_id(self) -> str:
@@ -188,18 +196,22 @@ class ApprovalOrchestrator:
         if ev_type == "approval_request":
             return await self._handle_approval_request(event, state, event_callback)
         if ev_type == "human_takeover_request":
-            # run 挂起在 hook 的 resume_event.wait() 上，不结束 run
+            # run 挂起在 hook 的 resume_event.wait() 上，不结束 run；
+            # 状态机刚进入 WAITING_HUMAN 时推此事件，此处标记是准确的
+            self._notify_suspend("takeover", str(event.get("reason", "")))
             await event_callback(event)
             return _LoopAction.CONTINUE
         if ev_type == "takeover_cancelled":
             await event_callback(event)
             self._takeover.reset()
+            self._notify_suspend(None)
             # 超时/取消路径都要清掉 checkpoint，避免残留占用
             self._clear_checkpoint()
             return _LoopAction.END
         if ev_type == "run_end":
             await event_callback(event)
             self._takeover.reset()
+            self._notify_suspend(None)
             self._clear_checkpoint()
             return _LoopAction.END
         await event_callback(event)
@@ -216,6 +228,8 @@ class ApprovalOrchestrator:
         signal_approval() 先写 decision 再 set()（顺序契约）；pending 在唤醒
         后才 pop，避免双点/过期请求提前消费。"""
         await event_callback(event)
+        calls = event.get("calls", [])
+        self._notify_suspend("approval", f"{len(calls)} deferred tool call(s) await approval")
         await self._approval.resume_event.wait()
         if self._approval.cancelled:
             # 审批被取消：记录取消终态，结束 run（metadata 事件无消费者，不构造）
@@ -224,6 +238,7 @@ class ApprovalOrchestrator:
                 self._pending_store.pop(request_id)
             state.tracker.status = "cancelled"
             state.tracker.ended_at = utc_now_iso()
+            self._notify_suspend(None)
             await event_callback(run_end_event(state.tracker.run_id))
             return _LoopAction.END
         results = self._approval.decision
@@ -234,6 +249,7 @@ class ApprovalOrchestrator:
         state.deferred_results = results
         state.prompt = RESUME_PROMPT
         self._approval = ApprovalPauseState()
+        self._notify_suspend(None)
         return _LoopAction.RESTART
 
     def _resolve_agent(self) -> Any:
@@ -284,6 +300,7 @@ class ApprovalOrchestrator:
         self._takeover.complete(takeover_result)
 
         self._pause.resume_event.set()
+        self._notify_suspend(None)
         return {"ok": True, "status": "resumed", "run_id": self.run_id}
 
     def cancel_takeover(self, run_id: str = "", reason: str = "") -> dict[str, Any]:
@@ -312,6 +329,7 @@ class ApprovalOrchestrator:
         # 唤醒挂起的 run：hook 检测到 cancelled 后调用 ctx.cancel()，
         # pydantic-ai 停止 run 并抛 RunCancelled，lifecycle 转取消终态。
         self._pause.cancel_run()
+        self._notify_suspend(None)
         return {"ok": True, "status": "cancelled", "reason": reason or "用户取消接管"}
 
     def abort_paused_run(self, reason: str) -> dict[str, Any]:
@@ -326,6 +344,7 @@ class ApprovalOrchestrator:
         self._pause.cancel_run() 再落盘，否则 hook 永远停在挂起点。
         """
         outcome: dict[str, Any] = {}
+        self._notify_suspend(None)
 
         # 接管挂起：先落盘、再清内存、最后复位状态机（与 cancel_takeover 顺序契约一致）
         checkpoint = self._checkpoint_store.get(self.session_id)

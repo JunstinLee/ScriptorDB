@@ -15,6 +15,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
+from fastapi.responses import StreamingResponse
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
     FunctionToolResultEvent,
@@ -29,13 +30,22 @@ from config.app_config import AppConfig
 from runtime.agent_runner import run_agent_stream
 from runtime.approval.orchestrator import ApprovalOrchestrator
 from runtime.approval.store import get_takeover_checkpoint_store
+from runtime.approval.event_bus import RunEventBus
+from runtime.approval.run_owner import execute_run
+from runtime.approval.run_registry import ActiveRun, get_run_registry
 from runtime.runner.takeover_hook import RunPauseState, TakeoverCancelledError
-from api.routes.chat import (
-    _active_orchestrators,
-    _stream_orchestrator_events,
-    get_orchestrator,
-)
+from api.routes.chat import _stream_bus
 from runtime.session_file_store import FileSessionStore
+
+
+def _start_slot(sid: str, orchestrator: ApprovalOrchestrator) -> ActiveRun:
+    """按 chat() 的方式注册槽位并启动 owner task。"""
+    slot = ActiveRun(session_id=sid, orchestrator=orchestrator, bus=RunEventBus())
+    get_run_registry().register(slot)
+    slot.task = asyncio.create_task(
+        execute_run(slot=slot, prompt="hi", message_history=[])
+    )
+    return slot
 
 
 class FakeRunContext:
@@ -461,7 +471,7 @@ async def test_cancel_then_new_message_starts_new_run(monkeypatch, store):
 
 
 async def test_chat_sse_takeover_pause_keeps_stream_open(monkeypatch, store):
-    """接管期间 SSE 流保持打开；恢复后同一 run 的事件继续推送至 run_end。"""
+    """接管期间订阅流保持打开；恢复后同一 run 的事件继续推送至 run_end。"""
     _patch_store(monkeypatch, store)
     sid = store.create().session_id
     mgr = get_manager()
@@ -471,9 +481,11 @@ async def test_chat_sse_takeover_pause_keeps_stream_open(monkeypatch, store):
     config.chat_session_id = sid
     agent = FakeAgent(mode="block")
     orchestrator = ApprovalOrchestrator(sid, config, agent=agent)
-    _active_orchestrators[sid] = orchestrator
+    slot = _start_slot(sid, orchestrator)
 
-    response = await _stream_orchestrator_events(orchestrator, "hi", [], sid)
+    response = StreamingResponse(
+        _stream_bus(slot.bus, 0, sid), media_type="text/event-stream"
+    )
     chunks: list[Any] = []
 
     async def consume():
@@ -483,18 +495,18 @@ async def test_chat_sse_takeover_pause_keeps_stream_open(monkeypatch, store):
     consumer = asyncio.create_task(consume())
     await _await_true(lambda: any("human_takeover_request" in c for c in chunks))
 
-    # 接管期间：SSE 流保持打开，run 挂起未取消，orchestrator 保留
+    # 接管期间：订阅流保持打开，run 挂起未取消，槽位保留
     await asyncio.sleep(0.2)
     assert not consumer.done()
     assert not agent.cancelled
-    assert get_orchestrator(sid) is not None
+    assert get_run_registry().get(sid) is not None
 
-    # 恢复：同一 run 继续，SSE 流推送 run_end 后结束
+    # 恢复：同一 run 继续，总线推送 run_end 后订阅结束
     mgr.takeover.complete("done")
     agent.release = True
     assert orchestrator.resume_takeover(orchestrator.run_id, "done")["ok"]
     await asyncio.wait_for(consumer, timeout=5.0)
 
-    # run_end 终态收敛：编排器从注册表移除，checkpoint 清理
-    assert get_orchestrator(sid) is None
+    # run_end 终态收敛：owner 注销槽位，checkpoint 清理
+    await _await_true(lambda: get_run_registry().get(sid) is None)
     assert get_takeover_checkpoint_store().get(sid) is None

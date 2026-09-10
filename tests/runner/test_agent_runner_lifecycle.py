@@ -7,6 +7,7 @@ from typing import Any
 
 import pytest
 from fastapi import HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic_ai import DeferredToolRequests
 from pydantic_ai.messages import (
     FunctionToolCallEvent,
@@ -24,16 +25,46 @@ from browser.takeover import HumanTakeoverState
 from config.app_config import AppConfig
 from runtime.agent_runner import run_agent_stream
 from runtime.approval.orchestrator import ApprovalOrchestrator
+from runtime.approval.event_bus import RunEventBus
+from runtime.approval.run_owner import execute_run
+from runtime.approval.run_registry import ActiveRun, get_run_registry
 from api.routes.browser_interact import (
     TakeoverCompleteRequest,
     complete_human_takeover,
 )
-from api.routes.chat import (
-    _active_orchestrators,
-    _stream_orchestrator_events,
-    get_orchestrator,
-)
+from api.routes import chat as chat_route
 from runtime.session_file_store import FileSessionStore
+
+
+def _sse_response(bus: RunEventBus, sid: str, from_index: int = 0) -> StreamingResponse:
+    return StreamingResponse(
+        chat_route._stream_bus(bus, from_index, sid),
+        media_type="text/event-stream",
+    )
+
+
+class _RegistryStub:
+    """按 session 返回固定槽位（或 None）的注册表替身，供路由用例注入。"""
+
+    def __init__(self, slot: Any | None) -> None:
+        self._slot = slot
+
+    def get(self, session_id: str):
+        return self._slot
+
+    def remove(self, session_id: str, run_id: str = ""):
+        return self._slot
+
+
+def _start_run(sid: str, agent: Any) -> ActiveRun:
+    """按 chat() 的方式建槽位、注册、建 task（owner 不自行创建）。"""
+    orchestrator = ApprovalOrchestrator(sid, AppConfig(), agent=agent)
+    slot = ActiveRun(session_id=sid, orchestrator=orchestrator, bus=RunEventBus())
+    get_run_registry().register(slot)
+    slot.task = asyncio.create_task(
+        execute_run(slot=slot, prompt="hi", message_history=[])
+    )
+    return slot
 
 
 class FakeAgent:
@@ -224,8 +255,13 @@ async def test_complete_route_rejects_wrong_run_id(monkeypatch, store):
     monkeypatch.setattr(browser_interact, "get_config", lambda: AppConfig())
     monkeypatch.setattr(
         browser_interact,
-        "get_orchestrator",
-        lambda sid: SimpleNamespace(run_id="abc"),
+        "get_run_registry",
+        lambda: _RegistryStub(
+            SimpleNamespace(
+                run_id="abc",
+                orchestrator=SimpleNamespace(run_id="abc"),
+            )
+        ),
     )
 
     with pytest.raises(HTTPException) as exc:
@@ -236,15 +272,18 @@ async def test_complete_route_rejects_wrong_run_id(monkeypatch, store):
 
 
 @pytest.mark.asyncio
-async def test_chat_sse_disconnect_terminates_running_run(monkeypatch, store):
+async def test_chat_sse_disconnect_keeps_run_alive(monkeypatch, store):
+    """断连只丢订阅者：run 继续（agent 未取消），重挂 from_index=0 拿到完整序列。"""
     _patch_store(monkeypatch, store)
     sid = store.create().session_id
 
-    agent = FakeAgent(mode="block", delay_before_tool=5.0)
-    orchestrator = ApprovalOrchestrator(sid, AppConfig(), agent=agent)
-    _active_orchestrators[sid] = orchestrator
+    monkeypatch.setattr(chat_route, "require_workspace", lambda: AppConfig())
+    monkeypatch.setattr(chat_route, "get_session_store", lambda: store)
 
-    response = await _stream_orchestrator_events(orchestrator, "hi", [], sid)
+    agent = FakeAgent(mode="complete", delay_before_tool=0.5)
+    slot = _start_run(sid, agent)
+
+    response = _sse_response(slot.bus, sid, 0)
     chunks: list[Any] = []
 
     async def consume():
@@ -257,9 +296,21 @@ async def test_chat_sse_disconnect_terminates_running_run(monkeypatch, store):
     with suppress(asyncio.CancelledError):
         await consumer
 
-    assert get_orchestrator(sid) is None
-    await _await_true(lambda: agent.cancelled)
-    assert agent.cancelled
+    # 断连不结束 run：注册表仍有槽位，agent 未被取消
+    assert get_run_registry().get(sid) is not None
+    assert not agent.cancelled
+
+    # 重挂 from_index=0：拿到含 run_end 的完整序列
+    reattach = await chat_route.attach_stream(sid, 0)
+    seen: list[Any] = []
+    async for chunk in reattach.body_iterator:
+        seen.append(chunk)
+    text = "".join(seen)
+    assert "event: run_end" in text
+    assert "data: [DONE]" in text
+
+    # run 结束（run_end 终态）后 owner 注销槽位
+    await _await_true(lambda: get_run_registry().get(sid) is None)
 
 
 
@@ -280,8 +331,8 @@ async def test_cancel_route_stale_session_returns_error(monkeypatch, store):
     monkeypatch.setattr(browser_interact, "get_config", lambda: AppConfig())
     monkeypatch.setattr(
         browser_interact,
-        "get_orchestrator",
-        lambda sid: None,
+        "get_run_registry",
+        lambda: _RegistryStub(None),
     )
     with pytest.raises(HTTPException) as exc:
         await browser_interact.cancel_takeover(
@@ -301,8 +352,20 @@ async def test_cancel_route_run_mismatch_returns_409(monkeypatch, store):
     monkeypatch.setattr(browser_interact, "get_config", lambda: AppConfig())
     monkeypatch.setattr(
         browser_interact,
-        "get_orchestrator",
-        lambda sid: SimpleNamespace(run_id="real-run", cancel_takeover=lambda run_id="", reason="": {"ok": False, "error": "run_mismatch", "status": "not_cancelled"}),
+        "get_run_registry",
+        lambda: _RegistryStub(
+            SimpleNamespace(
+                run_id="real-run",
+                orchestrator=SimpleNamespace(
+                    run_id="real-run",
+                    cancel_takeover=lambda run_id="", reason="": {
+                        "ok": False,
+                        "error": "run_mismatch",
+                        "status": "not_cancelled",
+                    },
+                ),
+            )
+        ),
     )
     with pytest.raises(HTTPException) as exc:
         await browser_interact.cancel_takeover(
