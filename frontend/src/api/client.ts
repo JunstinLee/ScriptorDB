@@ -53,7 +53,6 @@ export {
 export { getImageUrl, downloadImage } from "./files";
 export { searchHistory } from "./history";
 export {
-  type UndoGroup,
   listUndoGroups,
   revertUndoGroup,
   revertAndTrimSession,

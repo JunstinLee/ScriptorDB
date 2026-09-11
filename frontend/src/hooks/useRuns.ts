@@ -186,7 +186,10 @@ function runsReducer(
       const baseRun =
         runIndex !== -1
           ? sessionRuns[runIndex]
-          : createDefaultRun(event.run_id, event.timestamp);
+          : createDefaultRun(
+              event.run_id,
+              "timestamp" in event ? event.timestamp : undefined,
+            );
 
       const updatedRun = applyEventToRun(baseRun, event);
 

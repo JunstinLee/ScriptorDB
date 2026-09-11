@@ -3,7 +3,7 @@ import { WorkspaceNotSelectedError } from "./core";
 
 const BASE = "/api";
 
-/** 已识别的事件类型白名单（与 types/index.ts 的 StreamRunEvent union 同步） */
+/** 已识别的事件类型白名单（与 types/events.ts 的 StreamRunEvent union 同步） */
 const KNOWN_EVENT_TYPES: Record<string, true> = {
   text_delta: true,
   run_start: true,

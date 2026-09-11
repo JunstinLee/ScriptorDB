@@ -1,5 +1,5 @@
 import { getSession } from "../api/client";
-import type { ChatMessage, Run, SessionListItem } from "../types";
+import type { ChatMessage, Run, SessionListItem, SessionMeta } from "../types";
 
 export const TITLE_MAX_LEN = 24;
 export const DEFAULT_TITLE = "New Chat";
@@ -8,12 +8,6 @@ const ACTIVE_SESSION_KEY = "scriptordb:active_session_id";
 export function activeSessionKey(workspaceId?: string | null): string {
   if (!workspaceId) return ACTIVE_SESSION_KEY;
   return `scriptordb:active_session_id:${workspaceId}`;
-}
-
-export interface SessionMeta {
-  session_id: string;
-  created_at: string;
-  title: string;
 }
 
 export function deriveTitle(messages: { role: string; content: string }[]): string {

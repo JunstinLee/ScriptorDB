@@ -271,8 +271,10 @@ describe("useRuns", () => {
         type: "browser_action",
         run_id: "r1",
         tool: "browser_click",
-        action: "click",
-        url: "https://example.com",
+        selector: "#submit",
+        coords: { x: 0, y: 0, width: 10, height: 10 },
+        success: true,
+        detail: "clicked #submit",
         timestamp: T0,
       });
     });
