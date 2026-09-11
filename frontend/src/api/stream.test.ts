@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { streamChat } from "./stream";
+import { attachSessionStream, streamChat, type SseStreamCallbacks } from "./stream";
 
 function createSSEResponse(chunks: string[]): Response {
   return new Response(
@@ -14,6 +14,16 @@ function createSSEResponse(chunks: string[]): Response {
     }),
     { status: 200 },
   );
+}
+
+function makeCallbacks(overrides: Partial<SseStreamCallbacks> = {}): SseStreamCallbacks {
+  return {
+    onEvent: vi.fn(),
+    onError: vi.fn(),
+    onDone: vi.fn(),
+    onDetached: vi.fn(),
+    ...overrides,
+  };
 }
 
 const mockFetch = vi.fn();
@@ -34,9 +44,7 @@ describe("streamChat", () => {
     streamChat(
       "session-1",
       { prompt: "hello", model: "gpt-4", provider: "openai" },
-      () => {},
-      () => {},
-      () => {},
+      makeCallbacks(),
     );
 
     expect(mockFetch).toHaveBeenCalledWith(
@@ -66,7 +74,7 @@ describe("streamChat", () => {
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, onEvent, vi.fn(), onDone);
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onEvent, onDone }));
 
     await vi.waitFor(
       () => {
@@ -96,7 +104,7 @@ describe("streamChat", () => {
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, onEvent, vi.fn(), onDone);
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onEvent, onDone }));
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
 
@@ -117,23 +125,69 @@ describe("streamChat", () => {
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, vi.fn(), vi.fn(), onDone);
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onDone }));
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
     expect(onDone).toHaveBeenCalledWith("Complete response");
   });
 
-  it("calls onDone with empty string when no metadata", async () => {
+  it("does not call onDone when the stream ends without a terminal event", async () => {
+    const onDone = vi.fn();
+    const onDetached = vi.fn();
+
+    mockFetch.mockResolvedValueOnce(
+      createSSEResponse([
+        'id: 7\nevent: text_delta\ndata: {"type":"text_delta","run_id":"r1","delta":"text"}\n\n',
+      ]),
+    );
+
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onDone, onDetached }));
+
+    await vi.waitFor(
+      () => expect(onDetached).toHaveBeenCalled(),
+      { timeout: 500 },
+    );
+    expect(onDone).not.toHaveBeenCalled();
+    expect(onDetached).toHaveBeenCalledWith(7);
+  });
+
+  it("tracks the last id line across events", async () => {
+    const onDetached = vi.fn();
+
+    mockFetch.mockResolvedValueOnce(
+      createSSEResponse([
+        'id: 3\nevent: text_delta\ndata: {"type":"text_delta","run_id":"r1","delta":"a"}\n\n',
+        'id: 8\nevent: text_delta\ndata: {"type":"text_delta","run_id":"r1","delta":"b"}\n\n',
+      ]),
+    );
+
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onDetached }));
+
+    await vi.waitFor(
+      () => expect(onDetached).toHaveBeenCalled(),
+      { timeout: 500 },
+    );
+    expect(onDetached).toHaveBeenCalledWith(8);
+  });
+
+  it("recognizes stream_truncated as an event", async () => {
+    const onEvent = vi.fn();
     const onDone = vi.fn();
 
     mockFetch.mockResolvedValueOnce(
-      createSSEResponse(["event: text_delta\ndata: {\"type\":\"text_delta\",\"run_id\":\"r1\",\"delta\":\"text\"}\n\n"]),
+      createSSEResponse([
+        'event: stream_truncated\ndata: {"type":"stream_truncated","run_id":"r1","dropped_before":12}\n\n',
+        'event: metadata\ndata: {"type":"metadata","run_id":"r1","full_output":"ok"}\n\n',
+      ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, vi.fn(), vi.fn(), onDone);
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onEvent, onDone }));
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
-    expect(onDone).toHaveBeenCalledWith("");
+    const truncated = onEvent.mock.calls
+      .map((c: any[]) => c[0])
+      .find((e: any) => e.type === "stream_truncated");
+    expect(truncated.dropped_before).toBe(12);
   });
 
   it("calls onError for error events", async () => {
@@ -147,7 +201,7 @@ describe("streamChat", () => {
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, vi.fn(), onError, onDone);
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onError, onDone }));
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
     expect(onError).toHaveBeenCalledWith(new Error("Something went wrong"));
@@ -160,7 +214,7 @@ describe("streamChat", () => {
       new Response(null, { status: 500 }),
     );
 
-    streamChat("s1", { prompt: "hi" }, vi.fn(), onError, vi.fn());
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onError }));
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalled(), { timeout: 500 });
     expect(onError).toHaveBeenCalledWith(new Error("HTTP 500"));
@@ -171,7 +225,7 @@ describe("streamChat", () => {
 
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-    streamChat("s1", { prompt: "hi" }, vi.fn(), onError, vi.fn());
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onError }));
 
     await vi.waitFor(() => expect(onError).toHaveBeenCalled(), { timeout: 500 });
     expect(onError).toHaveBeenCalledWith(new Error("Network error"));
@@ -185,7 +239,7 @@ describe("streamChat", () => {
 
     mockFetch.mockRejectedValueOnce(abortError);
 
-    const controller = streamChat("s1", { prompt: "hi" }, vi.fn(), onError, onDone);
+    const controller = streamChat("s1", { prompt: "hi" }, makeCallbacks({ onError, onDone }));
 
     expect(controller).toBeInstanceOf(AbortController);
 
@@ -212,7 +266,7 @@ describe("streamChat", () => {
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, onEvent, vi.fn(), onDone);
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onEvent, onDone }));
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
 
@@ -239,9 +293,33 @@ describe("streamChat", () => {
       ]),
     );
 
-    streamChat("s1", { prompt: "hi" }, vi.fn(), vi.fn(), onDone);
+    streamChat("s1", { prompt: "hi" }, makeCallbacks({ onDone }));
 
     await vi.waitFor(() => expect(onDone).toHaveBeenCalled(), { timeout: 500 });
     expect(onDone).toHaveBeenCalledWith("ok");
+  });
+});
+
+describe("attachSessionStream", () => {
+  it("GETs the reattach endpoint with the from_index cursor", async () => {
+    const onDetached = vi.fn();
+
+    mockFetch.mockResolvedValueOnce(
+      createSSEResponse([
+        'id: 4\nevent: text_delta\ndata: {"type":"text_delta","run_id":"r1","delta":"x"}\n\n',
+      ]),
+    );
+
+    attachSessionStream("s1", 4, makeCallbacks({ onDetached }));
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/sessions/s1/stream?from_index=4",
+      { method: "GET", signal: expect.any(AbortSignal) },
+    );
+
+    await vi.waitFor(
+      () => expect(onDetached).toHaveBeenCalled(),
+      { timeout: 500 },
+    );
   });
 });

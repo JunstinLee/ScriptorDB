@@ -15,8 +15,13 @@ export {
   deleteSession,
   getSchema,
   submitApproval,
+  fetchActiveRun,
 } from "./sessions";
-export { streamChat } from "./stream";
+export {
+  streamChat,
+  attachSessionStream,
+  type SseStreamCallbacks,
+} from "./stream";
 export {
   health,
   fetchModels,
@@ -48,7 +53,6 @@ export {
 export { getImageUrl, downloadImage } from "./files";
 export { searchHistory } from "./history";
 export {
-  type UndoGroup,
   listUndoGroups,
   revertUndoGroup,
   revertAndTrimSession,

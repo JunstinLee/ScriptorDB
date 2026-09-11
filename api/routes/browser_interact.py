@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from api.dependencies import get_config, require_workspace
-from api.routes.chat import get_orchestrator, remove_orchestrator
+from runtime.approval.run_registry import get_run_registry
 
 router = APIRouter(prefix="/api/browser", tags=["browser_interact"])
 
@@ -47,9 +47,16 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
     require_workspace()
     get_config()
 
-    orchestrator = get_orchestrator(body.session_id)
-    if orchestrator is None:
-        raise HTTPException(status_code=404, detail="No active run for this session")
+    slot = get_run_registry().get(body.session_id)
+    if slot is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No active run for this session. The run may have finished, or its "
+                "event stream dropped. Send a new message to start a new run."
+            ),
+        )
+    orchestrator = slot.orchestrator
     if body.run_id and orchestrator.run_id != body.run_id:
         raise HTTPException(
             status_code=409,
@@ -57,7 +64,7 @@ async def complete_human_takeover(body: TakeoverCompleteRequest):
         )
 
     # 不重启 run：仅唤醒原 run 内部挂起的 resume_event，返回 JSON；
-    # 后续事件继续由原 chat SSE 流推送。
+    # 后续事件继续经事件总线推送给订阅者。
     result = orchestrator.resume_takeover(body.run_id, body.result)
     if not result.get("ok"):
         raise HTTPException(status_code=409, detail=result.get("error", "Cannot resume takeover"))
@@ -75,9 +82,16 @@ async def enter_human_control(body: TakeoverEnterControlRequest):
 
 @router.post("/takeover/cancel")
 async def cancel_takeover(body: TakeoverCancelRequest):
-    orchestrator = get_orchestrator(body.session_id)
-    if orchestrator is None:
-        raise HTTPException(status_code=404, detail="No active takeover for this session")
+    slot = get_run_registry().get(body.session_id)
+    if slot is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No active run for this session. The run may have finished, or its "
+                "event stream dropped. Send a new message to start a new run."
+            ),
+        )
+    orchestrator = slot.orchestrator
 
     result = orchestrator.cancel_takeover(body.run_id, "用户取消接管")
     if not result.get("ok"):
@@ -88,7 +102,8 @@ async def cancel_takeover(body: TakeoverCancelRequest):
             )
         raise HTTPException(status_code=409, detail=result.get("error", "Cannot cancel takeover"))
 
-    remove_orchestrator(body.session_id)
+    # owner 亦会 remove，二者幂等
+    get_run_registry().remove(body.session_id, body.run_id)
     return result
 
 

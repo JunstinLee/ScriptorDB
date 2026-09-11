@@ -14,7 +14,8 @@ import type {
 type RunsAction =
   | { type: "append"; sessionId: string; event: StreamRunEvent }
   | { type: "set"; sessionId: string; runs: Run[] }
-  | { type: "clear"; sessionId?: string };
+  | { type: "clear"; sessionId?: string }
+  | { type: "resetRun"; sessionId: string; runId: string };
 
 function createDefaultRun(runId: string, timestamp?: string): Run {
   return {
@@ -122,6 +123,15 @@ function applyEventToRun(run: Run, event: StreamRunEvent): Run {
       };
     }
     case "run_end": {
+      // run_end 是流结束信号，不是状态翻转：error/cancelled 等已定终态
+      // 必须保留，否则 error 横幅（RunContainer 按 status==="error" 渲染）
+      // 会被覆盖成 completed 而永不显示。
+      if (run.status === "error" || run.status === "cancelled") {
+        return {
+          ...run,
+          ended_at: event.timestamp,
+        };
+      }
       return {
         ...run,
         status: "completed",
@@ -176,7 +186,10 @@ function runsReducer(
       const baseRun =
         runIndex !== -1
           ? sessionRuns[runIndex]
-          : createDefaultRun(event.run_id, event.timestamp);
+          : createDefaultRun(
+              event.run_id,
+              "timestamp" in event ? event.timestamp : undefined,
+            );
 
       const updatedRun = applyEventToRun(baseRun, event);
 
@@ -205,6 +218,14 @@ function runsReducer(
         ...state,
         [sessionId]: runs,
       };
+    }
+    case "resetRun": {
+      // 重挂前按 run_id 清空本地累积：避免 from_index=0 重放时二次追加
+      const { sessionId, runId } = action;
+      const sessionRuns = state[sessionId] ?? [];
+      const kept = sessionRuns.filter((r) => r.run_id !== runId);
+      if (kept.length === sessionRuns.length) return state;
+      return { ...state, [sessionId]: kept };
     }
     case "clear": {
       if (action.sessionId) {
@@ -240,5 +261,9 @@ export function useRuns() {
     dispatch({ type: "clear", sessionId });
   }, []);
 
-  return { runsBySession, getRuns, appendEvent, setRuns, clearRuns };
+  const resetRun = useCallback((sessionId: string, runId: string) => {
+    dispatch({ type: "resetRun", sessionId, runId });
+  }, []);
+
+  return { runsBySession, getRuns, appendEvent, setRuns, clearRuns, resetRun };
 }

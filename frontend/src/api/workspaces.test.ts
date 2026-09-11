@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach } from "vitest";
 import {
   fetchWorkspaces,
   fetchActiveWorkspace,
@@ -9,14 +9,11 @@ import {
   deleteWorkspace,
 } from "./workspaces";
 
-const mockJson = vi.fn(() => Promise.resolve({}));
-const mockText = vi.fn(() => Promise.resolve(""));
-const mockFetch = vi.fn(() =>
-  Promise.resolve({ ok: true, json: mockJson, text: mockText, status: 200 }),
-);
+import { stubFetch } from "../test/mockClient";
+
+const { json: mockJson, fetch: mockFetch } = stubFetch();
 
 beforeEach(() => {
-  vi.stubGlobal("fetch", mockFetch);
   mockFetch.mockClear();
   mockJson.mockClear();
 });

@@ -1,4 +1,5 @@
 import type {
+  ActiveRunResponse,
   ApprovalSubmitResponse,
   SchemaResponse,
   SessionCreateResponse,
@@ -29,6 +30,11 @@ export function deleteSession(sessionId: string): Promise<{ ok: boolean }> {
 
 export function getSchema(): Promise<SchemaResponse> {
   return request<SchemaResponse>("/schema");
+}
+
+/** 当前活动 run 状态：无活动 run 时 run_id 为空、suspended 为 null。 */
+export function fetchActiveRun(sessionId: string): Promise<ActiveRunResponse> {
+  return request<ActiveRunResponse>(`/sessions/${sessionId}/active-run`);
 }
 
 export function submitApproval(

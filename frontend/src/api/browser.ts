@@ -28,12 +28,12 @@ export async function interactByCoords(x: number, y: number, vw: number, vh: num
   });
 }
 
-export async function completeTakeover(
+export function completeTakeover(
   sessionId: string,
   result: string,
   onDone: () => void,
   onError: (error: Error) => void,
-): Promise<AbortController> {
+): AbortController {
   // 恢复 = 唤醒原 run 内部挂起的 resume_event（服务端返回 JSON）。
   // 后续事件继续由原 chat SSE 流推送，不在此处新建流。
   const abort = new AbortController();

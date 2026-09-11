@@ -9,6 +9,7 @@ import AppDialogs from "./AppDialogs";
 import { useAppSettings } from "../hooks/useAppSettings";
 import { useBrowserPanel } from "../hooks/useBrowserPanel";
 import { useChatStream } from "../hooks/useChatStream";
+import { useLoginAutofillState } from "../hooks/useLoginAutofillState";
 import { useSchema } from "../hooks/useSchema";
 import { useSessions } from "../hooks/useSessions";
 import { useRuns } from "../hooks/useRuns";
@@ -49,7 +50,7 @@ export default function MainApp({
   onDeleteWorkspace,
   onRefreshWorkspaces,
 }: MainAppProps) {
-  const { getRuns, appendEvent, setRuns, clearRuns } = useRuns();
+  const { getRuns, appendEvent, setRuns, clearRuns, resetRun } = useRuns();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [undoConfirmGroupId, setUndoConfirmGroupId] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -124,7 +125,7 @@ export default function MainApp({
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
+  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, loginFormInfo, loginFlowStatus, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
     activeSessionId,
     addUserMessage,
     appendEvent,
@@ -141,7 +142,10 @@ export default function MainApp({
     onBrowserActivity: browserPanel.onBrowserActivity,
     setBrowserActive,
     setActiveMainTab,
+    hasRunState: (sid, runId) => getRuns(sid).some((r) => r.run_id === runId),
+    resetRun,
   });
+  const loginAutofill = useLoginAutofillState(loginFormInfo);
 
   const handleNewSession = useCallback(() => {
     setBrowserActive(false);
@@ -306,6 +310,13 @@ export default function MainApp({
               onLoadProfile={browserPanel.handleLoadProfile}
               sessionId={activeSessionId ?? ""}
               filterSchema={filterSchema}
+              loginForm={loginFormInfo}
+              loginFlowStatus={loginFlowStatus}
+              credentialConfigured={loginAutofill.configured}
+              credentialSite={loginAutofill.site}
+              credentialUrl={loginAutofill.url}
+              fieldCandidates={loginAutofill.fieldCandidates}
+              onCredentialStatusChange={(v) => loginAutofill.setConfigured(v)}
               onFiltersApplied={browserPanel.refreshBrowser}
               onCloseBrowser={() => {
                 void closeBrowser().then(() => browserPanel.refreshBrowser());

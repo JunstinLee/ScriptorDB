@@ -6,7 +6,7 @@ from api.dependencies import require_workspace
 from core.logging_setup import get_logger
 from schemas import ApprovalSubmitRequest
 
-from api.routes.chat import get_orchestrator
+from runtime.approval.run_registry import get_run_registry
 
 logger = get_logger("routes.approve")
 
@@ -17,9 +17,16 @@ router = APIRouter(prefix="/api/sessions", tags=["approve"])
 async def approve(session_id: str, req: ApprovalSubmitRequest):
     require_workspace()
 
-    orchestrator = get_orchestrator(session_id)
-    if orchestrator is None:
-        raise HTTPException(status_code=404, detail="No pending approval for this session")
+    slot = get_run_registry().get(session_id)
+    if slot is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No active run for this session. The run may have finished, or its "
+                "event stream dropped. Send a new message to start a new run."
+            ),
+        )
+    orchestrator = slot.orchestrator
 
     # 不重启 run、不开新 SSE 流：仅构建审批结果并唤醒挂起的 run
     # （与 /takeover/complete 同模式）；后续事件继续由原 chat SSE 流推送。

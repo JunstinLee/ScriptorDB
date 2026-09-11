@@ -1,11 +1,24 @@
+import { useState } from "react";
 import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
-import type { BrowserState, BrowserActionEvent, BrowserProfileItem, CookieInfo, FilterSchema } from "../types";
+import type {
+  BrowserState,
+  BrowserActionEvent,
+  BrowserProfileItem,
+  CookieInfo,
+  ExtraCandidate,
+  FilterSchema,
+  LoginFlowStatus,
+  LoginFormPayload,
+} from "../types";
 import { getScreenshotUrl } from "../api/browser";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { BrowserViewportStream } from "./BrowserViewportStream";
 import { BrowserStatusBar } from "./BrowserStatusBar";
 import { FilterPanel } from "./FilterPanel";
 import { HumanTakeoverDrawer } from "./HumanTakeoverPanel";
+import { OtpGuidanceNotice } from "./OtpGuidanceNotice";
+import { LoginStatusPanel } from "./LoginStatusPanel";
+import { CredentialSetupPanel } from "./CredentialSetupPanel";
 import type { TakeoverInfo } from "../hooks/useTakeoverState";
 
 interface BrowserWorkspaceProps {
@@ -26,6 +39,16 @@ interface BrowserWorkspaceProps {
   onLoadProfile?: (name: string) => void;
   sessionId?: string;
   filterSchema?: FilterSchema | null;
+  loginForm?: LoginFormPayload | null;
+  /** 最近一次 login_flow_status（旁路状态；autofill 进度/otp 引导） */
+  loginFlowStatus?: LoginFlowStatus | null;
+  /** 站点是否已配置凭证（useLoginAutofillState 派生；null=未知） */
+  credentialConfigured?: boolean | null;
+  credentialSite?: string;
+  credentialUrl?: string;
+  fieldCandidates?: ExtraCandidate[];
+  /** 保存/删除后本地翻转 configured */
+  onCredentialStatusChange?: (configured: boolean) => void;
   onFiltersApplied?: () => void;
   onCloseBrowser?: () => void;
 }
@@ -66,7 +89,7 @@ function BrowserViewport({
 
   return (
     <div className="flex flex-1 flex-col gap-3 p-4 min-w-0">
-      <div className="relative flex-1 overflow-hidden rounded-xl border border-grid bg-surface [transform:translateZ(0)]">
+      <div className="relative flex-1 overflow-hidden rounded-xl border border-grid bg-surface transform-gpu">
         {state.screenshot_available ? (
           <img
             src={getScreenshotUrl()}
@@ -102,6 +125,71 @@ function BrowserViewport({
   );
 }
 
+/** 登录状态区（03 唯一挂载点）：otp 引导 / 进度面板 / 凭证采集互斥布局。 */
+function LoginArea({
+  status,
+  configured,
+  reconfigureOpen,
+  site,
+  url,
+  fieldCandidates,
+  onConfiguredChange,
+  onOpenReconfigure,
+  onCloseReconfigure,
+}: {
+  status: LoginFlowStatus | null;
+  /** null=未知（site-status 查询在途）：不渲染采集面板，避免闪烁 */
+  configured: boolean | null;
+  reconfigureOpen: boolean;
+  site: string;
+  url: string;
+  fieldCandidates: ExtraCandidate[];
+  onConfiguredChange: (configured: boolean) => void;
+  onOpenReconfigure: () => void;
+  onCloseReconfigure: () => void;
+}) {
+  const manualOtp = status?.manual_otp_guided === true;
+  const isConfigured = configured === true;
+  const knownUnconfigured = configured === false;
+
+  // 是否显示采集面板：reconfigure 时必显（含已配置态的覆盖编辑）；
+  // 否则仅当「确定未配置」且无 otp/无状态倒逼时显示。
+  const showSetup =
+    reconfigureOpen ||
+    (knownUnconfigured && !manualOtp && !status?.configured);
+
+  return (
+    <div className="mx-4 mb-3 flex flex-col gap-2">
+      {/* 验证码引导：与进度面板并列，与凭证采集互斥 */}
+      {manualOtp && <OtpGuidanceNotice status={status} />}
+
+      {/* 进度面板：已配置或有状态时显示（configured=true 时含重新配置入口） */}
+      {(isConfigured || status?.configured) && status && (
+        <LoginStatusPanel status={status} onReconfigure={onOpenReconfigure} />
+      )}
+
+      {/* 凭证采集：未配置首次采集 / reconfigureOpen 覆盖编辑 */}
+      {showSetup && (
+        <CredentialSetupPanel
+          site={site}
+          url={url}
+          username=""
+          configured={isConfigured || !!status?.configured}
+          fieldCandidates={fieldCandidates}
+          onSaved={() => {
+            onConfiguredChange(true);
+            onCloseReconfigure();
+          }}
+          onDeleted={() => {
+            onConfiguredChange(false);
+            onCloseReconfigure();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function BrowserWorkspace({
   state,
   loading,
@@ -119,9 +207,18 @@ export function BrowserWorkspace({
   actions,
   isRunning,
   filterSchema,
+  loginForm,
+  loginFlowStatus,
+  credentialConfigured,
+  credentialSite,
+  credentialUrl,
+  fieldCandidates,
+  onCredentialStatusChange,
   onFiltersApplied,
   onCloseBrowser,
 }: BrowserWorkspaceProps) {
+  const [reconfigureOpen, setReconfigureOpen] = useState(false);
+
   if (error) {
     return (
       <div className="flex flex-1 items-center justify-center">
@@ -133,6 +230,8 @@ export function BrowserWorkspace({
       </div>
     );
   }
+
+  const isLoginPage = !!loginForm?.is_login_page;
 
   return (
     <div className="flex flex-1 flex-col min-h-0 min-w-0">
@@ -169,6 +268,20 @@ export function BrowserWorkspace({
         />
       )}
 
+      {isLoginPage && credentialSite && (
+        <LoginArea
+          status={loginFlowStatus ?? null}
+          configured={credentialConfigured ?? null}
+          reconfigureOpen={reconfigureOpen}
+          site={credentialSite}
+          url={credentialUrl ?? loginForm.url}
+          fieldCandidates={fieldCandidates ?? []}
+          onConfiguredChange={(v) => onCredentialStatusChange?.(v)}
+          onOpenReconfigure={() => setReconfigureOpen(true)}
+          onCloseReconfigure={() => setReconfigureOpen(false)}
+        />
+      )}
+
       <div className="flex flex-1 min-h-0 min-w-0">
         {state?.launched ? (
           <BrowserViewportStream
@@ -199,3 +312,5 @@ export function BrowserWorkspace({
     </div>
   );
 }
+
+export default BrowserWorkspace;

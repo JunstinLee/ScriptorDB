@@ -36,6 +36,11 @@ class PendingApprovalStore:
     def get(self, request_id: str) -> PendingApproval | None:
         return self._pending.get(request_id)
 
+    def pop_session(self, session_id: str) -> list[PendingApproval]:
+        """弹出该 session 的全部 pending 审批（断连/终止清理用）。"""
+        keys = [k for k, p in self._pending.items() if p.session_id == session_id]
+        return [self._pending.pop(k) for k in keys]
+
 
 _pending_store = PendingApprovalStore()
 
@@ -62,6 +67,7 @@ class PendingTakeover:
     reason: str = ""
     trigger: str = ""
     created_at: str = ""
+    login_form: dict[str, Any] | None = None
 
 
 class TakeoverCheckpointStore:

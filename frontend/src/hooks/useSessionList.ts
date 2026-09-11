@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SessionListItem } from "../types";
+import type { SessionListItem, SessionMeta } from "../types";
 import {
   createSession as apiCreateSession,
   listSessions,
@@ -9,7 +9,6 @@ import {
   metaFromListItem,
   readStoredActiveSession,
   writeStoredActiveSession,
-  type SessionMeta,
 } from "../utils/sessions";
 
 export function useSessionList(workspaceId?: string | null) {

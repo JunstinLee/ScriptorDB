@@ -18,6 +18,7 @@ from runtime.runner.errors import (
     CONNECTION_RETRY_EXCEPTIONS,
     MAX_CONNECTION_RETRIES,
     find_rate_limit,
+    find_site_unavailable,
 )
 from runtime.runner.events import run_start_event, takeover_cancelled_event
 from runtime.runner.finalize import (
@@ -178,12 +179,42 @@ async def run_agent_stream(
             except Exception:
                 pass
             yield takeover_cancelled_event(run_id=local_tracker.run_id, reason=reason)
+        elif site_detail := find_site_unavailable(e):
+            # 站点级不可用（网关/DNS/连接失败）：确定性中止，error 终态
+            # 携带明确原因，复用现有 error 事件通道。
+            error_id = uuid.uuid4().hex[:12]
+            message = (
+                "The target website is unavailable and the workflow was "
+                f"aborted automatically. Detail: {site_detail}"
+            )
+            local_tracker.error_type = "site_unavailable"
+            local_tracker.fail(message)
+            yield error_event(
+                local_tracker.run_id,
+                error_id,
+                None,
+                message,
+            )
         else:
             error_id = uuid.uuid4().hex[:12]
+            rate_limit = find_rate_limit(e)
+            message = f"Run failed (ID: {error_id}): {e}"
+            if rate_limit is not None:
+                local_tracker.error_type = "rate_limit"
+                message = (
+                    "Rate limited (HTTP 429 Too Many Requests): too many requests. "
+                    "Try again shortly."
+                )
             local_tracker.fail(str(e))
-            yield error_event(local_tracker.run_id, error_id, find_rate_limit(e), str(e))
+            local_tracker.error_message = message
+            yield error_event(local_tracker.run_id, error_id, rate_limit, str(e))
         yield run_end_event(local_tracker.run_id)
     finally:
+        # run 终结：停止本 run 注册的 LoginWatcher 常驻任务，防止跨 run 残留
+        try:
+            await translator._takeover_hook.shutdown(local_tracker.run_id)
+        except Exception:
+            pass
         if pending_get_task is not None and not pending_get_task.done():
             pending_get_task.cancel()
             with suppress(asyncio.CancelledError):

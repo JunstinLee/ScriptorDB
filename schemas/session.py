@@ -40,6 +40,7 @@ class StoredRun(BaseModel):
     started_at: str
     ended_at: str | None = None
     error_message: str | None = None
+    error_type: str | None = None
 
 
 class SessionInfo(BaseModel):

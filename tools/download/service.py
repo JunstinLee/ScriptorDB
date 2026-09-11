@@ -167,10 +167,6 @@ async def download_file(
     headers = {"user-agent": _DEFAULT_USER_AGENT}
     size_limit = max_size_mb * 1024 * 1024
     last_error = "download failed"
-    logger.info(
-        "download_service start url=%s allowed_domains=%s workspace=%s size_limit=%s",
-        url, allowed_domains, workspace_path, size_limit,
-    )
     for attempt in range(_MAX_RETRIES + 1):
         try:
             result = await _download_to_result(
@@ -180,10 +176,6 @@ async def download_file(
                 filename_hint,
                 size_limit,
                 workspace_path,
-            )
-            logger.info(
-                "download_service result attempt=%s success=%s filename=%r size=%r sha256=%r path=%r error=%r",
-                attempt, result.success, result.filename, result.size, result.sha256, result.path, result.error,
             )
             return result
         except httpx.HTTPError as exc:

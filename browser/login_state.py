@@ -126,6 +126,7 @@ async def detect_login_state(
     current_url = getattr(page, "url", "") or ""
     domain = domain or netloc_of(current_url)
     if not domain:
+        logger.info("login state: 无有效域名 url=%s", current_url or "about:blank")
         return LoginState(
             status="unknown",
             domain="",
@@ -150,9 +151,17 @@ async def detect_login_state(
         else:
             state.status = "logged_out"
             state.reason = "保存的会话 cookie 已全部缺失，登录态已失效"
+        logger.info(
+            "login state: 会话 cookie 判定 domain=%s status=%s on_login_page=%s present=%d/%d cookies=%s",
+            domain, state.status, on_login_page, len(present), len(expected_cookie_names), cookie_names,
+        )
         return state
 
     if on_login_page:
+        logger.info(
+            "login state: 登录页信号判定 domain=%s status=logged_out on_login_page=True evidence=%s cookies=%s",
+            domain, login_evidence, cookie_names,
+        )
         return LoginState(
             status="logged_out",
             domain=domain,
@@ -162,6 +171,10 @@ async def detect_login_state(
         )
 
     if cookie_names:
+        logger.info(
+            "login state: 域名 cookie 判定 domain=%s status=logged_in on_login_page=False cookies=%s",
+            domain, cookie_names,
+        )
         return LoginState(
             status="logged_in",
             domain=domain,
@@ -169,6 +182,7 @@ async def detect_login_state(
             session_cookies=cookie_names,
         )
 
+    logger.info("login state: 无法判定 domain=%s status=unknown on_login_page=False cookies=%s", domain, cookie_names)
     return LoginState(
         status="unknown",
         domain=domain,

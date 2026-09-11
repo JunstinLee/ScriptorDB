@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import json
-import re
 import threading
 from typing import Any
-from urllib.parse import urlparse
 
 from core.logging_setup import get_logger
+from runtime.middleware_probe import (
+    _browser_launched,
+    _current_page_url,
+    _is_document_discovery,
+    _page_has_filter_components,
+    _same_domain,
+    _target_url_from_prompt,
+)
 
 logger = get_logger("tool_middleware")
 
@@ -15,50 +21,6 @@ _BLOCKED_TOOLS = {
     "browser_get_text",
     "browser_evaluate",
 }
-
-_DOC_KEYWORDS = (
-    "文档",
-    "抓取",
-    "爬取",
-    "提取",
-    "链接",
-    "pdf",
-    "excel",
-    "zip",
-    "csv",
-    "download",
-    "document",
-    "crawl",
-    "extract",
-    "filing",
-)
-
-# 交互式任务（点击/填写/筛选/测试等）需要低层级 DOM 工具检查页面结构，
-# 不属于"文档提取"，命中即豁免，避免把合法排查误拦成 browser_extract_links。
-_INTERACTION_KEYWORDS = (
-    "点击",
-    "填写",
-    "输入",
-    "选择",
-    "选中",
-    "筛选",
-    "过滤",
-    "下拉",
-    "测试",
-    "切换",
-    "click",
-    "fill",
-    "type",
-    "select",
-    "filter",
-    "dropdown",
-    "test",
-    "choose",
-)
-
-_URL_PATH_SIGNALS = ("filings", "documents", "docs", "download", "archive")
-
-_URL_RE = re.compile(r"https?://[^\s\"'<>，。；）)】\]}]+")
 
 _SWITCH_LABEL = (
     "[Middleware] {tool_name} call intercepted (document-extraction task — low-level browser tools not suitable). "
@@ -118,7 +80,6 @@ _lock = threading.Lock()
 _round_blocks: dict[str, dict[str, int]] = {}
 _round_browser_used: set[str] = set()
 _round_detect_used: set[str] = set()       # rounds where browser_detect_filters already ran
-_page_filter_cache: dict[str, bool] = {}   # url -> page exposes filter components
 
 _MAX_ROUNDS = 1000
 
@@ -146,117 +107,6 @@ def _mark_browser_used(round_id: str) -> None:
         if len(_round_browser_used) > _MAX_ROUNDS:
             _round_browser_used.clear()
         _round_browser_used.add(round_id)
-
-
-def _browser_launched() -> bool:
-    try:
-        from browser import get_manager
-
-        return get_manager().page() is not None
-    except Exception:
-        return False
-
-
-def _texts_from_context(ctx) -> list[str]:
-    texts: list[str] = []
-    prompt = getattr(ctx, "prompt", None)
-    if isinstance(prompt, str):
-        texts.append(prompt)
-    for message in getattr(ctx, "messages", None) or []:
-        for part in getattr(message, "parts", None) or []:
-            content = getattr(part, "content", None)
-            if isinstance(content, str):
-                texts.append(content)
-            elif isinstance(content, list):
-                for item in content:
-                    if isinstance(item, str):
-                        texts.append(item)
-                    elif hasattr(item, "content") and isinstance(getattr(item, "content", None), str):
-                        texts.append(item.content)
-    return texts
-
-
-def _current_page_url() -> str | None:
-    try:
-        from browser import get_manager
-
-        page = get_manager().page()
-        if page is None:
-            return None
-        url = page.url
-        return url if url and not url.startswith("about:") else None
-    except Exception:
-        return None
-
-
-def _target_url_from_prompt(ctx) -> str | None:
-    for text in _texts_from_context(ctx):
-        match = _URL_RE.search(text)
-        if match:
-            return match.group(0)
-    return None
-
-async def _page_has_filter_components() -> bool:
-    """True when the current page exposes filter components (table root + filter controls).
-
-    Framework-agnostic: table roots come from the generic selectors plus the
-    root markers registered in filter_detect._FRAMEWORK_PROBES (data-driven,
-    nothing hard-coded here). Cached per URL.
-    """
-    url = _current_page_url()
-    if url and url in _page_filter_cache:
-        return _page_filter_cache[url]
-    try:
-        from browser import get_manager
-
-        page = get_manager().page()
-        if page is None:
-            return False
-        from tools.browser_tools.filter_detect import _FRAMEWORK_PROBES
-
-        table_selectors = 'table, [role="table"], [role="grid"]' + "".join(
-            f', {p["root_marker"]}' for p in _FRAMEWORK_PROBES
-        )
-        has = await page.evaluate(
-            f"""() => {{
-                const hasTable = !!document.querySelector('{table_selectors}');
-                if (!hasTable) return false;
-                const hasFilterInput = !!document.querySelector(
-                    'input[placeholder*="filter" i], input[placeholder*="筛选" i]');
-                const hasFilterSelect = [...document.querySelectorAll('select')]
-                    .some(s => s.options.length > 1);
-                return hasFilterInput || hasFilterSelect;
-            }}"""
-        )
-    except Exception:
-        return False
-    if url:
-        _page_filter_cache[url] = bool(has)
-    return bool(has)
-
-
-def _is_document_discovery(ctx) -> bool:
-    texts = _texts_from_context(ctx)
-    blob = " ".join(texts).lower()
-    if any(keyword in blob for keyword in _INTERACTION_KEYWORDS):
-        return False
-    hits = sum(1 for keyword in _DOC_KEYWORDS if keyword in blob)
-    if hits >= 2:
-        return True
-    url = _current_page_url()
-    if url:
-        path = urlparse(url).path.lower()
-        if any(signal in path for signal in _URL_PATH_SIGNALS):
-            return True
-    return False
-
-
-def _same_domain(a: str, b: str) -> bool:
-    def normalize(url: str) -> str:
-        host = urlparse(url).hostname or ""
-        return host.lower().removeprefix("www.")
-
-    return bool(normalize(a)) and normalize(a) == normalize(b)
 
 
 def _find_tool_func(name: str):
@@ -314,6 +164,7 @@ async def evaluate_call(ctx, tool_name: str) -> str:
     - "switch":     block and auto-switch to a more appropriate tool
     - "repeat":     block; same tool already blocked this round — do not run anything
     - "no-python":  block; browser control task forbids python_sandbox_execute
+    - "filter-block"/"filter-repeat": block; page exposes filter components
 
     Fails open: any uncertainty → "allow".
     """
@@ -323,9 +174,6 @@ async def evaluate_call(ctx, tool_name: str) -> str:
     if _is_browser_tool(tool_name):
         _mark_browser_used(round_id)
 
-    if tool_name == "python_sandbox_execute":
-        if round_id in _round_browser_used or _browser_launched():
-            logger.info("tool middleware: blocking python_sandbox_execute — browser control active (round %s)", round_id)
     if tool_name == "browser_detect_filters":
         _round_detect_used.add(round_id)
 
@@ -340,8 +188,9 @@ async def evaluate_call(ctx, tool_name: str) -> str:
                 return "filter-repeat"
             return "filter-block"
 
-    if tool_name not in _BLOCKED_TOOLS:
-        return "allow"
+    if tool_name == "python_sandbox_execute":
+        if round_id in _round_browser_used or _browser_launched():
+            logger.info("tool middleware: blocking python_sandbox_execute — browser control active (round %s)", round_id)
 
     if tool_name not in _BLOCKED_TOOLS:
         return "allow"
@@ -366,8 +215,6 @@ async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
         return _FILTER_LABEL.format(tool_name=tool_name)
     if decision == "filter-repeat":
         return _FILTER_REPEAT_LABEL.format(tool_name=tool_name)
-
-    current = _current_page_url()
 
     current = _current_page_url()
     target = _target_url_from_prompt(ctx)

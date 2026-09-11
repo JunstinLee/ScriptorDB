@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import copy
 from typing import Any
 
 from pydantic_ai import RunContext
@@ -11,9 +12,11 @@ from pydantic_ai.messages import (
     PartStartEvent,
     TextPart,
     TextPartDelta,
+    ToolCallPart,
 )
 
 from core.logging_setup import get_logger
+from runtime.redact import redact
 from runtime.runner.events import (
     normalize_tool_content,
     parse_tool_args,
@@ -22,13 +25,52 @@ from runtime.runner.events import (
     tool_result_event,
     trace_event,
 )
+from runtime.runner.errors import SiteUnavailableError
 from runtime.runner.takeover_hook import (
     AfterToolContext,
     BrowserTakeoverHook,
     RunPauseState,
 )
+from runtime.site_unavailable import detect_site_unavailable
 
 logger = get_logger("agent_runner.translator")
+
+# 工具调用参数里承载可能含系统密码文本的字段（按工具名）。
+# 实时层（tracker/SSE/tool_parts）仅对这两个工具的参数做脱敏副本，
+# 其余工具无系统密码入口，保持原样。
+_SENSITIVE_TEXT_FIELDS = {
+    "browser_fill": "text",
+    "browser_evaluate": "js",
+}
+
+
+def _redact_clean_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """返回 args 的脱敏副本（browser_fill.text / browser_evaluate.js 过 redact）。"""
+    field = _SENSITIVE_TEXT_FIELDS.get(tool_name)
+    if field is None or not isinstance(args.get(field), str):
+        return args
+    clean = dict(args)
+    clean[field] = redact(clean[field])
+    return clean
+
+
+def _redact_clean_part(part: ToolCallPart) -> ToolCallPart:
+    """返回 ToolCallPart 的脱敏副本：args 字段值（str 或 dict）过 redact。"""
+    field = _SENSITIVE_TEXT_FIELDS.get(part.tool_name)
+    if field is None:
+        return part
+    if isinstance(part.args, str):
+        clean = copy.deepcopy(part)
+        clean.args = redact(part.args)  # type: ignore[union-attr]
+        return clean
+    if isinstance(part.args, dict):
+        args = dict(part.args)
+        if isinstance(args.get(field), str):
+            args[field] = redact(args[field])
+        clean = copy.deepcopy(part)
+        clean.args = args  # type: ignore[union-attr]
+        return clean
+    return part
 
 
 class EventTranslator:
@@ -68,7 +110,7 @@ class EventTranslator:
         self.handler_calls += 1
         async for event in events:
             if isinstance(event, FunctionToolCallEvent):
-                await self._handle_tool_call(event)
+                await self._handle_tool_call(ctx, event)
             elif isinstance(event, FunctionToolResultEvent):
                 await self._handle_tool_result(ctx, event)
             elif isinstance(event, PartStartEvent):
@@ -88,23 +130,32 @@ class EventTranslator:
             delta=part.content,
         ))
 
-    async def _handle_tool_call(self, event: FunctionToolCallEvent) -> None:
-        self.tool_parts.append(event.part)
-        call_id = event.part.tool_call_id
+    async def _handle_tool_call(
+        self, ctx: RunContext[Any], event: FunctionToolCallEvent
+    ) -> None:
+        # 敏感工具（browser_fill/browser_evaluate）参数可能携带系统密码：
+        # tracker 日志/SSE/tool_parts 只收脱敏副本；原始 part 不改动
+        # （内存消息原样回放给模型）。
+        part = event.part
+        if part.tool_name in _SENSITIVE_TEXT_FIELDS:
+            part = _redact_clean_part(part)
+        args_dict = parse_tool_args(part.args)
+        clean_args = _redact_clean_args(part.tool_name, args_dict)
+        self.tool_parts.append(part)
+        call_id = part.tool_call_id
         self._tracker.start_tool(call_id)
-        args_dict = parse_tool_args(event.part.args)
-        self._tracker.add_tool_invocation(call_id, event.part.tool_name, args_dict)
+        self._tracker.add_tool_invocation(call_id, part.tool_name, clean_args)
         await self._queue.put(tool_call_event(
             run_id=self._tracker.run_id,
             call_id=call_id,
-            tool_name=event.part.tool_name,
-            args=args_dict,
+            tool_name=part.tool_name,
+            args=clean_args,
         ))
         self.trace_step += 1
         await self._queue.put(trace_event(
             run_id=self._tracker.run_id,
             step=self.trace_step,
-            message=f"调用工具 {event.part.tool_name}",
+            message=f"调用工具 {part.tool_name}",
         ))
 
     async def _handle_tool_result(
@@ -140,6 +191,17 @@ class EventTranslator:
             duration_ms=duration_ms,
             data=data,
         ))
+
+        # 站点级不可用(网关/DNS/连接失败)是确定性中止信号:失败结果已完整
+        # 入队展示,raise 终止本次 run,不让模型继续重试或换方法。置于人工
+        # 接管 hook 之前:站点已死时中止优先于登录/接管检测。
+        detail = detect_site_unavailable(tool_name, content)
+        if detail:
+            logger.warning(
+                "site unavailable detected tool=%s detail=%s",
+                tool_name, detail,
+            )
+            raise SiteUnavailableError(detail)
 
         await self._takeover_hook.after_tool_result(AfterToolContext(
             queue=self._queue,

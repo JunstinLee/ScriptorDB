@@ -1,20 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { describe, expect, it } from "vitest";
+import { screen } from "@testing-library/react";
+
 import MarkdownRenderer from "../../components/common/MarkdownRenderer";
-import { ThemeProvider } from "../../hooks/useTheme";
-
-function mockClipboard(writeText: ReturnType<typeof vi.fn>) {
-  Object.defineProperty(navigator, "clipboard", {
-    value: { writeText },
-    writable: true,
-    configurable: true,
-  });
-}
-
-function renderWithTheme(ui: React.ReactElement) {
-  return render(<ThemeProvider>{ui}</ThemeProvider>);
-}
+import { renderWithTheme } from "../../test/markdownHarness";
 
 describe("MarkdownRenderer", () => {
   it("returns null for empty content", () => {
@@ -67,69 +55,6 @@ describe("MarkdownRenderer", () => {
     expect(screen.getByText("text")).toBeInTheDocument();
   });
 
-  it("renders tables", () => {
-    const content = "| a | b |\n|---|---|\n| 1 | 2 |";
-    renderWithTheme(<MarkdownRenderer content={content} />);
-    expect(screen.getByRole("table")).toBeInTheDocument();
-    expect(screen.getByText("a")).toBeInTheDocument();
-    expect(screen.getByText("b")).toBeInTheDocument();
-  });
-
-  it("paginates tables with more than one page of rows", async () => {
-    const user = userEvent.setup();
-    const rows = Array.from({ length: 25 }, (_, i) => `| ${i} | value ${i} |`)
-      .join("\n");
-    const content = `| id | val |\n|---|---|\n${rows}`;
-    renderWithTheme(<MarkdownRenderer content={content} />);
-
-    expect(screen.getByText("25 rows x 2 cols")).toBeInTheDocument();
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
-
-    expect(screen.getByText("value 0")).toBeInTheDocument();
-    expect(screen.getByText("value 19")).toBeInTheDocument();
-    expect(screen.queryByText("value 20")).not.toBeInTheDocument();
-
-    await user.click(screen.getByText("Next"));
-    expect(screen.getByText("2 / 2")).toBeInTheDocument();
-    expect(screen.getByText("value 20")).toBeInTheDocument();
-    expect(screen.queryByText("value 0")).not.toBeInTheDocument();
-
-    await user.click(screen.getByText("Prev"));
-    expect(screen.getByText("1 / 2")).toBeInTheDocument();
-    expect(screen.getByText("value 0")).toBeInTheDocument();
-  });
-
-  it("keeps the current page when the renderer updates", async () => {
-    const user = userEvent.setup();
-    const rows = Array.from({ length: 25 }, (_, i) => `| ${i} | value ${i} |`)
-      .join("\n");
-    const content = `| id | val |\n|---|---|\n${rows}`;
-    const { rerender } = renderWithTheme(<MarkdownRenderer content={content} />);
-
-    await user.click(screen.getByText("Next"));
-    expect(screen.getByText("2 / 2")).toBeInTheDocument();
-
-    rerender(
-      <ThemeProvider>
-        <MarkdownRenderer content={`${content}\n`} />
-      </ThemeProvider>,
-    );
-
-    expect(screen.getByText("2 / 2")).toBeInTheDocument();
-    expect(screen.getByText("value 20")).toBeInTheDocument();
-  });
-
-  it("does not paginate small tables", () => {
-    const rows = Array.from({ length: 3 }, (_, i) => `| ${i} | value ${i} |`)
-      .join("\n");
-    const content = `| id | val |\n|---|---|\n${rows}`;
-    renderWithTheme(<MarkdownRenderer content={content} />);
-
-    expect(screen.queryByText(/rows x/)).not.toBeInTheDocument();
-    expect(screen.queryByText("Next")).not.toBeInTheDocument();
-    expect(screen.getByText("value 2")).toBeInTheDocument();
-  });
-
   it("renders blockquotes", () => {
     const content = "> quoted text";
     renderWithTheme(<MarkdownRenderer content={content} />);
@@ -162,45 +87,5 @@ describe("MarkdownRenderer", () => {
     renderWithTheme(<MarkdownRenderer content={content} />);
     expect(screen.getByText("bold")).toBeInTheDocument();
     expect(screen.getByText("italic")).toBeInTheDocument();
-  });
-
-  it("copies code block content on button click", async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    mockClipboard(writeText);
-
-    const content = "```js\nconst x = 1;\n```";
-    renderWithTheme(<MarkdownRenderer content={content} />);
-
-    const copyButton = screen.getByText("Copy");
-    await user.click(copyButton);
-
-    expect(writeText).toHaveBeenCalledWith("const x = 1;");
-  });
-
-  it("handles clipboard errors gracefully", async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn().mockRejectedValue(new Error("denied"));
-    mockClipboard(writeText);
-
-    const content = "```js\ncode\n```";
-    renderWithTheme(<MarkdownRenderer content={content} />);
-
-    const copyButton = screen.getByText("Copy");
-    await expect(user.click(copyButton)).resolves.not.toThrow();
-  });
-
-  it("shows Copied feedback after copying", async () => {
-    const user = userEvent.setup();
-    const writeText = vi.fn().mockResolvedValue(undefined);
-    mockClipboard(writeText);
-
-    const content = "```js\ncode\n```";
-    renderWithTheme(<MarkdownRenderer content={content} />);
-
-    const copyButton = screen.getByText("Copy");
-    await user.click(copyButton);
-
-    expect(await screen.findByText("Copied")).toBeInTheDocument();
   });
 });

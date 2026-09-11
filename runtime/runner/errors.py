@@ -14,6 +14,37 @@ except ImportError:  # pragma: no cover
 MAX_CONNECTION_RETRIES = 2
 
 
+class SiteUnavailableError(Exception):
+    """run 内信号:检测到目标站点不可用,终止本次 run。
+
+    translator 在工具结果命中站点级不可用信号后抛出;lifecycle 捕获后转
+    error 终态(而非让模型继续重试/换方法)。
+    """
+
+
+def find_site_unavailable(exc: BaseException) -> str | None:
+    """Walk the exception chain looking for SiteUnavailableError.
+
+    Returns its detail message when found, None otherwise. pydantic-ai wraps
+    exceptions raised by the event_stream_handler, so the chain is traversed
+    defensively (same shape as _is_cancellation in runner/lifecycle.py).
+    """
+    seen: set[int] = set()
+    pending: list[BaseException] = [exc]
+    while pending:
+        current = pending.pop()
+        if id(current) in seen:
+            continue
+        seen.add(id(current))
+        if isinstance(current, SiteUnavailableError):
+            return str(current)
+        if current.__cause__ is not None:
+            pending.append(current.__cause__)
+        if current.__context__ is not None:
+            pending.append(current.__context__)
+    return None
+
+
 def find_rate_limit(exc: BaseException) -> tuple[int, str] | None:
     """Walk the exception chain (and exception groups) looking for HTTP 429.
 

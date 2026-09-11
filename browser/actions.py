@@ -27,6 +27,14 @@ async def click(page: Page, selector: str) -> str:
         return f"Click failed: {e}"
 
 
+async def fill(page: Page, selector: str, text: str) -> str:
+    try:
+        await page.fill(selector, text)
+        return f"Filled {selector}"
+    except Exception as e:
+        return f"Fill failed: {e}"
+
+
 async def select_option(page: Page, selector: str, value: str = "", label: str = "") -> str:
     try:
         if label:

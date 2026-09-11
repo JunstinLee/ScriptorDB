@@ -98,6 +98,22 @@ def _prepare_result_dir(workspace_path: Path | None) -> Path:
     return date_dir
 
 
+def _remove_empty_dirs(result_dir: Path) -> None:
+    """沙箱未产出文件时清掉刚建的空目录。
+
+    仅删除真正为空的目录——日期目录非空(已有历史产物/并发写入)
+    或不存在时 rmdir 抛 OSError,直接跳过;父级 result/ 若因此变空也一并移除。
+    """
+    try:
+        result_dir.rmdir()
+    except OSError:
+        return
+    try:
+        result_dir.parent.rmdir()
+    except OSError:
+        pass
+
+
 def _unique_path(path: Path) -> Path:
     if not path.exists():
         return path
@@ -254,6 +270,8 @@ except Exception as e:
                     Path(workspace_path) if workspace_path else None
                 )
                 result_files = _copy_results(work_dir, result_dir)
+                if not result_files:
+                    _remove_empty_dirs(result_dir)
             except Exception as copy_err:
                 stderr += f"\n__SANDBOX_RESULT_COPY_ERROR__: {type(copy_err).__name__}: {copy_err}"
 

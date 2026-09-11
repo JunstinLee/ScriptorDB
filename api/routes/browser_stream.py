@@ -37,7 +37,6 @@ class PlaywrightScreencastTrack(MediaStreamTrack):
         super().__init__()
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=2)
         self._timestamp = 0
-        self._frame_count = 0
 
     def add_frame(self, jpeg_bytes: bytes):
         while not self._queue.empty():
@@ -57,10 +56,6 @@ class PlaywrightScreencastTrack(MediaStreamTrack):
         frame = VideoFrame.from_ndarray(arr, format="rgb24")
         frame.pts = int(pts * 90000)
         frame.time_base = Fraction(1, 90000)
-
-        self._frame_count += 1
-        if self._frame_count % 30 == 1:
-            logger.info(f"frame decoded pts={int(pts * 90000)} img_size={img.size}")
 
         return frame
 
@@ -115,7 +110,6 @@ class BrowserStreamConnection:
         @self.pc.on("iceconnectionstatechange")
         async def _on_ice_state():
             assert self.pc is not None
-            logger.warning(f"ICE state={self.pc.iceConnectionState}")
             if self.pc.iceConnectionState == "failed":
                 await self.stop()
 
@@ -130,7 +124,6 @@ class BrowserStreamConnection:
             await self.close()
             return
         self._page = page
-        logger.info("screencast reattach after navigation")
         target_closed = False
         try:
             async with _screencast_lock:
@@ -145,7 +138,6 @@ class BrowserStreamConnection:
                     size={"width": 1280, "height": 720},
                     quality=80,
                 )
-            logger.info("screencast reattached after navigation")
         except Exception as e:
             target_closed = _is_target_closed_error(e)
             if target_closed:

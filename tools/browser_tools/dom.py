@@ -3,12 +3,9 @@ from __future__ import annotations
 import re
 
 from config.settings import Settings
-from core.logging_setup import get_logger
 from pydantic_ai import RunContext
 from tools.browser_common import _check_blocked, _require_browser
 from tools.tool_decorators import db_tool
-
-logger = get_logger("tools.browser.dom")
 
 # Playwright 引擎选择器前缀（text=/xpath=/aria= 等）不是合法 CSS，
 # 不能传给 document.querySelector —— 高亮/跟踪前先识别并跳过。
@@ -46,6 +43,7 @@ async def browser_query(
     all: bool = False,
 ) -> str:
     from browser.runtime import get_image_sources, query_attr, query_attr_all, query_text, query_text_all
+    from browser.sensitive import is_password_control
 
     manager, page = _require_browser()
     if page is None:
@@ -59,7 +57,11 @@ async def browser_query(
         return result
 
     if attribute:
-        if all:
+        if attribute == "value" and await is_password_control(page, selector):
+            # 密码控件（系统凭证已由 autofill 填入）：不读 DOM value，
+            # 返回占位；all=True 对 selector 首元素判定一次，命中整组占位。
+            result = "[redacted: password field]"
+        elif all:
             result = await query_attr_all(page, selector, attribute)
         else:
             result = await query_attr(page, selector, attribute)
@@ -75,13 +77,22 @@ async def browser_query(
 @db_tool(name="browser_evaluate", category="browser", timeout=15, sequential=False)
 async def browser_evaluate(ctx: RunContext[Settings], js: str) -> str:
     from browser.runtime import evaluate as _eval
+    from browser.sensitive import current_site_password
+    from runtime.redact import redact
 
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    pwd = current_site_password(
+        page.url, ctx.deps.workspace_id if ctx.deps else None
+    )
+    if pwd is not None and pwd in js:
+        # 脚本携带系统站点密码：禁止读取或回写密码字段。
+        return "拒绝：脚本包含系统站点密码，禁止读取或回写密码字段"
     result = await _eval(page, js)
+    result = redact(result)
     manager.record_action("evaluate", js[:50] + "..." if len(js) > 50 else js)
     return result
 
@@ -119,7 +130,6 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
-    logger.info(f"browser_click selector={selector} takeover_state={manager.takeover.state.value}")
     if not _is_engine_selector(selector):
         await highlight_click(page, selector)
         await manager.trace.record_pre_click(page, selector)
@@ -150,7 +160,6 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
         detail = f"{selector} -> {final_url}"
     manager.record_action("click", detail, selector=selector,
                           success="Clicked" in result)
-    logger.info(f"browser_click trace pre={pre.get('url')} final={final_url} status={trace.get('status_code')}")
     if "failed" in str(result).lower() or "error" in str(result).lower():
         manager.record_element_failure(selector)
         await manager.detect_takeover()
@@ -159,15 +168,30 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
 
 @db_tool(name="browser_fill", category="browser", timeout=15, sequential=True)
 async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> str:
-    from browser.actions import fill as _fill
     from browser.highlights import highlight_input, highlight_input_remove
+    from browser.sensitive import current_site_password, is_password_control
 
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
-    logger.info(f"browser_fill selector={selector} takeover_state={manager.takeover.state.value}")
+    pwd = current_site_password(
+        page.url, ctx.deps.workspace_id if ctx.deps else None
+    )
+    if (
+        await is_password_control(page, selector)
+        and pwd is not None
+        and pwd in text
+    ):
+        # 密码控件且内容为系统密码：系统已自动填充，跳过二次填写。
+        # 不执行 record_element_failure/detect_takeover（非页面故障）。
+        manager.record_action(
+            "fill", "skipped (system-filled password)",
+            selector=selector, success=True,
+        )
+        return "该密码已由系统自动填充，请勿重复填写"
+    from browser.actions import fill as _fill
     if not _is_engine_selector(selector):
         await highlight_input(page, selector)
     try:
@@ -199,7 +223,6 @@ async def browser_select_option(
         return blocked
     if not value and not label:
         return "browser_select_option requires a value or a label"
-    logger.info(f"browser_select_option selector={selector} takeover_state={manager.takeover.state.value}")
     if not _is_engine_selector(selector):
         await highlight_input(page, selector)
     try:
