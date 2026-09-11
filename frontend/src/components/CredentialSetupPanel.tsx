@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, KeyRound, Save, Trash2 } from "lucide-react";
+import { KeyRound, Save, Trash2 } from "lucide-react";
 import { saveCredentials, deleteCredentials } from "../api/loginCredentials";
 import type { CredentialStatus, ExtraCandidate, ExtraPlacement } from "../types";
 
@@ -12,18 +12,12 @@ export interface CredentialSetupPanelProps {
   username?: string;
   /** 本 site 是否已配置（父组件传入，组件不自查） */
   configured: boolean;
-  /** 第三项候选（登录页提取 + DOM 序落位；无则传 []，退化为手动折叠入口） */
+  /** 页面检测到的第三项候选（DOM 序 + 落位）；空数组 = 该页无第三项，不渲染 */
   fieldCandidates: ExtraCandidate[];
   /** 保存成功后回调（父组件用来翻转 configured + 关闭面板） */
   onSaved?: (status: CredentialStatus) => void;
   /** 删除成功后回调 */
   onDeleted?: (site: string) => void;
-}
-
-function hintText(field: ExtraCandidate): string {
-  return [field.label, field.placeholder, field.name]
-    .filter((x): x is string => Boolean(x))
-    .join(" · ");
 }
 
 /** 凭证采集表单：首次保存登录信息到系统密钥（Keychain/CM/Secret Service）。 */
@@ -36,29 +30,33 @@ export function CredentialSetupPanel({
   onSaved,
   onDeleted,
 }: CredentialSetupPanelProps) {
-  // 候选唯一时预选（hints 一定指向它，无歧义）；多候选时留空由用户选，避免 hints 指错字段。
   const [mainUsername, setMainUsername] = useState(username);
   const [password, setPassword] = useState("");
-  const [extraOpen, setExtraOpen] = useState(fieldCandidates.length > 0);
-  const [fieldLabel, setFieldLabel] = useState("");
   const [extraValue, setExtraValue] = useState("");
-  const [selectedField, setSelectedField] = useState<ExtraCandidate | null>(
-    fieldCandidates.length === 1 ? fieldCandidates[0] : null,
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // 落位：随用户改选的候选项变化；无选中时用首个候选的落位，无候选退化 after。
-  const placement: ExtraPlacement =
-    selectedField?.placement ?? fieldCandidates[0]?.placement ?? "after";
+  // 第三项（可选项）完全由页面内容决定：取 DOM 序首个候选，无候选则不显示。
+  const extraCandidate: ExtraCandidate | null = fieldCandidates[0] ?? null;
+  const extraHint = extraCandidate
+    ? [extraCandidate.label, extraCandidate.placeholder, extraCandidate.name]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+  // 保存用的字段名（field_label）：页面标注 → placeholder → name → selector 兜底。
+  const extraLabel = extraCandidate
+    ? extraCandidate.label ||
+      extraCandidate.placeholder ||
+      extraCandidate.name ||
+      extraCandidate.selector
+    : "";
+  // 落位：页面 DOM 序派生（账号之上 / 账号与密码之间 / 密码之下）。
+  const placement: ExtraPlacement = extraCandidate?.placement ?? "after";
 
   const resetInputs = () => {
     setMainUsername("");
     setPassword("");
-    setFieldLabel("");
     setExtraValue("");
-    setSelectedField(fieldCandidates.length === 1 ? fieldCandidates[0] : null);
-    setExtraOpen(fieldCandidates.length > 0);
     setError("");
   };
 
@@ -72,27 +70,20 @@ export function CredentialSetupPanel({
       setError("Please fill in the password");
       return;
     }
-    const extraPartial =
-      fieldLabel.trim().length > 0 || extraValue.length > 0;
-    if (extraPartial && (!fieldLabel.trim() || !extraValue)) {
-      setError("Both field name and value are required for extra login info");
-      return;
-    }
-
-    const extra = extraPartial
-      ? {
-          field_label: fieldLabel.trim(),
-          value: extraValue,
-          match_hints: selectedField
-            ? {
-                name: selectedField.name ?? "",
-                id: selectedField.id ?? "",
-                label: selectedField.label ?? "",
-                placeholder: selectedField.placeholder ?? "",
-              }
-            : null,
-        }
-      : null;
+    // 可选项：仅当页面检测到第三项且用户填写了值才随凭证保存（留空 = 不保存该槽位）。
+    const extra =
+      extraCandidate && extraValue
+        ? {
+            field_label: extraLabel,
+            value: extraValue,
+            match_hints: {
+              name: extraCandidate.name ?? "",
+              id: extraCandidate.id ?? "",
+              label: extraCandidate.label ?? "",
+              placeholder: extraCandidate.placeholder ?? "",
+            },
+          }
+        : null;
 
     setSaving(true);
     try {
@@ -126,61 +117,16 @@ export function CredentialSetupPanel({
     }
   };
 
-  const handleFieldSelect = (value: string) => {
-    const field = fieldCandidates.find((f) => f.selector === value) ?? null;
-    setSelectedField(field);
-    if (field) {
-      setFieldLabel(field.label || field.placeholder || field.name || "");
-    }
-  };
-
-  // 第三项落位（placement）：before=账号之上；between=账号与密码之间；after=密码之下。
-  const extraBlock = (
-    <div className="rounded-lg border border-grid">
-      <button
-        onClick={() => setExtraOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted hover:bg-surface/60"
-      >
-        <span>Extra login info (optional)</span>
-        <ChevronDown
-          className={`size-3.5 transition-transform ${extraOpen ? "rotate-180" : ""}`}
-        />
-      </button>
-      {extraOpen && (
-        <div className="flex flex-col gap-2 border-t border-grid px-3 py-2">
-          <input
-            type="text"
-            value={fieldLabel}
-            onChange={(e) => setFieldLabel(e.target.value)}
-            placeholder="Field name, e.g. User ID / Account ID / employee no."
-            autoComplete="off"
-            className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-          />
-          <input
-            type="text"
-            value={extraValue}
-            onChange={(e) => setExtraValue(e.target.value)}
-            placeholder="Value"
-            autoComplete="off"
-            className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-          />
-          {fieldCandidates.length > 0 && (
-            <select
-              value={selectedField?.selector ?? ""}
-              onChange={(e) => handleFieldSelect(e.target.value)}
-              className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-            >
-              <option value="">This extra info maps to… (optional)</option>
-              {fieldCandidates.map((f) => (
-                <option key={f.selector} value={f.selector}>
-                  {hintText(f) || f.selector}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-      )}
-    </div>
+  // 第三项（可选项）：单个输入框，落位与是否出现由页面内容决定。
+  const extraBlock = extraCandidate && (
+    <input
+      type="text"
+      value={extraValue}
+      onChange={(e) => setExtraValue(e.target.value)}
+      placeholder={extraHint ? `${extraHint} (optional)` : "Extra login info (optional)"}
+      autoComplete="off"
+      className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+    />
   );
 
   return (
