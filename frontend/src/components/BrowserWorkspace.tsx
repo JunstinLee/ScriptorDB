@@ -5,8 +5,8 @@ import type {
   BrowserActionEvent,
   BrowserProfileItem,
   CookieInfo,
+  ExtraCandidate,
   FilterSchema,
-  LoginFieldInfo,
   LoginFlowStatus,
   LoginFormPayload,
 } from "../types";
@@ -46,7 +46,7 @@ interface BrowserWorkspaceProps {
   credentialConfigured?: boolean | null;
   credentialSite?: string;
   credentialUrl?: string;
-  fieldCandidates?: LoginFieldInfo[];
+  fieldCandidates?: ExtraCandidate[];
   /** 保存/删除后本地翻转 configured */
   onCredentialStatusChange?: (configured: boolean) => void;
   onFiltersApplied?: () => void;
@@ -89,7 +89,7 @@ function BrowserViewport({
 
   return (
     <div className="flex flex-1 flex-col gap-3 p-4 min-w-0">
-      <div className="relative flex-1 overflow-hidden rounded-xl border border-grid bg-surface [transform:translateZ(0)]">
+      <div className="relative flex-1 overflow-hidden rounded-xl border border-grid bg-surface transform-gpu">
         {state.screenshot_available ? (
           <img
             src={getScreenshotUrl()}
@@ -143,7 +143,7 @@ function LoginArea({
   reconfigureOpen: boolean;
   site: string;
   url: string;
-  fieldCandidates: LoginFieldInfo[];
+  fieldCandidates: ExtraCandidate[];
   onConfiguredChange: (configured: boolean) => void;
   onOpenReconfigure: () => void;
   onCloseReconfigure: () => void;
@@ -232,9 +232,6 @@ export function BrowserWorkspace({
   }
 
   const isLoginPage = !!loginForm?.is_login_page;
-  const unknownCandidates = (fieldCandidates ?? []).filter(
-    (f) => f.role === "unknown",
-  );
 
   return (
     <div className="flex flex-1 flex-col min-h-0 min-w-0">
@@ -278,7 +275,7 @@ export function BrowserWorkspace({
           reconfigureOpen={reconfigureOpen}
           site={credentialSite}
           url={credentialUrl ?? loginForm.url}
-          fieldCandidates={unknownCandidates}
+          fieldCandidates={fieldCandidates ?? []}
           onConfiguredChange={(v) => onCredentialStatusChange?.(v)}
           onOpenReconfigure={() => setReconfigureOpen(true)}
           onCloseReconfigure={() => setReconfigureOpen(false)}

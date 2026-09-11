@@ -76,7 +76,7 @@ export default function ChatMessages({
                     </span>
                   </div>
                 )}
-                <div className="text-[14px] text-ink whitespace-pre-wrap break-words leading-relaxed">
+                <div className="text-[14px] text-ink whitespace-pre-wrap wrap-break-word leading-relaxed">
                   {msg.content}
                 </div>
               </div>
@@ -97,7 +97,7 @@ export default function ChatMessages({
                   Assistant
                 </span>
               </div>
-              <div className="rounded-lg border border-grid bg-surface overflow-hidden [transform:translateZ(0)]">
+              <div className="rounded-lg border border-grid bg-surface overflow-hidden transform-gpu">
                 <RunContainer run={run} />
               </div>
               <div className="flex justify-end gap-1">

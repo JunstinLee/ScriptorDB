@@ -262,7 +262,7 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
                 )}
               </div>
             )}
-            <pre className="text-xs text-muted whitespace-pre-wrap break-words max-h-48 overflow-y-auto font-mono">
+            <pre className="text-xs text-muted whitespace-pre-wrap wrap-break-word max-h-48 overflow-y-auto font-mono">
               {output || t("tool.no_output")}
             </pre>
           </div>

@@ -309,6 +309,17 @@ export interface LoginFormPayload {
   submit: LoginFieldInfo | null;
 }
 
+/** 附加登录信息（第三项）相对账号/密码槽位的落位（由登录页 DOM 序派生） */
+export type ExtraPlacement = "before" | "between" | "after";
+
+/** 可作第三项的字段：LoginFieldInfo + DOM 序下标 + 落位 */
+export interface ExtraCandidate extends LoginFieldInfo {
+  /** 在 login_form.fields（DOM 文档序）中的下标 */
+  order: number;
+  /** 相对账号/密码槽位的落位 */
+  placement: ExtraPlacement;
+}
+
 export interface HumanTakeoverRequestEvent {
   type: "human_takeover_request";
   run_id: string;

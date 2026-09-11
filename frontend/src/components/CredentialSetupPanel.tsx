@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, KeyRound, Save, Trash2 } from "lucide-react";
 import { saveCredentials, deleteCredentials } from "../api/loginCredentials";
-import type { CredentialStatus, LoginFieldInfo } from "../types";
+import type { CredentialStatus, ExtraCandidate, ExtraPlacement } from "../types";
 
 export interface CredentialSetupPanelProps {
   /** 当前登录页 netloc（父组件由 login_form.url 推导） */
@@ -12,15 +12,15 @@ export interface CredentialSetupPanelProps {
   username?: string;
   /** 本 site 是否已配置（父组件传入，组件不自查） */
   configured: boolean;
-  /** unknown 可填字段候选（父组件从 login_form.fields 过滤后传入；无则传 []） */
-  fieldCandidates: LoginFieldInfo[];
+  /** 第三项候选（登录页提取 + DOM 序落位；无则传 []，退化为手动折叠入口） */
+  fieldCandidates: ExtraCandidate[];
   /** 保存成功后回调（父组件用来翻转 configured + 关闭面板） */
   onSaved?: (status: CredentialStatus) => void;
   /** 删除成功后回调 */
   onDeleted?: (site: string) => void;
 }
 
-function hintText(field: LoginFieldInfo): string {
+function hintText(field: ExtraCandidate): string {
   return [field.label, field.placeholder, field.name]
     .filter((x): x is string => Boolean(x))
     .join(" · ");
@@ -36,22 +36,29 @@ export function CredentialSetupPanel({
   onSaved,
   onDeleted,
 }: CredentialSetupPanelProps) {
+  // 候选唯一时预选（hints 一定指向它，无歧义）；多候选时留空由用户选，避免 hints 指错字段。
   const [mainUsername, setMainUsername] = useState(username);
   const [password, setPassword] = useState("");
-  const [extraOpen, setExtraOpen] = useState(false);
+  const [extraOpen, setExtraOpen] = useState(fieldCandidates.length > 0);
   const [fieldLabel, setFieldLabel] = useState("");
   const [extraValue, setExtraValue] = useState("");
-  const [selectedField, setSelectedField] = useState<LoginFieldInfo | null>(null);
+  const [selectedField, setSelectedField] = useState<ExtraCandidate | null>(
+    fieldCandidates.length === 1 ? fieldCandidates[0] : null,
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+
+  // 落位：随用户改选的候选项变化；无选中时用首个候选的落位，无候选退化 after。
+  const placement: ExtraPlacement =
+    selectedField?.placement ?? fieldCandidates[0]?.placement ?? "after";
 
   const resetInputs = () => {
     setMainUsername("");
     setPassword("");
     setFieldLabel("");
     setExtraValue("");
-    setSelectedField(null);
-    setExtraOpen(false);
+    setSelectedField(fieldCandidates.length === 1 ? fieldCandidates[0] : null);
+    setExtraOpen(fieldCandidates.length > 0);
     setError("");
   };
 
@@ -127,6 +134,55 @@ export function CredentialSetupPanel({
     }
   };
 
+  // 第三项落位（placement）：before=账号之上；between=账号与密码之间；after=密码之下。
+  const extraBlock = (
+    <div className="rounded-lg border border-grid">
+      <button
+        onClick={() => setExtraOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted hover:bg-surface/60"
+      >
+        <span>Extra login info (optional)</span>
+        <ChevronDown
+          className={`size-3.5 transition-transform ${extraOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+      {extraOpen && (
+        <div className="flex flex-col gap-2 border-t border-grid px-3 py-2">
+          <input
+            type="text"
+            value={fieldLabel}
+            onChange={(e) => setFieldLabel(e.target.value)}
+            placeholder="Field name, e.g. User ID / Account ID / employee no."
+            autoComplete="off"
+            className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+          <input
+            type="text"
+            value={extraValue}
+            onChange={(e) => setExtraValue(e.target.value)}
+            placeholder="Value"
+            autoComplete="off"
+            className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+          />
+          {fieldCandidates.length > 0 && (
+            <select
+              value={selectedField?.selector ?? ""}
+              onChange={(e) => handleFieldSelect(e.target.value)}
+              className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
+            >
+              <option value="">This extra info maps to… (optional)</option>
+              {fieldCandidates.map((f) => (
+                <option key={f.selector} value={f.selector}>
+                  {hintText(f) || f.selector}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="rounded-xl border border-grid bg-surface px-4 py-4">
       <div className="mb-3 flex items-center gap-2">
@@ -152,6 +208,7 @@ export function CredentialSetupPanel({
       )}
 
       <div className="flex flex-col gap-2">
+        {placement === "before" && extraBlock}
         <input
           type="text"
           value={mainUsername}
@@ -160,6 +217,7 @@ export function CredentialSetupPanel({
           autoComplete="off"
           className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
         />
+        {placement === "between" && extraBlock}
         <input
           type="password"
           value={password}
@@ -168,52 +226,7 @@ export function CredentialSetupPanel({
           autoComplete="new-password"
           className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
         />
-
-        <div className="rounded-lg border border-grid">
-          <button
-            onClick={() => setExtraOpen((v) => !v)}
-            className="flex w-full items-center justify-between px-3 py-2 text-left text-xs text-muted hover:bg-surface/60"
-          >
-            <span>Extra login info (optional)</span>
-            <ChevronDown
-              className={`size-3.5 transition-transform ${extraOpen ? "rotate-180" : ""}`}
-            />
-          </button>
-          {extraOpen && (
-            <div className="flex flex-col gap-2 border-t border-grid px-3 py-2">
-              <input
-                type="text"
-                value={fieldLabel}
-                onChange={(e) => setFieldLabel(e.target.value)}
-                placeholder="Field name, e.g. User ID / Account ID / employee no."
-                autoComplete="off"
-                className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-              />
-              <input
-                type="text"
-                value={extraValue}
-                onChange={(e) => setExtraValue(e.target.value)}
-                placeholder="Value"
-                autoComplete="off"
-                className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-              />
-              {fieldCandidates.length > 0 && (
-                <select
-                  value={selectedField?.selector ?? ""}
-                  onChange={(e) => handleFieldSelect(e.target.value)}
-                  className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
-                >
-                  <option value="">This extra info maps to… (optional)</option>
-                  {fieldCandidates.map((f) => (
-                    <option key={f.selector} value={f.selector}>
-                      {hintText(f) || f.selector}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )}
-        </div>
+        {placement === "after" && extraBlock}
 
         {error && <p className="text-xs text-danger">{error}</p>}
 
