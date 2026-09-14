@@ -239,3 +239,4 @@ test_file/
 outputs/
 logs/
 .claude/
+.commandcode/

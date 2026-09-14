@@ -143,7 +143,7 @@
     "slug": "deepseek-v4-flash",
     "display_name": "DeepSeek V4 Flash",
     "aliases": {
-      "deepseek": "deepseek-v4-flash",
+      "deepseek": "deepseek-flash",
       "nim": "deepseek-ai/deepseek-v4-flash",
       "openrouter": "deepseek-v4-flash",
       "together": "deepseek-v4-flash"
