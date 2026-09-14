@@ -141,7 +141,7 @@
   },
   {
     "slug": "deepseek-v4-flash",
-    "display_name": "DeepSeek V4 Flash",
+    "display_name": "DeepSeek V4.1 Flash",
     "aliases": {
       "deepseek": "deepseek-flash",
       "nim": "deepseek-ai/deepseek-v4-flash",
