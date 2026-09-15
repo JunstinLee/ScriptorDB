@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 
+from browser.login_state import LOGIN_TITLE_KEYWORDS
 from core.logging_setup import get_logger
 
 logger = get_logger("browser.takeover")
@@ -263,10 +264,8 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
         if has_payment:
             return HumanTrigger("Payment confirmation page detected", "payment", 0.8)
 
-    login_keywords = ["sign in", "log in", "login", "signin", "登录", "登入", "logon"]
-
     # 扫码登录：登录特征 + 无密码框 + 二维码可见
-    login_feature = any(kw in title for kw in login_keywords) or any(
+    login_feature = any(kw in title for kw in LOGIN_TITLE_KEYWORDS) or any(
         marker in url_lower for marker in ("login", "signin", "登录", "登入")
     )
     if login_feature:
@@ -286,7 +285,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
             if qr_seen:
                 return HumanTrigger("检测到扫码登录页面，请扫码完成登录", "qrcode", 0.85)
 
-    if any(kw in title for kw in login_keywords):
+    if any(kw in title for kw in LOGIN_TITLE_KEYWORDS):
         has_password = await evaluate(
             "() => !!document.querySelector('input[type=password]')"
         )

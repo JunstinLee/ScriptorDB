@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from browser.login_state import _LOGIN_ACTION_JS, _PASSWORD_INPUT_JS
 from browser.login_form import (
     ROLE_OTP,
     ROLE_PASSWORD,
@@ -12,24 +13,34 @@ from browser.login_form import (
 )
 
 
+class _FakeContext:
+    """LoginPage 协议要求的最小 cookie jar；extract_login_form 不读取 cookie。"""
+
+    async def cookies(self, urls: list[str] | None = None) -> list:
+        return []
+
+
 class _FakePage:
     """最小 Page 接口：登录信号与字段提取 JS 各自返回预置结果。"""
 
     def __init__(self, url: str, controls: list[dict] | None = None,
-                 title: str = "Dashboard", has_password: bool = False):
+                 title: str = "Dashboard", has_password: bool = False,
+                 has_login_action: bool = False):
         self.url = url
         self._controls = controls or []
         self._title = title
         self._has_password = has_password
-        self.context = None  # LoginPage 协议要求；extract 不使用
+        self._has_login_action = has_login_action
+        self.context = _FakeContext()
 
     async def title(self) -> str:
         return self._title
 
     async def evaluate(self, expression: str, arg=None):
-        # login_state._PASSWORD_INPUT_JS（无引号的 type=password 选择器）
-        if "input[type=password]" in expression:
+        if expression == _PASSWORD_INPUT_JS:
             return self._has_password
+        if expression == _LOGIN_ACTION_JS:
+            return self._has_login_action
         return self._controls
 
 
@@ -130,6 +141,32 @@ class TestExtractLoginForm:
         assert info is not None
         assert info.fields[0].role == ROLE_USERNAME
         assert info.fields[0].in_form is False
+
+    async def test_chinese_login_page_fields(self):
+        """中文站点：URL/标题均无英文登录线索，靠表单登录语义识别并提取。"""
+        page = _FakePage(
+            "https://etax.guangdong.chinatax.gov.cn:8443/xxmh/html/index.html",
+            [
+                {"tag": "input", "type": "text", "name": "username", "id": "username",
+                 "placeholder": "请输入账号", "label": "", "text": "",
+                 "autocomplete": "", "required": True, "selector": "#username",
+                 "visible": True, "in_form": True},
+                {"tag": "input", "type": "password", "name": "password", "id": "password",
+                 "placeholder": "请输入密码", "label": "", "text": "",
+                 "autocomplete": "", "required": True, "selector": "#password",
+                 "visible": True, "in_form": True},
+                {"tag": "button", "type": "button", "name": "", "id": "", "label": "",
+                 "text": "登录", "selector": "button", "visible": True, "in_form": True},
+            ],
+            title="国家税务总局广东省税务局",
+            has_password=True,
+            has_login_action=True,
+        )
+        info = await extract_login_form(page)
+        assert info is not None
+        assert [f.role for f in info.fields] == [ROLE_USERNAME, ROLE_PASSWORD]
+        assert info.submit is not None
+        assert info.submit.selector == "button"
 
 
 class TestSignatureAndFormat:

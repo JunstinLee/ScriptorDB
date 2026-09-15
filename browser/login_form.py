@@ -53,19 +53,49 @@ _EXTRACT_FORM_JS = """() => {
     if (el.labels && el.labels.length) return textOf(el.labels[0]);
     return "";
   };
+  const countMatches = (sel) => {
+    try { return document.querySelectorAll(sel).length; } catch (e) { return 0; }
+  };
   const selectorFor = (el) => {
-    if (el.id) return "#" + CSS.escape(el.id);
-    const name = el.getAttribute("name");
-    if (name) return el.tagName.toLowerCase() + '[name=' + JSON.stringify(name) + ']';
     const tag = el.tagName.toLowerCase();
     const type = (el.getAttribute("type") || "").toLowerCase();
     const base = tag === "input" && type
       ? tag + '[type=' + JSON.stringify(type) + ']' : tag;
-    const parent = el.parentElement;
-    const siblings = parent ? Array.from(parent.querySelectorAll(base)) : [el];
-    if (siblings.length === 1) return base;
-    const idx = siblings.indexOf(el) + 1;
-    return base + ":nth-of-type(" + idx + ")";
+    // ① id：全页唯一才采用
+    if (el.id) {
+      const byId = "#" + CSS.escape(el.id);
+      if (countMatches(byId) === 1) return byId;
+    }
+    // ② name：全页唯一才采用
+    const name = el.getAttribute("name");
+    if (name) {
+      const byName = base + '[name=' + JSON.stringify(name) + ']';
+      if (countMatches(byName) === 1) return byName;
+    }
+    // ③ 结构路径：自底向上拼「标签 + 同标签兄弟序号」，拼到全页唯一为止
+    //    （element-ui 这类「每个 input 单独包一层」的结构靠祖先层区分）
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === 1) {
+      const nodeTag = node.tagName.toLowerCase();
+      const nodeType = (node.getAttribute("type") || "").toLowerCase();
+      let part = nodeTag === "input" && nodeType
+        ? nodeTag + '[type=' + JSON.stringify(nodeType) + ']' : nodeTag;
+      const parent = node.parentElement;
+      if (parent) {
+        const sameTag = Array.from(parent.children)
+          .filter((c) => c.tagName === node.tagName);
+        if (sameTag.length > 1) {
+          part += ":nth-of-type(" + (sameTag.indexOf(node) + 1) + ")";
+        }
+      }
+      parts.unshift(part);
+      const candidate = parts.join(" > ");
+      if (countMatches(candidate) === 1) return candidate;
+      if (parent === null || parent === document.documentElement) break;
+      node = parent;
+    }
+    return parts.join(" > ") || base;
   };
   const controls = [];
   const seen = new Set();
@@ -247,9 +277,10 @@ async def extract_login_form(page: LoginPage) -> LoginFormInfo | None:
         submit=submit,
     )
     logger.info(
-        "login form extracted url=%s fields=%d submit=%s roles=%s",
+        "login form extracted url=%s fields=%d submit=%s roles=%s selectors=%s",
         page.url, len(fields), submit.selector if submit else None,
         [f.role for f in fields],
+        [f.selector for f in fields],
     )
     return info
 

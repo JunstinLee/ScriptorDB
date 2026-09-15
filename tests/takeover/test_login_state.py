@@ -3,7 +3,13 @@ from __future__ import annotations
 import pytest
 
 from browser import get_manager
-from browser.login_state import detect_login_state, netloc_of
+from browser.login_state import (
+    _LOGIN_ACTION_JS,
+    _is_login_url,
+    _login_page_signals,
+    detect_login_state,
+    netloc_of,
+)
 
 pytestmark = pytest.mark.usefixtures("cleanup_browser")
 
@@ -18,16 +24,20 @@ class _FakeContext:
 
 class _FakePage:
     def __init__(self, url: str, cookies: list[dict] | None = None,
-                 title: str = "", has_password: bool = False):
+                 title: str = "", has_password: bool = False,
+                 has_login_action: bool = False):
         self.url = url
         self._title = title
         self._has_password = has_password
+        self._has_login_action = has_login_action
         self.context = _FakeContext(cookies or [])
 
     async def title(self) -> str:
         return self._title
 
     async def evaluate(self, expression: str, arg=None) -> bool:
+        if expression == _LOGIN_ACTION_JS:
+            return self._has_login_action
         return self._has_password
 
 
@@ -125,6 +135,60 @@ class TestDetectLoginState:
         state = await detect_login_state(page, domain="example.com")
         assert state.status == "logged_in"
         assert state.domain == "example.com"
+
+
+class TestLoginUrl:
+    def test_plain_path(self):
+        assert _is_login_url("https://x.gov.cn/user/login") is True
+
+    def test_hash_route(self):
+        """SPA 哈希路由：#/login 的登录线索在 fragment 里。"""
+        assert _is_login_url("https://x.gov.cn/#/login") is True
+
+    def test_non_login_path(self):
+        assert _is_login_url("https://x.gov.cn/xxmh/html/index.html") is False
+
+
+class TestCnLoginPageSignals:
+    """中文站点：标题/按钮为中文时也必须判为登录页。"""
+
+    async def test_chinese_title_and_password(self):
+        page = _FakePage(
+            "https://etax.guangdong.chinatax.gov.cn:8443/xxmh/html/index.html",
+            title="国家税务总局广东省税务局-登录", has_password=True,
+        )
+        is_login, evidence = await _login_page_signals(page)
+        assert is_login is True
+        assert "标题" in evidence
+
+    async def test_chinese_action_button_without_title_keyword(self):
+        """标题只写机构名：靠表单登录语义（中文提交按钮）命中。"""
+        page = _FakePage(
+            "https://etax.guangdong.chinatax.gov.cn:8443/xxmh/html/index.html",
+            title="国家税务总局广东省税务局", has_password=True,
+            has_login_action=True,
+        )
+        is_login, evidence = await _login_page_signals(page)
+        assert is_login is True
+        assert "登录操作" in evidence
+
+    async def test_chinese_page_without_login_semantics_ignored(self):
+        page = _FakePage(
+            "https://example.gov.cn/dashboard",
+            title="国家税务总局广东省税务局", has_password=True,
+        )
+        is_login, _ = await _login_page_signals(page)
+        assert is_login is False
+
+    async def test_detect_login_state_logged_out_on_chinese_login_page(self):
+        page = _FakePage(
+            "https://etax.guangdong.chinatax.gov.cn:8443/xxmh/html/index.html",
+            cookies=[{"name": "tracker"}],
+            title="国家税务总局广东省税务局-登录", has_password=True,
+        )
+        state = await detect_login_state(page)
+        assert state.status == "logged_out"
+        assert state.on_login_page is True
 
 
 class TestValidateProfile:
