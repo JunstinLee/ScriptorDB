@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""PDF tool cluster: tool entry (`read_pdf`), crawl4ai-backed extraction service.
+"""PDF tool cluster: tool entry (`read_pdf`), pypdf-backed extraction service.
 
 Implementation lives in `tools.pdf.tools` and `tools.pdf.service`. Importing
 this package registers the `read_pdf` tool.

@@ -1,34 +1,52 @@
 from __future__ import annotations
 
+from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
+
 from schemas.crawl_links import CrawlLink
 from tools.policy.link_policy import (
     DOCUMENT_EXTENSIONS,
     domain_of,
     filter_links,
     is_document_url,
+    is_internal_link,
 )
 
+_SKIP_HREF_PREFIXES = ("javascript:", "mailto:", "tel:", "data:", "about:", "#")
 
-def extract_links(result: object) -> list[CrawlLink]:
-    """Map crawl4ai `result.links` (internal/external) into CrawlLink list."""
-    links = getattr(result, "links", None)
-    if not links or not isinstance(links, dict):
+
+def _base_href(soup: BeautifulSoup, base_url: str) -> str:
+    tag = soup.find("base", href=True)
+    if tag is None:
+        return base_url
+    return urljoin(base_url, tag["href"]) or base_url
+
+
+def extract_links(html: str, base_url: str = "") -> list[CrawlLink]:
+    """Parse `<a href>` elements into CrawlLink entries, resolving relative URLs."""
+    if not html:
         return []
+    soup = BeautifulSoup(html, "html.parser")
+    resolved_base = _base_href(soup, base_url)
+
     out: list[CrawlLink] = []
-    for is_internal, key in ((True, "internal"), (False, "external")):
-        for item in links.get(key) or []:
-            if not isinstance(item, dict):
-                continue
-            href = item.get("href") or ""
-            if not href:
-                continue
-            out.append(CrawlLink(
-                url=href,
-                text=item.get("text") or "",
-                title=item.get("title") or "",
-                base_domain=item.get("base_domain") or "",
-                is_internal=is_internal,
-            ))
+    seen: set[str] = set()
+    for anchor in soup.find_all("a", href=True):
+        href = (anchor.get("href") or "").strip()
+        if not href or href.lower().startswith(_SKIP_HREF_PREFIXES):
+            continue
+        url = urljoin(resolved_base, href)
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        out.append(CrawlLink(
+            url=url,
+            text=anchor.get_text(strip=True),
+            title=anchor.get("title") or "",
+            base_domain=domain_of(url),
+            is_internal=is_internal_link(url, resolved_base) if resolved_base else False,
+        ))
     return out
 
 

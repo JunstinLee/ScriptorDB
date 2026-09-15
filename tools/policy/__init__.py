@@ -7,7 +7,6 @@ Consumed by the crawl, download, and browser clusters via `tools.policy.*`.
 
 from tools.policy.crawl_policy import (
     BINARY_CONTENT_TYPES,
-    build_exclude_domains,
     is_allowed_domain,
     is_binary_content_type,
 )
@@ -35,7 +34,6 @@ __all__ = [
     "BINARY_CONTENT_TYPES",
     "DOCUMENT_EXTENSIONS",
     "DownloadPolicyError",
-    "build_exclude_domains",
     "domain_of",
     "filter_links",
     "is_allowed_domain",

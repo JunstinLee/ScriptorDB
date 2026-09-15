@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from config.settings import load_default_workspace, settings
 from config.workspace import workspace_sessions_dir
@@ -59,3 +60,9 @@ app.include_router(browser_cookies.router)
 app.include_router(browser_profiles.router)
 app.include_router(browser_stream.router)
 app.include_router(login_credentials.router)
+
+
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+
+if _FRONTEND_DIST.is_dir():
+    app.mount("/", StaticFiles(directory=_FRONTEND_DIST, html=True), name="frontend")

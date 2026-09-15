@@ -23,18 +23,6 @@ def is_binary_content_type(content_type: str | None) -> bool:
     return content_type.split(";", 1)[0].strip().lower() in BINARY_CONTENT_TYPES
 
 
-def build_exclude_domains(allowed_domains: list[str] | None) -> list[str]:
-    """Map an allowlist to crawl4ai's `exclude_domains`.
-
-    crawl4ai has no whitelist primitive, so a whitelist cannot be expressed as
-    exclude_domains; enforcement is done post-hoc by `is_allowed_domain` /
-    `tools.crawl.links.filter_document_links`. Returns [] to keep crawl-time
-    link collection unfiltered. `allowed_domains` restricts navigation links
-    only; document links are treated as page content.
-    """
-    return []
-
-
 def is_allowed_domain(url: str, allowed_domains: list[str] | None) -> bool:
     if not allowed_domains:
         return True
@@ -52,7 +40,6 @@ def _domain_of(url: str) -> str:
 
 __all__ = [
     "is_binary_content_type",
-    "build_exclude_domains",
     "is_allowed_domain",
     "BINARY_CONTENT_TYPES",
 ]

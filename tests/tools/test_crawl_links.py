@@ -4,11 +4,10 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
-from crawl4ai import CacheMode
 
 from schemas.crawl_links import CrawlLink
 from tools.crawl.links import extract_links, filter_document_links
-from tools.policy.crawl_policy import build_exclude_domains, is_allowed_domain, is_binary_content_type
+from tools.policy.crawl_policy import is_allowed_domain, is_binary_content_type
 from tools.crawl.structured import extract_with_schema
 
 
@@ -44,39 +43,42 @@ class _Handler(BaseHTTPRequestHandler):
 def http_server():
     _Handler.request_count = 0
     server = HTTPServer(("127.0.0.1", 0), _Handler)
-    port = runtime.server_address[1]
-    thread = threading.Thread(target=runtime.serve_forever, daemon=True)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{port}"
-    runtime.shutdown()
+    server.shutdown()
     thread.join()
 
 
 class TestCrawlLinksModule:
     def test_extract_links_maps_internal_external(self):
-        class FakeResult:
-            links = {
-                "internal": [
-                    {"href": "https://example.com/a", "text": "A", "title": "TA", "base_domain": "example.com"},
-                    {"href": "https://example.com/b", "text": "B", "title": "", "base_domain": "example.com"},
-                ],
-                "external": [
-                    {"href": "https://other.com/x", "text": "X", "title": "", "base_domain": "other.com"},
-                ],
-            }
+        html = (
+            "<html><body>"
+            "<a href='https://example.com/a' title='TA'>A</a>"
+            "<a href='https://example.com/b'>B</a>"
+            "<a href='https://other.com/x'>X</a>"
+            "</body></html>"
+        )
 
-        links = extract_links(FakeResult())
+        links = extract_links(html, "https://example.com/")
         assert len(links) == 3
         assert links[0].is_internal is True
         assert links[0].url == "https://example.com/a"
+        assert links[0].text == "A"
+        assert links[0].title == "TA"
         assert links[2].is_internal is False
 
-    def test_extract_links_no_links(self):
-        class FakeResult:
-            links = {}
+    def test_extract_links_resolves_relative_urls(self):
+        html = "<html><body><a href='/docs/guide'>Guide</a></body></html>"
 
-        assert extract_links(FakeResult()) == []
-        assert extract_links(object()) == []
+        links = extract_links(html, "https://example.com/page")
+        assert [link.url for link in links] == ["https://example.com/docs/guide"]
+        assert links[0].is_internal is True
+
+    def test_extract_links_no_links(self):
+        assert extract_links("<html><body><p>no anchors</p></body></html>") == []
+        assert extract_links("") == []
 
     def test_filter_document_links_by_extension(self):
         links = [
@@ -130,10 +132,6 @@ class TestCrawlPolicy:
         assert is_allowed_domain("https://www.example.com/x", ["example.com"])
         assert not is_allowed_domain("https://other.com/x", ["example.com"])
         assert is_allowed_domain("https://other.com/x", None)
-
-    def test_build_exclude_domains(self):
-        assert build_exclude_domains(["example.com"]) == []
-        assert build_exclude_domains(None) == []
 
 
 class TestCrawlStructured:
@@ -252,34 +250,3 @@ class TestCrawlUrlHttp:
         assert second.success
         assert second.markdown == first.markdown
         assert _Handler.request_count == count_after_first
-
-    @pytest.mark.asyncio
-    async def test_cache_mode_enabled(self, monkeypatch):
-        from tools.crawl import service as crawl_service
-
-        captured: dict = {}
-
-        class FakeConfig:
-            def __init__(self, **kwargs):
-                captured.update(kwargs)
-
-        class FakeCrawler:
-            def __init__(self, *args, **kwargs):
-                self._result = object()
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                return False
-
-            async def arun(self, url, config):
-                return self._result
-
-        monkeypatch.setattr(crawl_service, "CrawlerRunConfig", FakeConfig)
-        monkeypatch.setattr(crawl_service, "AsyncWebCrawler", FakeCrawler)
-
-        result = await crawl_service._crawl_url_inner("http://example.com/")
-        assert result is not None
-        assert captured["cache_mode"] == CacheMode.ENABLED
-        assert captured["exclude_domains"] == []
