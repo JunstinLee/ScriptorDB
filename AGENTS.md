@@ -50,7 +50,8 @@ Layering: `config/` (workspace + provider state) → `agents/` (agent builder, c
 
 ```bash
 # Backend (uv; run from repo root — imports are top-level, no src package)
-uv sync                                  # install deps; uv.lock is the dependency source of truth
+uv sync --extra browser --extra crawl    # install deps; uv.lock is the dependency source of truth
+uv sync                                 # core only: no browser automation, no crawl tools
 uv run python main.py                    # no-arg → workspace selection menu + numbered text dispatcher
 uv run python main.py setup              # provider + API key wizard (requires workspace)
 uv run python main.py forget             # delete stored credentials (requires workspace)
@@ -109,7 +110,7 @@ uv run python scripts/layout_diagnostic.py <url> [-d 30] [-i 200] [-n 20] [--hea
 
 ## Runtime/Tooling Preferences
 
-- **Python ≥3.10 via `uv`** (`requires-python = ">=3.10"`; the maintained `.venv` is CPython 3.12). No console scripts and no build backend — launch with `uv run python main.py` from the repo root. `uv.lock` is the dependency source of truth; **`requirements.txt` is a stale partial `pip freeze` snapshot (missing 11 of the 18 direct deps) — never install from it.**
+- **Python ≥3.10 via `uv`** (`requires-python = ">=3.10"`; the maintained `.venv` is CPython 3.12). No console scripts and no build backend — launch with `uv run python main.py` from the repo root. `uv.lock` is the dependency source of truth; **`requirements.txt` is a stale partial `pip freeze` snapshot (missing most of the declared direct deps, and unaware of the `browser`/`crawl` extras) — never install from it.**
 - **No CI, no pre-commit, no Makefile, no Dockerfile, no `.python-version`, no `ruff`/`mypy`/`pyright` installed.** `pyrightconfig.json` (+ `[tool.pylance]`) only points IDE type-checking at `./.venv`.
 - **Two independent npm projects** (no workspaces, no `engines` pin). Root `package.json` holds only `concurrently` and orchestrates the two dev processes; `frontend/package.json` holds the app stack: Vite 8, React 19, TypeScript ~6.0, Tailwind CSS 4 (`@tailwindcss/vite`, no tailwind/postcss config files — CSS-first `@theme` in `src/index.css`), HeroUI v3, ESLint 10 flat config (`ts/tsx` only, `react-hooks/set-state-in-effect` off), Vitest 4 + jsdom + Testing Library. `frontend/tsconfig*.json` does **not** enable `strict`.
 - **Providers:** exactly four, all OpenAI-compatible — `openrouter` (`openrouter:` prefix) and `nim`/`together`/`deepseek` (`openai:` prefix via `OpenAIProvider(base_url=…)`); `SUPPORTED_PROVIDERS` in `config/secrets.py`, and the frontend chat popover list is duplicated in `frontend/src/constants.ts` (same 4 — keep in sync). Model selection: `resolve_model()` prefixes the provider, `fuzzy_match_model()` matches substrings; model lists cached at `~/.cache/scriptordb/models_<provider>.json` with 1 h TTL.
