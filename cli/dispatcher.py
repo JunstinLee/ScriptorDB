@@ -116,8 +116,7 @@ def _create_or_open_for(path: Path, registry: WorkspaceRegistry):
 
 
 def _interactive_create_workspace(registry: WorkspaceRegistry) -> None:
-    default = str(Path.cwd())
-    raw = typer.prompt("请输入工作区目录路径", default=default).strip()
+    raw = typer.prompt("请输入工作区目录路径").strip()
     rec = _create_or_open_for(Path(raw), registry)
     if rec is not None:
         _activate(rec.id, registry)

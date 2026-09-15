@@ -238,5 +238,6 @@ a
 test_file/
 outputs/
 logs/
+browsers/
 .claude/
 .commandcode/

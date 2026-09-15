@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import core.playwright_browsers  # noqa: F401  must precede any playwright import
 import core.log_to_file  # noqa: F401  redirects stdout/stderr to logs/run_<timestamp>.log
 
 from collections.abc import AsyncIterator

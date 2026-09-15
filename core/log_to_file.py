@@ -5,7 +5,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-_LOGS_DIR = Path(os.environ.get("SCRIPTORDB_LOG_DIR", "logs"))
+from config.workspace_paths import GLOBAL_CONFIG_DIR
+
+_LOGS_DIR = Path(os.environ.get("SCRIPTORDB_LOG_DIR") or GLOBAL_CONFIG_DIR / "logs")
 _TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 _LOG_PATH = _LOGS_DIR / f"run_{_TIMESTAMP}.log"
 

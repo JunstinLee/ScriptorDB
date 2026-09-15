@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import core.playwright_browsers  # noqa: F401  must precede any playwright import
 import sys
 
 import typer
