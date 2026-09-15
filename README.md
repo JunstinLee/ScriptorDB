@@ -66,7 +66,7 @@ You review the pending tool call, choose to approve or deny (optionally editing 
 Paste a URL, and the agent fetches and analyzes the page content alongside your database. No copy-pasting, no switching tabs.
 
 - **URL + question in one prompt** — Type your question, paste a URL, and the agent crawls the page as Markdown, then answers using both the page content and your database context.
-- **Built on crawl4ai** — Pages are rendered and extracted to clean Markdown (up to 50K characters), preserving headings, tables, and text structure.
+- **Playwright-powered crawling** — Pages are rendered in headless Chromium and extracted to clean Markdown (up to 50K characters), preserving headings, tables, and text structure.
 
 ### Real Browser Automation & Human Takeover
 Beyond crawling, the agent can drive a real (visible) Playwright browser — navigate, click, fill forms, extract tables and links, manage cookies and login profiles — and answer questions about live pages.
@@ -168,7 +168,7 @@ ScriptorDB/
 - [x] Session persistence per workspace
 - [x] Undo log for write operations
 - [x] MySQL support (connection pool + keyring credentials)
-- [x] Web crawling (crawl4ai) and document download
+- [x] Web crawling (Playwright) and document download
 - [x] Browser automation with human takeover and WebRTC viewport
 - [x] Searchable session history
 - [ ] Session expiration / cleanup (24h TTL planned)

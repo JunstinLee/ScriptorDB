@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-ScriptorDB is a natural-language database agent: ask questions in plain English and the agent reads, queries, and writes your SQLite/MySQL database, imports CSV/Excel, generates matplotlib charts, runs a sandboxed Python subprocess, crawls web pages (crawl4ai), and drives a real (visible) Playwright browser — all behind human approval gates and a grouped undo system.
+ScriptorDB is a natural-language database agent: ask questions in plain English and the agent reads, queries, and writes your SQLite/MySQL database, imports CSV/Excel, generates matplotlib charts, runs a sandboxed Python subprocess, crawls web pages (Playwright), and drives a real (visible) Playwright browser — all behind human approval gates and a grouped undo system.
 
 Three surfaces share one workspace model and one config:
 
