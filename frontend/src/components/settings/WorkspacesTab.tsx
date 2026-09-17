@@ -114,7 +114,7 @@ export default function WorkspacesTab({
             <Button
               variant="primary"
               onPress={handleImport}
-              isLoading={importing}
+              isPending={importing}
               isDisabled={!activeWorkspace}
             >
               <Upload className="mr-1.5 size-3.5" />

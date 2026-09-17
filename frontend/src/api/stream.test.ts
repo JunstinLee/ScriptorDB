@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { attachSessionStream, streamChat, type SseStreamCallbacks } from "./stream";
 
 function createSSEResponse(chunks: string[]): Response {

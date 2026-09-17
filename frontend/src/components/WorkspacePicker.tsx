@@ -45,7 +45,6 @@ export default function WorkspacePicker({
   onCreate,
   onRename,
   onDelete,
-  onRefresh,
   onCancelActive,
   isOpen,
   onClose,
@@ -144,10 +143,6 @@ export default function WorkspacePicker({
     },
     [renameValue, onRename],
   );
-
-  const handleClose = useCallback(() => {
-    if (isClosable) onClose();
-  }, [isClosable, onClose]);
 
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={isClosable ? onClose : undefined}>
