@@ -5,6 +5,7 @@ import {
   saveApiKey,
   deleteApiKey,
   testApiKey,
+  fetchApiKeyStatus,
 } from "./settings";
 
 import { stubFetch } from "../test/mockClient";
@@ -83,5 +84,33 @@ describe("testApiKey", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ provider: "openai", api_key: "sk-test" }),
     });
+  });
+});
+
+describe("fetchApiKeyStatus", () => {
+  const validStatus = {
+    provider: "deepseek",
+    status: "valid",
+    error: null,
+    checked_at: "2026-01-01T00:00:00+00:00",
+  };
+
+  it("fetches /api/settings/api-key/status without query params", async () => {
+    mockJson.mockResolvedValueOnce(validStatus);
+    const result = await fetchApiKeyStatus();
+    expect(result).toEqual(validStatus);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/settings/api-key/status",
+      { headers: { "Content-Type": "application/json" } },
+    );
+  });
+
+  it("passes provider and refresh as query params", async () => {
+    mockJson.mockResolvedValueOnce(validStatus);
+    await fetchApiKeyStatus("openrouter", true);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/settings/api-key/status?provider=openrouter&refresh=true",
+      { headers: { "Content-Type": "application/json" } },
+    );
   });
 });

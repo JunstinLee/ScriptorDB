@@ -27,6 +27,8 @@ export type {
 export type {
   ActiveWorkspaceResponse,
   ApiKeyRequest,
+  ApiKeyStatus,
+  ApiKeyStatusKind,
   ApiKeyTestResponse,
   MySQLConfigRequest,
   MySQLConfigResponse,

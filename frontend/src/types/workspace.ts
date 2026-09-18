@@ -91,3 +91,17 @@ export interface ApiKeyTestResponse {
   ok: boolean;
   error: string | null;
 }
+
+export type ApiKeyStatusKind =
+  | "missing"
+  | "valid"
+  | "invalid"
+  | "unknown"
+  | "no_workspace";
+
+export interface ApiKeyStatus {
+  provider: string;
+  status: ApiKeyStatusKind;
+  error: string | null;
+  checked_at: string;
+}

@@ -1,3 +1,4 @@
+import ApiKeyRequiredModal from "./ApiKeyRequiredModal";
 import ConfirmDialog from "./common/ConfirmDialog";
 import { FilterConfirmDrawer } from "./FilterConfirmDrawer";
 import SettingsModal from "./SettingsModal";
@@ -5,6 +6,7 @@ import SwitchingOverlay from "./common/SwitchingOverlay";
 import WorkspacePicker from "./WorkspacePicker";
 import type {
   ApprovalRequestEvent,
+  ApiKeyStatusKind,
   FilterSchema,
   WorkspaceCreateRequest,
   WorkspaceDetail,
@@ -42,6 +44,11 @@ interface AppDialogsProps {
   isPickerOpen: boolean;
   onPickerClose: () => void;
   onOpenPicker: () => void;
+  /** 主动检测到的 API Key 状态（见 useApiKeyStatus） */
+  apiKeyKind: ApiKeyStatusKind | null;
+  apiKeyProvider: string | null;
+  apiKeyError: string | null;
+  onApiKeyResolved: () => void;
 }
 
 /**
@@ -76,6 +83,10 @@ export default function AppDialogs({
   isPickerOpen,
   onPickerClose,
   onOpenPicker,
+  apiKeyKind,
+  apiKeyProvider,
+  apiKeyError,
+  onApiKeyResolved,
 }: AppDialogsProps) {
   const handlePickerCreate = async (body: WorkspaceCreateRequest) => {
     const detail = await onCreateWorkspace(body);
@@ -111,6 +122,20 @@ export default function AppDialogs({
         workspacesCount={workspaces.length}
         onWorkspaceChanged={onRefreshWorkspaces}
         onOpenWorkspacePicker={onOpenPicker}
+      />
+
+      <ApiKeyRequiredModal
+        isOpen={
+          !!workspace &&
+          !settingsOpen &&
+          (apiKeyKind === "missing" ||
+            apiKeyKind === "invalid" ||
+            apiKeyKind === "unknown")
+        }
+        status={apiKeyKind}
+        provider={apiKeyProvider}
+        error={apiKeyError}
+        onResolved={onApiKeyResolved}
       />
 
       <ConfirmDialog

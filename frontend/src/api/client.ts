@@ -36,6 +36,7 @@ export {
   saveApiKey,
   deleteApiKey,
   testApiKey,
+  fetchApiKeyStatus,
 } from "./settings";
 export {
   fetchWorkspaces,
