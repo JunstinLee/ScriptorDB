@@ -21,10 +21,10 @@ type FormStatus =
   | { kind: "success"; message: string };
 
 /**
- * 主动检测到 API Key 缺失/无效时弹出的阻断式弹窗。
+ * 主动检测到 API Key 缺失/无效时弹出的弹窗。
  *
- * `missing` / `invalid` 时不可关闭——应用此时无法工作；`unknown`（连不上
- * provider，无法判定）只作提示且关闭后不再弹出，避免离线时把用户锁死。
+ * 保存成功后给出明确提示，由用户自己关闭——不拿“自动关闭”当成功反馈。
+ * 关闭后不会因为父层的状态条件仍为真而自动弹回，只在 isOpen 的下一个上升沿重新打开。
  */
 export default function ApiKeyRequiredModal({
   isOpen,
@@ -39,13 +39,11 @@ export default function ApiKeyRequiredModal({
   const [apiKey, setApiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [formStatus, setFormStatus] = useState<FormStatus>({ kind: "idle" });
-  const [dismissed, setDismissed] = useState(false);
-
-  const isClosable = status === "unknown";
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    setDismissed(false);
-  }, [isOpen, status]);
+    if (isOpen) setVisible(true);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -82,6 +80,10 @@ export default function ApiKeyRequiredModal({
         return;
       }
       setApiKey("");
+      setFormStatus({
+        kind: "success",
+        message: `API key saved for ${selectedProvider}.`,
+      });
       onResolved();
     } catch (e) {
       setFormStatus({
@@ -123,18 +125,20 @@ export default function ApiKeyRequiredModal({
       ? "Invalid API key"
       : status === "unknown"
         ? "Could not verify API key"
-        : "API key required";
+        : status === "valid"
+          ? "API key configured"
+          : "API key required";
 
   return (
     <Modal.Backdrop
-      isOpen={isOpen && !dismissed}
+      isOpen={visible}
       onOpenChange={(open) => {
-        if (!open && isClosable) setDismissed(true);
+        if (!open) setVisible(false);
       }}
     >
       <Modal.Container size="lg" scroll="inside">
         <Modal.Dialog className="sm:max-w-[480px] bg-surface">
-          {isClosable && <Modal.CloseTrigger />}
+          <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
               <KeyRound className="size-5" />
@@ -147,7 +151,9 @@ export default function ApiKeyRequiredModal({
                 ? `Could not reach ${provider ?? "the provider"} to check the API key. Check your connection and retry.`
                 : status === "invalid"
                   ? `${provider ?? "The provider"} rejected the stored API key. Enter a new one to continue.`
-                  : `No API key is set for ${provider ?? "the current provider"}. Enter one to continue.`}
+                  : status === "valid"
+                    ? `${provider ?? "The provider"} is ready to use. Close this window to continue.`
+                    : `No API key is set for ${provider ?? "the current provider"}. Enter one to continue.`}
             </p>
 
             {status === "unknown" && error && (
