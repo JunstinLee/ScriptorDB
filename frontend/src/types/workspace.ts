@@ -70,6 +70,7 @@ export interface SettingsResponse {
   default_models: Record<string, string>;
   auto_restore_sessions: boolean;
   browser_enabled: boolean;
+  locale: string;
   providers: ProviderInfo[];
   providers_with_keys: string[];
 }
@@ -80,6 +81,7 @@ export interface SettingsUpdateRequest {
   default_model_provider?: string;
   auto_restore_sessions?: boolean;
   browser_enabled?: boolean;
+  locale?: string;
 }
 
 export interface ApiKeyRequest {

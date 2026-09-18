@@ -3,6 +3,7 @@ import { Modal, Tabs } from "@heroui/react";
 import {
   Folder,
   Key,
+  Languages,
   MessageSquare,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -11,6 +12,7 @@ import type { SettingsResponse, WorkspaceDetail } from "../types";
 import AlertBanner from "./common/AlertBanner";
 import ApiKeysTab from "./settings/ApiKeysTab";
 import DefaultsTab from "./settings/DefaultsTab";
+import LanguageTab from "./settings/LanguageTab";
 import SessionsTab from "./settings/SessionsTab";
 import WorkspacesTab from "./settings/WorkspacesTab";
 
@@ -94,6 +96,11 @@ export default function SettingsModal({
                       Sessions
                       <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
+                    <Tabs.Tab id="language">
+                      <Languages className="mr-1.5 inline size-3.5 text-graphite" />
+                      Language
+                      <Tabs.Indicator className="bg-cobalt" />
+                    </Tabs.Tab>
                     <Tabs.Tab id="apikeys">
                       <Key className="mr-1.5 inline size-3.5 text-graphite" />
                       API Keys
@@ -123,6 +130,12 @@ export default function SettingsModal({
                     setShowSessionIdHover={setShowSessionIdHover}
                     showSchemaSql={showSchemaSql}
                     setShowSchemaSql={setShowSchemaSql}
+                  />
+                </Tabs.Panel>
+                <Tabs.Panel className="pt-4" id="language">
+                  <LanguageTab
+                    settings={settings}
+                    onSettingsChange={setSettings}
                   />
                 </Tabs.Panel>
                 <Tabs.Panel className="pt-4" id="apikeys">

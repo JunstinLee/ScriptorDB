@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { Label, ListBox, Select } from "@heroui/react";
+import { t } from "../../i18n";
 import type { ProviderInfo } from "../../types";
 
 interface ProviderSelectProps {
@@ -38,9 +39,13 @@ export default function ProviderSelect({
         <Select.Popover>
           <ListBox>
             {providers.map((p) => (
-              <ListBox.Item key={p.name} id={p.name} textValue={p.name}>
+              <ListBox.Item
+                key={p.name}
+                id={p.name}
+                textValue={t(`provider.${p.name}`)}
+              >
                 <span className="flex items-center gap-2">
-                  <span>{p.name}</span>
+                  <span>{t(`provider.${p.name}`)}</span>
                   {configuredSet?.has(p.name) && (
                     <Check className="size-3.5 text-success" />
                   )}

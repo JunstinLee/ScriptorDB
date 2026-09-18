@@ -84,6 +84,14 @@ def set_browser_enabled(config: AppConfig, value: bool) -> None:
     _persist(config)
 
 
+def set_locale(config: AppConfig, value: str) -> None:
+    config.require_workspace()
+    gs = load_global_settings()
+    gs.locale = value
+    save_global_settings(gs)
+    config.locale = value
+
+
 def load_for_workspace(config: AppConfig, workspace_id: str) -> None:
     registry = WorkspaceRegistry()
     rec = registry.get(workspace_id)
@@ -99,6 +107,7 @@ def load_for_workspace(config: AppConfig, workspace_id: str) -> None:
     # 应用全局默认覆盖
     # TODO: 当支持"单个工作区覆盖"时，先检查 ws_settings.use_global_defaults
     apply_global_defaults(ws_settings)
+    config.locale = load_global_settings().locale
     config.workspace_id = rec.id
     config.workspace_name = rec.name
     config.workspace_path = ws_path

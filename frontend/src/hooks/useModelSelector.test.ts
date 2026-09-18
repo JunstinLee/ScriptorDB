@@ -22,6 +22,7 @@ const emptySettings: SettingsResponse = {
   default_models: {},
   auto_restore_sessions: false,
   browser_enabled: false,
+  locale: "",
   providers: [],
   providers_with_keys: [],
 };

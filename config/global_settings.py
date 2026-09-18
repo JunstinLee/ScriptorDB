@@ -10,12 +10,15 @@ from config.workspace_paths import GLOBAL_CONFIG_DIR, GLOBAL_SETTINGS_FILE
 if TYPE_CHECKING:
     from config.workspace_settings import WorkspaceSettings
 
+SUPPORTED_LOCALES = ("en", "zh")
+
 
 @dataclass
 class GlobalSettings:
     llm_provider: str = ""
     llm_model: str | None = None
     default_models: dict[str, str] = field(default_factory=dict)
+    locale: str = ""
 
 
 def load_global_settings() -> GlobalSettings:
@@ -31,6 +34,7 @@ def load_global_settings() -> GlobalSettings:
         llm_provider=str(payload.get("llm_provider") or ""),
         llm_model=payload.get("llm_model"),
         default_models=dict(payload.get("default_models") or {}),
+        locale=str(payload.get("locale") or ""),
     )
 
 
@@ -40,6 +44,7 @@ def save_global_settings(gs: GlobalSettings) -> None:
         "llm_provider": gs.llm_provider,
         "llm_model": gs.llm_model,
         "default_models": gs.default_models,
+        "locale": gs.locale,
     }
     try:
         GLOBAL_SETTINGS_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")

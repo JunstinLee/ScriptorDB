@@ -1,5 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import MainApp from "./components/MainApp";
+import { fetchSettings } from "./api/client";
 import { useWorkspaces } from "./hooks/useWorkspaces";
 import type {
   WorkspaceCreateRequest,
@@ -21,6 +23,15 @@ export default function App() {
   } = useWorkspaces();
 
   const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
+  const { i18n } = useTranslation();
+
+  useEffect(() => {
+    void fetchSettings()
+      .then((settings) => {
+        if (settings.locale) void i18n.changeLanguage(settings.locale);
+      })
+      .catch(() => {});
+  }, [i18n]);
 
   const handlePickerActivate = useCallback(
     async (id: string): Promise<WorkspaceDetail> => {

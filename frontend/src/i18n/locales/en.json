@@ -1,0 +1,71 @@
+{
+  "tool": {
+    "status": {
+      "running": "Running",
+      "success": "OK",
+      "error": "Error"
+    },
+    "status_text": {
+      "running": "Running",
+      "success_empty": "Done",
+      "error_no_code": "Failed"
+    },
+    "summary": {
+      "ran_python_code": "Ran Python code",
+      "created_csv": "Created CSV: {filename}",
+      "created_file": "Created file: {filename}",
+      "exported_excel": "Exported Excel: {filename}",
+      "read_csv": "Read CSV: {filename}",
+      "read_file": "Read file: {filename}",
+      "listed_directory": "Listed directory: {directory}",
+      "queried_database": "Queried database",
+      "queried_database_with_sql": "Queried database: {preview}",
+      "fetched_schema": "Fetched schema: {table}",
+      "fetched_all_schemas": "Fetched all table schemas",
+      "generated_chart": "Generated {type} chart",
+      "generated_chart_titled": "Generated {type} chart: {title}",
+      "created_table": "Created table",
+      "created_table_named": "Created table {tableName} ({colCount} columns)",
+      "executed_ddl": "Executed DDL",
+      "executed_ddl_with_sql": "Executed DDL: {preview}",
+      "wrote_data": "Wrote data",
+      "inserted_data": "Inserted: {preview}",
+      "updated_data": "Updated: {preview}",
+      "deleted_data": "Deleted: {preview}",
+      "wrote_data_with_sql": "Wrote: {preview}",
+      "executed": "Executed"
+    },
+    "no_output": "(no output)",
+    "copy": "Copy",
+    "copied": "Copied",
+    "copy_error_id": "Copy error ID",
+    "default_csv_filename": "output.csv",
+    "default_filename": "file",
+    "default_chart_type": "chart",
+    "preview_ellipsis": "...",
+    "dml_insert": "Inserted",
+    "dml_update": "Updated",
+    "dml_delete": "Deleted",
+    "dml_write": "Wrote"
+  },
+  "table": {
+    "rows": "{rows} rows x {cols} cols",
+    "page": "{page} / {total}",
+    "prev": "Prev",
+    "next": "Next"
+  },
+  "provider": {
+    "openrouter": "OpenRouter",
+    "nim": "NIM",
+    "together": "Together",
+    "deepseek": "DeepSeek"
+  },
+  "settings": {
+    "language": {
+      "title": "Language",
+      "description": "Applies to the whole interface. Your choice is stored on the server and shared across workspaces.",
+      "follow_browser": "Follow browser",
+      "follow_browser_hint": "Detected: {locale}"
+    }
+  }
+}

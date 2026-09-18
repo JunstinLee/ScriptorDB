@@ -1,0 +1,71 @@
+{
+  "tool": {
+    "status": {
+      "running": "运行中",
+      "success": "成功",
+      "error": "错误"
+    },
+    "status_text": {
+      "running": "运行中",
+      "success_empty": "完成",
+      "error_no_code": "失败"
+    },
+    "summary": {
+      "ran_python_code": "已运行 Python 代码",
+      "created_csv": "已创建 CSV：{filename}",
+      "created_file": "已创建文件：{filename}",
+      "exported_excel": "已导出 Excel：{filename}",
+      "read_csv": "已读取 CSV：{filename}",
+      "read_file": "已读取文件：{filename}",
+      "listed_directory": "已列出目录：{directory}",
+      "queried_database": "已查询数据库",
+      "queried_database_with_sql": "已查询数据库：{preview}",
+      "fetched_schema": "已获取表结构：{table}",
+      "fetched_all_schemas": "已获取全部表结构",
+      "generated_chart": "已生成 {type} 图表",
+      "generated_chart_titled": "已生成 {type} 图表：{title}",
+      "created_table": "已创建表",
+      "created_table_named": "已创建表 {tableName}（{colCount} 列）",
+      "executed_ddl": "已执行 DDL",
+      "executed_ddl_with_sql": "已执行 DDL：{preview}",
+      "wrote_data": "已写入数据",
+      "inserted_data": "已插入：{preview}",
+      "updated_data": "已更新：{preview}",
+      "deleted_data": "已删除：{preview}",
+      "wrote_data_with_sql": "已写入：{preview}",
+      "executed": "已执行"
+    },
+    "no_output": "（无输出）",
+    "copy": "复制",
+    "copied": "已复制",
+    "copy_error_id": "复制错误 ID",
+    "default_csv_filename": "output.csv",
+    "default_filename": "file",
+    "default_chart_type": "chart",
+    "preview_ellipsis": "...",
+    "dml_insert": "插入",
+    "dml_update": "更新",
+    "dml_delete": "删除",
+    "dml_write": "写入"
+  },
+  "table": {
+    "rows": "{rows} 行 x {cols} 列",
+    "page": "{page} / {total}",
+    "prev": "上一页",
+    "next": "下一页"
+  },
+  "provider": {
+    "openrouter": "OpenRouter",
+    "nim": "NIM",
+    "together": "Together",
+    "deepseek": "DeepSeek"
+  },
+  "settings": {
+    "language": {
+      "title": "语言",
+      "description": "作用于整个界面。选择结果保存在后端，对所有工作区生效。",
+      "follow_browser": "跟随浏览器",
+      "follow_browser_hint": "检测到：{locale}"
+    }
+  }
+}

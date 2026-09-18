@@ -19,6 +19,7 @@ class SettingsResponse(BaseModel):
     default_models: dict[str, str]
     auto_restore_sessions: bool
     browser_enabled: bool = False
+    locale: str = ""
     providers: list[ProviderInfo]
     providers_with_keys: list[str]
     workspace_id: str | None = None
@@ -30,6 +31,7 @@ class SettingsUpdateRequest(BaseModel):
     default_model_provider: str | None = None
     auto_restore_sessions: bool | None = None
     browser_enabled: bool | None = None
+    locale: str | None = None
 
 
 class ApiKeyRequest(BaseModel):

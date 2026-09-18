@@ -9,7 +9,8 @@ from schemas import (
     SettingsResponse,
     SettingsUpdateRequest,
 )
-from config.settings import set_provider, set_browser_enabled
+from config.global_settings import SUPPORTED_LOCALES
+from config.settings import set_provider, set_browser_enabled, set_locale
 from services.settings_service import update_default_model
 
 router = APIRouter(tags=["settings"])
@@ -34,6 +35,7 @@ async def get_settings():
         default_models=dict(config.default_models),
         auto_restore_sessions=config.auto_restore_sessions,
         browser_enabled=config.browser_enabled,
+        locale=config.locale,
         providers=providers,
         providers_with_keys=providers_with_keys,
         workspace_id=config.workspace_id,
@@ -62,4 +64,10 @@ async def update_settings(req: SettingsUpdateRequest):
         set_auto_restore_sessions(config, req.auto_restore_sessions)
     if req.browser_enabled is not None:
         set_browser_enabled(config, req.browser_enabled)
+    if req.locale is not None:
+        if req.locale and req.locale not in SUPPORTED_LOCALES:
+            raise HTTPException(
+                status_code=400, detail=f"Unsupported locale: {req.locale}"
+            )
+        set_locale(config, req.locale)
     return await get_settings()

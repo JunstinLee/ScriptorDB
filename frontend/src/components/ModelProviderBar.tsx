@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Globe, Search, Paperclip } from "lucide-react";
 import { Switch } from "@heroui/react";
 import { PROVIDERS } from "../constants";
+import { t } from "../i18n";
 import { useModelSelector } from "../hooks/useModelSelector";
 
 interface ModelProviderBarProps {
@@ -221,7 +222,7 @@ export default function ModelProviderBar({
                         : "text-ink hover:bg-grid/50"
                     }`}
                   >
-                    {p}
+                    {t(`provider.${p}`)}
                   </button>
                 ))}
               </div>
