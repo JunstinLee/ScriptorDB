@@ -92,16 +92,16 @@ export function BrowserStatusBar({
       {idleCloseActive && browserRunning ? (
         <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
           <span className="text-[11px] font-mono text-muted">
-            自动关闭 {formatTime(displayRemaining)}
+            Auto-close {formatTime(displayRemaining)}
           </span>
           <button
             type="button"
             onClick={onCloseBrowser}
             className="flex items-center gap-1 rounded-lg border border-grid px-2 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-danger"
-            title="立即关闭浏览器"
+            title="Close browser now"
           >
             <X className="size-3" />
-            关闭浏览器
+            Close browser
           </button>
         </div>
       ) : (

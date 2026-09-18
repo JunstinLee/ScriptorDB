@@ -112,7 +112,7 @@ export function FilterPanel({
       }
       onApplied?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "应用筛选失败");
+      setError(e instanceof Error ? e.message : "Failed to apply filters");
     } finally {
       setBusy(false);
     }
@@ -150,7 +150,7 @@ export function FilterPanel({
               }
               className="h-8 flex-1 rounded-md border border-grid bg-background px-2 text-sm text-foreground disabled:opacity-50"
             />
-            <span className="text-xs text-muted">至</span>
+            <span className="text-xs text-muted">to</span>
             <input
               type="date"
               value={st.values[1] ?? ""}
@@ -185,7 +185,7 @@ export function FilterPanel({
               className="size-4 accent-[var(--accent)]"
             />
             <span className="text-xs text-muted">
-              {st.checked ? "已勾选" : "未勾选"}
+              {st.checked ? "Checked" : "Unchecked"}
             </span>
           </label>
         );
@@ -196,7 +196,7 @@ export function FilterPanel({
             disabled={disabled}
             onChange={(e) => setRow(item.name, { value: e.target.value })}
             className="h-8 flex-1 rounded-md border border-grid bg-background px-2 text-sm text-foreground disabled:opacity-50"
-            placeholder={item.min ? `${item.min} ~ ${item.max}` : "滑块值"}
+            placeholder={item.min ? `${item.min} ~ ${item.max}` : "Slider value"}
           />
         );
       default:
@@ -206,7 +206,7 @@ export function FilterPanel({
             disabled={disabled}
             onChange={(e) => setRow(item.name, { value: e.target.value })}
             className="h-8 flex-1 rounded-md border border-grid bg-background px-2 text-sm text-foreground disabled:opacity-50"
-            placeholder="文本"
+            placeholder="Text"
           />
         );
     }
@@ -216,7 +216,7 @@ export function FilterPanel({
     return (
       <div className="border-b border-grid px-4 py-3">
         <p className="text-xs text-muted">
-          Agent 尚未检测页面筛选器（可让 Agent 执行“检测筛选器”后再编辑）
+          The agent hasn't detected page filters yet (ask it to run "detect filters", then edit here).
         </p>
       </div>
     );
@@ -227,15 +227,15 @@ export function FilterPanel({
       <div className="mb-2 flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
           <SlidersHorizontal className="size-3.5 text-muted" />
-          筛选条件
+          Filters
         </p>
         {isRunning && (
-          <span className="text-[11px] text-muted">Agent 运行中，只读</span>
+          <span className="text-[11px] text-muted">Agent running, read-only</span>
         )}
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-muted">未检测到可操作的筛选器</p>
+        <p className="text-xs text-muted">No actionable filters detected</p>
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((item) => (
@@ -258,7 +258,7 @@ export function FilterPanel({
               isDisabled={isRunning || busy || rows.length === 0}
             >
               {busy ? <Loader2 className="size-3.5 animate-spin" /> : null}
-              应用筛选
+              Apply filters
             </Button>
           </div>
         </div>

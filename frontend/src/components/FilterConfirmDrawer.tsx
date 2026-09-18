@@ -115,7 +115,7 @@ export function FilterConfirmDrawer({
                 if (typeof v === "string") setValue(v);
               }}
             >
-              <Label>选项</Label>
+              <Label>Option</Label>
               <Select.Trigger>
                 <Select.Value />
                 <Select.Indicator />
@@ -137,7 +137,7 @@ export function FilterConfirmDrawer({
           <Input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="输入选项值"
+            placeholder="Enter option value"
           />
         );
       case "input":
@@ -147,7 +147,7 @@ export function FilterConfirmDrawer({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={
-              action === "set_range" ? "如 30" : "输入筛选文本后回车"
+              action === "set_range" ? "e.g. 30" : "Type filter text and press Enter"
             }
           />
         );
@@ -162,7 +162,7 @@ export function FilterConfirmDrawer({
                 setValues((prev) => [e.target.value, prev[1] ?? ""])
               }
             />
-            <span className="text-xs text-muted">至</span>
+            <span className="text-xs text-muted">to</span>
             <input
               type="date"
               className="h-9 rounded-lg border border-grid bg-background px-2 text-sm text-foreground"
@@ -182,7 +182,7 @@ export function FilterConfirmDrawer({
               onChange={(e) => setValue(e.target.checked ? "true" : "false")}
               className="size-4 accent-[var(--accent)]"
             />
-            <span className="text-muted">勾选该选项</span>
+            <span className="text-muted">Check this option</span>
           </label>
         );
       default:
@@ -193,42 +193,42 @@ export function FilterConfirmDrawer({
   return (
     <div className="border-t border-grid bg-surface px-4 py-4">
       <div className="mb-3">
-        <p className="text-sm font-semibold text-foreground">确认筛选操作</p>
+        <p className="text-sm font-semibold text-foreground">Confirm filter action</p>
         <p className="mt-0.5 text-xs text-muted">
-          {call?.tool_name ?? "browser_apply_filter"} · {target || "未命名筛选器"}
-          {schemaItem ? `（${schemaItem.type}）` : ""}
+          {call?.tool_name ?? "browser_apply_filter"} · {target || "Unnamed filter"}
+          {schemaItem ? ` (${schemaItem.type})` : ""}
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-muted">动作</span>
+          <span className="w-20 shrink-0 text-xs text-muted">Action</span>
           <select
             value={action}
             onChange={(e) => setAction(e.target.value as FilterActionType)}
             className="h-9 flex-1 rounded-lg border border-grid bg-background px-2 text-sm text-foreground"
           >
-            <option value="select">select（下拉）</option>
-            <option value="input">input（文本）</option>
-            <option value="toggle">toggle（勾选）</option>
-            <option value="set_range">set_range（滑块）</option>
-            <option value="date_range">date_range（日期区间）</option>
+            <option value="select">select (dropdown)</option>
+            <option value="input">input (text)</option>
+            <option value="toggle">toggle (checkbox)</option>
+            <option value="set_range">set_range (slider)</option>
+            <option value="date_range">date_range (date range)</option>
           </select>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-muted">筛选器</span>
+          <span className="w-20 shrink-0 text-xs text-muted">Filter</span>
           <input
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             className="h-9 flex-1 rounded-lg border border-grid bg-background px-2 text-sm text-foreground"
-            placeholder="筛选器 name 或 selector"
+            placeholder="Filter name or selector"
           />
         </div>
 
         {candidates.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="w-20 shrink-0 text-xs text-muted">选择其他</span>
+            <span className="w-20 shrink-0 text-xs text-muted">Choose another</span>
             <select
               value=""
               onChange={(e) => {
@@ -237,7 +237,7 @@ export function FilterConfirmDrawer({
               className="h-9 flex-1 rounded-lg border border-grid bg-background px-2 text-sm text-foreground"
             >
               <option value="" disabled>
-                同类型筛选器…
+                Filters of the same type…
               </option>
               {candidates.map((c) => (
                 <option key={c.name} value={c.name}>
@@ -249,12 +249,12 @@ export function FilterConfirmDrawer({
         )}
 
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-muted">值</span>
+          <span className="w-20 shrink-0 text-xs text-muted">Value</span>
           <div className="flex-1">{renderActionControl()}</div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-muted">提交</span>
+          <span className="w-20 shrink-0 text-xs text-muted">Submit</span>
           <Switch
             isSelected={submit}
             onChange={setSubmit}
@@ -269,10 +269,10 @@ export function FilterConfirmDrawer({
 
       <div className="mt-4 flex justify-end gap-2">
         <Button variant="secondary" size="sm" onPress={onReject}>
-          拒绝
+          Reject
         </Button>
         <Button variant="primary" size="sm" onPress={handleApply}>
-          应用
+          Apply
         </Button>
       </div>
     </div>
