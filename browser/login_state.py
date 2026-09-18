@@ -138,7 +138,7 @@ async def _login_page_signals(page: LoginPage) -> tuple[bool, str]:
     写机构名/品牌名，登录线索在提交按钮文本上。
     """
     if _is_login_url(page.url):
-        return True, "URL 指向登录路径"
+        return True, "URL points to a login path"
     if not await _has_password_input(page):
         return False, ""
     try:
@@ -146,9 +146,9 @@ async def _login_page_signals(page: LoginPage) -> tuple[bool, str]:
     except Exception:
         title = ""
     if any(kw in title.lower() for kw in LOGIN_TITLE_KEYWORDS):
-        return True, "页面标题含登录关键词且存在密码输入框"
+        return True, "Page title contains login keywords and a password input is present"
     if await _has_login_action(page):
-        return True, "存在密码输入框且表单含登录操作"
+        return True, "Password input is present and the form contains a login action"
     return False, ""
 
 
@@ -182,7 +182,7 @@ async def detect_login_state(
         return LoginState(
             status="unknown",
             domain="",
-            reason="当前页面无有效域名（about:blank 等）",
+            reason="No valid domain for the current page (about:blank, etc.)",
         )
 
     cookies = await _cookies_for_domain(page, domain)
@@ -199,10 +199,10 @@ async def detect_login_state(
         )
         if present:
             state.status = "logged_in"
-            state.reason = f"保存的会话 cookie 仍存在 ({len(present)}/{len(expected_cookie_names)})"
+            state.reason = f"Saved session cookies are still present ({len(present)}/{len(expected_cookie_names)})"
         else:
             state.status = "logged_out"
-            state.reason = "保存的会话 cookie 已全部缺失，登录态已失效"
+            state.reason = "All saved session cookies are missing; the session has expired"
         logger.info(
             "login state: 会话 cookie 判定 domain=%s status=%s on_login_page=%s present=%d/%d cookies=%s",
             domain, state.status, on_login_page, len(present), len(expected_cookie_names), cookie_names,
@@ -230,7 +230,7 @@ async def detect_login_state(
         return LoginState(
             status="logged_in",
             domain=domain,
-            reason=f"存在 {len(cookie_names)} 个域名 cookie",
+            reason=f"Domain cookies present: {len(cookie_names)}",
             session_cookies=cookie_names,
         )
 
@@ -238,5 +238,5 @@ async def detect_login_state(
     return LoginState(
         status="unknown",
         domain=domain,
-        reason="无 cookie 且不在登录页，需访问受保护页面确认",
+        reason="No cookies and not on a login page; visit a protected page to confirm",
     )

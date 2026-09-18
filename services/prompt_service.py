@@ -31,10 +31,10 @@ async def augment_prompt(
             result = await do_crawl(crawl_url)
             if result.success:
                 crawl_block = (
-                    f"\n\n[网页内容 - 来源: {result.url}]\n"
-                    f"标题: {result.title or '(无标题)'}\n\n"
+                    f"\n\n[Web page content - source: {result.url}]\n"
+                    f"Title: {result.title or '(untitled)'}\n\n"
                     f"{result.markdown}\n"
-                    f"[网页内容结束]"
+                    f"[End of web page content]"
                 )
                 augmented = f"{augmented}{crawl_block}"
             else:

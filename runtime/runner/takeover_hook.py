@@ -22,7 +22,8 @@ logger = get_logger("agent_runner.takeover")
 # 已代填凭证，不要读取/重填密码字段。同一实例只注入一次，避免长 run 中
 # 每次浏览器工具结果重复塞同句累积上下文（实例随 run 新建，标志随实例重置）。
 _SYSTEM_FILL_HINT = (
-    "系统站点凭证已自动填充至登录表单，请勿读取或重填密码字段，直接继续后续流程"
+    "The site credentials were filled into the login form automatically. "
+    "Do not read or refill the password field; continue with the workflow."
 )
 
 
@@ -138,7 +139,7 @@ async def _pause_and_wait(
     logger.info("takeover resumed run_id=%s result=%s", ctx.run_id, result)
     if ctx.ctx is not None and result:
         try:
-            await ctx.ctx.enqueue(f"{_SYSTEM_FILL_HINT}。用户完成了人工操作: {result}")
+            await ctx.ctx.enqueue(f"{_SYSTEM_FILL_HINT} The user completed the manual action: {result}")
         except Exception as e:
             logger.debug("enqueue takeover result failed: %s", e)
 

@@ -155,7 +155,7 @@ class EventTranslator:
         await self._queue.put(trace_event(
             run_id=self._tracker.run_id,
             step=self.trace_step,
-            message=f"调用工具 {part.tool_name}",
+            message=f"Calling tool {part.tool_name}",
         ))
 
     async def _handle_tool_result(
@@ -223,7 +223,7 @@ class EventTranslator:
         await self._queue.put(trace_event(
             run_id=self._tracker.run_id,
             step=self.trace_step,
-            message=f"工具 {tool_name} 执行{'成功' if success else '失败'}: {output or error_code or ''}",
+            message=f"Tool {tool_name} {'succeeded' if success else 'failed'}: {output or error_code or ''}",
         ))
 
     async def _handle_text_delta(self, delta: TextPartDelta) -> None:

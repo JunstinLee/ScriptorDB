@@ -150,19 +150,19 @@ def validate_filter_apply_args(
 
     if mechanism not in FILTER_MECHANISMS:
         raise ModelRetry(
-            f"mechanism 必须是 {sorted(FILTER_MECHANISMS)} 之一，收到 '{mechanism}'"
+            f"mechanism must be one of {sorted(FILTER_MECHANISMS)}, got '{mechanism}'"
         )
     if mechanism == "js_table_api":
         if not isinstance(capability, dict) or not capability:
             raise ModelRetry(
-                "mechanism=js_table_api 需要 capability"
-                "（browser_detect_filters 返回条目的 capability 字段）"
+                "mechanism=js_table_api requires capability "
+                "(the capability field of a browser_detect_filters entry)"
             )
         kind = capability.get("kind")
         if kind not in JS_TABLE_CAPABILITY_KINDS:
             raise ModelRetry(
-                f"capability.kind 必须是 {sorted(JS_TABLE_CAPABILITY_KINDS)} 之一，"
-                f"收到 '{kind}'"
+                f"capability.kind must be one of {sorted(JS_TABLE_CAPABILITY_KINDS)}, "
+                f"got '{kind}'"
             )
         if table is not None:
             if (not isinstance(table, dict)
@@ -176,20 +176,20 @@ def validate_filter_apply_args(
     else:
         if action not in FILTER_ACTIONS:
             raise ModelRetry(
-                f"action 必须是 {sorted(FILTER_ACTIONS)} 之一，收到 '{action}'"
+                f"action must be one of {sorted(FILTER_ACTIONS)}, got '{action}'"
             )
     if not target or not target.strip():
         raise ModelRetry(
-            "target 不能为空（应为 browser_detect_filters 返回的筛选器 name 或 selector）"
+            "target must not be empty (use the filter name or selector returned by browser_detect_filters)"
         )
     if values and values.strip():
         try:
             parsed = json.loads(values)
         except json.JSONDecodeError:
             raise ModelRetry(
-                "values 必须是 JSON 数组字符串，如 '[\"2026-01-01\",\"2026-12-31\"]'"
+                "values must be a JSON array string, e.g. '[\"2026-01-01\",\"2026-12-31\"]'"
             )
         if not isinstance(parsed, list):
-            raise ModelRetry("values 必须是 JSON 数组字符串")
+            raise ModelRetry("values must be a JSON array string")
     if action == "date_range" and not (values and values.strip()):
-        raise ModelRetry("date_range 需要 values 提供起止值（JSON 数组字符串）")
+        raise ModelRetry("date_range requires values with the start and end dates (JSON array string)")

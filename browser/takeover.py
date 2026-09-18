@@ -195,7 +195,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
     ]
     for selector in cn_captcha_components:
         if await _visible_match(evaluate, selector):
-            return HumanTrigger("检测到图形验证码", "captcha", 0.9)
+            return HumanTrigger("Image captcha detected", "captcha", 0.9)
 
     # 中文图形验证码：图片类标记（yzm / checkcode）
     if await _visible_match(
@@ -203,12 +203,12 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
         "img[id*=yzm], img[class*=yzm], img[src*=yzm], "
         "img[src*=checkcode], img[class*=checkcode]",
     ):
-        return HumanTrigger("检测到图形验证码", "captcha", 0.85)
+        return HumanTrigger("Image captcha detected", "captcha", 0.85)
 
     # 中文图形验证码：标题关键词
     for kw in ["安全验证", "人机验证", "拖动滑块"]:
         if kw in title:
-            return HumanTrigger("检测到图形验证码", "captcha", 0.85)
+            return HumanTrigger("Image captcha detected", "captcha", 0.85)
 
     mfa_queries = [
         "input[autocomplete='one-time-code']",
@@ -235,7 +235,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
     # 国内 SSO / 授权 URL 通用规则（精确域名表之后）
     url_lower = url.lower()
     if any(marker in url_lower for marker in ("oauth", "sso", "/cas/login")):
-        return HumanTrigger("检测到第三方登录/SSO 授权页面", "oauth", 0.7)
+        return HumanTrigger("Third-party login/SSO authorization page detected", "oauth", 0.7)
 
     antibot_keywords = [
         "verify you are human", "are you a robot",
@@ -283,7 +283,7 @@ async def detect_human_needed(page, *, evaluate=None) -> HumanTrigger | None:
                 "return !!(document.body && document.body.innerText.includes('扫码')); }"
             )
             if qr_seen:
-                return HumanTrigger("检测到扫码登录页面，请扫码完成登录", "qrcode", 0.85)
+                return HumanTrigger("QR code login page detected; scan the code to sign in", "qrcode", 0.85)
 
     if any(kw in title for kw in LOGIN_TITLE_KEYWORDS):
         has_password = await evaluate(

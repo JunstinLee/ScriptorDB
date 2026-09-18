@@ -49,8 +49,8 @@ def _wrap_browser_tool(
                     return await asyncio.wait_for(call_original(), timeout=timeout)
                 except asyncio.TimeoutError:
                     return (
-                        f"失败: 工具执行超时（{timeout} 秒），操作未完成，"
-                        "请重试或改用其他方式。"
+                        f"Failed: tool execution timed out after {timeout} seconds; "
+                        "the operation did not complete. Retry or use another approach."
                     )
 
             enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
@@ -65,8 +65,8 @@ def _wrap_browser_tool(
         except Exception as e:
             logger.exception("tool %s raised uncaught %s: %s", name, type(e).__name__, e)
             return (
-                f"失败: 工具执行异常（{type(e).__name__}: {e}），"
-                "请重试或改用其他方式。"
+                f"Failed: tool execution error ({type(e).__name__}: {e}). "
+                "Retry or use another approach."
             )
 
     return wrapped

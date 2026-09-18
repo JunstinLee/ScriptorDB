@@ -286,26 +286,26 @@ async def extract_login_form(page: LoginPage) -> LoginFormInfo | None:
 
 
 _ROLE_NAMES = {
-    ROLE_USERNAME: "用户名/邮箱",
-    ROLE_PASSWORD: "密码",
-    ROLE_OTP: "验证码/OTP",
-    ROLE_UNKNOWN: "其他字段",
+    ROLE_USERNAME: "Username/Email",
+    ROLE_PASSWORD: "Password",
+    ROLE_OTP: "Verification code/OTP",
+    ROLE_UNKNOWN: "Other field",
 }
 
 
 def format_login_form_message(info: LoginFormInfo) -> str:
-    """把表单信息格式化为注入对话的中文说明（AI 无需调用工具即可填表）。"""
-    lines = [f"检测到登录页面（{info.url}），已自动提取表单字段："]
+    """把表单信息格式化为注入对话的说明（AI 无需调用工具即可填表）。"""
+    lines = [f"Login page detected ({info.url}); form fields were extracted automatically:"]
     for f in info.fields:
         hint = " ".join(x for x in (f.label, f.placeholder, f.name) if x)
-        line = f"- {_ROLE_NAMES.get(f.role, f.role)}：selector={f.selector}"
+        line = f"- {_ROLE_NAMES.get(f.role, f.role)}: selector={f.selector}"
         if hint:
-            line += f"（{hint}）"
+            line += f" ({hint})"
         if f.required:
-            line += " [必填]"
+            line += " [required]"
         lines.append(line)
     if info.submit:
-        lines.append(f"- 提交按钮：selector={info.submit.selector}")
+        lines.append(f"- Submit button: selector={info.submit.selector}")
     else:
-        lines.append("- 未找到提交按钮")
+        lines.append("- No submit button found")
     return "\n".join(lines)

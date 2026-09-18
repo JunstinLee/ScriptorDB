@@ -153,7 +153,7 @@ async def validate_profile(manager: BrowserManager, name: str, workspace_id: str
     """
     storage_state = get_browser_profile(workspace_id, name)
     if storage_state is None:
-        return LoginState(status="unknown", reason=f"profile '{name}' 不存在")
+        return LoginState(status="unknown", reason=f"profile '{name}' not found")
 
     page = manager.page()
     if not page:

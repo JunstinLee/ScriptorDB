@@ -90,7 +90,7 @@ async def browser_evaluate(ctx: RunContext[Settings], js: str) -> str:
     )
     if pwd is not None and pwd in js:
         # 脚本携带系统站点密码：禁止读取或回写密码字段。
-        return "拒绝：脚本包含系统站点密码，禁止读取或回写密码字段"
+        return "Refused: the script contains the system site password; password fields must not be read or written"
     result = await _eval(page, js)
     result = redact(result)
     manager.record_action("evaluate", js[:50] + "..." if len(js) > 50 else js)
@@ -190,7 +190,7 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
             "fill", "skipped (system-filled password)",
             selector=selector, success=True,
         )
-        return "该密码已由系统自动填充，请勿重复填写"
+        return "This password was filled automatically by the system; do not fill it again"
     from browser.actions import fill as _fill
     if not _is_engine_selector(selector):
         await highlight_input(page, selector)

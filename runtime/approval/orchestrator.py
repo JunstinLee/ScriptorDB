@@ -325,12 +325,12 @@ class ApprovalOrchestrator:
 
         self._clear_checkpoint()
 
-        self._takeover.cancel(reason or "用户取消接管")
+        self._takeover.cancel(reason or "User cancelled takeover")
         # 唤醒挂起的 run：hook 检测到 cancelled 后调用 ctx.cancel()，
         # pydantic-ai 停止 run 并抛 RunCancelled，lifecycle 转取消终态。
         self._pause.cancel_run()
         self._notify_suspend(None)
-        return {"ok": True, "status": "cancelled", "reason": reason or "用户取消接管"}
+        return {"ok": True, "status": "cancelled", "reason": reason or "User cancelled takeover"}
 
     def abort_paused_run(self, reason: str) -> dict[str, Any]:
         """外部终止（SSE 断连/进程关闭）：把挂起的暂停态收敛为终态，避免残留。

@@ -19,7 +19,7 @@ JS_TABLE_CAPABILITY_KINDS = ("set_filter", "clear_filter")
 def is_filter_failure(result: str) -> bool:
     """判定筛选执行结果是否失败（生产者 / 消费者协议）。
 
-    生产者 execute_filter_action 失败时以「失败:」开头；消费者 browser_apply_filter
+    生产者 execute_filter_action 失败时以「Failed:」开头；消费者 browser_apply_filter
     据此决定 success 标记与接管触发。统一在此判定，避免各处字符串嗅探不一致。
     """
-    return "失败" in result or "failed" in result.lower()
+    return "failed" in result.lower()
