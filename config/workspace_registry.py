@@ -77,7 +77,7 @@ def _load_registry_file() -> WorkspaceRegistryData:
     if not REGISTRY_FILE.exists():
         return WorkspaceRegistryData()
     try:
-        payload = json.loads(REGISTRY_FILE.read_text())
+        payload = json.loads(REGISTRY_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return WorkspaceRegistryData()
     if not isinstance(payload, dict):
@@ -114,7 +114,7 @@ def _save_registry_file(data: WorkspaceRegistryData) -> None:
         },
     }
     try:
-        REGISTRY_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+        REGISTRY_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     except OSError:
         pass
 
@@ -130,7 +130,7 @@ class WorkspaceRegistry:
         if not self._registry_file.exists():
             return WorkspaceRegistryData()
         try:
-            payload = json.loads(self._registry_file.read_text())
+            payload = json.loads(self._registry_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return WorkspaceRegistryData()
         if not isinstance(payload, dict):
@@ -166,7 +166,7 @@ class WorkspaceRegistry:
             },
         }
         try:
-            self._registry_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+            self._registry_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         except OSError:
             pass
 

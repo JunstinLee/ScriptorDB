@@ -44,7 +44,7 @@ class WorkspaceSettings:
         if not cfg_file.exists():
             return defaults
         try:
-            payload = json.loads(cfg_file.read_text())
+            payload = json.loads(cfg_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return defaults
         if not isinstance(payload, dict):
@@ -98,6 +98,6 @@ class WorkspaceSettings:
             "mysql_db": self.mysql_db,
         }
         try:
-            cfg_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+            cfg_file.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
         except OSError:
             pass

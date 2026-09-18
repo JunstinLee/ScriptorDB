@@ -4,7 +4,7 @@ from fastapi import APIRouter, HTTPException
 from typing import Any
 
 from config.secrets import SUPPORTED_PROVIDERS, delete_api_key, save_api_key
-from api.dependencies import get_config
+from api.dependencies import get_app_context, get_config
 from schemas import ApiKeyRequest, ApiKeyTestResponse
 from services.api_key_service import test_key
 
@@ -21,6 +21,7 @@ async def set_api_key(req: ApiKeyRequest):
         raise HTTPException(status_code=400, detail="API key cannot be empty")
     config = get_config()
     save_api_key(req.provider, req.api_key.strip(), config.workspace_id)
+    get_app_context().invalidate_agent()
     return ApiKeyTestResponse(ok=True)
 
 
@@ -35,6 +36,7 @@ async def delete_provider_key(provider: str):
         delete_api_key(provider, config.workspace_id)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+    get_app_context().invalidate_agent()
     return ApiKeyTestResponse(ok=True)
 
 

@@ -45,7 +45,7 @@ def get_legacy_sessions_summary() -> dict:
         return {"exists": False, "count": 0}
 
     try:
-        payload = json.loads(LEGACY_SESSIONS_FILE.read_text())
+        payload = json.loads(LEGACY_SESSIONS_FILE.read_text(encoding="utf-8"))
         sessions_data = payload.get("sessions", [])
         if not isinstance(sessions_data, list):
             return {"exists": True, "count": 0}
@@ -77,7 +77,7 @@ def import_legacy_sessions(workspace_path_str: str) -> dict:
     if not LEGACY_SESSIONS_FILE.exists():
         raise FileNotFoundError("No legacy sessions file found")
 
-    payload = json.loads(LEGACY_SESSIONS_FILE.read_text())
+    payload = json.loads(LEGACY_SESSIONS_FILE.read_text(encoding="utf-8"))
     sessions_data = payload.get("sessions", [])
     if not isinstance(sessions_data, list):
         raise ValueError("Invalid sessions format")

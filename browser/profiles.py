@@ -47,13 +47,13 @@ def _load_index(workspace_path: Path) -> dict:
     path = _index_path(workspace_path)
     if not path.exists():
         return {"version": 1, "profiles": {}}
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def _save_index(workspace_path: Path, index: dict) -> None:
     _profiles_dir(workspace_path).mkdir(parents=True, exist_ok=True)
-    with open(_index_path(workspace_path), "w") as f:
+    with open(_index_path(workspace_path), "w", encoding="utf-8") as f:
         json.dump(index, f, indent=2, default=str)
 
 

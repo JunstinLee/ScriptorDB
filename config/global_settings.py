@@ -22,7 +22,7 @@ def load_global_settings() -> GlobalSettings:
     if not GLOBAL_SETTINGS_FILE.exists():
         return GlobalSettings()
     try:
-        payload = json.loads(GLOBAL_SETTINGS_FILE.read_text())
+        payload = json.loads(GLOBAL_SETTINGS_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return GlobalSettings()
     if not isinstance(payload, dict):
@@ -42,7 +42,7 @@ def save_global_settings(gs: GlobalSettings) -> None:
         "default_models": gs.default_models,
     }
     try:
-        GLOBAL_SETTINGS_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
+        GLOBAL_SETTINGS_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
     except OSError:
         pass
 

@@ -24,7 +24,7 @@ def load_cache(provider: str) -> list[str] | None:
     if not path.exists():
         return None
     try:
-        payload = json.loads(path.read_text())
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if time.time() - payload.get("ts", 0) > CACHE_TTL:
@@ -36,6 +36,6 @@ def load_cache(provider: str) -> list[str] | None:
 def save_cache(provider: str, models: list[str]) -> None:
     path = _cache_path(provider)
     try:
-        path.write_text(json.dumps({"ts": time.time(), "models": models}))
+        path.write_text(json.dumps({"ts": time.time(), "models": models}), encoding="utf-8")
     except OSError:
         pass

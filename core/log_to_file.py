@@ -13,7 +13,7 @@ _LOG_PATH = _LOGS_DIR / f"run_{_TIMESTAMP}.log"
 
 _LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-_log_file = open(str(_LOG_PATH), "w", buffering=1)
+_log_file = open(str(_LOG_PATH), "w", buffering=1, encoding="utf-8")
 
 sys.stderr.write(f"[log_to_file] redirecting stdout+stderr to {_LOG_PATH}\n")
 sys.stderr.flush()

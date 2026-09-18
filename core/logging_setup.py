@@ -47,7 +47,7 @@ def configure_logging() -> None:
     logs_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = logs_dir / f"run_{timestamp}.log"
-    file_handler = logging.FileHandler(str(log_path))
+    file_handler = logging.FileHandler(str(log_path), encoding="utf-8")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 

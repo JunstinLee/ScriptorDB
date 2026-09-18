@@ -154,7 +154,7 @@ class FileSessionStore(SessionStore):
         if not legacy_file.exists():
             return
         try:
-            payload = json.loads(legacy_file.read_text())
+            payload = json.loads(legacy_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return
         sessions_data = payload.get("sessions", [])
@@ -214,7 +214,7 @@ class FileSessionStore(SessionStore):
                 if not file_path.exists():
                     continue
                 try:
-                    payload = json.loads(file_path.read_text())
+                    payload = json.loads(file_path.read_text(encoding="utf-8"))
                 except (OSError, json.JSONDecodeError):
                     continue
                 if not isinstance(payload, dict):
@@ -263,7 +263,7 @@ class FileSessionStore(SessionStore):
         if not self._index_file.exists():
             return None
         try:
-            payload = json.loads(self._index_file.read_text())
+            payload = json.loads(self._index_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return None
         if not isinstance(payload, dict):
@@ -280,7 +280,7 @@ class FileSessionStore(SessionStore):
             if file_path == self._index_file:
                 continue
             try:
-                payload = json.loads(file_path.read_text())
+                payload = json.loads(file_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 continue
             if not isinstance(payload, dict):
@@ -365,7 +365,7 @@ class FileSessionStore(SessionStore):
                 "model_messages": model_msgs_data,
                 "runs": [r.model_dump() for r in session.runs],
             }
-            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
+            file_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, default=str), encoding="utf-8")
         except OSError as e:
             logger.exception(
                 "session_file_write_oserror session_id=%s path=%s err=%s",
@@ -392,7 +392,7 @@ class FileSessionStore(SessionStore):
                     for s in self._sessions.values()
                 },
             }
-            self._index_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2))
+            self._index_file.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
         except OSError as e:
             logger.exception("session_index_write_oserror path=%s err=%s", self._index_file, e)
 
