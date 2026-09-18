@@ -37,12 +37,12 @@ async def test_translator_keeps_part_start_first_fragment():
 
     async def events():
         yield PartStartEvent(index=0, part=TextPart(content="Data "))
-        yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="Subtype 已加载选项 1-6。"))
-        yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="让我查看这些选项的文本标签。"))
+        yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="Subtype loaded options 1-6."))
+        yield PartDeltaEvent(index=0, delta=TextPartDelta(content_delta="Let me check the text labels of these options."))
 
     await translator.handle(cast(Any, None), events())
 
-    expected = "Data Subtype 已加载选项 1-6。让我查看这些选项的文本标签。"
+    expected = "Data Subtype loaded options 1-6.Let me check the text labels of these options."
     assert tracker.final_output == expected
 
     deltas = []
@@ -50,7 +50,7 @@ async def test_translator_keeps_part_start_first_fragment():
         ev = queue.get_nowait()
         if ev["type"] == "text_delta":
             deltas.append(ev["delta"])
-    assert deltas == ["Data ", "Subtype 已加载选项 1-6。", "让我查看这些选项的文本标签。"]
+    assert deltas == ["Data ", "Subtype loaded options 1-6.", "Let me check the text labels of these options."]
 
 
 @pytest.mark.asyncio
@@ -67,18 +67,18 @@ async def test_translator_part_start_without_deltas_is_kept():
     )
 
     async def events():
-        yield PartStartEvent(index=0, part=TextPart(content="预览加载成功！"))
+        yield PartStartEvent(index=0, part=TextPart(content="Preview loaded successfully!"))
 
     await translator.handle(cast(Any, None), events())
 
-    assert tracker.final_output == "预览加载成功！"
+    assert tracker.final_output == "Preview loaded successfully!"
 
     deltas = []
     while not queue.empty():
         ev = queue.get_nowait()
         if ev["type"] == "text_delta":
             deltas.append(ev["delta"])
-    assert deltas == ["预览加载成功！"]
+    assert deltas == ["Preview loaded successfully!"]
 
 
 @pytest.mark.asyncio

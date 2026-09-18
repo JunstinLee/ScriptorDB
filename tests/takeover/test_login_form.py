@@ -209,6 +209,6 @@ class TestSignatureAndFormat:
         assert info is not None
         msg = format_login_form_message(info)
         assert "#email" in msg
-        assert "[必填]" in msg
-        assert "提交按钮" in msg
+        assert "[required]" in msg
+        assert "Submit button" in msg
         assert "#password" in msg

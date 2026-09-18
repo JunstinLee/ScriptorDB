@@ -59,7 +59,7 @@ class TestDetectLoginState:
     async def test_blank_page_unknown(self):
         state = await detect_login_state(_FakePage("about:blank"))
         assert state.status == "unknown"
-        assert "无有效域名" in state.reason
+        assert "No valid domain" in state.reason
 
     async def test_expected_cookies_present_logged_in(self):
         page = _FakePage(
@@ -69,7 +69,7 @@ class TestDetectLoginState:
         )
         state = await detect_login_state(page, expected_cookie_names=["session", "csrf"])
         assert state.status == "logged_in"
-        assert "仍存在 (2/2)" in state.reason
+        assert "still present (2/2)" in state.reason
         assert state.session_cookies == ["session", "csrf"]
 
     async def test_expected_cookies_partial_logged_in(self):
@@ -79,20 +79,20 @@ class TestDetectLoginState:
         )
         state = await detect_login_state(page, expected_cookie_names=["session", "csrf"])
         assert state.status == "logged_in"
-        assert "仍存在 (1/2)" in state.reason
+        assert "still present (1/2)" in state.reason
 
     async def test_expected_cookies_all_missing_logged_out(self):
         page = _FakePage("https://example.com/dashboard", cookies=[{"name": "tracker"}])
         state = await detect_login_state(page, expected_cookie_names=["session", "csrf"])
         assert state.status == "logged_out"
-        assert "全部缺失" in state.reason
+        assert "All saved session cookies are missing" in state.reason
 
     async def test_login_url_logged_out(self):
         page = _FakePage("https://example.com/login", cookies=[{"name": "tracker"}])
         state = await detect_login_state(page)
         assert state.status == "logged_out"
         assert state.on_login_page is True
-        assert "URL 指向登录路径" in state.reason
+        assert "URL points to a login path" in state.reason
 
     async def test_title_and_password_form_logged_out(self):
         page = _FakePage(
@@ -103,7 +103,7 @@ class TestDetectLoginState:
         )
         state = await detect_login_state(page)
         assert state.status == "logged_out"
-        assert "密码输入框" in state.reason
+        assert "password input is present" in state.reason
 
     async def test_title_keyword_without_password_ignored(self):
         page = _FakePage(
@@ -122,13 +122,13 @@ class TestDetectLoginState:
         )
         state = await detect_login_state(page)
         assert state.status == "logged_in"
-        assert "1 个域名 cookie" in state.reason
+        assert "Domain cookies present: 1" in state.reason
 
     async def test_no_cookies_not_login_page_unknown(self):
         page = _FakePage("https://example.com/dashboard")
         state = await detect_login_state(page)
         assert state.status == "unknown"
-        assert "需访问受保护页面" in state.reason
+        assert "visit a protected page" in state.reason
 
     async def test_explicit_domain_on_blank_page(self):
         page = _FakePage("about:blank", cookies=[{"name": "session", "domain": "example.com"}])
@@ -159,7 +159,7 @@ class TestCnLoginPageSignals:
         )
         is_login, evidence = await _login_page_signals(page)
         assert is_login is True
-        assert "标题" in evidence
+        assert "Page title" in evidence
 
     async def test_chinese_action_button_without_title_keyword(self):
         """标题只写机构名：靠表单登录语义（中文提交按钮）命中。"""
@@ -170,7 +170,7 @@ class TestCnLoginPageSignals:
         )
         is_login, evidence = await _login_page_signals(page)
         assert is_login is True
-        assert "登录操作" in evidence
+        assert "login action" in evidence
 
     async def test_chinese_page_without_login_semantics_ignored(self):
         page = _FakePage(
@@ -198,7 +198,7 @@ class TestValidateProfile:
         monkeypatch.setattr(profiles_mod, "get_browser_profile", lambda ws, name: None)
         state = await profiles_mod.validate_profile(get_manager(), "ghost", "ws1")
         assert state.status == "unknown"
-        assert "不存在" in state.reason
+        assert "not found" in state.reason
 
     async def test_browser_not_launched(self, monkeypatch):
         from browser import profiles as profiles_mod

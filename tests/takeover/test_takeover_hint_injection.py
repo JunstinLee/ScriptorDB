@@ -55,7 +55,7 @@ class TestAutofillSystemHintInjection:
         await hook.after_tool_result(self._ctx_with_enqueue(queue, enqueued))
 
         assert len(enqueued) == 1
-        assert "系统站点凭证已自动填充" in enqueued[0]
-        assert "密码字段" in enqueued[0]
+        assert "credentials were filled into the login form automatically" in enqueued[0]
+        assert "password field" in enqueued[0]
 
 

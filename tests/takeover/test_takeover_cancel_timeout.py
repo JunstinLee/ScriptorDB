@@ -87,8 +87,8 @@ async def test_cancel_takeover_terminates_and_persists(monkeypatch, store):
     run_task = await _start_and_wait_paused(orchestrator, mgr)
     assert orchestrator.run_id
 
-    result = orchestrator.cancel_takeover(orchestrator.run_id, "用户取消接管")
-    assert result == {"ok": True, "status": "cancelled", "reason": "用户取消接管"}
+    result = orchestrator.cancel_takeover(orchestrator.run_id, "User cancelled takeover")
+    assert result == {"ok": True, "status": "cancelled", "reason": "User cancelled takeover"}
 
     assert get_takeover_checkpoint_store().get(sid) is None
     assert mgr.takeover.state == HumanTakeoverState.CANCELLED

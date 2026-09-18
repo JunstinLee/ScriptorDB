@@ -139,11 +139,11 @@ class TestFilterContract:
     def test_is_filter_failure(self):
         from tools.browser_tools.filter_contract import is_filter_failure
 
-        assert is_filter_failure("失败: 未找到筛选器 'x'")
+        assert is_filter_failure("Failed: filter 'x' not found")
         assert is_filter_failure("failed: timeout")
         assert is_filter_failure("Failed: something")     # 大小写不敏感
-        assert not is_filter_failure("已设置 Status = Active")
-        assert not is_filter_failure("已点击提交按钮")
+        assert not is_filter_failure("Set Status = Active")
+        assert not is_filter_failure("Clicked the submit button")
 
     def test_contract_enums(self):
         from tools.browser_tools.filter_contract import (

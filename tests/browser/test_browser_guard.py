@@ -92,8 +92,8 @@ class TestBrowserEvaluatePasswordGuard:
                 make_ctx(),
                 f"document.querySelector('#password').value = '{_PWD}'",
             )
-        assert "拒绝" in result
-        assert "密码" in result
+        assert "Refused" in result
+        assert "password fields must not be read or written" in result
         page.evaluate.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -149,5 +149,5 @@ class TestBrowserFillPasswordGuard:
         page.fill = AsyncMock()
         with patch.object(get_manager(), "_page", page):
             result = await browser_fill(make_ctx(), "#password", _PWD)
-        assert "已由系统自动填充" in result
+        assert "filled automatically by the system" in result
         page.fill.assert_not_awaited()

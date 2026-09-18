@@ -135,8 +135,8 @@ class TestFiltersSlow:
 
         result = await browser_apply_filter(_ctx(), action="select",
                                             target="Status", value="Active", submit=True)
-        assert "已设置 Status = Active" in result
-        assert "已点击提交按钮" in result
+        assert "Set Status = Active" in result
+        assert "Clicked the submit button" in result
         out = await browser_evaluate(_ctx(), "document.getElementById('result').textContent")
         assert "result:active:" in out  # 结果区已按筛选更新
 
@@ -172,8 +172,8 @@ class TestFiltersSlow:
 
         with patch.object(get_manager(), "record_element_failure") as rec:
             result = await browser_apply_filter(_ctx(), action="select",
-                                                target="不存在的筛选器", value="x", submit=False)
-        assert "失败" in result                     # 返回失败信息
+                                                target="missing_filter", value="x", submit=False)
+        assert "Failed" in result                   # 返回失败信息
         rec.assert_called_once()                   # 元素失败被记录（触发接管检测）
 
     @pytest.mark.asyncio
@@ -189,7 +189,7 @@ class TestFiltersSlow:
 
         result = await browser_detect_filters(_ctx())
         js = [f for f in result["filters"] if f.get("source") == "js_table"]
-        assert js, f"未识别 JS 表格筛选能力: {result}"
+        assert js, f"JS table filter capabilities were not detected: {result}"
         by_name = {f["name"]: f for f in js}
         entry = by_name.get("Gender")
         assert entry, list(by_name)
@@ -223,7 +223,7 @@ class TestFiltersSlow:
                                          mechanism="js_table_api",
                                          capability=gender["capability"],
                                          table=gender["table"])
-        assert "已设置 Gender = female" in res
+        assert "Set Gender = female" in res
         n = await browser_evaluate(_ctx(), "document.querySelectorAll('.tabulator-row').length")
         assert int(n) == 2                     # 仅 female 两行（Mary May / Christine Lobowski）
         state = await browser_evaluate(
