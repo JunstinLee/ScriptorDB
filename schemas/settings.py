@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel
+
+ApiKeyStatusKind = Literal["missing", "valid", "invalid", "unknown", "no_workspace"]
 
 
 class ProviderInfo(BaseModel):
@@ -36,3 +40,12 @@ class ApiKeyRequest(BaseModel):
 class ApiKeyTestResponse(BaseModel):
     ok: bool
     error: str | None = None
+
+
+class ApiKeyStatus(BaseModel):
+    """Result of an active API key check. Never carries the key itself."""
+
+    provider: str
+    status: ApiKeyStatusKind
+    error: str | None = None
+    checked_at: str
