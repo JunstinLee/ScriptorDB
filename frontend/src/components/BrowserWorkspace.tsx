@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
 import type {
   BrowserState,
@@ -60,6 +61,8 @@ function BrowserViewport({
   state: BrowserState | null;
   loading: boolean;
 }) {
+  const { t } = useTranslation();
+
   if (!state?.launched) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6">
@@ -72,7 +75,7 @@ function BrowserViewport({
           </div>
         </div>
         <p className="text-center text-sm text-muted">
-          Waiting for the agent to launch the browser...
+          {t("browser.waiting_launch")}
         </p>
       </div>
     );
@@ -82,7 +85,7 @@ function BrowserViewport({
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3">
         <Loader2 className="size-6 animate-spin text-accent" />
-        <p className="text-sm text-muted">Launching browser...</p>
+        <p className="text-sm text-muted">{t("browser.launching")}</p>
       </div>
     );
   }
@@ -93,7 +96,7 @@ function BrowserViewport({
         {state.screenshot_available ? (
           <img
             src={getScreenshotUrl()}
-            alt={state.title ?? "Page screenshot"}
+            alt={state.title ?? t("browser.screenshot_alt")}
             className="h-full w-full object-contain"
             style={{ cursor: "default" }}
           />
@@ -218,6 +221,7 @@ export function BrowserWorkspace({
   onCloseBrowser,
 }: BrowserWorkspaceProps) {
   const [reconfigureOpen, setReconfigureOpen] = useState(false);
+  const { t } = useTranslation();
 
   if (error) {
     return (
@@ -225,7 +229,7 @@ export function BrowserWorkspace({
         <div className="flex flex-col items-center gap-3 rounded-xl border border-danger/30 bg-danger/5 px-8 py-6">
           <X className="size-6 text-danger" />
           <p className="text-sm text-danger">{error}</p>
-          <p className="text-xs text-muted">Check that the backend is running</p>
+          <p className="text-xs text-muted">{t("browser.backend_not_running")}</p>
         </div>
       </div>
     );

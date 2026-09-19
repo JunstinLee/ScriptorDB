@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button, Chip } from "@heroui/react";
 import { SlidersHorizontal, Loader2 } from "lucide-react";
 import { interactBrowser } from "../api/browser";
@@ -66,6 +67,7 @@ export function FilterPanel({
   isRunning,
   onApplied,
 }: FilterPanelProps) {
+  const { t } = useTranslation();
   const rows = buildRows(schema);
   const [rowStates, setRowStates] = useState<Record<string, RowState>>({});
   const [busy, setBusy] = useState(false);
@@ -112,11 +114,11 @@ export function FilterPanel({
       }
       onApplied?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to apply filters");
+      setError(e instanceof Error ? e.message : t("filter.apply_failed"));
     } finally {
       setBusy(false);
     }
-  }, [rows, rowStates, onApplied]);
+  }, [rows, rowStates, onApplied, t]);
 
   const renderRowControl = (item: FilterSchemaItem, disabled: boolean) => {
     const st = rowStates[item.name];
@@ -150,7 +152,7 @@ export function FilterPanel({
               }
               className="h-8 flex-1 rounded-md border border-grid bg-background px-2 text-sm text-foreground disabled:opacity-50"
             />
-            <span className="text-xs text-muted">to</span>
+            <span className="text-xs text-muted">{t("filter.range_to")}</span>
             <input
               type="date"
               value={st.values[1] ?? ""}
@@ -185,7 +187,7 @@ export function FilterPanel({
               className="size-4 accent-[var(--accent)]"
             />
             <span className="text-xs text-muted">
-              {st.checked ? "Checked" : "Unchecked"}
+              {st.checked ? t("filter.checked") : t("filter.unchecked")}
             </span>
           </label>
         );
@@ -196,7 +198,7 @@ export function FilterPanel({
             disabled={disabled}
             onChange={(e) => setRow(item.name, { value: e.target.value })}
             className="h-8 flex-1 rounded-md border border-grid bg-background px-2 text-sm text-foreground disabled:opacity-50"
-            placeholder={item.min ? `${item.min} ~ ${item.max}` : "Slider value"}
+            placeholder={item.min ? `${item.min} ~ ${item.max}` : t("filter.slider_placeholder")}
           />
         );
       default:
@@ -206,7 +208,7 @@ export function FilterPanel({
             disabled={disabled}
             onChange={(e) => setRow(item.name, { value: e.target.value })}
             className="h-8 flex-1 rounded-md border border-grid bg-background px-2 text-sm text-foreground disabled:opacity-50"
-            placeholder="Text"
+            placeholder={t("filter.text_placeholder")}
           />
         );
     }
@@ -216,7 +218,7 @@ export function FilterPanel({
     return (
       <div className="border-b border-grid px-4 py-3">
         <p className="text-xs text-muted">
-          The agent hasn't detected page filters yet (ask it to run "detect filters", then edit here).
+          {t("filter.guide")}
         </p>
       </div>
     );
@@ -227,15 +229,15 @@ export function FilterPanel({
       <div className="mb-2 flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
           <SlidersHorizontal className="size-3.5 text-muted" />
-          Filters
+          {t("filter.title")}
         </p>
         {isRunning && (
-          <span className="text-[11px] text-muted">Agent running, read-only</span>
+          <span className="text-[11px] text-muted">{t("filter.read_only")}</span>
         )}
       </div>
 
       {rows.length === 0 ? (
-        <p className="text-xs text-muted">No actionable filters detected</p>
+        <p className="text-xs text-muted">{t("filter.empty")}</p>
       ) : (
         <div className="flex flex-col gap-2">
           {rows.map((item) => (
@@ -244,7 +246,7 @@ export function FilterPanel({
                 {item.name}
               </span>
               <Chip size="sm" variant="soft" className="shrink-0">
-                {item.type}
+                {t(`filter.type.${item.type}`)}
               </Chip>
               {renderRowControl(item, isRunning || busy)}
             </div>
@@ -258,7 +260,7 @@ export function FilterPanel({
               isDisabled={isRunning || busy || rows.length === 0}
             >
               {busy ? <Loader2 className="size-3.5 animate-spin" /> : null}
-              Apply filters
+              {t("filter.apply")}
             </Button>
           </div>
         </div>

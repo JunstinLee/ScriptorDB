@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import type { TakeoverPhase } from "../hooks/useTakeoverState";
 
@@ -17,13 +18,13 @@ interface BrowserStatusBarProps {
 
 const PHASE_CONFIG: Record<
   TakeoverPhase,
-  { color: string; label: string; animate?: boolean }
+  { color: string; labelKey: string; animate?: boolean }
 > = {
-  none:           { color: "bg-green-500",   label: "Agent running" },
-  waiting_human:  { color: "bg-amber-500",   label: "Awaiting user action", animate: true },
-  human_control:  { color: "bg-blue-500",    label: "Human control" },
-  resuming:       { color: "bg-emerald-500", label: "Resuming",       animate: true },
-  cancelled:      { color: "bg-gray-400",    label: "Cancelled" },
+  none:           { color: "bg-green-500",   labelKey: "browser.phase.agent_running" },
+  waiting_human:  { color: "bg-amber-500",   labelKey: "browser.phase.awaiting_user", animate: true },
+  human_control:  { color: "bg-blue-500",    labelKey: "browser.phase.human_control" },
+  resuming:       { color: "bg-emerald-500", labelKey: "browser.phase.resuming",       animate: true },
+  cancelled:      { color: "bg-gray-400",    labelKey: "browser.phase.cancelled" },
 };
 
 function formatTime(seconds: number): string {
@@ -42,6 +43,7 @@ export function BrowserStatusBar({
   idleCloseRemaining,
   onCloseBrowser,
 }: BrowserStatusBarProps) {
+  const { t } = useTranslation();
   const config = PHASE_CONFIG[phase];
 
   // 以轮询下发的服务端值为基准，本地每秒递减展示
@@ -68,7 +70,7 @@ export function BrowserStatusBar({
       />
 
       <span className="text-sm font-semibold whitespace-nowrap">
-        {config.label}
+        {t(config.labelKey)}
       </span>
 
       {reason && (
@@ -92,21 +94,21 @@ export function BrowserStatusBar({
       {idleCloseActive && browserRunning ? (
         <div className="ml-auto flex items-center gap-2 whitespace-nowrap">
           <span className="text-[11px] font-mono text-muted">
-            Auto-close {formatTime(displayRemaining)}
+            {t("browser.auto_close", { time: formatTime(displayRemaining) })}
           </span>
           <button
             type="button"
             onClick={onCloseBrowser}
             className="flex items-center gap-1 rounded-lg border border-grid px-2 py-1 text-[11px] text-muted transition-colors hover:bg-surface hover:text-danger"
-            title="Close browser now"
+            title={t("browser.close_now")}
           >
             <X className="size-3" />
-            Close browser
+            {t("browser.close")}
           </button>
         </div>
       ) : (
         !browserRunning && (
-          <span className="text-xs text-muted ml-auto">Browser not running</span>
+          <span className="text-xs text-muted ml-auto">{t("browser.not_running")}</span>
         )
       )}
     </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button, Input, Label, ListBox, Select, Switch } from "@heroui/react";
 import type {
   ApprovalRequestEvent,
@@ -53,6 +54,7 @@ export function FilterConfirmDrawer({
   onApprove,
   onReject,
 }: FilterConfirmDrawerProps) {
+  const { t } = useTranslation();
   const call = request.calls[0];
   const plan = (call?.args ?? {}) as Partial<FilterOverrideActions>;
 
@@ -78,6 +80,7 @@ export function FilterConfirmDrawer({
     [schema, action, target],
   );
   const options = schemaItem?.options ?? [];
+  const schemaTypeLabel = schemaItem ? t(`filter.type.${schemaItem.type}`) : "";
 
   const handleApply = () => {
     const changed: Record<string, unknown> = {};
@@ -115,7 +118,7 @@ export function FilterConfirmDrawer({
                 if (typeof v === "string") setValue(v);
               }}
             >
-              <Label>Option</Label>
+              <Label>{t("filter.option_label")}</Label>
               <Select.Trigger>
                 <Select.Value />
                 <Select.Indicator />
@@ -137,7 +140,7 @@ export function FilterConfirmDrawer({
           <Input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="Enter option value"
+            placeholder={t("filter.placeholder.option")}
           />
         );
       case "input":
@@ -147,7 +150,9 @@ export function FilterConfirmDrawer({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder={
-              action === "set_range" ? "e.g. 30" : "Type filter text and press Enter"
+              action === "set_range"
+                ? t("filter.placeholder.range")
+                : t("filter.placeholder.text")
             }
           />
         );
@@ -162,7 +167,7 @@ export function FilterConfirmDrawer({
                 setValues((prev) => [e.target.value, prev[1] ?? ""])
               }
             />
-            <span className="text-xs text-muted">to</span>
+            <span className="text-xs text-muted">{t("filter.range_to")}</span>
             <input
               type="date"
               className="h-9 rounded-lg border border-grid bg-background px-2 text-sm text-foreground"
@@ -182,7 +187,7 @@ export function FilterConfirmDrawer({
               onChange={(e) => setValue(e.target.checked ? "true" : "false")}
               className="size-4 accent-[var(--accent)]"
             />
-            <span className="text-muted">Check this option</span>
+            <span className="text-muted">{t("filter.check_option")}</span>
           </label>
         );
       default:
@@ -193,42 +198,42 @@ export function FilterConfirmDrawer({
   return (
     <div className="border-t border-grid bg-surface px-4 py-4">
       <div className="mb-3">
-        <p className="text-sm font-semibold text-foreground">Confirm filter action</p>
+        <p className="text-sm font-semibold text-foreground">{t("filter.confirm_title")}</p>
         <p className="mt-0.5 text-xs text-muted">
-          {call?.tool_name ?? "browser_apply_filter"} · {target || "Unnamed filter"}
-          {schemaItem ? ` (${schemaItem.type})` : ""}
+          {call?.tool_name ?? "browser_apply_filter"} · {target || t("filter.unnamed")}
+          {schemaTypeLabel ? ` (${schemaTypeLabel})` : ""}
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-muted">Action</span>
+          <span className="w-20 shrink-0 text-xs text-muted">{t("filter.field.action")}</span>
           <select
             value={action}
             onChange={(e) => setAction(e.target.value as FilterActionType)}
             className="h-9 flex-1 rounded-lg border border-grid bg-background px-2 text-sm text-foreground"
           >
-            <option value="select">select (dropdown)</option>
-            <option value="input">input (text)</option>
-            <option value="toggle">toggle (checkbox)</option>
-            <option value="set_range">set_range (slider)</option>
-            <option value="date_range">date_range (date range)</option>
+            <option value="select">{t("filter.action.select")}</option>
+            <option value="input">{t("filter.action.input")}</option>
+            <option value="toggle">{t("filter.action.toggle")}</option>
+            <option value="set_range">{t("filter.action.set_range")}</option>
+            <option value="date_range">{t("filter.action.date_range")}</option>
           </select>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-muted">Filter</span>
+          <span className="w-20 shrink-0 text-xs text-muted">{t("filter.field.filter")}</span>
           <input
             value={target}
             onChange={(e) => setTarget(e.target.value)}
             className="h-9 flex-1 rounded-lg border border-grid bg-background px-2 text-sm text-foreground"
-            placeholder="Filter name or selector"
+            placeholder={t("filter.placeholder.target")}
           />
         </div>
 
         {candidates.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="w-20 shrink-0 text-xs text-muted">Choose another</span>
+            <span className="w-20 shrink-0 text-xs text-muted">{t("filter.choose_another")}</span>
             <select
               value=""
               onChange={(e) => {
@@ -237,7 +242,7 @@ export function FilterConfirmDrawer({
               className="h-9 flex-1 rounded-lg border border-grid bg-background px-2 text-sm text-foreground"
             >
               <option value="" disabled>
-                Filters of the same type…
+                {t("filter.same_type_options")}
               </option>
               {candidates.map((c) => (
                 <option key={c.name} value={c.name}>
@@ -249,12 +254,12 @@ export function FilterConfirmDrawer({
         )}
 
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-muted">Value</span>
+          <span className="w-20 shrink-0 text-xs text-muted">{t("filter.field.value")}</span>
           <div className="flex-1">{renderActionControl()}</div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="w-20 shrink-0 text-xs text-muted">Submit</span>
+          <span className="w-20 shrink-0 text-xs text-muted">{t("filter.field.submit")}</span>
           <Switch
             isSelected={submit}
             onChange={setSubmit}
@@ -269,10 +274,10 @@ export function FilterConfirmDrawer({
 
       <div className="mt-4 flex justify-end gap-2">
         <Button variant="secondary" size="sm" onPress={onReject}>
-          Reject
+          {t("filter.reject")}
         </Button>
         <Button variant="primary" size="sm" onPress={handleApply}>
-          Apply
+          {t("filter.apply_action")}
         </Button>
       </div>
     </div>

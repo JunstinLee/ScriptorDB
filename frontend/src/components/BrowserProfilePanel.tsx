@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button, Card, Input, Modal } from "@heroui/react";
 import { Globe, Save, Trash2, Upload, RefreshCw } from "lucide-react";
 import type { BrowserProfileItem } from "../types";
@@ -53,6 +54,7 @@ function ProfileCard({
   onDelete: (name: string) => void;
   onUpdate: (name: string) => void;
 }) {
+  const { t } = useTranslation();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [loadOpen, setLoadOpen] = useState(false);
 
@@ -72,7 +74,10 @@ function ProfileCard({
             {profile.domain}
           </p>
           <p className="text-[11px] text-muted">
-            {profile.cookie_count} cookies · {formatDate(profile.updated_at)}
+            {t("browser.profile_card_meta", {
+              count: profile.cookie_count,
+              date: formatDate(profile.updated_at),
+            })}
           </p>
           <div className="flex items-center gap-1.5">
             <Button
@@ -82,7 +87,7 @@ function ProfileCard({
               className="h-7 text-[11px]"
             >
               <Upload className="mr-1 size-3" />
-              Load
+              {t("browser.load")}
             </Button>
             <Button
               size="sm"
@@ -91,7 +96,7 @@ function ProfileCard({
               className="h-7 text-[11px]"
             >
               <RefreshCw className="mr-1 size-3" />
-              Update
+              {t("browser.update")}
             </Button>
             <Button
               size="sm"
@@ -100,7 +105,7 @@ function ProfileCard({
               className="h-7 text-[11px]"
             >
               <Trash2 className="mr-1 size-3" />
-              Delete
+              {t("browser.delete")}
             </Button>
           </div>
         </Card.Content>
@@ -111,16 +116,16 @@ function ProfileCard({
           <Modal.Dialog className="sm:max-w-90 bg-surface">
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>Load Profile</Modal.Heading>
+              <Modal.Heading>{t("browser.load_profile_title")}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <p className="text-sm text-graphite leading-relaxed">
-                Loading this profile will replace the current browser cookies and login state.
+                {t("browser.load_profile_confirm")}
               </p>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="secondary" onPress={() => setLoadOpen(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 onPress={() => {
@@ -128,7 +133,7 @@ function ProfileCard({
                   setLoadOpen(false);
                 }}
               >
-                Load
+                {t("browser.load")}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>
@@ -140,16 +145,16 @@ function ProfileCard({
           <Modal.Dialog className="sm:max-w-90 bg-surface">
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>Delete Profile</Modal.Heading>
+              <Modal.Heading>{t("browser.delete_profile_title")}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <p className="text-sm text-graphite leading-relaxed">
-                Delete profile &quot;{profile.name}&quot;? This action cannot be undone.
+                {t("browser.delete_profile_confirm", { name: profile.name })}
               </p>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="secondary" onPress={() => setDeleteOpen(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 onPress={() => {
@@ -157,7 +162,7 @@ function ProfileCard({
                   setDeleteOpen(false);
                 }}
               >
-                Delete
+                {t("browser.delete")}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>
@@ -176,6 +181,7 @@ export default function BrowserProfilePanel({
   onUpdate,
   browserLaunched,
 }: BrowserProfilePanelProps) {
+  const { t } = useTranslation();
   const [saveName, setSaveName] = useState("");
 
   const handleSave = () => {
@@ -188,17 +194,17 @@ export default function BrowserProfilePanel({
   return (
     <div className="flex flex-col gap-3 px-2">
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
-        Browser Profiles
+        {t("browser.profiles_title")}
       </p>
 
       {!browserLaunched ? (
         <p className="text-xs text-muted italic">
-          Launch the browser first to save or load profiles.
+          {t("browser.profiles_launch_first")}
         </p>
       ) : (
         <div className="flex gap-1.5">
           <Input
-            placeholder="Save current session as profile..."
+            placeholder={t("browser.profile_save_placeholder")}
             value={saveName}
             onChange={(e) => setSaveName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleSave(); }}
@@ -211,7 +217,7 @@ export default function BrowserProfilePanel({
             className="h-9 shrink-0"
           >
             <Save className="mr-1 size-3" />
-            Save
+            {t("common.save")}
           </Button>
         </div>
       )}
@@ -219,9 +225,9 @@ export default function BrowserProfilePanel({
       <div className="border-t border-grid" />
 
       {loading ? (
-        <p className="text-xs text-muted py-2">Loading profiles...</p>
+        <p className="text-xs text-muted py-2">{t("browser.profiles_loading")}</p>
       ) : profiles.length === 0 ? (
-        <p className="text-xs text-muted py-2">No profiles saved yet.</p>
+        <p className="text-xs text-muted py-2">{t("browser.profiles_empty")}</p>
       ) : (
         <div className="flex flex-col gap-2">
           {profiles.map((p) => (
@@ -238,7 +244,7 @@ export default function BrowserProfilePanel({
 
       <div className="rounded-md border border-amber/30 bg-amber/5 px-3 py-2 text-[11px] text-amber">
         <Globe className="mr-1 inline size-3" />
-        Loading a profile will replace the current browser cookies and login state.
+        {t("browser.load_profile_warning")}
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import type { BrowserActionEvent } from "../types";
 
@@ -7,24 +8,28 @@ interface AgentActivityTimelineProps {
   isRunning: boolean;
 }
 
-const TOOL_LABELS: Record<string, (detail: string) => string> = {
-  browser_navigate: (d) => `Open ${extractUrl(d)}`,
-  browser_click: (d) => `Click ${extractSelector(d)}`,
-  browser_fill: (d) => {
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+const TOOL_LABELS: Record<string, (detail: string, t: Translate) => string> = {
+  browser_navigate: (d, t) => t("browser.action.open", { url: extractUrl(d) }),
+  browser_click: (d, t) => t("browser.action.click", { selector: extractSelector(d) }),
+  browser_fill: (d, t) => {
     const s = extractSelector(d);
-    return `Fill ${s}`;
+    return t("browser.action.fill", { selector: s });
   },
-  browser_wait_for_selector: (d) => `Wait ${extractSelector(d)}`,
-  browser_scroll: (d) => {
+  browser_wait_for_selector: (d, t) => t("browser.action.wait", { selector: extractSelector(d) }),
+  browser_scroll: (d, t) => {
     const px = extractPixels(d);
-    return px > 0 ? `Scroll down ${px}px` : `Scroll up ${Math.abs(px)}px`;
+    return px > 0
+      ? t("browser.action.scroll_down", { px })
+      : t("browser.action.scroll_up", { px: Math.abs(px) });
   },
-  browser_screenshot: () => "Screenshot saved",
-  browser_press_key: (d) => `Press ${extractKey(d)}`,
-  browser_get_cookies: () => "Cookies saved",
-  browser_evaluate: () => "Evaluate JavaScript",
-  browser_query: (d) => `Query ${extractSelector(d)}`,
-  browser_launch: () => "Launch browser",
+  browser_screenshot: (_d, t) => t("browser.action.screenshot"),
+  browser_press_key: (d, t) => t("browser.action.press", { key: extractKey(d, t) }),
+  browser_get_cookies: (_d, t) => t("browser.action.cookies"),
+  browser_evaluate: (_d, t) => t("browser.action.evaluate"),
+  browser_query: (d, t) => t("browser.action.query", { selector: extractSelector(d) }),
+  browser_launch: (_d, t) => t("browser.action.launch"),
 };
 
 function defaultLabel(tool: string, detail: string): string {
@@ -58,14 +63,14 @@ function extractPixels(detail: string): number {
   return isNaN(n) ? 0 : n;
 }
 
-function extractKey(detail: string): string {
-  return detail || "key";
+function extractKey(detail: string, t: Translate): string {
+  return detail || t("browser.action_key_fallback");
 }
 
-function formatTime(isoString: string): string {
+function formatTime(isoString: string, locale: string): string {
   try {
     const d = new Date(isoString);
-    return d.toLocaleTimeString("en-US", {
+    return d.toLocaleTimeString(locale, {
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
@@ -76,9 +81,9 @@ function formatTime(isoString: string): string {
   }
 }
 
-function getLabel(tool: string, detail: string): string {
+function getLabel(tool: string, detail: string, t: Translate): string {
   const fn = TOOL_LABELS[tool];
-  return fn ? fn(detail) : defaultLabel(tool, detail);
+  return fn ? fn(detail, t) : defaultLabel(tool, detail);
 }
 
 function ActionRow({
@@ -90,6 +95,7 @@ function ActionRow({
   isLatest: boolean;
   isRunning: boolean;
 }) {
+  const { t, i18n } = useTranslation();
   const isInProgress = isLatest && isRunning;
 
   return (
@@ -104,10 +110,10 @@ function ActionRow({
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs text-foreground">
-          {getLabel(event.tool, event.detail)}
+          {getLabel(event.tool, event.detail, t)}
         </p>
         <p className="mt-0.5 text-[10px] text-muted/60">
-          {formatTime(event.timestamp)}
+          {formatTime(event.timestamp, i18n.language)}
         </p>
       </div>
 
@@ -119,6 +125,7 @@ function ActionRow({
 }
 
 export function AgentActivityTimeline({ events, isRunning }: AgentActivityTimelineProps) {
+  const { t } = useTranslation();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -128,7 +135,7 @@ export function AgentActivityTimeline({ events, isRunning }: AgentActivityTimeli
   if (events.length === 0) {
     return (
       <div className="px-3 py-4 text-center">
-        <p className="text-xs italic text-muted">Waiting for agent actions...</p>
+        <p className="text-xs italic text-muted">{t("browser.waiting_actions")}</p>
       </div>
     );
   }

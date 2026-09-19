@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button, Chip, Modal } from "@heroui/react";
 import { Cookie, Trash2, RefreshCw } from "lucide-react";
 import type { CookieInfo } from "../types";
@@ -13,8 +14,8 @@ interface CookieViewerProps {
   onRefresh: () => void;
 }
 
-function formatExpires(expires: number | null): string {
-  if (expires === null || expires === -1) return "session";
+function formatExpires(expires: number | null, sessionLabel: string): string {
+  if (expires === null || expires === -1) return sessionLabel;
   try {
     return new Date(expires * 1000).toISOString().slice(0, 10);
   } catch {
@@ -29,6 +30,8 @@ function CookieCard({
   cookie: CookieInfo;
   onDelete: (name: string) => void;
 }) {
+  const { t } = useTranslation();
+
   return (
     <div className="rounded-lg border border-grid bg-surface/50 p-3">
       <div className="flex items-start justify-between gap-2">
@@ -37,28 +40,31 @@ function CookieCard({
             {cookie.name}
           </span>
           <span className="truncate text-[11px] text-graphite">
-            domain: {cookie.domain}
+            {t("browser.cookie_domain", { domain: cookie.domain })}
           </span>
           <span className="text-[11px] text-muted">
-            path: {cookie.path} · expires: {formatExpires(cookie.expires)}
+            {t("browser.cookie_path", {
+              path: cookie.path,
+              expires: formatExpires(cookie.expires, t("browser.cookie_session")),
+            })}
           </span>
           <div className="flex flex-wrap items-center gap-1 mt-0.5">
             {cookie.http_only ? (
               <Chip size="sm" className="bg-blue/10 text-blue text-[10px]">
-                httpOnly
+                {t("browser.cookie_http_only")}
               </Chip>
             ) : (
               <Chip size="sm" className="text-[10px] text-muted bg-default/20">
-                httpOnly -
+                {t("browser.cookie_http_only_off")}
               </Chip>
             )}
             {cookie.secure ? (
               <Chip size="sm" className="bg-green/10 text-green text-[10px]">
-                secure
+                {t("browser.cookie_secure")}
               </Chip>
             ) : (
               <Chip size="sm" className="text-[10px] text-muted bg-default/20">
-                secure -
+                {t("browser.cookie_secure_off")}
               </Chip>
             )}
             <Chip size="sm" className="text-[10px] text-graphite bg-default/20">
@@ -72,7 +78,7 @@ function CookieCard({
           onPress={() => onDelete(cookie.name)}
           className="h-7 shrink-0 text-[11px]"
         >
-          Delete
+          {t("browser.delete")}
         </Button>
       </div>
     </div>
@@ -88,6 +94,7 @@ export default function CookieViewer({
   onClearAll,
   onRefresh,
 }: CookieViewerProps) {
+  const { t } = useTranslation();
   const [clearOpen, setClearOpen] = useState(false);
 
   if (!browserLaunched) {
@@ -99,7 +106,7 @@ export default function CookieViewer({
       <div className="border-t border-grid" />
 
       <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
-        Cookies
+        {t("browser.cookies_title")}
       </p>
 
       {currentUrl && (
@@ -118,7 +125,7 @@ export default function CookieViewer({
           className="h-7 text-[11px]"
         >
           <RefreshCw className="mr-1 size-3" />
-          Refresh
+          {t("browser.refresh")}
         </Button>
         <Button
           size="sm"
@@ -127,17 +134,17 @@ export default function CookieViewer({
           className="h-7 text-[11px]"
         >
           <Trash2 className="mr-1 size-3" />
-          Clear All
+          {t("browser.clear_all")}
         </Button>
         <span className="ml-auto text-[11px] text-muted">
-          {cookies.length} total
+          {t("browser.cookies_total", { count: cookies.length })}
         </span>
       </div>
 
       {loading ? (
-        <p className="text-xs text-muted py-2">Loading cookies...</p>
+        <p className="text-xs text-muted py-2">{t("browser.cookies_loading")}</p>
       ) : cookies.length === 0 ? (
-        <p className="text-xs text-muted py-2">No cookies for this page.</p>
+        <p className="text-xs text-muted py-2">{t("browser.cookies_empty")}</p>
       ) : (
         <div className="flex flex-col gap-2">
           {cookies.map((c) => (
@@ -151,17 +158,16 @@ export default function CookieViewer({
           <Modal.Dialog className="sm:max-w-90 bg-surface">
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>Clear All Cookies</Modal.Heading>
+              <Modal.Heading>{t("browser.clear_all_title")}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
               <p className="text-sm text-graphite leading-relaxed">
-                This will delete all {cookies.length} cookies from the current browser session.
-                This action cannot be undone.
+                {t("browser.clear_all_confirm", { count: cookies.length })}
               </p>
             </Modal.Body>
             <Modal.Footer>
               <Button variant="secondary" onPress={() => setClearOpen(false)}>
-                Cancel
+                {t("common.cancel")}
               </Button>
               <Button
                 onPress={() => {
@@ -169,7 +175,7 @@ export default function CookieViewer({
                   setClearOpen(false);
                 }}
               >
-                Clear All
+                {t("browser.clear_all")}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { CheckCircle2, Circle, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import type { LoginFlowStatus } from "../types";
 
@@ -15,21 +16,23 @@ export function LoginStatusPanel({
   status: LoginFlowStatus | null;
   onReconfigure?: () => void;
 }) {
+  const { t } = useTranslation();
+
   if (!status || !status.login_form_detected) {
     return null;
   }
 
   const steps: { label: string; done: boolean }[] = [];
-  if (status.username_filled) steps.push({ label: "Account filled", done: true });
-  if (status.password_filled) steps.push({ label: "Password filled", done: true });
+  if (status.username_filled) steps.push({ label: t("login.step.account"), done: true });
+  if (status.password_filled) steps.push({ label: t("login.step.password"), done: true });
   if (status.extra_required) {
     steps.push({
-      label: status.extra_filled ? "Extra info filled" : "Extra info pending",
+      label: status.extra_filled ? t("login.step.extra_filled") : t("login.step.extra_pending"),
       done: status.extra_filled,
     });
   }
   if (status.manual_otp_guided) {
-    steps.push({ label: "Verification code — manual in Chrome", done: false });
+    steps.push({ label: t("login.step.otp"), done: false });
   }
 
   return (
@@ -41,16 +44,16 @@ export function LoginStatusPanel({
           <ShieldCheck className="size-4 shrink-0 text-accent" />
         )}
         <p className="text-sm font-semibold text-foreground">
-          {status.configured ? "Auto-fill" : "Login info not configured"}
+          {status.configured ? t("login.title") : t("login.not_configured")}
         </p>
         {status.configured && (
           <button
             onClick={onReconfigure}
             className="ml-auto inline-flex items-center gap-1 rounded-lg border border-grid px-2 py-1 text-[11px] text-muted hover:bg-surface/70 hover:text-foreground"
-            title="Reconfigure saved login info"
+            title={t("login.reconfigure_saved")}
           >
             <RefreshCw className="size-3" />
-            Reconfigure
+            {t("login.reconfigure")}
           </button>
         )}
       </div>
