@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "../i18n";
 import {
   attachSessionStream,
   fetchActiveRun,
@@ -200,7 +201,7 @@ export function useChatStream(params: UseChatStreamParams) {
         handleWorkspaceMissing();
         return;
       }
-      appendStreamingText(`\n\nError: ${error.message}`);
+      appendStreamingText(`\n\n${t("error.message_prefix", { message: error.message })}`);
       setLoading(false);
       setApprovalRequest(null);
     },
@@ -397,7 +398,7 @@ export function useChatStream(params: UseChatStreamParams) {
         await submitApproval(sid, request.request_id, approvedMap, overrideArgs);
       } catch (error) {
         makeErrorCallback()(
-          error instanceof Error ? error : new Error("Unknown error"),
+          error instanceof Error ? error : new Error(t("error.unknown")),
         );
       }
     },
@@ -421,7 +422,7 @@ export function useChatStream(params: UseChatStreamParams) {
           if (error instanceof WorkspaceNotSelectedError) {
             handleWorkspaceMissing();
           } else {
-            appendStreamingText(`\n\nError: ${error.message}`);
+            appendStreamingText(`\n\n${t("error.message_prefix", { message: error.message })}`);
             setLoading(false);
           }
           takeover.reset();

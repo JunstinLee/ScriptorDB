@@ -1,3 +1,5 @@
+import { t } from "../i18n";
+
 const BASE = "/api";
 
 export class ApiError extends Error {
@@ -6,7 +8,7 @@ export class ApiError extends Error {
   code: string | null;
 
   constructor(status: number, body: string) {
-    super(`HTTP ${status}: ${body}`);
+    super(t("error.http", { status, body }));
     this.name = "ApiError";
     this.status = status;
     this.body = body;
@@ -39,7 +41,7 @@ export async function request<T>(url: string, options?: RequestInit): Promise<T>
     ...options,
   });
   if (!res.ok) {
-    const text = await res.text().catch(() => "Unknown error");
+    const text = await res.text().catch(() => t("error.unknown"));
     const code = extractErrorCode(text);
     if (res.status === 409 && code === "WORKSPACE_NOT_SELECTED") {
       throw new WorkspaceNotSelectedError(text);

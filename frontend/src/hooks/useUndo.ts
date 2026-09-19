@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { t } from "../i18n";
 import { listUndoGroups, revertAndTrimSession } from "../api/client";
 import type { UndoGroup } from "../types";
 
@@ -14,7 +15,7 @@ export function useUndo() {
       const data = await listUndoGroups();
       setGroups(data.groups);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load undo groups");
+      setError(e instanceof Error ? e.message : t("error.undo_load_failed"));
     } finally {
       setLoading(false);
     }
@@ -28,7 +29,7 @@ export function useUndo() {
       await refresh();
       return result;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Revert failed");
+      setError(e instanceof Error ? e.message : t("error.undo_revert_failed"));
       throw e;
     }
   }, [refresh]);
@@ -40,7 +41,7 @@ export function useUndo() {
       await refresh();
       return result;
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Revert and trim failed");
+      setError(e instanceof Error ? e.message : t("error.undo_revert_trim_failed"));
       throw e;
     }
   }, [refresh]);

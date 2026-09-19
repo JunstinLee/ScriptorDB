@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { request, WorkspaceNotSelectedError } from "./core";
 import type { InteractRequest, InteractByCoordsRequest, InteractResponse, ViewportSizeResponse, BrowserState, CookiesResponse, ProfilesResponse, SetCookieRequest } from "../types";
 
@@ -51,7 +52,13 @@ export function completeTakeover(
         if (response.status === 409 && text.includes("WORKSPACE_NOT_SELECTED")) {
           onError(new WorkspaceNotSelectedError(text));
         } else {
-          onError(new Error(`HTTP ${response.status}${text ? `: ${text}` : ""}`));
+          onError(
+            new Error(
+              text
+                ? t("error.http", { status: response.status, body: text })
+                : t("error.http_status", { status: response.status }),
+            ),
+          );
         }
         return;
       }
@@ -61,11 +68,11 @@ export function completeTakeover(
       if (body.status === "resumed") {
         onDone();
       } else {
-        onError(new Error("Resume failed: server did not confirm"));
+        onError(new Error(t("error.resume_failed")));
       }
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      onError(err instanceof Error ? err : new Error("Unknown error"));
+      onError(err instanceof Error ? err : new Error(t("error.unknown")));
     }
   })();
   return abort;

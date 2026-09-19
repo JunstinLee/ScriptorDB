@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { t } from "../i18n";
 import { fetchBrowserState, fetchCookies, fetchProfiles } from "../api/browser";
 import type { BrowserState, BrowserActionEvent, CookieInfo, BrowserProfileItem } from "../types";
 
@@ -38,7 +39,7 @@ export function useBrowser(
       }
     } catch (err: unknown) {
       if (isMountedRef.current) {
-        setError(err instanceof Error ? err.message : "Failed to fetch browser state");
+        setError(err instanceof Error ? err.message : t("error.browser_state_failed"));
       }
     } finally {
       if (isMountedRef.current) {

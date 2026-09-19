@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "../i18n";
 import {
   activateWorkspace as apiActivateWorkspace,
   createWorkspace as apiCreateWorkspace,
@@ -89,7 +90,7 @@ export function useWorkspaces(): UseWorkspacesResult {
       setError(
         activeResult.reason instanceof Error
           ? activeResult.reason.message
-          : "Failed to load workspace",
+          : t("error.workspace_load_failed"),
       );
     }
   }, []);

@@ -99,7 +99,18 @@
       "title": "Rate limited (HTTP 429)",
       "default_message": "Too many requests. Please try again shortly.",
       "model": "Model: {model}"
-    }
+    },
+    "unknown": "Unknown error",
+    "http": "HTTP {status}: {body}",
+    "http_status": "HTTP {status}",
+    "message_prefix": "Error: {message}",
+    "resume_failed": "Resume failed: server did not confirm",
+    "undo_load_failed": "Failed to load undo groups",
+    "undo_revert_failed": "Revert failed",
+    "undo_revert_trim_failed": "Revert and trim failed",
+    "workspace_load_failed": "Failed to load workspace",
+    "history_load_failed": "Failed to load history",
+    "browser_state_failed": "Failed to fetch browser state"
   },
   "settings": {
     "title": "Settings",

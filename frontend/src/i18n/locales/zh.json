@@ -99,7 +99,18 @@
       "title": "已触发限流（HTTP 429）",
       "default_message": "请求过于频繁，请稍后重试。",
       "model": "模型：{model}"
-    }
+    },
+    "unknown": "未知错误",
+    "http": "HTTP {status}：{body}",
+    "http_status": "HTTP {status}",
+    "message_prefix": "错误：{message}",
+    "resume_failed": "恢复失败：服务器未确认",
+    "undo_load_failed": "加载撤销记录失败",
+    "undo_revert_failed": "撤销失败",
+    "undo_revert_trim_failed": "撤销并裁剪失败",
+    "workspace_load_failed": "加载工作区失败",
+    "history_load_failed": "加载历史记录失败",
+    "browser_state_failed": "获取浏览器状态失败"
   },
   "settings": {
     "title": "设置",
