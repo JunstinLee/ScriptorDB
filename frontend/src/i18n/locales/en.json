@@ -60,6 +60,18 @@
     "together": "Together",
     "deepseek": "DeepSeek"
   },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm"
+  },
+  "error": {
+    "rate_limit": {
+      "title": "Rate limited (HTTP 429)",
+      "default_message": "Too many requests. Please try again shortly.",
+      "model": "Model: {model}"
+    }
+  },
   "settings": {
     "title": "Settings",
     "loading": "Loading…",
@@ -127,7 +139,21 @@
       "saving": "Saving…",
       "save": "Save",
       "test": "Test",
-      "remove": "Remove stored key"
+      "remove": "Remove stored key",
+      "save_key": "Save key",
+      "retry_check": "Retry check",
+      "saved_for": "API key saved for {provider}.",
+      "provider_fallback": "the provider",
+      "provider_fallback_sentence": "The provider",
+      "provider_fallback_current": "the current provider",
+      "state_invalid_title": "Invalid API key",
+      "state_unknown_title": "Could not verify API key",
+      "state_valid_title": "API key configured",
+      "state_required_title": "API key required",
+      "state_unknown_desc": "Could not reach {provider} to check the API key. Check your connection and retry.",
+      "state_invalid_desc": "{provider} rejected the stored API key. Enter a new one to continue.",
+      "state_valid_desc": "{provider} is ready to use. Close this window to continue.",
+      "state_required_desc": "No API key is set for {provider}. Enter one to continue."
     },
     "defaults": {
       "load_failed": "Failed to load models",
@@ -176,13 +202,60 @@
     "switch_to": "Switch to",
     "switch": "Switch workspace",
     "new": "New workspace",
-    "manage": "Manage workspaces"
+    "manage": "Manage workspaces",
+    "title": "Workspaces",
+    "subtitle": "Each workspace has its own database, sessions, and API keys.",
+    "empty": "No workspaces. Create one to get started.",
+    "switching": "Switching workspace…",
+    "active_badge": "active",
+    "active": "Active",
+    "open": "Open",
+    "name_label": "Name",
+    "name_placeholder": "My project",
+    "advanced": "Advanced",
+    "db_url_label": "DB URL (optional)",
+    "reset": "Reset",
+    "create": "Create workspace",
+    "creating": "Creating…",
+    "save": "Save",
+    "rename_aria": "Rename {name}",
+    "delete_aria": "Delete {name}",
+    "name_required": "Name is required",
+    "create_failed": "Failed to create workspace",
+    "switch_failed": "Failed to switch workspace",
+    "delete_failed": "Failed to delete workspace",
+    "rename_failed": "Failed to rename workspace",
+    "delete_confirm": "Delete workspace \"{name}\"?",
+    "delete_files_confirm": "Also delete its files from disk?"
   },
   "database": {
     "mysql": "MySQL",
     "sqlite": "SQLite",
     "none": "No database",
-    "select_workspace_first": "Select a workspace first"
+    "select_workspace_first": "Select a workspace first",
+    "connection_title": "Database connection",
+    "engine_label": "Database engine",
+    "engine_sqlite": "SQLite (local file)",
+    "engine_mysql": "MySQL (remote server)",
+    "sqlite_title": "Local SQLite database",
+    "sqlite_hint": "Data is stored in the workspace folder. Your MySQL connection details are preserved and will be restored when you switch back to MySQL.",
+    "host": "Host",
+    "port": "Port",
+    "user": "User",
+    "name_label": "Database",
+    "password": "Password",
+    "password_keep_placeholder": "•••••••• (leave blank to keep)",
+    "keyring_hint": "Stored in the system keyring. Never saved in workspace files.",
+    "test_first": "Test before saving",
+    "test_first_hint": "Run a SELECT 1 check against the database first.",
+    "connected": "Connection successful",
+    "connection_failed": "Connection failed",
+    "save_failed": "Failed to save database configuration",
+    "toast_mysql": "Connected to MySQL",
+    "toast_sqlite": "Switched to SQLite",
+    "use_sqlite": "Use SQLite",
+    "test_and_save": "Test & Save",
+    "saving": "Saving…"
   },
   "session": {
     "title": "Sessions",
@@ -210,6 +283,16 @@
     "web_page_placeholder": "Enter a question about the web page...",
     "db_placeholder": "Ask about your database...",
     "crawl_default_prompt": "Analyze the web page",
+    "undo_dialog": {
+      "title": "Undo to here",
+      "message": "This action will undo all database changes made from the current turn onward and delete the current turn and all subsequent chat history."
+    },
+    "import_dialog": {
+      "title": "Confirm Import",
+      "message_one": "{tool} will write {count} row into table {table}. Proceed?",
+      "message_other": "{tool} will write {count} rows into table {table}. Proceed?",
+      "tool_fallback": "import"
+    },
     "remove_attachment": "Remove attachment",
     "send": "Send",
     "welcome_hint": "Or type a question about your database below.",

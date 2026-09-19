@@ -7,6 +7,7 @@ import type {
   WorkspaceItem,
   WorkspaceUpdateRequest,
 } from "../types";
+import { t } from "../i18n";
 import AlertBanner from "./common/AlertBanner";
 import WorkspacePath from "./common/WorkspacePath";
 
@@ -60,7 +61,7 @@ export default function WorkspacePicker({
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!createForm.name.trim()) {
-        setLocalError("Name is required");
+        setLocalError(t("workspace.name_required"));
         return;
       }
       setBusy(true);
@@ -72,7 +73,7 @@ export default function WorkspacePicker({
         });
         setCreateForm(EMPTY_CREATE);
       } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "Failed to create workspace");
+        setLocalError(err instanceof Error ? err.message : t("workspace.create_failed"));
       } finally {
         setBusy(false);
       }
@@ -88,7 +89,7 @@ export default function WorkspacePicker({
         await onActivate(id);
         onClose();
       } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "Failed to switch workspace");
+        setLocalError(err instanceof Error ? err.message : t("workspace.switch_failed"));
       } finally {
         setBusy(false);
       }
@@ -100,17 +101,15 @@ export default function WorkspacePicker({
     async (id: string) => {
       const ws = workspaces.find((w) => w.id === id);
       if (!ws) return;
-      if (!window.confirm(`Delete workspace "${ws.name}"?`)) return;
-      const deleteFiles = window.confirm(
-        "Also delete its files from disk?",
-      );
+      if (!window.confirm(t("workspace.delete_confirm", { name: ws.name }))) return;
+      const deleteFiles = window.confirm(t("workspace.delete_files_confirm"));
       setBusy(true);
       setLocalError(null);
       try {
         await onDelete(id, deleteFiles);
         if (activeWorkspace?.id === id) onCancelActive();
       } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "Failed to delete workspace");
+        setLocalError(err instanceof Error ? err.message : t("workspace.delete_failed"));
       } finally {
         setBusy(false);
       }
@@ -136,7 +135,7 @@ export default function WorkspacePicker({
         await onRename(id, { name });
         setRenamingId(null);
       } catch (err) {
-        setLocalError(err instanceof Error ? err.message : "Failed to rename workspace");
+        setLocalError(err instanceof Error ? err.message : t("workspace.rename_failed"));
       } finally {
         setBusy(false);
       }
@@ -147,17 +146,17 @@ export default function WorkspacePicker({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={isClosable ? onClose : undefined}>
       <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog className="sm:max-w-[640px] max-h-[85vh] bg-surface">
+        <Modal.Dialog className="sm:max-w-160 max-h-[85vh] bg-surface">
           {isClosable && <Modal.CloseTrigger />}
           <Modal.Header>
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
               <RefreshCw className="size-5" />
             </Modal.Icon>
-            <Modal.Heading>Workspaces</Modal.Heading>
+            <Modal.Heading>{t("workspace.title")}</Modal.Heading>
           </Modal.Header>
           <Modal.Body>
             <p className="text-xs text-muted -mt-2">
-              Each workspace has its own database, sessions, and API keys.
+              {t("workspace.subtitle")}
             </p>
 
             {(localError || error) && (
@@ -169,7 +168,7 @@ export default function WorkspacePicker({
 
             {workspaces.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted">
-                No workspaces. Create one to get started.
+                {t("workspace.empty")}
               </p>
             ) : (
               <ul className="flex flex-col gap-2">
@@ -180,7 +179,7 @@ export default function WorkspacePicker({
                     <li
                       key={ws.id}
                       className={`flex items-center gap-3 rounded-lg border border-grid bg-surface px-3 py-2 ${
-                        isActive ? "border-l-[3px] border-l-cobalt border-l" : ""
+                        isActive ? "border-l-[3px] border-l-cobalt" : ""
                       }`}
                     >
                       <div className="flex min-w-0 flex-1 flex-col">
@@ -201,7 +200,7 @@ export default function WorkspacePicker({
                           <span className="truncate text-sm font-medium">
                             {ws.name}
                             {isActive && (
-                              <span className="ml-2 text-xs text-cobalt">active</span>
+                              <span className="ml-2 text-xs text-cobalt">{t("workspace.active_badge")}</span>
                             )}
                           </span>
                         )}
@@ -218,14 +217,14 @@ export default function WorkspacePicker({
                             isDisabled={busy}
                             onPress={() => void handleCommitRename(ws.id)}
                           >
-                            Save
+                            {t("workspace.save")}
                           </Button>
                           <Button
                             size="sm"
                             variant="ghost"
                             onPress={() => setRenamingId(null)}
                           >
-                            Cancel
+                            {t("common.cancel")}
                           </Button>
                         </>
                       ) : (
@@ -236,14 +235,14 @@ export default function WorkspacePicker({
                             isDisabled={busy || isActive}
                             onPress={() => void handleActivate(ws.id)}
                           >
-                            {isActive ? "Active" : "Open"}
+                            {isActive ? t("workspace.active") : t("workspace.open")}
                           </Button>
                           {!isActive && (
                             <Button
                               size="sm"
                               variant="ghost"
                               isIconOnly
-                              aria-label={`Rename ${ws.name}`}
+                              aria-label={t("workspace.rename_aria", { name: ws.name })}
                               onPress={() => handleStartRename(ws)}
                             >
                               <Pencil className="size-3.5" />
@@ -254,7 +253,7 @@ export default function WorkspacePicker({
                               size="sm"
                               variant="ghost"
                               isIconOnly
-                              aria-label={`Delete ${ws.name}`}
+                              aria-label={t("workspace.delete_aria", { name: ws.name })}
                               onPress={() => void handleDelete(ws.id)}
                             >
                               <Trash2 className="size-4" />
@@ -274,15 +273,15 @@ export default function WorkspacePicker({
             >
               <div className="flex items-center gap-2">
                 <Plus className="size-4 text-muted" />
-                <h2 className="text-sm font-semibold">New workspace</h2>
+                <h2 className="text-sm font-semibold">{t("workspace.new")}</h2>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="ws-name" className="text-xs text-graphite">Name</Label>
+                <Label htmlFor="ws-name" className="text-xs text-graphite">{t("workspace.name_label")}</Label>
                 <Input
                   id="ws-name"
                   name="name"
-                  placeholder="My project"
+                  placeholder={t("workspace.name_placeholder")}
                   value={createForm.name}
                   onChange={(e) =>
                     setCreateForm((prev) => ({ ...prev, name: e.target.value }))
@@ -301,13 +300,13 @@ export default function WorkspacePicker({
                     }))
                   }
                 >
-                  {createForm.showAdvanced ? "\u25BE" : "\u25B8"} Advanced
+                  {createForm.showAdvanced ? "\u25BE" : "\u25B8"} {t("workspace.advanced")}
                 </button>
               </div>
 
               {createForm.showAdvanced && (
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="ws-dburl" className="text-xs text-graphite">DB URL (optional)</Label>
+                  <Label htmlFor="ws-dburl" className="text-xs text-graphite">{t("workspace.db_url_label")}</Label>
                   <Input
                     id="ws-dburl"
                     name="db_url"
@@ -327,14 +326,14 @@ export default function WorkspacePicker({
                   onPress={() => setCreateForm(EMPTY_CREATE)}
                   isDisabled={busy}
                 >
-                  Reset
+                  {t("workspace.reset")}
                 </Button>
                 <Button
                   type="submit"
                   variant="primary"
                   isDisabled={busy || !createForm.name.trim()}
                 >
-                  {busy ? "Creating\u2026" : "Create workspace"}
+                  {busy ? t("workspace.creating") : t("workspace.create")}
                 </Button>
               </div>
             </form>

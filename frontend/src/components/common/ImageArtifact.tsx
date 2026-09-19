@@ -27,7 +27,7 @@ export default function ImageArtifact({
   return (
     <div className="my-2">
       <div
-        className="group relative inline-block max-w-[320px] cursor-zoom-in overflow-hidden rounded-md border border-grid bg-surface focus-cobalt"
+        className="group relative inline-block max-w-80 cursor-zoom-in overflow-hidden rounded-md border border-grid bg-surface focus-cobalt"
         onDoubleClick={handleOpen}
         role="button"
         tabIndex={0}
@@ -47,7 +47,7 @@ export default function ImageArtifact({
               draggable={false}
               onLoad={() => setLoaded(true)}
               onError={() => setError(true)}
-              className={`block max-h-[280px] max-w-full object-contain transition-opacity duration-200 ${
+              className={`block max-h-70 max-w-full object-contain transition-opacity duration-200 ${
                 loaded ? "opacity-100" : "opacity-0"
               }`}
             />

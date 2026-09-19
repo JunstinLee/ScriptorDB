@@ -108,7 +108,7 @@ function ProfileCard({
 
       <Modal.Backdrop isOpen={loadOpen} onOpenChange={(open) => { if (!open) setLoadOpen(false); }}>
         <Modal.Container size="sm">
-          <Modal.Dialog className="sm:max-w-[360px] bg-surface">
+          <Modal.Dialog className="sm:max-w-90 bg-surface">
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Load Profile</Modal.Heading>
@@ -137,7 +137,7 @@ function ProfileCard({
 
       <Modal.Backdrop isOpen={deleteOpen} onOpenChange={(open) => { if (!open) setDeleteOpen(false); }}>
         <Modal.Container size="sm">
-          <Modal.Dialog className="sm:max-w-[360px] bg-surface">
+          <Modal.Dialog className="sm:max-w-90 bg-surface">
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Delete Profile</Modal.Heading>

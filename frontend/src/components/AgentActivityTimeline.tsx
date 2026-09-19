@@ -136,7 +136,7 @@ export function AgentActivityTimeline({ events, isRunning }: AgentActivityTimeli
   const reversed = [...events].reverse();
 
   return (
-    <div className="max-h-72 min-w-[320px] overflow-y-auto px-1 py-1">
+    <div className="max-h-72 min-w-80 overflow-y-auto px-1 py-1">
       {reversed.map((evt, i) => (
         <ActionRow
           key={`${evt.tool}-${evt.timestamp}-${i}`}

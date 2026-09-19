@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Input, Label, Modal } from "@heroui/react";
 import { Eye, EyeOff, KeyRound, RefreshCw } from "lucide-react";
 import { fetchSettings, saveApiKey, testApiKey } from "../api/client";
+import { t } from "../i18n";
 import type { ApiKeyStatusKind, ProviderInfo } from "../types";
 import AlertBanner from "./common/AlertBanner";
 import ProviderSelect from "./common/ProviderSelect";
@@ -66,7 +67,7 @@ export default function ApiKeyRequiredModal({
 
   const handleSave = useCallback(async () => {
     if (!apiKey.trim()) {
-      setFormStatus({ kind: "error", message: "API key cannot be empty" });
+      setFormStatus({ kind: "error", message: t("settings.api_keys.empty") });
       return;
     }
     setFormStatus({ kind: "busy" });
@@ -76,26 +77,26 @@ export default function ApiKeyRequiredModal({
         api_key: apiKey.trim(),
       });
       if (!resp.ok) {
-        setFormStatus({ kind: "error", message: resp.error || "Save failed" });
+        setFormStatus({ kind: "error", message: resp.error || t("settings.api_keys.save_failed") });
         return;
       }
       setApiKey("");
       setFormStatus({
         kind: "success",
-        message: `API key saved for ${selectedProvider}.`,
+        message: t("settings.api_keys.saved_for", { provider: selectedProvider }),
       });
       onResolved();
     } catch (e) {
       setFormStatus({
         kind: "error",
-        message: e instanceof Error ? e.message : "Save failed",
+        message: e instanceof Error ? e.message : t("settings.api_keys.save_failed"),
       });
     }
   }, [apiKey, onResolved, selectedProvider]);
 
   const handleTest = useCallback(async () => {
     if (!apiKey.trim()) {
-      setFormStatus({ kind: "error", message: "Enter an API key to test" });
+      setFormStatus({ kind: "error", message: t("settings.api_keys.enter_to_test") });
       return;
     }
     setFormStatus({ kind: "busy" });
@@ -105,29 +106,29 @@ export default function ApiKeyRequiredModal({
         api_key: apiKey.trim(),
       });
       if (resp.ok) {
-        setFormStatus({ kind: "success", message: "API key is valid" });
+        setFormStatus({ kind: "success", message: t("settings.api_keys.valid") });
       } else {
         setFormStatus({
           kind: "error",
-          message: resp.error || "Test failed",
+          message: resp.error || t("settings.api_keys.test_failed"),
         });
       }
     } catch (e) {
       setFormStatus({
         kind: "error",
-        message: e instanceof Error ? e.message : "Test failed",
+        message: e instanceof Error ? e.message : t("settings.api_keys.test_failed"),
       });
     }
   }, [apiKey, selectedProvider]);
 
   const heading =
     status === "invalid"
-      ? "Invalid API key"
+      ? t("settings.api_keys.state_invalid_title")
       : status === "unknown"
-        ? "Could not verify API key"
+        ? t("settings.api_keys.state_unknown_title")
         : status === "valid"
-          ? "API key configured"
-          : "API key required";
+          ? t("settings.api_keys.state_valid_title")
+          : t("settings.api_keys.state_required_title");
 
   return (
     <Modal.Backdrop
@@ -137,7 +138,7 @@ export default function ApiKeyRequiredModal({
       }}
     >
       <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog className="sm:max-w-[480px] bg-surface">
+        <Modal.Dialog className="sm:max-w-120 bg-surface">
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
@@ -148,12 +149,23 @@ export default function ApiKeyRequiredModal({
           <Modal.Body>
             <p className="text-sm text-muted -mt-2">
               {status === "unknown"
-                ? `Could not reach ${provider ?? "the provider"} to check the API key. Check your connection and retry.`
+                ? t("settings.api_keys.state_unknown_desc", {
+                    provider: provider ?? t("settings.api_keys.provider_fallback"),
+                  })
                 : status === "invalid"
-                  ? `${provider ?? "The provider"} rejected the stored API key. Enter a new one to continue.`
+                  ? t("settings.api_keys.state_invalid_desc", {
+                      provider:
+                        provider ?? t("settings.api_keys.provider_fallback_sentence"),
+                    })
                   : status === "valid"
-                    ? `${provider ?? "The provider"} is ready to use. Close this window to continue.`
-                    : `No API key is set for ${provider ?? "the current provider"}. Enter one to continue.`}
+                    ? t("settings.api_keys.state_valid_desc", {
+                        provider:
+                          provider ?? t("settings.api_keys.provider_fallback_sentence"),
+                      })
+                    : t("settings.api_keys.state_required_desc", {
+                        provider:
+                          provider ?? t("settings.api_keys.provider_fallback_current"),
+                      })}
             </p>
 
             {status === "unknown" && error && (
@@ -173,7 +185,7 @@ export default function ApiKeyRequiredModal({
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="api-key-modal-input" className="text-xs text-graphite">
-                API Key
+                {t("settings.api_keys.label")}
               </Label>
               <div className="flex gap-2">
                 <Input
@@ -192,7 +204,7 @@ export default function ApiKeyRequiredModal({
                 <Button
                   variant="ghost"
                   isIconOnly
-                  aria-label={showKey ? "Hide key" : "Show key"}
+                  aria-label={showKey ? t("settings.api_keys.hide") : t("settings.api_keys.show")}
                   onPress={() => setShowKey((v) => !v)}
                 >
                   {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -211,7 +223,7 @@ export default function ApiKeyRequiredModal({
               {status === "unknown" && (
                 <Button variant="tertiary" onPress={onResolved}>
                   <RefreshCw className="size-4" />
-                  Retry check
+                  {t("settings.api_keys.retry_check")}
                 </Button>
               )}
               <Button
@@ -219,14 +231,14 @@ export default function ApiKeyRequiredModal({
                 onPress={() => void handleTest()}
                 isDisabled={formStatus.kind === "busy" || !apiKey.trim()}
               >
-                Test
+                {t("settings.api_keys.test")}
               </Button>
               <Button
                 variant="primary"
                 onPress={() => void handleSave()}
                 isDisabled={formStatus.kind === "busy" || !apiKey.trim()}
               >
-                {formStatus.kind === "busy" ? "Saving…" : "Save key"}
+                {formStatus.kind === "busy" ? t("settings.api_keys.saving") : t("settings.api_keys.save_key")}
               </Button>
             </div>
           </Modal.Body>

@@ -60,6 +60,18 @@
     "together": "Together",
     "deepseek": "DeepSeek"
   },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "confirm": "确认"
+  },
+  "error": {
+    "rate_limit": {
+      "title": "已触发限流（HTTP 429）",
+      "default_message": "请求过于频繁，请稍后重试。",
+      "model": "模型：{model}"
+    }
+  },
   "settings": {
     "title": "设置",
     "loading": "加载中…",
@@ -125,7 +137,21 @@
       "saving": "保存中…",
       "save": "保存",
       "test": "测试",
-      "remove": "移除已存储的密钥"
+      "remove": "移除已存储的密钥",
+      "save_key": "保存密钥",
+      "retry_check": "重新检测",
+      "saved_for": "已为 {provider} 保存 API 密钥。",
+      "provider_fallback": "该供应商",
+      "provider_fallback_sentence": "该供应商",
+      "provider_fallback_current": "当前供应商",
+      "state_invalid_title": "API 密钥无效",
+      "state_unknown_title": "无法验证 API 密钥",
+      "state_valid_title": "API 密钥已配置",
+      "state_required_title": "需要 API 密钥",
+      "state_unknown_desc": "无法连接 {provider} 以检查 API 密钥。请检查网络连接后重试。",
+      "state_invalid_desc": "{provider} 拒绝了已存储的 API 密钥。请输入新的密钥以继续。",
+      "state_valid_desc": "{provider} 已就绪。关闭此窗口即可继续。",
+      "state_required_desc": "尚未为 {provider} 设置 API 密钥。请输入密钥以继续。"
     },
     "defaults": {
       "load_failed": "加载模型失败",
@@ -174,13 +200,60 @@
     "switch_to": "切换到",
     "switch": "切换工作区",
     "new": "新建工作区",
-    "manage": "管理工作区"
+    "manage": "管理工作区",
+    "title": "工作区",
+    "subtitle": "每个工作区都有独立的数据库、会话和 API 密钥。",
+    "empty": "暂无工作区。新建一个即可开始使用。",
+    "switching": "正在切换工作区…",
+    "active_badge": "当前",
+    "active": "当前",
+    "open": "打开",
+    "name_label": "名称",
+    "name_placeholder": "我的项目",
+    "advanced": "高级",
+    "db_url_label": "数据库 URL（可选）",
+    "reset": "重置",
+    "create": "新建工作区",
+    "creating": "创建中…",
+    "save": "保存",
+    "rename_aria": "重命名 {name}",
+    "delete_aria": "删除 {name}",
+    "name_required": "名称不能为空",
+    "create_failed": "创建工作区失败",
+    "switch_failed": "切换工作区失败",
+    "delete_failed": "删除工作区失败",
+    "rename_failed": "重命名工作区失败",
+    "delete_confirm": "删除工作区“{name}”？",
+    "delete_files_confirm": "同时从磁盘删除其文件？"
   },
   "database": {
     "mysql": "MySQL",
     "sqlite": "SQLite",
     "none": "无数据库",
-    "select_workspace_first": "请先选择工作区"
+    "select_workspace_first": "请先选择工作区",
+    "connection_title": "数据库连接",
+    "engine_label": "数据库引擎",
+    "engine_sqlite": "SQLite（本地文件）",
+    "engine_mysql": "MySQL（远程服务器）",
+    "sqlite_title": "本地 SQLite 数据库",
+    "sqlite_hint": "数据保存在工作区目录中。你的 MySQL 连接信息会保留，切换回 MySQL 时自动恢复。",
+    "host": "主机",
+    "port": "端口",
+    "user": "用户名",
+    "name_label": "数据库",
+    "password": "密码",
+    "password_keep_placeholder": "••••••••（留空则保持不变）",
+    "keyring_hint": "保存在系统钥匙串中，不会写入工作区文件。",
+    "test_first": "保存前测试连接",
+    "test_first_hint": "先对数据库执行一次 SELECT 1 检查。",
+    "connected": "连接成功",
+    "connection_failed": "连接失败",
+    "save_failed": "保存数据库配置失败",
+    "toast_mysql": "已连接到 MySQL",
+    "toast_sqlite": "已切换为 SQLite",
+    "use_sqlite": "使用 SQLite",
+    "test_and_save": "测试并保存",
+    "saving": "保存中…"
   },
   "session": {
     "title": "会话",
@@ -208,6 +281,15 @@
     "web_page_placeholder": "输入关于该网页的问题…",
     "db_placeholder": "询问你的数据库…",
     "crawl_default_prompt": "分析该网页",
+    "undo_dialog": {
+      "title": "撤销到此处",
+      "message": "此操作将撤销从当前轮次开始的所有数据库改动，并删除当前轮次及之后的所有聊天记录。"
+    },
+    "import_dialog": {
+      "title": "确认导入",
+      "message_other": "{tool} 将向表 {table} 写入 {count} 行，是否继续？",
+      "tool_fallback": "导入"
+    },
     "remove_attachment": "移除附件",
     "send": "发送",
     "welcome_hint": "或者在下方输入关于你数据库的问题。",

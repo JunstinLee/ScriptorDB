@@ -101,7 +101,7 @@ export function BrowserSessionInfo({
           )}
         </span>
         {isLoggedIn && cookies.length > 0 && (
-          <span className="text-[10px] text-muted/70 truncate max-w-[120px]">
+          <span className="text-[10px] text-muted/70 truncate max-w-30">
             ({cookies.find(c => AUTH_COOKIE_PATTERNS.some(p => p.test(c.name)))?.name ?? ""})
           </span>
         )}
@@ -167,7 +167,7 @@ export function BrowserSessionInfo({
         }}
       >
         <Modal.Container size="sm">
-          <Modal.Dialog className="sm:max-w-[360px] bg-surface">
+          <Modal.Dialog className="sm:max-w-90 bg-surface">
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Load Profile</Modal.Heading>

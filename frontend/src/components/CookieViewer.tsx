@@ -148,7 +148,7 @@ export default function CookieViewer({
 
       <Modal.Backdrop isOpen={clearOpen} onOpenChange={(open) => { if (!open) setClearOpen(false); }}>
         <Modal.Container size="sm">
-          <Modal.Dialog className="sm:max-w-[360px] bg-surface">
+          <Modal.Dialog className="sm:max-w-90 bg-surface">
             <Modal.CloseTrigger />
             <Modal.Header>
               <Modal.Heading>Clear All Cookies</Modal.Heading>

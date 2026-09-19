@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import ApiKeyRequiredModal from "./ApiKeyRequiredModal";
 import ConfirmDialog from "./common/ConfirmDialog";
 import { FilterConfirmDrawer } from "./FilterConfirmDrawer";
@@ -142,9 +143,9 @@ export default function AppDialogs({
         isOpen={undoConfirmGroupId !== null}
         onClose={onUndoConfirmClose}
         onConfirm={onUndoConfirm}
-        title="Undo to here"
-        message="This action will undo all database changes made from the current turn onward and delete the current turn and all subsequent chat history."
-        confirmLabel="Undo"
+        title={t("chat.undo_dialog.title")}
+        message={t("chat.undo_dialog.message")}
+        confirmLabel={t("chat.undo")}
       />
 
       {approvalRequest !== null &&
@@ -160,13 +161,19 @@ export default function AppDialogs({
           isOpen={approvalRequest !== null}
           onClose={() => onApprovalSubmit(false)}
           onConfirm={() => onApprovalSubmit(true)}
-          title="Confirm Import"
+          title={t("chat.import_dialog.title")}
           message={
             approvalRequest
-              ? `${approvalRequest.calls[0]?.tool_name ?? "import"} will write ${approvalRequest.calls[0]?.row_count ?? ""} row(s) into table ${approvalRequest.calls[0]?.table_name ?? ""}. Proceed?`
+              ? t("chat.import_dialog.message", {
+                  tool:
+                    approvalRequest.calls[0]?.tool_name ??
+                    t("chat.import_dialog.tool_fallback"),
+                  count: approvalRequest.calls[0]?.row_count ?? 0,
+                  table: approvalRequest.calls[0]?.table_name ?? "",
+                })
               : ""
           }
-          confirmLabel="Confirm"
+          confirmLabel={t("common.confirm")}
         />
       )}
 
