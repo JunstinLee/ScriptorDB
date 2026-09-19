@@ -188,6 +188,37 @@
     "delete": "删除 {name}",
     "empty_hint": "还没有会话。新建一个会话即可开始询问你的数据。"
   },
+  "chat": {
+    "role": {
+      "you": "你",
+      "assistant": "助手"
+    },
+    "upload_failed": "上传失败",
+    "browser_enabled": "浏览器控制已启用",
+    "browser_disabled": "浏览器控制已禁用",
+    "no_tools_to_highlight": "没有可高亮的工具",
+    "highlight_in_tool_panel": "在工具面板中高亮",
+    "undo": "撤销",
+    "fetching_web_page": "正在获取网页…",
+    "calling_tools": "正在调用工具…",
+    "calling_tools_aria": "调用工具",
+    "assistant_working": "助手正在工作",
+    "working_aria": "工作中",
+    "crawl_url_placeholder": "输入要爬取的网址…",
+    "web_page_placeholder": "输入关于该网页的问题…",
+    "db_placeholder": "询问你的数据库…",
+    "crawl_default_prompt": "分析该网页",
+    "remove_attachment": "移除附件",
+    "send": "发送",
+    "welcome_hint": "或者在下方输入关于你数据库的问题。",
+    "table_prompt": {
+      "rows": "显示 **{name}** 的前 10 行",
+      "columns": "**{name}** 有哪些列？",
+      "count": "**{name}** 有多少行？",
+      "schema": "显示 **{name}** 的表结构",
+      "describe": "描述 **{name}** 表"
+    }
+  },
   "theme": {
     "system": "跟随系统",
     "dark": "深色模式",

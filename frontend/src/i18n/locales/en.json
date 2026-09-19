@@ -190,6 +190,37 @@
     "delete": "Delete {name}",
     "empty_hint": "No sessions yet. Start a new session to ask about your data."
   },
+  "chat": {
+    "role": {
+      "you": "You",
+      "assistant": "Assistant"
+    },
+    "upload_failed": "Upload failed",
+    "browser_enabled": "Browser control enabled",
+    "browser_disabled": "Browser control disabled",
+    "no_tools_to_highlight": "No tools to highlight",
+    "highlight_in_tool_panel": "Highlight in tool panel",
+    "undo": "Undo",
+    "fetching_web_page": "Fetching web page…",
+    "calling_tools": "Calling tools…",
+    "calling_tools_aria": "Calling tools",
+    "assistant_working": "Assistant is working",
+    "working_aria": "Working",
+    "crawl_url_placeholder": "Enter URL to crawl...",
+    "web_page_placeholder": "Enter a question about the web page...",
+    "db_placeholder": "Ask about your database...",
+    "crawl_default_prompt": "Analyze the web page",
+    "remove_attachment": "Remove attachment",
+    "send": "Send",
+    "welcome_hint": "Or type a question about your database below.",
+    "table_prompt": {
+      "rows": "Show me the first 10 rows of **{name}**",
+      "columns": "What columns does **{name}** have?",
+      "count": "How many rows are in **{name}**?",
+      "schema": "Show the schema for **{name}**",
+      "describe": "Describe the **{name}** table"
+    }
+  },
   "theme": {
     "system": "System",
     "dark": "Dark Mode",

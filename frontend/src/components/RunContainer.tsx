@@ -1,4 +1,5 @@
 import { Spinner } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { Search, Loader2 } from "lucide-react";
 import type { Run } from "../types";
 import MarkdownRenderer from "./common/MarkdownRenderer";
@@ -10,15 +11,16 @@ interface RunContainerProps {
 }
 
 export default function RunContainer({ run }: RunContainerProps) {
+  const { t } = useTranslation();
   const isRunning = run.status === "running";
   const hasRunningTool = run.tool_invocations.some(
-    (t) => t.status === "running",
+    (inv) => inv.status === "running",
   );
   const hasRunningCrawl = run.tool_invocations.some(
-    (t) => t.status === "running" && t.tool_name === "crawl_webpage",
+    (inv) => inv.status === "running" && inv.tool_name === "crawl_webpage",
   );
   const hasRunningOtherTool = run.tool_invocations.some(
-    (t) => t.status === "running" && t.tool_name !== "crawl_webpage",
+    (inv) => inv.status === "running" && inv.tool_name !== "crawl_webpage",
   );
 
   console.log(
@@ -28,7 +30,7 @@ export default function RunContainer({ run }: RunContainerProps) {
     isRunning,
     hasRunningTool,
     run.tool_invocations
-      .map((t) => t.call_id + ":" + t.status + ":" + t.tool_name)
+      .map((inv) => inv.call_id + ":" + inv.status + ":" + inv.tool_name)
       .join(", "),
   );
 
@@ -96,24 +98,24 @@ export default function RunContainer({ run }: RunContainerProps) {
             {hasRunningCrawl ? (
               <>
                 <Search className="h-4 w-4 text-cobalt animate-pulse" />
-                <span>Fetching web page…</span>
+                <span>{t("chat.fetching_web_page")}</span>
               </>
             ) : hasRunningOtherTool ? (
               <>
                 <Loader2
                   className="h-4 w-4 text-cobalt animate-spin"
-                  aria-label="Calling tools"
+                  aria-label={t("chat.calling_tools_aria")}
                 />
-                <span>Calling tools…</span>
+                <span>{t("chat.calling_tools")}</span>
               </>
             ) : (
               <>
                 <Spinner
                   size="sm"
                   className="text-cobalt"
-                  aria-label="Working"
+                  aria-label={t("chat.working_aria")}
                 />
-                <span>Assistant is working</span>
+                <span>{t("chat.assistant_working")}</span>
               </>
             )}
           </div>

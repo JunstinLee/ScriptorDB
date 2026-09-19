@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, Sparkles, Undo2, User, Wrench } from "lucide-react";
 import type { ChatMessage, Run, UndoGroup } from "../types";
 import RunContainer from "./RunContainer";
@@ -21,6 +22,7 @@ export default function ChatMessages({
   onRevertToHere,
   onHighlightRun,
 }: ChatMessagesProps) {
+  const { t } = useTranslation();
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,7 +50,7 @@ export default function ChatMessages({
               <div className="flex items-center gap-1.5 text-graphite">
                 <User className="h-3 w-3" />
                 <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-                  You
+                  {t("chat.role.you")}
                 </span>
               </div>
               <div className="border-l-[3px] border-l-amber bg-amber/8 px-3 py-2 space-y-2">
@@ -94,7 +96,7 @@ export default function ChatMessages({
               <div className="flex items-center gap-1.5 text-graphite">
                 <Sparkles className="h-3 w-3" />
                 <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-                  Assistant
+                  {t("chat.role.assistant")}
                 </span>
               </div>
               <div className="rounded-lg border border-grid bg-surface overflow-hidden transform-gpu">
@@ -107,8 +109,8 @@ export default function ChatMessages({
                   disabled={run.tool_invocations.length === 0}
                   title={
                     run.tool_invocations.length === 0
-                      ? "No tools to highlight"
-                      : "Highlight in tool panel"
+                      ? t("chat.no_tools_to_highlight")
+                      : t("chat.highlight_in_tool_panel")
                   }
                   className="rounded-md p-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-graphite disabled:hover:bg-transparent"
                 >
@@ -118,11 +120,11 @@ export default function ChatMessages({
                   <button
                     type="button"
                     onClick={() => onRevertToHere(undoGroup.id)}
-                    title="Undo"
+                    title={t("chat.undo")}
                     className="rounded-md px-1.5 py-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors flex items-center gap-1"
                   >
                     <Undo2 className="h-3.5 w-3.5" />
-                    <span className="text-[11px]">Undo</span>
+                    <span className="text-[11px]">{t("chat.undo")}</span>
                   </button>
                 ) : null}
               </div>
@@ -135,7 +137,7 @@ export default function ChatMessages({
             <div className="flex items-center gap-1.5 text-graphite">
               <Sparkles className="h-3 w-3" />
               <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-                Assistant
+                {t("chat.role.assistant")}
               </span>
             </div>
             <div className="rounded-lg border border-grid bg-surface px-4 py-3">
@@ -152,7 +154,7 @@ export default function ChatMessages({
             <div className="flex items-center gap-1.5 text-graphite">
               <Sparkles className="h-3 w-3" />
               <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-                Assistant
+                {t("chat.role.assistant")}
               </span>
             </div>
             <div className="rounded-lg border border-grid bg-surface overflow-hidden">
@@ -166,13 +168,13 @@ export default function ChatMessages({
           <div className="flex items-center gap-1.5 text-graphite">
             <Sparkles className="h-3 w-3" />
             <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-              Assistant
+              {t("chat.role.assistant")}
             </span>
           </div>
           <div className="rounded-lg border border-grid bg-surface px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-graphite">
               <Search className="h-4 w-4 text-cobalt animate-pulse" />
-              <span>Fetching web page…</span>
+              <span>{t("chat.fetching_web_page")}</span>
             </div>
           </div>
         </div>
@@ -183,12 +185,12 @@ export default function ChatMessages({
           <div className="flex items-center gap-1.5 text-graphite">
             <Sparkles className="h-3 w-3" />
             <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-              Assistant
+              {t("chat.role.assistant")}
             </span>
           </div>
           <div className="rounded-lg border border-grid bg-surface px-4 py-3">
             <div className="flex items-center gap-2 text-sm text-graphite">
-              <span>Assistant is working</span>
+              <span>{t("chat.assistant_working")}</span>
               <span className="flex gap-0.5">
                 <span
                   className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
