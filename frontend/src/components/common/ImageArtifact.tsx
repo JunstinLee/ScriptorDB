@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Image as ImageIcon, Maximize2, AlertTriangle } from "lucide-react";
 import { getImageUrl } from "../../api/files";
 import ImageLightbox from "./ImageLightbox";
@@ -14,6 +15,7 @@ export default function ImageArtifact({
   title,
   chartType,
 }: ImageArtifactProps) {
+  const { t } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -31,7 +33,7 @@ export default function ImageArtifact({
         onDoubleClick={handleOpen}
         role="button"
         tabIndex={0}
-        aria-label={title || "Generated chart"}
+        aria-label={title || t("tool.image.chart_alt")}
         onKeyDown={(e) => {
           if ((e.key === "Enter" || e.key === " ") && loaded) {
             e.preventDefault();
@@ -43,7 +45,7 @@ export default function ImageArtifact({
           {!error ? (
             <img
               src={url}
-              alt={title || "Generated chart"}
+              alt={title || t("tool.image.chart_alt")}
               draggable={false}
               onLoad={() => setLoaded(true)}
               onError={() => setError(true)}
@@ -54,7 +56,7 @@ export default function ImageArtifact({
           ) : (
             <div className="flex h-[180px] w-[280px] flex-col items-center justify-center gap-1 text-graphite">
               <AlertTriangle className="h-5 w-5" />
-              <span className="text-xs">Image failed to load</span>
+              <span className="text-xs">{t("tool.image.failed")}</span>
             </div>
           )}
 
@@ -72,8 +74,8 @@ export default function ImageArtifact({
                 setLightboxOpen(true);
               }}
               className="absolute right-2 top-2 rounded-md bg-surface/90 p-1 text-graphite opacity-0 transition-opacity hover:text-cobalt focus-visible:opacity-100 focus-visible:outline-none group-hover:opacity-100"
-              aria-label="Open full view"
-              title="Open full view"
+              aria-label={t("tool.image.open_full")}
+              title={t("tool.image.open_full")}
             >
               <Maximize2 className="h-3.5 w-3.5" />
             </button>
@@ -83,10 +85,13 @@ export default function ImageArtifact({
         <div className="flex items-center gap-1.5 border-t border-grid bg-surface px-2 py-1.5">
           <ImageIcon className="h-3 w-3 text-graphite" />
           <span className="truncate font-mono text-[11px] text-foreground">
-            {title || (chartType ? `${chartType} chart` : fileId)}
+            {title ||
+              (chartType
+                ? t("tool.image.chart_type", { type: chartType })
+                : fileId)}
           </span>
           <span className="ml-auto truncate font-mono text-[10px] uppercase tracking-[0.08em] text-graphite">
-            {chartType || "image"}
+            {chartType || t("tool.image.fallback_type")}
           </span>
         </div>
       </div>

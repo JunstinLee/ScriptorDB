@@ -33,12 +33,39 @@
       "updated_data": "已更新：{preview}",
       "deleted_data": "已删除：{preview}",
       "wrote_data_with_sql": "已写入：{preview}",
-      "executed": "已执行"
+      "executed": "已执行",
+      "generated_chart_simple": "已生成图表",
+      "generated_chart_multi": "已生成 {count} 个图表",
+      "queried_database_multi": "已查询数据库（{count} 次）",
+      "ran_python_simple": "已运行 Python",
+      "ran_python_multi": "已运行 Python（{count} 次）",
+      "created_table_multi": "已创建 {count} 张表",
+      "wrote_database": "已写入数据库",
+      "tools_count": "{count} 个工具"
     },
     "no_output": "（无输出）",
     "copy": "复制",
     "copied": "已复制",
     "copy_error_id": "复制错误 ID",
+    "empty": "本次会话还没有工具调用。助手执行操作后会显示在这里。",
+    "run_label": "第 {count} 轮",
+    "invocations": "工具调用（{count}）",
+    "tag": {
+      "file": "文件",
+      "chart": "图表",
+      "query": "查询",
+      "python": "PY",
+      "ddl": "DDL",
+      "db": "DB"
+    },
+    "image": {
+      "failed": "图片加载失败",
+      "open_full": "查看大图",
+      "chart_alt": "生成的图表",
+      "chart_type": "{type} 图表",
+      "fallback_type": "图片",
+      "download_aria": "下载图片"
+    },
     "default_csv_filename": "output.csv",
     "default_filename": "file",
     "default_chart_type": "chart",
@@ -63,7 +90,9 @@
   "common": {
     "save": "保存",
     "cancel": "取消",
-    "confirm": "确认"
+    "confirm": "确认",
+    "close": "关闭",
+    "download": "下载"
   },
   "error": {
     "rate_limit": {
@@ -259,7 +288,43 @@
     "title": "会话",
     "new": "新建会话",
     "delete": "删除 {name}",
-    "empty_hint": "还没有会话。新建一个会话即可开始询问你的数据。"
+    "empty_hint": "还没有会话。新建一个会话即可开始询问你的数据。",
+    "default_title": "新建会话",
+    "relative": {
+      "just_now": "刚刚",
+      "minutes": "{count} 分钟前",
+      "hours": "{count} 小时前",
+      "days": "{count} 天前"
+    }
+  },
+  "schema": {
+    "tab": {
+      "schema": "表结构",
+      "tools": "工具",
+      "profiles": "配置"
+    },
+    "view": {
+      "map": "关系图",
+      "list": "列表"
+    },
+    "tabs_aria": "侧边栏标签页",
+    "expand_aria": "展开表结构侧栏",
+    "no_session": "未选择会话",
+    "loading": "加载中…",
+    "empty": "未找到表。添加表或导入数据后即可查看表结构关系图。",
+    "more": "还有 {count} 张…",
+    "table_aria": "表 {name}"
+  },
+  "history": {
+    "placeholder": "搜索历史…",
+    "loading": "正在加载历史记录…",
+    "empty": "暂无历史记录。",
+    "no_match": "没有匹配的历史记录。",
+    "loading_more": "正在加载更多…",
+    "load_more_failed": "加载更多失败",
+    "end": "已到历史记录末尾",
+    "messages": "{count} 条消息",
+    "last_active": "最近活动 {time}"
   },
   "chat": {
     "role": {

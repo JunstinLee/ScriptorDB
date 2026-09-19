@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import type { SchemaTable } from "../types";
 import {
   computeLayout,
@@ -26,6 +27,7 @@ export default function SchemaMap({
   selectedTable,
   onTableClick,
 }: SchemaMapProps) {
+  const { t } = useTranslation();
   const nodeCountRef = useRef(0);
 
   const handleClick = useCallback(
@@ -48,7 +50,7 @@ export default function SchemaMap({
   if (tables.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-8 text-muted">
-        <p className="text-xs">No tables found. Add a table or import data to see the schema map.</p>
+        <p className="text-xs">{t("schema.empty")}</p>
       </div>
     );
   }
@@ -140,7 +142,7 @@ export default function SchemaMap({
               key={lo.tableName}
               onClick={() => handleClick(lo.tableName)}
               role="button"
-              aria-label={`Table ${table.name}`}
+              aria-label={t("schema.table_aria", { name: table.name })}
               className="schema-node-in"
               style={{ animationDelay: `${index * 40}ms` }}
             >
@@ -239,7 +241,7 @@ export default function SchemaMap({
                   fill="var(--graphite)"
                   opacity={0.5}
                 >
-                  +{table.columns.length - 8} more…
+                  {t("schema.more", { count: table.columns.length - 8 })}
                 </text>
               )}
             </g>

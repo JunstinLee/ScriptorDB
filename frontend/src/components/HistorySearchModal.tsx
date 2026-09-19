@@ -1,4 +1,5 @@
 import { useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Modal, Input } from "@heroui/react";
 import { History, Search, X, Loader2 } from "lucide-react";
 import { useHistorySearch } from "../hooks/useHistorySearch";
@@ -78,6 +79,7 @@ function ResultCard({
   query: string;
   onClick: () => void;
 }) {
+  const { t } = useTranslation();
   const title = getSessionDisplayName(item.title);
   const matches = item.matches.slice(0, 2);
 
@@ -98,9 +100,13 @@ function ResultCard({
         </div>
       )}
       <div className="flex items-center gap-2 text-[11px] text-graphite">
-        <span>{item.message_count} messages</span>
+        <span>{t("history.messages", { count: item.message_count })}</span>
         <span className="text-grid">·</span>
-        <span>Last active {formatRelative(item.last_access)}</span>
+        <span>
+          {t("history.last_active", {
+            time: formatRelative(item.last_access),
+          })}
+        </span>
       </div>
     </button>
   );
@@ -111,6 +117,7 @@ export default function HistorySearchModal({
   onClose,
   onSelectSession,
 }: HistorySearchModalProps) {
+  const { t } = useTranslation();
   const {
     query,
     setQuery,
@@ -148,14 +155,14 @@ export default function HistorySearchModal({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
       <Modal.Container size="lg">
-        <Modal.Dialog aria-label="Search history" className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-surface">
+        <Modal.Dialog aria-label={t("sidebar.search_history")} className="w-[560px] max-w-[calc(100vw-2rem)] max-h-[70vh] flex flex-col overflow-hidden bg-surface">
           <Modal.Header className="border-b border-grid pb-3">
             <div className="flex w-full items-center gap-3">
               <Search className="size-4 shrink-0 text-graphite" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Search history..."
+                placeholder={t("history.placeholder")}
                 className="flex-1"
                 autoFocus
               />
@@ -163,7 +170,7 @@ export default function HistorySearchModal({
                 type="button"
                 onClick={onClose}
                 className="rounded-md p-1.5 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
-                aria-label="Close"
+                aria-label={t("common.close")}
               >
                 <X className="size-4" />
               </button>
@@ -179,7 +186,7 @@ export default function HistorySearchModal({
               {results.length === 0 && isLoading && (
                 <div className="flex items-center justify-center py-8 text-sm text-graphite">
                   <Loader2 className="mr-2 size-4 animate-spin" />
-                  Loading history…
+                  {t("history.loading")}
                 </div>
               )}
 
@@ -201,8 +208,8 @@ export default function HistorySearchModal({
                   <History className="size-8 opacity-40" />
                   <p className="text-sm">
                     {isEmptyQuery
-                      ? "No history yet."
-                      : "No matching history."}
+                      ? t("history.empty")
+                      : t("history.no_match")}
                   </p>
                 </div>
               )}
@@ -210,19 +217,19 @@ export default function HistorySearchModal({
               {results.length > 0 && isLoading && (
                 <div className="flex items-center justify-center py-3 text-xs text-graphite">
                   <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-                  Loading more…
+                  {t("history.loading_more")}
                 </div>
               )}
 
               {error && !isLoading && (
                 <div className="py-2 text-center text-xs text-vermilion">
-                  Failed to load more
+                  {t("history.load_more_failed")}
                 </div>
               )}
 
               {!hasMore && results.length > 0 && !isLoading && (
                 <div className="py-2 text-center text-xs text-graphite">
-                  End of history
+                  {t("history.end")}
                 </div>
               )}
             </div>

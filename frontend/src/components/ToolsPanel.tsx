@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   Wrench,
   ChevronDown,
@@ -13,7 +15,7 @@ interface OperationItem {
   label: string;
 }
 
-function getOperations(invocations: TI[]): OperationItem[] {
+function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   const ops: OperationItem[] = [];
   const writes: string[] = [];
   let charts = 0;
@@ -53,46 +55,84 @@ function getOperations(invocations: TI[]): OperationItem[] {
 
   for (const name of writes) {
     ops.push({
-      icon: <span className="text-[10px] font-mono text-graphite">FILE</span>,
-      label: `Created file: ${name}`,
+      icon: (
+        <span className="text-[10px] font-mono text-graphite">
+          {t("tool.tag.file")}
+        </span>
+      ),
+      label: t("tool.summary.created_file", { filename: name }),
     });
   }
   if (charts > 0) {
     ops.push({
-      icon: <span className="text-[10px] font-mono text-graphite">CHART</span>,
-      label: charts > 1 ? `Generated ${charts} charts` : "Generated chart",
+      icon: (
+        <span className="text-[10px] font-mono text-graphite">
+          {t("tool.tag.chart")}
+        </span>
+      ),
+      label:
+        charts > 1
+          ? t("tool.summary.generated_chart_multi", { count: charts })
+          : t("tool.summary.generated_chart_simple"),
     });
   }
   if (queries > 0) {
     ops.push({
-      icon: <span className="text-[10px] font-mono text-graphite">QUERY</span>,
-      label: queries > 1 ? `Queried database (${queries}x)` : "Queried database",
+      icon: (
+        <span className="text-[10px] font-mono text-graphite">
+          {t("tool.tag.query")}
+        </span>
+      ),
+      label:
+        queries > 1
+          ? t("tool.summary.queried_database_multi", { count: queries })
+          : t("tool.summary.queried_database"),
     });
   }
   if (pythons > 0) {
     ops.push({
-      icon: <span className="text-[10px] font-mono text-graphite">PY</span>,
-      label: pythons > 1 ? `Ran Python (${pythons}x)` : "Ran Python",
+      icon: (
+        <span className="text-[10px] font-mono text-graphite">
+          {t("tool.tag.python")}
+        </span>
+      ),
+      label:
+        pythons > 1
+          ? t("tool.summary.ran_python_multi", { count: pythons })
+          : t("tool.summary.ran_python_simple"),
     });
   }
   if (dbCreates > 0) {
     ops.push({
-      icon: <span className="text-[10px] font-mono text-graphite">DDL</span>,
-      label: dbCreates > 1 ? `Created ${dbCreates} tables` : "Created table",
+      icon: (
+        <span className="text-[10px] font-mono text-graphite">
+          {t("tool.tag.ddl")}
+        </span>
+      ),
+      label:
+        dbCreates > 1
+          ? t("tool.summary.created_table_multi", { count: dbCreates })
+          : t("tool.summary.created_table"),
     });
   }
   if (dbWrites > 0) {
     ops.push({
-      icon: <span className="text-[10px] font-mono text-graphite">DB</span>,
-      label: `Wrote to database`,
+      icon: (
+        <span className="text-[10px] font-mono text-graphite">
+          {t("tool.tag.db")}
+        </span>
+      ),
+      label: t("tool.summary.wrote_database"),
     });
   }
   return ops;
 }
 
-function getCollapsedSummary(invocations: TI[]): string {
-  const ops = getOperations(invocations);
-  if (ops.length === 0) return `${invocations.length} tools`;
+function getCollapsedSummary(t: TFunction, invocations: TI[]): string {
+  const ops = getOperations(t, invocations);
+  if (ops.length === 0) {
+    return t("tool.summary.tools_count", { count: invocations.length });
+  }
   return ops.map((op) => op.label).join(" · ");
 }
 
@@ -106,6 +146,7 @@ interface ToolsPanelProps {
 }
 
 export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, browserState, browserLoading, onViewBrowser }: ToolsPanelProps) {
+  const { t } = useTranslation();
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
   );
@@ -246,7 +287,7 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
     return (
       <div className="flex flex-col items-center justify-center py-12 text-muted">
         <Wrench className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-sm">No tool calls in this session yet. They appear when the assistant runs actions.</p>
+        <p className="text-sm">{t("tool.empty")}</p>
       </div>
     );
   }
@@ -263,7 +304,7 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
         const runNumber = runIndex + 1;
         const isRoundCollapsed = collapsedRounds.has(runNumber);
         const isToolsCollapsed = collapsedTools.has(runNumber);
-        const collapsedSummary = getCollapsedSummary(run.tool_invocations);
+        const collapsedSummary = getCollapsedSummary(t, run.tool_invocations);
 
         return (
           <div
@@ -284,7 +325,7 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
                 <ChevronDown className="h-3 w-3 text-muted shrink-0" />
               )}
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted shrink-0 font-mono">
-                Run {runNumber}
+                {t("tool.run_label", { count: runNumber })}
               </span>
               {isRoundCollapsed && (
                 <span className="text-xs text-graphite truncate">
@@ -311,7 +352,9 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
                   )}
                   <Wrench className="h-3 w-3 text-muted shrink-0" />
                   <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
-                    Tool Invocations ({run.tool_invocations.length})
+                    {t("tool.invocations", {
+                      count: run.tool_invocations.length,
+                    })}
                   </span>
                 </button>
                 <div

@@ -33,12 +33,39 @@
       "updated_data": "Updated: {preview}",
       "deleted_data": "Deleted: {preview}",
       "wrote_data_with_sql": "Wrote: {preview}",
-      "executed": "Executed"
+      "executed": "Executed",
+      "generated_chart_simple": "Generated chart",
+      "generated_chart_multi": "Generated {count} charts",
+      "queried_database_multi": "Queried database ({count}x)",
+      "ran_python_simple": "Ran Python",
+      "ran_python_multi": "Ran Python ({count}x)",
+      "created_table_multi": "Created {count} tables",
+      "wrote_database": "Wrote to database",
+      "tools_count": "{count} tools"
     },
     "no_output": "(no output)",
     "copy": "Copy",
     "copied": "Copied",
     "copy_error_id": "Copy error ID",
+    "empty": "No tool calls in this session yet. They appear when the assistant runs actions.",
+    "run_label": "Run {count}",
+    "invocations": "Tool Invocations ({count})",
+    "tag": {
+      "file": "FILE",
+      "chart": "CHART",
+      "query": "QUERY",
+      "python": "PY",
+      "ddl": "DDL",
+      "db": "DB"
+    },
+    "image": {
+      "failed": "Image failed to load",
+      "open_full": "Open full view",
+      "chart_alt": "Generated chart",
+      "chart_type": "{type} chart",
+      "fallback_type": "image",
+      "download_aria": "Download image"
+    },
     "default_csv_filename": "output.csv",
     "default_filename": "file",
     "default_chart_type": "chart",
@@ -63,7 +90,9 @@
   "common": {
     "save": "Save",
     "cancel": "Cancel",
-    "confirm": "Confirm"
+    "confirm": "Confirm",
+    "close": "Close",
+    "download": "Download"
   },
   "error": {
     "rate_limit": {
@@ -261,7 +290,43 @@
     "title": "Sessions",
     "new": "New session",
     "delete": "Delete {name}",
-    "empty_hint": "No sessions yet. Start a new session to ask about your data."
+    "empty_hint": "No sessions yet. Start a new session to ask about your data.",
+    "default_title": "New session",
+    "relative": {
+      "just_now": "just now",
+      "minutes": "{count}m ago",
+      "hours": "{count}h ago",
+      "days": "{count}d ago"
+    }
+  },
+  "schema": {
+    "tab": {
+      "schema": "Schema",
+      "tools": "Tools",
+      "profiles": "Profiles"
+    },
+    "view": {
+      "map": "Map",
+      "list": "List"
+    },
+    "tabs_aria": "Sidebar tabs",
+    "expand_aria": "Expand schema sidebar",
+    "no_session": "No session selected",
+    "loading": "Loading...",
+    "empty": "No tables found. Add a table or import data to see the schema map.",
+    "more": "+{count} more…",
+    "table_aria": "Table {name}"
+  },
+  "history": {
+    "placeholder": "Search history...",
+    "loading": "Loading history…",
+    "empty": "No history yet.",
+    "no_match": "No matching history.",
+    "loading_more": "Loading more…",
+    "load_more_failed": "Failed to load more",
+    "end": "End of history",
+    "messages": "{count} messages",
+    "last_active": "Last active {time}"
   },
   "chat": {
     "role": {
