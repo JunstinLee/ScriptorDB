@@ -23,7 +23,7 @@ export default function App() {
   } = useWorkspaces();
 
   const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     void fetchSettings()
@@ -78,7 +78,7 @@ export default function App() {
   if (workspacesLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background text-muted">
-        <span className="text-sm">Loading workspaces…</span>
+        <span className="text-sm">{t("app.loading_workspaces")}</span>
       </div>
     );
   }

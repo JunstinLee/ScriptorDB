@@ -1,5 +1,6 @@
 import { Button } from "@heroui/react";
 import { MessageSquarePlus, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import type { SessionMeta } from "../types";
 import { getSessionDisplayName } from "../utils/display";
 
@@ -20,11 +21,17 @@ export default function SessionList({
   onSwitchSession,
   onDeleteSession,
 }: SessionListProps) {
+  const { t } = useTranslation();
+
   return (
-    <div className="flex flex-col gap-0.5" role="list" aria-label="Sessions">
+    <div
+      className="flex flex-col gap-0.5"
+      role="list"
+      aria-label={t("session.title")}
+    >
       <div className="flex items-center justify-between px-4 py-1">
         <span className="text-[11px] font-semibold uppercase tracking-wider text-graphite">
-          Sessions
+          {t("session.title")}
         </span>
         <Button
           variant="ghost"
@@ -32,7 +39,7 @@ export default function SessionList({
           isIconOnly
           className="text-cobalt hover:bg-cobalt/10"
           onPress={onNewSession}
-          aria-label="New session"
+          aria-label={t("session.new")}
         >
           <MessageSquarePlus className="h-3.5 w-3.5" />
         </Button>
@@ -79,7 +86,7 @@ export default function SessionList({
                       onDeleteSession(s.session_id);
                     }
                   }}
-                  aria-label={`Delete ${displayName}`}
+                  aria-label={t("session.delete", { name: displayName })}
                   tabIndex={0}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -90,7 +97,7 @@ export default function SessionList({
         </div>
       ) : (
         <p className="px-4 py-4 text-[13px] text-graphite">
-          No sessions yet. Start a new session to ask about your data.
+          {t("session.empty_hint")}
         </p>
       )}
     </div>

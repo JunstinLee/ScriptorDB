@@ -1,4 +1,5 @@
 import { Monitor, MessageSquare } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface MainTabBarProps {
   activeMainTab: "chat" | "browser";
@@ -11,6 +12,8 @@ export default function MainTabBar({
   onTabChange,
   browserLoading,
 }: MainTabBarProps) {
+  const { t } = useTranslation();
+
   return (
     <div className="flex shrink-0 items-center border-b border-grid bg-background px-4">
       <button
@@ -22,7 +25,7 @@ export default function MainTabBar({
         }`}
       >
         <MessageSquare className="size-3.5" />
-        Chat
+        {t("app.tab.chat")}
       </button>
 
       <button
@@ -34,7 +37,7 @@ export default function MainTabBar({
         }`}
       >
         <Monitor className="size-3.5" />
-        Browser
+        {t("app.tab.browser")}
         {browserLoading && (
           <span className="ml-0.5 size-1.5 rounded-full bg-accent" />
         )}

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { Switch } from "@heroui/react";
 import { Moon, Sun } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../hooks/useTheme";
 import type { Theme } from "../../hooks/useTheme";
 
@@ -10,6 +11,7 @@ interface ThemeToggleProps {
 
 export default function ThemeToggle({ variant }: ThemeToggleProps) {
   const { theme, setTheme, isDark } = useTheme();
+  const { t } = useTranslation();
 
   const resolved = theme === "system" ? "system" : isDark ? "dark" : "light";
 
@@ -23,7 +25,7 @@ export default function ThemeToggle({ variant }: ThemeToggleProps) {
       <button
         className="rounded-lg p-1.5 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
         onClick={toggleTheme}
-        aria-label="Toggle theme"
+        aria-label={t("theme.toggle")}
       >
         {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
       </button>
@@ -41,7 +43,11 @@ export default function ThemeToggle({ variant }: ThemeToggleProps) {
       </Switch.Control>
       <Switch.Content>
         <span className="text-xs font-medium">
-          {resolved === "system" ? "System" : isDark ? "Dark Mode" : "Light Mode"}
+          {resolved === "system"
+            ? t("theme.system")
+            : isDark
+              ? t("theme.dark")
+              : t("theme.light")}
         </span>
       </Switch.Content>
     </Switch>

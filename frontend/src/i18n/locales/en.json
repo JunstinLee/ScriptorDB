@@ -67,5 +67,46 @@
       "follow_browser": "Follow browser",
       "follow_browser_hint": "Detected: {locale}"
     }
+  },
+  "app": {
+    "loading_workspaces": "Loading workspaces…",
+    "tab": {
+      "chat": "Chat",
+      "browser": "Browser"
+    }
+  },
+  "sidebar": {
+    "search_history": "Search history",
+    "open_settings": "Open settings",
+    "expand": "Expand sidebar",
+    "collapse": "Collapse sidebar",
+    "open_workspace_picker": "Open workspace picker",
+    "configure_database": "Configure database connection"
+  },
+  "workspace": {
+    "none": "No workspace",
+    "current": "Current workspace",
+    "switch_to": "Switch to",
+    "switch": "Switch workspace",
+    "new": "New workspace",
+    "manage": "Manage workspaces"
+  },
+  "database": {
+    "mysql": "MySQL",
+    "sqlite": "SQLite",
+    "none": "No database",
+    "select_workspace_first": "Select a workspace first"
+  },
+  "session": {
+    "title": "Sessions",
+    "new": "New session",
+    "delete": "Delete {name}",
+    "empty_hint": "No sessions yet. Start a new session to ask about your data."
+  },
+  "theme": {
+    "system": "System",
+    "dark": "Dark Mode",
+    "light": "Light Mode",
+    "toggle": "Toggle theme"
   }
 }

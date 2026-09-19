@@ -67,5 +67,46 @@
       "follow_browser": "跟随浏览器",
       "follow_browser_hint": "检测到：{locale}"
     }
+  },
+  "app": {
+    "loading_workspaces": "正在加载工作区…",
+    "tab": {
+      "chat": "对话",
+      "browser": "浏览器"
+    }
+  },
+  "sidebar": {
+    "search_history": "搜索历史",
+    "open_settings": "打开设置",
+    "expand": "展开侧边栏",
+    "collapse": "收起侧边栏",
+    "open_workspace_picker": "打开工作区选择器",
+    "configure_database": "配置数据库连接"
+  },
+  "workspace": {
+    "none": "未选择工作区",
+    "current": "当前工作区",
+    "switch_to": "切换到",
+    "switch": "切换工作区",
+    "new": "新建工作区",
+    "manage": "管理工作区"
+  },
+  "database": {
+    "mysql": "MySQL",
+    "sqlite": "SQLite",
+    "none": "无数据库",
+    "select_workspace_first": "请先选择工作区"
+  },
+  "session": {
+    "title": "会话",
+    "new": "新建会话",
+    "delete": "删除 {name}",
+    "empty_hint": "还没有会话。新建一个会话即可开始询问你的数据。"
+  },
+  "theme": {
+    "system": "跟随系统",
+    "dark": "深色模式",
+    "light": "浅色模式",
+    "toggle": "切换主题"
   }
 }
