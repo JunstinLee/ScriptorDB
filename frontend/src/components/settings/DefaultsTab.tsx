@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Label, ListBox } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { Check } from "lucide-react";
 import {
   fetchModels,
@@ -16,6 +17,7 @@ interface DefaultsTabProps {
 }
 
 export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabProps) {
+  const { t } = useTranslation();
   const [selectedProvider, setSelectedProvider] = useState<string>(
     settings.llm_provider,
   );
@@ -41,12 +43,14 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
       }
       setModels(list);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load models");
+      setError(
+        e instanceof Error ? e.message : t("settings.defaults.load_failed"),
+      );
       setModels([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadModels(selectedProvider);
@@ -62,14 +66,16 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
           default_model_provider: selectedProvider,
         });
         onSettingsChange(updated);
-        setStatus(`Default model set to ${model}`);
+        setStatus(t("settings.defaults.set_to", { model }));
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to save");
+        setError(
+          e instanceof Error ? e.message : t("settings.defaults.save_failed"),
+        );
       } finally {
         setSaving(false);
       }
     },
-    [onSettingsChange, selectedProvider],
+    [onSettingsChange, selectedProvider, t],
   );
 
   return (
@@ -89,21 +95,23 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
       {/* TODO: When "workspace-specific override" is supported, add a "Use workspace-specific override" toggle
           to control use_global_defaults. Currently all workspaces share these global defaults. */}
       <p className="text-xs text-muted">
-        Global default model:{" "}
+        {t("settings.defaults.global")}{" "}
         <span className="font-mono text-foreground">
-          {currentDefault || "(none)"}
+          {currentDefault || t("settings.defaults.none")}
         </span>
       </p>
 
       <div className="flex flex-col gap-1.5">
         <Label id="defaults-model-label" className="text-xs text-graphite">
-          Set global default model for {selectedProvider}
+          {t("settings.defaults.set_for", { provider: selectedProvider })}
         </Label>
         {loading ? (
-          <div className="py-3 text-sm text-muted">Loading models…</div>
+          <div className="py-3 text-sm text-muted">
+            {t("settings.defaults.loading")}
+          </div>
         ) : models.length === 0 ? (
           <div className="py-3 text-sm text-muted">
-            No models available. Configure an API key first.
+            {t("settings.defaults.no_models")}
           </div>
         ) : (
           <ListBox
@@ -149,13 +157,20 @@ export default function DefaultsTab({ settings, onSettingsChange }: DefaultsTabP
             const defaultPick =
               pickedModel ?? currentDefault ?? models[0] ?? "";
             const pick = window.prompt(
-              `Enter a model ID for ${selectedProvider} (one of: ${models.slice(0, 5).join(", ")}${models.length > 5 ? "…" : ""})`,
+              t("settings.defaults.prompt", {
+                provider: selectedProvider,
+                models: `${models.slice(0, 5).join(", ")}${
+                  models.length > 5 ? "…" : ""
+                }`,
+              }),
               defaultPick,
             );
             if (pick) await handleSetDefault(pick.trim());
           }}
         >
-          {saving ? "Saving…" : "Set default"}
+          {saving
+            ? t("settings.defaults.saving")
+            : t("settings.defaults.set_default")}
         </Button>
       </div>
     </div>

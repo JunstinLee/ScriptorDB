@@ -61,11 +61,98 @@
     "deepseek": "DeepSeek"
   },
   "settings": {
+    "title": "Settings",
+    "loading": "Loading…",
+    "load_failed": "Failed to load settings",
+    "tab": {
+      "workspaces": "Workspaces",
+      "sessions": "Sessions",
+      "language": "Language",
+      "api_keys": "API Keys",
+      "defaults": "Default Models"
+    },
     "language": {
       "title": "Language",
       "description": "Applies to the whole interface. Your choice is stored on the server and shared across workspaces.",
       "follow_browser": "Follow browser",
       "follow_browser_hint": "Detected: {locale}"
+    },
+    "provider": {
+      "label": "Provider",
+      "placeholder": "Select provider"
+    },
+    "workspaces": {
+      "active": "Active workspace",
+      "no_active": "No active workspace.",
+      "db": "DB: {url}",
+      "llm": "LLM: {provider} · {model}",
+      "default_model": "(default)",
+      "manage": "Manage workspaces",
+      "registered_one": "{count} workspace registered.",
+      "registered_other": "{count} workspaces registered.",
+      "open_picker": "Open workspace picker",
+      "picker_hint": "Use the picker to switch between workspaces, create a new one, rename an existing entry, or remove a workspace from the registry. API keys and default model settings in the other tabs apply to the active workspace.",
+      "legacy_found": "Legacy sessions found",
+      "legacy_available_one": "{count} old session available to import.",
+      "legacy_available_other": "{count} old sessions available to import.",
+      "legacy_range": "From {from} to {to}.",
+      "import_to": "Import to {name}",
+      "select_first": "Select a workspace first",
+      "imported": "Imported {count} sessions",
+      "import_failed": "Import failed",
+      "heads_up": "Heads up:",
+      "keys_hint": "LLM settings (API keys, default model) shown in the other tabs are stored per workspace. Switching workspaces will load a different set of keys."
+    },
+    "sessions": {
+      "auto_restore": "Auto-restore sessions on restart",
+      "auto_restore_hint": "When enabled, the server re-loads previous sessions on startup and this UI restores your last active session.",
+      "show_id": "Show session ID on hover",
+      "show_id_hint": "When enabled, hovering over a session name shows the underlying session ID as a tooltip.",
+      "show_sql": "Show CREATE SQL in schema",
+      "show_sql_hint": "When enabled, the CREATE TABLE SQL is displayed below the column list in the schema sidebar."
+    },
+    "api_keys": {
+      "label": "API Key",
+      "empty": "API key cannot be empty",
+      "save_failed": "Save failed",
+      "enter_to_test": "Enter an API key to test",
+      "valid": "API key is valid",
+      "test_failed": "Test failed",
+      "removed": "API key removed",
+      "delete_failed": "Delete failed",
+      "configured": "API key is configured. Enter a new value to replace it.",
+      "unset": "No API key is currently set for this provider.",
+      "hide": "Hide key",
+      "show": "Show key",
+      "saving": "Saving…",
+      "save": "Save",
+      "test": "Test",
+      "remove": "Remove stored key"
+    },
+    "defaults": {
+      "load_failed": "Failed to load models",
+      "save_failed": "Failed to save",
+      "global": "Global default model:",
+      "none": "(none)",
+      "set_for": "Set global default model for {provider}",
+      "loading": "Loading models…",
+      "no_models": "No models available. Configure an API key first.",
+      "set_to": "Default model set to {model}",
+      "set_default": "Set default",
+      "saving": "Saving…",
+      "prompt": "Enter a model ID for {provider} (one of: {models})"
+    },
+    "model_bar": {
+      "select_provider": "Select a provider",
+      "loading": "Loading models…",
+      "no_models": "No models available",
+      "default": "default",
+      "attach": "Attach CSV or Excel file",
+      "crawl": "Toggle web crawl mode",
+      "crawl_title": "Crawl a web page",
+      "change_model": "Change model",
+      "globe": "Toggle globe mode",
+      "select_model": "Select model"
     }
   },
   "app": {

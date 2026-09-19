@@ -122,13 +122,13 @@ export default function ModelProviderBar({
     [provider, setModel, onSelectionChange],
   );
 
-  const displayProvider = provider || "default";
+  const displayProvider = provider || t("settings.model_bar.default");
   const activeModel = model
     ? models.find((e) => e.provider_specific_id === model)
     : null;
   const displayModel = activeModel
     ? activeModel.display_name || activeModel.provider_specific_id
-    : model || "default";
+    : model || t("settings.model_bar.default");
 
   return (
     <div className="relative flex items-center gap-3 px-3 py-2">
@@ -145,8 +145,8 @@ export default function ModelProviderBar({
           onClick={onAttachClick}
           disabled={disabled || isUploading}
           className="shrink-0 rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink disabled:opacity-50"
-          aria-label="Attach CSV or Excel file"
-          title="Attach CSV or Excel file"
+          aria-label={t("settings.model_bar.attach")}
+          title={t("settings.model_bar.attach")}
         >
           <Paperclip className="h-4 w-4" />
         </button>
@@ -157,8 +157,8 @@ export default function ModelProviderBar({
           className={`shrink-0 rounded-lg p-2 transition-colors hover:bg-default/50 disabled:opacity-50 ${
             crawlMode ? "text-sapphire bg-default/30" : "text-graphite hover:text-ink"
           }`}
-          aria-label="Toggle web crawl mode"
-          title="Crawl a web page"
+          aria-label={t("settings.model_bar.crawl")}
+          title={t("settings.model_bar.crawl_title")}
         >
           <Search className="h-4 w-4" />
         </button>
@@ -169,7 +169,7 @@ export default function ModelProviderBar({
             onChange={onToggleGlobe}
             isDisabled={disabled}
             size="sm"
-            aria-label="Toggle globe mode"
+            aria-label={t("settings.model_bar.globe")}
           >
             <Switch.Control>
               <Switch.Thumb />
@@ -184,7 +184,7 @@ export default function ModelProviderBar({
           ref={triggerRef}
           type="button"
           onClick={handlePopoverToggle}
-          aria-label="Change model"
+          aria-label={t("settings.model_bar.change_model")}
           className="group flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-grid/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cobalt"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-cobalt" />
@@ -192,7 +192,7 @@ export default function ModelProviderBar({
             {displayProvider}
           </span>
           <span className="text-grid">/</span>
-          <span className="max-w-[200px] truncate font-mono text-[12px] text-graphite transition-colors group-hover:text-ink">
+          <span className="max-w-50 truncate font-mono text-[12px] text-graphite transition-colors group-hover:text-ink">
             {displayModel}
           </span>
         </button>
@@ -204,13 +204,13 @@ export default function ModelProviderBar({
           <div
             ref={popoverRef}
             role="dialog"
-            aria-label="Select model"
+            aria-label={t("settings.model_bar.select_model")}
             style={popoverStyle}
-            className="popover-animate w-[360px] overflow-hidden rounded-2xl border border-grid bg-surface shadow-lg"
+            className="popover-animate w-90 overflow-hidden rounded-2xl border border-grid bg-surface shadow-lg"
           >
-            <div className="flex h-[240px]">
+            <div className="flex h-60">
               {/* Provider pane */}
-              <div className="w-[120px] shrink-0 overflow-y-auto border-r border-grid">
+              <div className="w-30 shrink-0 overflow-y-auto border-r border-grid">
                 {PROVIDERS.map((p) => (
                   <button
                     key={p}
@@ -231,15 +231,15 @@ export default function ModelProviderBar({
               <div className="flex-1 overflow-y-auto">
                 {!provider ? (
                   <div className="flex h-full items-center justify-center text-[12px] text-graphite">
-                    Select a provider
+                    {t("settings.model_bar.select_provider")}
                   </div>
                 ) : loadingModels ? (
                   <div className="flex h-full items-center justify-center text-[12px] text-graphite">
-                    Loading models…
+                    {t("settings.model_bar.loading")}
                   </div>
                 ) : models.length === 0 ? (
                   <div className="flex h-full items-center justify-center text-[12px] text-graphite">
-                    No models available
+                    {t("settings.model_bar.no_models")}
                   </div>
                 ) : (
                   <>

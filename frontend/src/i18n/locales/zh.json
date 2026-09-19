@@ -61,11 +61,96 @@
     "deepseek": "DeepSeek"
   },
   "settings": {
+    "title": "设置",
+    "loading": "加载中…",
+    "load_failed": "加载设置失败",
+    "tab": {
+      "workspaces": "工作区",
+      "sessions": "会话",
+      "language": "语言",
+      "api_keys": "API 密钥",
+      "defaults": "默认模型"
+    },
     "language": {
       "title": "语言",
       "description": "作用于整个界面。选择结果保存在后端，对所有工作区生效。",
       "follow_browser": "跟随浏览器",
       "follow_browser_hint": "检测到：{locale}"
+    },
+    "provider": {
+      "label": "供应商",
+      "placeholder": "选择供应商"
+    },
+    "workspaces": {
+      "active": "当前工作区",
+      "no_active": "暂无活动工作区。",
+      "db": "数据库：{url}",
+      "llm": "LLM：{provider} · {model}",
+      "default_model": "（默认）",
+      "manage": "管理工作区",
+      "registered_other": "已注册 {count} 个工作区。",
+      "open_picker": "打开工作区选择器",
+      "picker_hint": "使用选择器可在工作区之间切换、新建工作区、重命名已有条目，或将某个工作区从注册表中移除。其他标签页中的 API 密钥与默认模型设置作用于当前工作区。",
+      "legacy_found": "发现历史会话",
+      "legacy_available_other": "有 {count} 个旧会话可供导入。",
+      "legacy_range": "从 {from} 到 {to}。",
+      "import_to": "导入到 {name}",
+      "select_first": "请先选择工作区",
+      "imported": "已导入 {count} 个会话",
+      "import_failed": "导入失败",
+      "heads_up": "注意：",
+      "keys_hint": "其他标签页中显示的 LLM 设置（API 密钥、默认模型）按工作区分别存储。切换工作区会加载另一组密钥。"
+    },
+    "sessions": {
+      "auto_restore": "重启时自动恢复会话",
+      "auto_restore_hint": "启用后，服务端会在启动时重新加载之前的会话，本界面会恢复你上次的活动会话。",
+      "show_id": "悬停时显示会话 ID",
+      "show_id_hint": "启用后，将鼠标悬停在会话名称上会以提示形式显示底层的会话 ID。",
+      "show_sql": "在表结构中显示 CREATE SQL",
+      "show_sql_hint": "启用后，会在表结构侧栏的列列表下方显示 CREATE TABLE SQL。"
+    },
+    "api_keys": {
+      "label": "API 密钥",
+      "empty": "API 密钥不能为空",
+      "save_failed": "保存失败",
+      "enter_to_test": "请输入 API 密钥以进行测试",
+      "valid": "API 密钥有效",
+      "test_failed": "测试失败",
+      "removed": "API 密钥已移除",
+      "delete_failed": "删除失败",
+      "configured": "API 密钥已配置。输入新值即可替换。",
+      "unset": "当前供应商尚未设置 API 密钥。",
+      "hide": "隐藏密钥",
+      "show": "显示密钥",
+      "saving": "保存中…",
+      "save": "保存",
+      "test": "测试",
+      "remove": "移除已存储的密钥"
+    },
+    "defaults": {
+      "load_failed": "加载模型失败",
+      "save_failed": "保存失败",
+      "global": "全局默认模型：",
+      "none": "（无）",
+      "set_for": "为 {provider} 设置全局默认模型",
+      "loading": "正在加载模型…",
+      "no_models": "暂无可用模型。请先配置 API 密钥。",
+      "set_to": "默认模型已设置为 {model}",
+      "set_default": "设为默认",
+      "saving": "保存中…",
+      "prompt": "输入 {provider} 的模型 ID（可选：{models}）"
+    },
+    "model_bar": {
+      "select_provider": "请选择供应商",
+      "loading": "正在加载模型…",
+      "no_models": "暂无可用模型",
+      "default": "默认",
+      "attach": "附加 CSV 或 Excel 文件",
+      "crawl": "切换网页爬取模式",
+      "crawl_title": "爬取网页",
+      "change_model": "更换模型",
+      "globe": "切换全球模式",
+      "select_model": "选择模型"
     }
   },
   "app": {
