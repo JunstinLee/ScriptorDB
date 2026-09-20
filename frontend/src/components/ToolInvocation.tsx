@@ -54,13 +54,23 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
         className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-default/30 transition-colors"
       >
         {status === "running" && (
-          <Spinner size="sm" className="text-warning" aria-label="Running" />
+          <Spinner
+            size="sm"
+            className="text-warning"
+            aria-label={t("tool.status.running")}
+          />
         )}
         {status === "success" && (
-          <Check className="h-3.5 w-3.5 text-sage" aria-label="Success" />
+          <Check
+            className="h-3.5 w-3.5 text-sage"
+            aria-label={t("tool.status.success")}
+          />
         )}
         {status === "error" && (
-          <X className="h-3.5 w-3.5 text-vermilion" aria-label="Error" />
+          <X
+            className="h-3.5 w-3.5 text-vermilion"
+            aria-label={t("tool.status.error")}
+          />
         )}
 
         <code className="text-xs font-medium text-foreground font-mono">
