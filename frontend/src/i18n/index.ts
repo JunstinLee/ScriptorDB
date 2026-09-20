@@ -21,7 +21,7 @@ void i18n.use(initReactI18next).init({
   resources,
   lng: detectBrowserLocale(),
   fallbackLng: "en",
-  interpolation: { escapeValue: false },
+  interpolation: { escapeValue: false, prefix: "{", suffix: "}" },
   react: { useSuspense: false },
 });
 
