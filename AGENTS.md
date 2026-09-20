@@ -126,6 +126,7 @@ uv run python scripts/layout_diagnostic.py <url> [-d 30] [-i 200] [-n 20] [--hea
 - **Frontend (Vitest):** `cd frontend && npm run test` (`test:watch` / `test:ui` also exist). jsdom environment, setup `src/test/setup.ts` (jest-dom, ResizeObserver/matchMedia stubs, localStorage + theme-attr cleanup), include glob `src/**/*.test.{ts,tsx}`. ~22 colocated test files under `src/hooks/`, `src/api/`, `src/utils/`, `src/components/`.
 - **Acceptance by change type — do not run the whole suite as a blanket check:**
   - Logging statements / plain-text substitutions → import verification only (module imports cleanly), no tests.
+  - i18n text swaps (hardcoded string → `t("key")`) → **never read or open test files**; only confirm the key already exists in both `frontend/src/i18n/locales/en.json` and `zh.json`.
   - Other code changes → run only the relevant tests; if none exist, an import check + LSP diagnostics pass.
   - UI changes → verify against the running app (`npm run dev`), not unit tests.
   - No coverage tooling or targets are enforced anywhere; no CI runs tests.
