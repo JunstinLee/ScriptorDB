@@ -83,7 +83,7 @@ Session history is searchable so you can quickly find past questions and results
 Every run that changes data is grouped into an undo log. From the CLI or the web UI you can list those groups and revert the database to a previous state. Reverting replays the recorded undo statements in reverse order across the affected runs. Sessions persist per workspace (JSON under `<workspace>/.scriptordb/sessions/`), so you can close the app and pick up where you left off.
 
 ### 📁 Workspace Isolation Out Of The Box
-Every project lives in its own workspace — a self-contained bundle of database path, LLM provider, model, API key, and session history. Run five SQLite projects side by side and switch between them with one command. The agent only ever sees the active workspace's database, so nothing crosses the line.
+Every project lives in its own workspace — a self-contained bundle of database connection, session history, and file outputs. Run five SQLite projects side by side and switch between them with one command. The agent only ever sees the active workspace's database, so nothing crosses the line. LLM provider, model choice, and API keys are global settings, shared across all workspaces.
 
 ---
 
@@ -163,7 +163,7 @@ ScriptorDB/
 ## Roadmap
 
 - [x] Multi-provider LLM agent with SQLite tools
-- [x] Workspace-based config and key isolation
+- [x] Workspace-based config with per-workspace database and sessions
 - [x] CLI, FastAPI backend, and React frontend
 - [x] Session persistence per workspace
 - [x] Undo log for write operations

@@ -244,7 +244,7 @@
     "new": "New workspace",
     "manage": "Manage workspaces",
     "title": "Workspaces",
-    "subtitle": "Each workspace has its own database, sessions, and API keys.",
+    "subtitle": "Each workspace has its own database and sessions; other settings such as API keys and the default model are global.",
     "empty": "No workspaces. Create one to get started.",
     "switching": "Switching workspace…",
     "active_badge": "active",
