@@ -37,7 +37,6 @@ export interface BrowserState {
   launched: boolean;
   url: string | null;
   title: string | null;
-  screenshot_available: boolean;
   /** 任务结束后是否已调度自动关闭（倒计时中） */
   idle_close_active: boolean;
   /** 距自动关闭的剩余秒数（未调度时为 0） */

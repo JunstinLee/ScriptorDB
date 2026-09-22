@@ -6,10 +6,6 @@ export async function fetchBrowserState(): Promise<BrowserState> {
   return request<BrowserState>("/browser/state");
 }
 
-export function getScreenshotUrl(): string {
-  return `/api/browser/screenshot?t=${Date.now()}`;
-}
-
 export async function closeBrowser(): Promise<void> {
   await request("/browser/close", { method: "POST" });
 }

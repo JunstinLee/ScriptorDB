@@ -384,7 +384,6 @@
     "waiting_launch": "Waiting for the agent to launch the browser...",
     "launching": "Launching browser...",
     "backend_not_running": "Check that the backend is running",
-    "screenshot_alt": "Page screenshot",
     "phase": {
       "agent_running": "Agent running",
       "awaiting_user": "Awaiting user action",
@@ -460,7 +459,6 @@
       "wait": "Wait {selector}",
       "scroll_down": "Scroll down {px}px",
       "scroll_up": "Scroll up {px}px",
-      "screenshot": "Screenshot saved",
       "press": "Press {key}",
       "cookies": "Cookies saved",
       "evaluate": "Evaluate JavaScript",

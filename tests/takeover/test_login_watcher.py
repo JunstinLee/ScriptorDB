@@ -222,7 +222,6 @@ def test_human_takeover_event_includes_login_form():
         reason="Login page detected",
         trigger="login",
         current_url="https://example.com/login",
-        screenshot_available=False,
         timestamp="t",
         login_form={"url": "https://example.com/login",
                     "is_login_page": True, "fields": [], "submit": None},
@@ -236,7 +235,6 @@ def test_human_takeover_event_includes_login_form():
         reason="x",
         trigger="mfa",
         current_url="",
-        screenshot_available=False,
         timestamp="t",
     )
     assert ev2["login_form"] is None

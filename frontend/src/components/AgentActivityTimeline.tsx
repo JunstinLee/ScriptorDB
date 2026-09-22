@@ -24,7 +24,6 @@ const TOOL_LABELS: Record<string, (detail: string, t: Translate) => string> = {
       ? t("browser.action.scroll_down", { px })
       : t("browser.action.scroll_up", { px: Math.abs(px) });
   },
-  browser_screenshot: (_d, t) => t("browser.action.screenshot"),
   browser_press_key: (d, t) => t("browser.action.press", { key: extractKey(d, t) }),
   browser_get_cookies: (_d, t) => t("browser.action.cookies"),
   browser_evaluate: (_d, t) => t("browser.action.evaluate"),

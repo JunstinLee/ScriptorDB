@@ -381,7 +381,6 @@
     "waiting_launch": "等待助手启动浏览器…",
     "launching": "正在启动浏览器…",
     "backend_not_running": "请确认后端服务正在运行",
-    "screenshot_alt": "页面截图",
     "phase": {
       "agent_running": "助手运行中",
       "awaiting_user": "等待用户操作",
@@ -453,7 +452,6 @@
       "wait": "等待 {selector}",
       "scroll_down": "向下滚动 {px}px",
       "scroll_up": "向上滚动 {px}px",
-      "screenshot": "已保存截图",
       "press": "按下 {key}",
       "cookies": "已保存 Cookie",
       "evaluate": "执行 JavaScript",

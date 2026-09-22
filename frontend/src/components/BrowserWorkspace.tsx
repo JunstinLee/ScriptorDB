@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2, X, ImageIcon, Monitor } from "lucide-react";
+import { X } from "lucide-react";
 import type {
   BrowserState,
   BrowserActionEvent,
@@ -11,7 +11,6 @@ import type {
   LoginFlowStatus,
   LoginFormPayload,
 } from "../types";
-import { getScreenshotUrl } from "../api/browser";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { BrowserViewportStream } from "./BrowserViewportStream";
 import { BrowserStatusBar } from "./BrowserStatusBar";
@@ -52,80 +51,6 @@ interface BrowserWorkspaceProps {
   onCredentialStatusChange?: (configured: boolean) => void;
   onFiltersApplied?: () => void;
   onCloseBrowser?: () => void;
-}
-
-function BrowserViewport({
-  state,
-  loading,
-}: {
-  state: BrowserState | null;
-  loading: boolean;
-}) {
-  const { t } = useTranslation();
-
-  if (!state?.launched) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6">
-        <div className="flex h-40 w-64 items-center justify-center rounded-xl border-2 border-dashed border-grid bg-surface/50">
-          <div className="flex flex-col items-center gap-2">
-            <Monitor className="size-8 text-muted" />
-            <span className="font-mono text-xs text-muted">
-              ░░░░░░░░░░░░░░░░░░░░
-            </span>
-          </div>
-        </div>
-        <p className="text-center text-sm text-muted">
-          {t("browser.waiting_launch")}
-        </p>
-      </div>
-    );
-  }
-
-  if (!state.url) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3">
-        <Loader2 className="size-6 animate-spin text-accent" />
-        <p className="text-sm text-muted">{t("browser.launching")}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-1 flex-col gap-3 p-4 min-w-0">
-      <div className="relative flex-1 overflow-hidden rounded-xl border border-grid bg-surface transform-gpu">
-        {state.screenshot_available ? (
-          <img
-            src={getScreenshotUrl()}
-            alt={state.title ?? t("browser.screenshot_alt")}
-            className="h-full w-full object-contain"
-            style={{ cursor: "default" }}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center">
-            <ImageIcon className="size-12 text-muted" />
-          </div>
-        )}
-
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/60">
-            <Loader2 className="size-6 animate-spin text-accent" />
-          </div>
-        )}
-      </div>
-
-      {state.title && (
-        <p className="truncate text-[13px] font-medium text-foreground">
-          {state.title}
-        </p>
-      )}
-
-      <div className="rounded-lg border-l-2 border-accent bg-[#EBE8E1] px-3 py-2 dark:bg-[#1E2028]">
-        <p className="truncate font-mono text-sm text-foreground">
-          ▸ {state.url}
-        </p>
-      </div>
-    </div>
-  );
 }
 
 /** 登录状态区（03 唯一挂载点）：otp 引导 / 进度面板 / 凭证采集互斥布局。 */
@@ -195,7 +120,6 @@ function LoginArea({
 
 export function BrowserWorkspace({
   state,
-  loading,
   error,
   takeoverInfo,
   onTakeoverComplete,
@@ -287,13 +211,9 @@ export function BrowserWorkspace({
       )}
 
       <div className="flex flex-1 min-h-0 min-w-0">
-        {state?.launched ? (
-          <BrowserViewportStream
-            takeoverActive={takeoverInfo.phase === "human_control"}
-          />
-        ) : (
-          <BrowserViewport state={state} loading={loading} />
-        )}
+        <BrowserViewportStream
+          takeoverActive={takeoverInfo.phase === "human_control"}
+        />
       </div>
 
       {(takeoverInfo.phase === "waiting_human" ||
