@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-import os
-import time
-from pathlib import Path
-
 from playwright.async_api import Page
 
 
@@ -52,17 +48,6 @@ async def press_key(page: Page, key: str) -> str:
         return f"Pressed key: {key}"
     except Exception as e:
         return f"Press key failed: {e}"
-
-
-async def screenshot(page: Page, path: str | None = None) -> str:
-    if not path:
-        path = str(Path(f"outputs/browser/screenshot_{int(time.time())}.png").resolve())
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        await page.screenshot(path=path, full_page=True)
-        return f"Screenshot saved to {path}"
-    except Exception as e:
-        return f"Screenshot failed: {e}"
 
 
 def get_url(page: Page) -> str:

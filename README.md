@@ -72,9 +72,9 @@ Paste a URL, and the agent fetches and analyzes the page content alongside your 
 Beyond crawling, the agent can drive a real (visible) Playwright browser — navigate, click, fill forms, extract tables and links, manage cookies and login profiles — and answer questions about live pages.
 
 - **Visible browser with saved profiles** — Cookie sets and full login profiles (including multi-origin localStorage) are stored in your OS keyring and can be restored later.
-- **Interactive tooling** — The agent can navigate, click, type, scroll, screenshot, read page structure, and apply filters to JavaScript-driven tables.
+- **Interactive tooling** — The agent can navigate, click, type, scroll, read page structure, and apply filters to JavaScript-driven tables.
 - **Human takeover when it matters** — Captcha, MFA, OAuth logins, and antibot walls are detected automatically; the agent pauses and hands control to you, then resumes the same run with your actions injected once you hand control back.
-- **Live viewport** — The browser screen streams to the web UI over WebRTC (with a screenshot fallback), so you can watch every step.
+- **Live viewport** — The browser screen streams to the web UI over WebRTC, so you can watch every step.
 
 ### 🔍 Search Session History
 Session history is searchable so you can quickly find past questions and results across long-running conversations.

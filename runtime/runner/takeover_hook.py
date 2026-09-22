@@ -117,7 +117,6 @@ async def _pause_and_wait(
         reason=takeover.reason,
         trigger=takeover.trigger,
         current_url=state_after.get("url", ""),
-        screenshot_available=state_after.get("screenshot_available", False),
         timestamp=utc_now_iso(),
         login_form=login_form,
     ))

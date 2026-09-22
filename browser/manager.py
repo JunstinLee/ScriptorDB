@@ -20,7 +20,6 @@ from core.logging_setup import get_logger
 
 logger = get_logger("browser.manager")
 
-SCREENSHOT_TTL = 30
 IDLE_CLOSE_TIMEOUT = 60
 
 
@@ -34,8 +33,6 @@ class BrowserManager:
 
         self._history: list[dict[str, str]] = []
         self._actions: list[dict] = []
-        self._last_screenshot: str | None = None
-        self._last_screenshot_time: float = 0
         self._launched_at: float | None = None
         self._takeover = HumanTakeoverManager()
         self._nav_timeout_count = 0
@@ -78,8 +75,7 @@ class BrowserManager:
         })
 
     def record_action(self, tool: str, detail: str, success: bool = True,
-                      selector: str = "", coords: dict | None = None,
-                      screenshot_path: str = "") -> None:
+                      selector: str = "", coords: dict | None = None) -> None:
         self._actions.append({
             "tool": tool,
             "detail": detail,
@@ -87,20 +83,13 @@ class BrowserManager:
             "success": success,
             "selector": selector,
             "coords": coords or {},
-            "screenshot_path": screenshot_path,
         })
         if len(self._actions) > 200:
             self._actions = self._actions[-200:]
 
-    def record_screenshot(self, path: str) -> None:
-        self._last_screenshot = path
-        self._last_screenshot_time = time.monotonic()
-
     def reset_state(self) -> None:
         self._history.clear()
         self._actions.clear()
-        self._last_screenshot = None
-        self._last_screenshot_time = 0
         self._launched_at = None
 
     async def get_state(self) -> dict:
@@ -136,11 +125,6 @@ class BrowserManager:
             "url": url,
             "title": title,
             "tabs": tabs_overview,
-            "screenshot_available": (
-                self._last_screenshot is not None
-                and (time.monotonic() - self._last_screenshot_time) < SCREENSHOT_TTL
-            ),
-            "screenshot_path": self._last_screenshot,
             "launched_at": self._launched_at,
             "idle_close_active": self.is_idle_close_scheduled(),
             "idle_close_remaining": self.idle_close_remaining(),

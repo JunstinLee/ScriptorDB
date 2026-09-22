@@ -30,7 +30,6 @@ class HumanTakeoverManager:
         self.state = HumanTakeoverState.RUNNING
         self.reason: str = ""
         self.trigger: str = ""
-        self.screenshot_path: str | None = None
         self.current_url: str = ""
         self.result: str = ""
         self._detected_at: float = 0
@@ -49,14 +48,13 @@ class HumanTakeoverManager:
         return self.state in (HumanTakeoverState.WAITING_HUMAN, HumanTakeoverState.HUMAN_CONTROL)
 
     def request_takeover(self, reason: str, trigger: str = "",
-                         url: str = "", screenshot: str | None = None) -> bool:
+                         url: str = "") -> bool:
         if self.state != HumanTakeoverState.RUNNING:
             return False
         self.state = HumanTakeoverState.DETECTED
         self.reason = reason
         self.trigger = trigger
         self.current_url = url
-        self.screenshot_path = screenshot
         self._detected_at = datetime.now(timezone.utc).timestamp()
         logger.warning(f"takeover requested reason={reason} trigger={trigger} url={url}")
         return True
@@ -109,7 +107,6 @@ class HumanTakeoverManager:
         self.state = HumanTakeoverState.RUNNING
         self.reason = ""
         self.trigger = ""
-        self.screenshot_path = None
         self.result = ""
         self.message = ""
         self._detected_at = 0

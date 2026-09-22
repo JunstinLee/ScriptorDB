@@ -40,7 +40,6 @@ from tools.browser_tools.navigation import (  # noqa: E402
 )
 from tools.browser_tools.table import browser_extract_rows, browser_extract_table  # noqa: E402
 from tools.browser_tools.tabs import browser_get_tabs, browser_switch_tab  # noqa: E402
-from tools.browser_tools.visual import browser_screenshot  # noqa: E402
 
 __all__ = [
     "browser_apply_filter",
@@ -65,7 +64,6 @@ __all__ = [
     "browser_navigate",
     "browser_press_key",
     "browser_query",
-    "browser_screenshot",
     "browser_select_option",
     "browser_scroll",
     "browser_set_cookies",
