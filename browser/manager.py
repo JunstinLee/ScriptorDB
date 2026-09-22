@@ -39,6 +39,7 @@ class BrowserManager:
         self._element_failure_count: dict[str, int] = {}
         self._auth_origin: str | None = None
         self._downloads_dir: Path | None = None
+        self._recent_downloads: list[dict] = []
         self._screencast_connection: object | None = None
         self._idle_close_task: asyncio.Task | None = None
         self._idle_close_deadline: float | None = None
@@ -52,6 +53,15 @@ class BrowserManager:
     def set_downloads_dir(self, path: Path | None) -> None:
         """设置浏览器下载文件的保存目录；None 表示不自动保存。"""
         self._downloads_dir = Path(path) if path else None
+
+    def recent_downloads(self, since: float) -> list[dict]:
+        """返回 since（含）之后收到的下载记录。"""
+        return [r for r in self._recent_downloads if r.get("ts", 0) >= since]
+
+    def _record_download(self, *, ok: bool, **fields) -> None:
+        self._recent_downloads.append({"ok": ok, "ts": time.time(), **fields})
+        if len(self._recent_downloads) > 20:
+            self._recent_downloads = self._recent_downloads[-20:]
 
     def set_screencast_connection(self, conn: object | None) -> None:
         self._screencast_connection = conn
@@ -195,13 +205,15 @@ class BrowserManager:
         return f"Browser launched successfully in visible mode"
 
     async def _on_download(self, download) -> None:
-        """任意浏览器下载自动保存到 _downloads_dir（未设置则不保存）。"""
+        """任意浏览器下载自动保存到 _downloads_dir，结果记入 _recent_downloads。"""
         if not self._downloads_dir:
             logger.warning("download event ignored: downloads dir not configured")
+            self._record_download(ok=False, reason="downloads dir not configured")
             return
         try:
             if failure := await download.failure():
                 logger.warning(f"download failed: {failure}")
+                self._record_download(ok=False, reason=f"download failed: {failure}")
                 return
             self._downloads_dir.mkdir(parents=True, exist_ok=True)
             filename = _sanitize_filename(download.suggested_filename or "download.bin")
@@ -219,8 +231,10 @@ class BrowserManager:
                 "downloaded_at": datetime.now(timezone.utc).isoformat(),
             })
             logger.info(f"download saved: {path} ({size} bytes)")
+            self._record_download(ok=True, filename=path.name, path=str(path), size=size)
         except Exception as e:
             logger.warning(f"download save failed: {e}")
+            self._record_download(ok=False, reason=f"download save failed: {e}")
 
     async def close(self) -> str:
         self.cancel_idle_close()

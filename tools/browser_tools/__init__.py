@@ -10,7 +10,6 @@ from tools.browser_tools import (
     navigation,
     table,
     tabs,
-    visual,
 )
 
 __all__ = ["cookies", "dom", "filter_apply", "filter_detect", "inspect", "links", "navigation", "table", "tabs", "visual"]

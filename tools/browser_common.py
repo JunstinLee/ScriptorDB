@@ -22,6 +22,15 @@ def _require_browser() -> tuple:
     return manager, manager.page()
 
 
+def _ensure_downloads_dir(manager, ctx) -> None:
+    """按当前 workspace 惰性设置下载目录，避免依赖 browser_launch 的时机。"""
+    deps = getattr(ctx, "deps", None) if ctx is not None else None
+    workspace_path = getattr(deps, "workspace_path", None) if deps is not None else None
+    if workspace_path:
+        from config.workspace import workspace_outputs_dir
+        manager.set_downloads_dir(workspace_outputs_dir(workspace_path))
+
+
 def _check_blocked(manager) -> str | None:
     state = manager.takeover.state
     if state in (HumanTakeoverState.HUMAN_CONTROL, HumanTakeoverState.WAITING_HUMAN, HumanTakeoverState.DETECTED):

@@ -15,28 +15,31 @@ async def scroll_by(page: Page, pixels: int) -> str:
     return f"Scrolled by {pixels}px"
 
 
-async def click(page: Page, selector: str) -> str:
+async def click(page: Page, selector: str, timeout: int = 30_000) -> str:
     try:
-        await page.click(selector)
+        await page.click(selector, timeout=timeout)
         return f"Clicked element: {selector}"
     except Exception as e:
         return f"Click failed: {e}"
 
 
-async def fill(page: Page, selector: str, text: str) -> str:
+async def fill(page: Page, selector: str, text: str, timeout: int = 30_000) -> str:
     try:
-        await page.fill(selector, text)
+        element = await page.query_selector(selector)
+        if element is not None and not await element.is_editable():
+            return f"Fill failed: element is not editable (readonly/disabled): {selector}"
+        await page.fill(selector, text, timeout=timeout)
         return f"Filled {selector}"
     except Exception as e:
         return f"Fill failed: {e}"
 
 
-async def select_option(page: Page, selector: str, value: str = "", label: str = "") -> str:
+async def select_option(page: Page, selector: str, value: str = "", label: str = "", timeout: int = 30_000) -> str:
     try:
         if label:
-            await page.select_option(selector, label=label)
+            await page.select_option(selector, label=label, timeout=timeout)
             return f"Selected option '{label}' for {selector}"
-        await page.select_option(selector, value=value)
+        await page.select_option(selector, value=value, timeout=timeout)
         return f"Selected option '{value}' for {selector}"
     except Exception as e:
         return f"Select failed: {e}"

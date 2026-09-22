@@ -5,6 +5,14 @@ import json
 from playwright.async_api import Page
 
 
+class InvalidSelectorError(Exception):
+    """选择器既不是合法 CSS，也不是 Playwright 引擎选择器。"""
+
+
+def _is_selector_error(e: Exception) -> bool:
+    return isinstance(e, SyntaxError) or "not a valid selector" in str(e)
+
+
 async def evaluate(page: Page, js: str) -> str:
     try:
         result = await page.evaluate(f"() => {{ return {js} }}")
@@ -20,6 +28,8 @@ async def query_text(page: Page, selector: str) -> str:
             return f"No element found for selector: {selector}"
         return await element.inner_text()
     except Exception as e:
+        if _is_selector_error(e):
+            raise InvalidSelectorError(str(e)) from e
         return f"Query text error: {e}"
 
 
@@ -34,6 +44,8 @@ async def query_text_all(page: Page, selector: str) -> str:
             results.append(f"[{i}] {text}")
         return "\n".join(results)
     except Exception as e:
+        if _is_selector_error(e):
+            raise InvalidSelectorError(str(e)) from e
         return f"Query text all error: {e}"
 
 
@@ -45,6 +57,8 @@ async def query_attr(page: Page, selector: str, attr: str) -> str:
         value = await element.get_attribute(attr)
         return value if value is not None else f"Attribute '{attr}' not found on {selector}"
     except Exception as e:
+        if _is_selector_error(e):
+            raise InvalidSelectorError(str(e)) from e
         return f"Query attr error: {e}"
 
 
@@ -59,6 +73,8 @@ async def query_attr_all(page: Page, selector: str, attr: str) -> str:
             results.append(f"[{i}] {value if value is not None else '(none)'}")
         return "\n".join(results)
     except Exception as e:
+        if _is_selector_error(e):
+            raise InvalidSelectorError(str(e)) from e
         return f"Query attr all error: {e}"
 
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import re
+import time
 
 from config.settings import Settings
 from pydantic_ai import RunContext
-from tools.browser_common import _check_blocked, _require_browser, _settle_after_click
+from schemas import ToolErrorInfo, ToolResult
+from tools.browser_common import _check_blocked, _ensure_downloads_dir, _require_browser, _settle_after_click
 from tools.tool_decorators import db_tool
 
 # Playwright 引擎选择器前缀（text=/xpath=/aria= 等）不是合法 CSS，
@@ -14,10 +16,21 @@ _PLAYWRIGHT_ENGINES = frozenset({
     "data-qa", "aria", "role", "nth", "internal",
 })
 
+# 动作层超时 = 工具超时（15s）- 余量：避免 Playwright 默认 30s 与 wrapper 同时到点。
+_ACTION_TIMEOUT_MS = 12_000
+
 
 def _is_engine_selector(selector: str) -> bool:
     match = re.match(r"^([A-Za-z][A-Za-z0-9_-]*?)\s*=", selector)
     return bool(match) and match.group(1).lower() in _PLAYWRIGHT_ENGINES
+
+
+_CONTAINS_RE = re.compile(r""":contains\(\s*(['"])(.*?)\1\s*\)""")
+
+
+def _normalize_selector(selector: str) -> str:
+    """把 jQuery 的 :contains("x") 归一化为 Playwright 的 :has-text("x")。"""
+    return _CONTAINS_RE.sub(lambda m: f':has-text("{m.group(2)}")', selector)
 
 
 @db_tool(name="browser_get_text", category="browser", timeout=15, sequential=True)
@@ -42,7 +55,15 @@ async def browser_query(
     attribute: str = "",
     all: bool = False,
 ) -> str:
+    """Read the text (or an attribute) of elements matching `selector`.
+
+    `selector` accepts both CSS and Playwright engine selectors: `#id`, `.class`,
+    `text=导出`, `li:has-text("导出全部")`, `role=button[name="导出"]`.
+    Pass `attribute` (e.g. `href`, `value`) to read an attribute instead of text,
+    and `all=True` to return every match.
+    """
     from browser.runtime import get_image_sources, query_attr, query_attr_all, query_text, query_text_all
+    from browser.runtime import InvalidSelectorError
     from browser.sensitive import is_password_control
 
     manager, page = _require_browser()
@@ -50,25 +71,39 @@ async def browser_query(
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    selector = _normalize_selector(selector)
 
-    if selector == "img[src]" and attribute == "src" and all:
-        result = await get_image_sources(page)
-        manager.record_action("query", selector)
-        return result
+    try:
+        if selector == "img[src]" and attribute == "src" and all:
+            result = await get_image_sources(page)
+            manager.record_action("query", selector)
+            return result
 
-    if attribute:
-        if attribute == "value" and await is_password_control(page, selector):
-            # 密码控件（系统凭证已由 autofill 填入）：不读 DOM value，
-            # 返回占位；all=True 对 selector 首元素判定一次，命中整组占位。
-            result = "[redacted: password field]"
+        if attribute:
+            if attribute == "value" and await is_password_control(page, selector):
+                # 密码控件（系统凭证已由 autofill 填入）：不读 DOM value，
+                # 返回占位；all=True 对 selector 首元素判定一次，命中整组占位。
+                result = "[redacted: password field]"
+            elif all:
+                result = await query_attr_all(page, selector, attribute)
+            else:
+                result = await query_attr(page, selector, attribute)
         elif all:
-            result = await query_attr_all(page, selector, attribute)
+            result = await query_text_all(page, selector)
         else:
-            result = await query_attr(page, selector, attribute)
-    elif all:
-        result = await query_text_all(page, selector)
-    else:
-        result = await query_text(page, selector)
+            result = await query_text(page, selector)
+    except InvalidSelectorError as e:
+        manager.record_action("query", selector, success=False)
+        return ToolResult(
+            success=False,
+            error=ToolErrorInfo(
+                category="invalid_selector",
+                message=(
+                    f"Invalid selector '{selector}': {e}. Use a CSS selector or a "
+                    'Playwright engine selector such as li:has-text("…") or text=…'
+                ),
+            ),
+        )
 
     manager.record_action("query", selector)
     return result
@@ -101,8 +136,14 @@ async def browser_evaluate(ctx: RunContext[Settings], js: str) -> str:
 async def browser_wait_for_selector(
     ctx: RunContext[Settings],
     selector: str,
-    state: str = "visible",
+    state: str = "attached",
 ) -> str:
+    """Wait for `selector` to reach `state` (attached/detached/visible/hidden).
+
+    `selector` accepts both CSS and Playwright engine selectors: `#id`, `.class`,
+    `text=导出`, `li:has-text("导出全部")`, `role=button[name="导出"]`.
+    Use `state="visible"` when you need the element to be actually shown.
+    """
     from browser.context import wait_for_selector as _wait
     from browser.highlights import highlight_click
 
@@ -111,6 +152,7 @@ async def browser_wait_for_selector(
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    selector = _normalize_selector(selector)
     result = await _wait(page, selector, state)  # type: ignore[arg-type]
     if not _is_engine_selector(selector):
         await highlight_click(page, selector)
@@ -119,40 +161,38 @@ async def browser_wait_for_selector(
 
 
 @db_tool(name="browser_click", category="browser", timeout=15, sequential=True)
-async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
+async def browser_click(ctx: RunContext[Settings], selector: str, text: str = "") -> str:
+    """Click the first element matching `selector`.
+
+    `selector` accepts both CSS and Playwright engine selectors: `#id`, `.class`,
+    `text=导出`, `li:has-text("导出全部")`, `role=button[name="导出"]`.
+    As a shortcut, pass `text="导出全部"` instead of a selector to click by text.
+    """
     from browser.actions import click as _click
     from browser.highlights import highlight_click
-    from config.workspace import workspace_outputs_dir
-    from tools.browser_tools.download import _save_download
 
+    if not selector and text:
+        selector = f"text={text}"
+    selector = _normalize_selector(selector)
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    _ensure_downloads_dir(manager, ctx)
     if not _is_engine_selector(selector):
         await highlight_click(page, selector)
         await manager.trace.record_pre_click(page, selector)
 
-    result = ""
-    download = None
-    try:
-        async with page.expect_download(timeout=2000) as dl_info:
-            result = await _click(page, selector)
-            download = await dl_info.value
-    except Exception:
-        # 点击未触发下载（2s 内无 download 事件）或点击本身异常：按普通点击处理
-        download = None
-
-    if download is not None:
-        if ctx.deps and ctx.deps.workspace_path:
-            output_dir = workspace_outputs_dir(ctx.deps.workspace_path)
-            output_dir.mkdir(parents=True, exist_ok=True)
-            result = f"{result}\n{await _save_download(download, output_dir, source_url=page.url)}"
-        else:
-            result = f"{result}\nDownload triggered but no active workspace to save it"
+    clicked_at = time.time()
+    result = await _click(page, selector, timeout=_ACTION_TIMEOUT_MS)
 
     await _settle_after_click(page)
+    for entry in manager.recent_downloads(clicked_at):
+        if entry.get("ok"):
+            result += f"\nCaptured download: {entry.get('filename')} ({entry.get('path')})"
+        else:
+            result += f"\nWarning: a download was triggered but not saved: {entry.get('reason')}"
     trace = await manager.trace.record_post_nav(page)
     detail = selector
     pre = trace.get("pre_click") or {}
@@ -169,6 +209,13 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
 
 @db_tool(name="browser_fill", category="browser", timeout=15, sequential=True)
 async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> str:
+    """Fill the field matching `selector` with `text`.
+
+    `selector` accepts CSS and Playwright engine selectors (`#id`,
+    `input[placeholder="…"]`, `role=textbox[name="…"]`). Filling a read-only or
+    disabled field fails immediately; use the page's own widget (e.g. a date
+    picker) for such fields instead.
+    """
     from browser.highlights import highlight_input, highlight_input_remove
     from browser.sensitive import current_site_password, is_password_control
 
@@ -177,6 +224,7 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    selector = _normalize_selector(selector)
     pwd = current_site_password(
         page.url, ctx.deps.workspace_id if ctx.deps else None
     )
@@ -196,12 +244,14 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
     if not _is_engine_selector(selector):
         await highlight_input(page, selector)
     try:
-        result = await _fill(page, selector, text)
+        result = await _fill(page, selector, text, timeout=_ACTION_TIMEOUT_MS)
     finally:
         await highlight_input_remove(page)
     manager.record_action("fill", selector, selector=selector,
                           success="Filled" in result)
-    if "failed" in str(result).lower() or "error" in str(result).lower():
+    if "not editable" not in str(result).lower() and (
+        "failed" in str(result).lower() or "error" in str(result).lower()
+    ):
         manager.record_element_failure(selector)
         await manager.detect_takeover()
     return result
@@ -227,7 +277,7 @@ async def browser_select_option(
     if not _is_engine_selector(selector):
         await highlight_input(page, selector)
     try:
-        result = await _select(page, selector, value=value, label=label)
+        result = await _select(page, selector, value=value, label=label, timeout=_ACTION_TIMEOUT_MS)
     finally:
         await highlight_input_remove(page)
     manager.record_action("select_option", f"{selector} = {value or label}", selector=selector,

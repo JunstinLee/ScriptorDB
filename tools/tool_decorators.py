@@ -45,9 +45,12 @@ def _wrap_browser_tool(
                 return await asyncio.to_thread(func, ctx, *args, **kwargs)
 
             async def run_with_timeout():
+                task = asyncio.create_task(call_original())
                 try:
-                    return await asyncio.wait_for(call_original(), timeout=timeout)
+                    return await asyncio.wait_for(task, timeout=timeout)
                 except asyncio.TimeoutError:
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
                     return (
                         f"Failed: tool execution timed out after {timeout} seconds; "
                         "the operation did not complete. Retry or use another approach."
