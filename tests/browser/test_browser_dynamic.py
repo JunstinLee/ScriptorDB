@@ -10,7 +10,6 @@ from tools.browser import (
     browser_evaluate,
     browser_load_state,
     browser_query,
-    browser_screenshot,
     browser_scroll,
 )
 
@@ -180,33 +179,4 @@ class TestBrowserScroll:
             result = await browser_scroll(make_ctx(), to_bottom=False, pixels=300)
             assert "300px" in result
             mock_page.wait_for_timeout.assert_awaited_once_with(300)
-
-
-class TestBrowserScreenshot:
-    @pytest.mark.asyncio
-    async def test_screenshot_without_launch(self):
-        with patch.object(get_manager(), "_page", None):
-            result = await browser_screenshot(make_ctx())
-            assert "not launched" in result.lower()
-
-    @pytest.mark.asyncio
-    async def test_screenshot_saves_file(self):
-        mock_page = AsyncMock()
-        mock_page.screenshot = AsyncMock()
-
-        with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_screenshot(make_ctx(), "/tmp/test.png")
-            assert "Screenshot saved to /tmp/test.png" in result
-            mock_page.screenshot.assert_awaited_once_with(path="/tmp/test.png", full_page=True)
-
-    @pytest.mark.asyncio
-    async def test_screenshot_default_path(self):
-        mock_page = AsyncMock()
-        mock_page.screenshot = AsyncMock()
-
-        with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_screenshot(make_ctx())
-            assert "Screenshot saved to" in result
-            assert "outputs/browser/" in result
-            mock_page.screenshot.assert_awaited_once()
 

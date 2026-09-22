@@ -25,7 +25,7 @@ class _FakeTakeoverMgr:
         return self._page
 
     async def get_state(self) -> dict:
-        return {"url": self.url, "actions": [], "screenshot_available": False}
+        return {"url": self.url, "actions": []}
 
     async def detect_takeover(self) -> bool:
         self._detect_calls += 1

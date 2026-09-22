@@ -96,7 +96,6 @@ class TestBrowserBusinessIntegration:
             browser_navigate,
             browser_press_key,
             browser_query,
-            browser_screenshot,
             browser_scroll,
             browser_wait_for_selector,
         )
@@ -123,9 +122,6 @@ class TestBrowserBusinessIntegration:
         result = await browser_scroll(make_ctx(), to_bottom=True)
         assert "bottom" in result.lower()
 
-        result = await browser_screenshot(make_ctx(), "outputs/browser/amazon_search.png")
-        assert "Screenshot saved" in result
-
     @pytest.mark.asyncio
     @pytest.mark.slow
     async def test_notion_login_page_interaction(self):
@@ -136,7 +132,6 @@ class TestBrowserBusinessIntegration:
             browser_launch,
             browser_navigate,
             browser_press_key,
-            browser_screenshot,
             browser_wait_for_selector,
         )
 
@@ -156,6 +151,3 @@ class TestBrowserBusinessIntegration:
 
         result = await browser_get_text(make_ctx())
         assert len(result) > 0
-
-        result = await browser_screenshot(make_ctx(), "outputs/browser/notion_login.png")
-        assert "Screenshot saved" in result

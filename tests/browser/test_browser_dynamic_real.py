@@ -21,7 +21,6 @@ class TestBrowserDynamicRender:
             browser_load_state,
             browser_navigate,
             browser_query,
-            browser_screenshot,
             browser_scroll,
         )
 
@@ -45,6 +44,3 @@ class TestBrowserDynamicRender:
 
         result = await browser_scroll(make_ctx(), to_bottom=True)
         assert "bottom" in result.lower()
-
-        result = await browser_screenshot(make_ctx(), "outputs/browser/apple_test.png")
-        assert "Screenshot saved to" in result

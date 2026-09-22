@@ -22,7 +22,6 @@ class TestBrowserInteraction:
             browser_navigate,
             browser_press_key,
             browser_query,
-            browser_screenshot,
             browser_wait_for_selector,
         )
 
@@ -71,6 +70,3 @@ class TestBrowserInteraction:
         result = await browser_query(make_ctx(), ".todo-list li", all=True)
         assert "Buy milk" not in result
         assert "Read book" in result
-
-        result = await browser_screenshot(make_ctx(), "outputs/browser/todomvc_test.png")
-        assert "Screenshot saved" in result
