@@ -33,7 +33,7 @@ class TestBrowserLoadState:
             result = await browser_load_state(make_ctx(), "load")
             assert "reached load state" in result.lower()
             assert "load" in result
-            mock_page.wait_for_load_state.assert_awaited_once_with("load")
+            mock_page.wait_for_load_state.assert_awaited_once_with("load", timeout=10000)
 
     @pytest.mark.asyncio
     async def test_load_state_networkidle(self):
@@ -43,7 +43,7 @@ class TestBrowserLoadState:
             result = await browser_load_state(make_ctx(), "networkidle")
             assert "reached load state" in result.lower()
             assert "networkidle" in result
-            mock_page.wait_for_load_state.assert_awaited_once_with("networkidle")
+            mock_page.wait_for_load_state.assert_awaited_once_with("networkidle", timeout=10000)
 
 
 class TestBrowserEvaluate:

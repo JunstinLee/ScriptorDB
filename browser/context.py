@@ -40,8 +40,8 @@ async def navigate(page: Page, url: str, wait_until: WaitUntil = "domcontentload
         return f"Navigation failed: {e}"
 
 
-async def wait_for_load_state(page: Page, state: LoadState = "load") -> str:
-    await page.wait_for_load_state(state)
+async def wait_for_load_state(page: Page, state: LoadState = "load", timeout: int = 10_000) -> str:
+    await page.wait_for_load_state(state, timeout=timeout)
     return f"Page reached load state: {state}"
 
 

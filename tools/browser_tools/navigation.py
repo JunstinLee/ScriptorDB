@@ -4,7 +4,7 @@ from browser import get_manager
 from config.settings import Settings
 from core.logging_setup import get_logger
 from pydantic_ai import RunContext
-from tools.browser_common import _check_blocked, _require_browser
+from tools.browser_common import _check_blocked, _require_browser, _settle_after_click
 from tools.tool_decorators import db_tool
 
 logger = get_logger("tools.browser.navigation")
@@ -36,6 +36,7 @@ async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
         return blocked
 
     result = await _navigate(page, url)
+    await _settle_after_click(page)
     await inject_highlight_runtime(page)
 
     try:
@@ -80,6 +81,7 @@ async def browser_go_back(ctx: RunContext[Settings]) -> str:
     if blocked := _check_blocked(manager):
         return blocked
     result = await _back(page)
+    await _settle_after_click(page)
     manager.record_action("go_back", result)
     try:
         title = await page.title()
@@ -100,6 +102,7 @@ async def browser_go_forward(ctx: RunContext[Settings]) -> str:
     if blocked := _check_blocked(manager):
         return blocked
     result = await _forward(page)
+    await _settle_after_click(page)
     manager.record_action("go_forward", result)
     try:
         title = await page.title()

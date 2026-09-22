@@ -4,7 +4,7 @@ import re
 
 from config.settings import Settings
 from pydantic_ai import RunContext
-from tools.browser_common import _check_blocked, _require_browser
+from tools.browser_common import _check_blocked, _require_browser, _settle_after_click
 from tools.tool_decorators import db_tool
 
 # Playwright 引擎选择器前缀（text=/xpath=/aria= 等）不是合法 CSS，
@@ -152,6 +152,7 @@ async def browser_click(ctx: RunContext[Settings], selector: str) -> str:
         else:
             result = f"{result}\nDownload triggered but no active workspace to save it"
 
+    await _settle_after_click(page)
     trace = await manager.trace.record_post_nav(page)
     detail = selector
     pre = trace.get("pre_click") or {}
