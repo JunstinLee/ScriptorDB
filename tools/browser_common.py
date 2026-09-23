@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import time
+
 from browser import get_manager
 from browser.takeover import HumanTakeoverState
 from core.logging_setup import get_logger
@@ -77,3 +80,19 @@ async def _settle_after_click(page) -> None:
     except Exception:
         pass
     await page.wait_for_timeout(500)
+
+
+async def _wait_for_download(manager, since: float, timeout: float = 30.0) -> dict | None:
+    """Wait for a new download record (ts >= since) to appear, up to ``timeout`` seconds.
+
+    Polls ``manager.recent_downloads`` so a download that arrives later than the click
+    is still confirmed instead of being missed. Returns the newest record (``ok`` True or
+    False), or ``None`` if nothing arrives before the timeout.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        entries = manager.recent_downloads(since)
+        if entries:
+            return entries[-1]
+        await asyncio.sleep(0.5)
+    return None

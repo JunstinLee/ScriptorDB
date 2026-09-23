@@ -6,7 +6,7 @@ import time
 from config.settings import Settings
 from pydantic_ai import RunContext
 from schemas import ToolErrorInfo, ToolResult
-from tools.browser_common import _check_blocked, _ensure_downloads_dir, _require_browser, _settle_after_click
+from tools.browser_common import _check_blocked, _ensure_downloads_dir, _require_browser, _settle_after_click, _wait_for_download
 from tools.tool_decorators import db_tool
 
 # Playwright 引擎选择器前缀（text=/xpath=/aria= 等）不是合法 CSS，
@@ -48,13 +48,59 @@ async def browser_get_text(ctx: RunContext[Settings]) -> str:
     return result
 
 
+@db_tool(name="browser_locate", category="browser", timeout=15, sequential=False)
+async def browser_locate(
+    ctx: RunContext[Settings],
+    text: str = "",
+    role: str = "",
+) -> str:
+    """List interactive elements on the current page with ready-to-reuse selectors.
+
+    Use this to discover what is clickable or fillable before acting. Each line ends
+    with a `selector` that can be passed straight back to `browser_click`/`browser_fill`
+    (ex. `text=导出`, `#id`, `input[name="…"]`). Optionally filter by `text` (substring
+    of the element's text) or `role` (button/textbox/tab/link/combobox/...). Read-only:
+    this tool does not change the page.
+    """
+    from browser.runtime import locate_elements
+
+    manager, page = _require_browser()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    if blocked := _check_blocked(manager):
+        return blocked
+
+    elements = await locate_elements(page, text=text, role=role)
+    filters = []
+    if text:
+        filters.append(f"text={text}")
+    if role:
+        filters.append(f"role={role}")
+    if not elements:
+        suffix = f" (filter: {', '.join(filters)})" if filters else ""
+        return f"No interactive elements found.{suffix}"
+
+    lines = []
+    for i, el in enumerate(elements, 1):
+        snippet = (el.get("text") or el.get("value") or "").strip()
+        label = f" {snippet[:40]!r}" if snippet else ""
+        lines.append(
+            f"{i}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]{label} -> {el.get('selector')}"
+        )
+    manager.record_action(
+        "locate",
+        f"{len(elements)} elements" + (f" ({', '.join(filters)})" if filters else ""),
+    )
+    return "\n".join(lines)
+
+
 @db_tool(name="browser_query", category="browser", timeout=10, sequential=False)
 async def browser_query(
     ctx: RunContext[Settings],
     selector: str,
     attribute: str = "",
     all: bool = False,
-) -> str:
+) -> str | ToolResult:
     """Read the text (or an attribute) of elements matching `selector`.
 
     `selector` accepts both CSS and Playwright engine selectors: `#id`, `.class`,
@@ -161,12 +207,20 @@ async def browser_wait_for_selector(
 
 
 @db_tool(name="browser_click", category="browser", timeout=15, sequential=True)
-async def browser_click(ctx: RunContext[Settings], selector: str, text: str = "") -> str:
+async def browser_click(
+    ctx: RunContext[Settings],
+    selector: str,
+    text: str = "",
+    download_wait: int = 30,
+) -> str:
     """Click the first element matching `selector`.
 
     `selector` accepts both CSS and Playwright engine selectors: `#id`, `.class`,
     `text=导出`, `li:has-text("导出全部")`, `role=button[name="导出"]`.
     As a shortcut, pass `text="导出全部"` instead of a selector to click by text.
+    If the click triggers a download, this waits up to `download_wait` seconds for the
+    file to be saved to the workspace outputs dir and reports "Captured download" with
+    its path when it arrives. Pass `download_wait=0` to skip the wait.
     """
     from browser.actions import click as _click
     from browser.highlights import highlight_click
@@ -188,10 +242,11 @@ async def browser_click(ctx: RunContext[Settings], selector: str, text: str = ""
     result = await _click(page, selector, timeout=_ACTION_TIMEOUT_MS)
 
     await _settle_after_click(page)
-    for entry in manager.recent_downloads(clicked_at):
-        if entry.get("ok"):
+    if download_wait > 0:
+        entry = await _wait_for_download(manager, clicked_at, download_wait)
+        if entry and entry.get("ok"):
             result += f"\nCaptured download: {entry.get('filename')} ({entry.get('path')})"
-        else:
+        elif entry:
             result += f"\nWarning: a download was triggered but not saved: {entry.get('reason')}"
     trace = await manager.trace.record_post_nav(page)
     detail = selector
