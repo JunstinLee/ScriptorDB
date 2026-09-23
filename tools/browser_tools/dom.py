@@ -19,10 +19,16 @@ _PLAYWRIGHT_ENGINES = frozenset({
 # 动作层超时 = 工具超时（15s）- 余量：避免 Playwright 默认 30s 与 wrapper 同时到点。
 _ACTION_TIMEOUT_MS = 12_000
 
+# :has-text("…") / :contains("…") 是 Playwright 伪类选择器，同样不是合法 CSS，
+# document.querySelector 会抛 SyntaxError；与 text= 等前缀式引擎选择器一样按引擎处理跳过。
+_PLAYWRIGHT_PSEUDO_RE = re.compile(r":(?:has-text|contains)\(")
+
 
 def _is_engine_selector(selector: str) -> bool:
     match = re.match(r"^([A-Za-z][A-Za-z0-9_-]*?)\s*=", selector)
-    return bool(match) and match.group(1).lower() in _PLAYWRIGHT_ENGINES
+    if match and match.group(1).lower() in _PLAYWRIGHT_ENGINES:
+        return True
+    return bool(_PLAYWRIGHT_PSEUDO_RE.search(selector))
 
 
 _CONTAINS_RE = re.compile(r""":contains\(\s*(['"])(.*?)\1\s*\)""")
@@ -256,7 +262,8 @@ async def browser_click(
         detail = f"{selector} -> {final_url}"
     manager.record_action("click", detail, selector=selector,
                           success="Clicked" in result)
-    if "failed" in str(result).lower() or "error" in str(result).lower():
+    failed = "failed" in str(result).lower() or "error" in str(result).lower()
+    if failed:
         manager.record_element_failure(selector)
         await manager.detect_takeover()
     return result
