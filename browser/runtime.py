@@ -94,10 +94,15 @@ async def get_image_sources(page: Page) -> str:
 
 
 async def locate_elements(page: Page, text: str = "", role: str = "") -> list[dict]:
-    """Collect interactive elements on the page into ready-to-reuse selectors.
+    """Collect visible, interactive elements into ready-to-reuse selectors.
 
-    Each entry carries ``{tag, text, role, id, value, selector}`` where ``selector``
-    is a Playwright engine selector that can be passed straight back to
+    Two-layer visibility: the JS pass does a first-layer layout screening (drops
+    ``display:none`` / ``visibility:hidden`` / zero-size nodes and attaches graded
+    ``enabled``/``inViewport``/``rect``/``visibility`` signals), then
+    :func:`_confirm_actionable` does a second-layer Playwright actionability
+    confirmation over the surviving candidates. Each entry carries
+    ``{tag, text, role, id, value, selector, enabled, inViewport, rect, visibility,
+    actionable}`` where ``selector`` can be passed straight back to
     ``browser_click``/``browser_fill``. ``text`` (substring of element text) and
     ``role`` optionally narrow the result. Raises nothing; returns ``[]`` on error.
     """
@@ -107,11 +112,14 @@ async def locate_elements(page: Page, text: str = "", role: str = "") -> list[di
             (filters) => {
                 const tagSel = [
                     "a", "button", "input", "select", "textarea",
+                    "li", "div", "span", "td", "label",
                     "[role='button']", "[role='link']", "[role='tab']",
                     "[role='menuitem']", "[role='checkbox']", "[role='radio']",
                     "[role='textbox']", "[role='combobox']", "[role='searchbox']",
                     "[role='switch']", "[role='option']"
                 ].join(",");
+                const vw = document.documentElement.clientWidth;
+                const vh = document.documentElement.clientHeight;
                 const nodes = Array.from(document.querySelectorAll(tagSel));
                 const out = [];
                 for (const n of nodes) {
@@ -119,6 +127,12 @@ async def locate_elements(page: Page, text: str = "", role: str = "") -> list[di
                     if (tag === "input") {
                         const t = (n.type || "text").toLowerCase();
                         if (t === "hidden" || t === "submit" || t === "button" || t === "image") continue;
+                    }
+                    const style = getComputedStyle(n);
+                    const rect = n.getBoundingClientRect();
+                    if (style.display === "none" || style.visibility === "hidden" ||
+                        rect.width <= 0 || rect.height <= 0) {
+                        continue;
                     }
                     let textVal = (n.innerText || n.getAttribute("aria-label") || "")
                         .replace(/\\s+/g, " ").trim().slice(0, 120);
@@ -147,6 +161,13 @@ async def locate_elements(page: Page, text: str = "", role: str = "") -> list[di
                     else if (roleAttr) selector = "role=" + roleAttr;
                     else selector = tag;
 
+                    const inViewport = rect.left < vw && rect.right > 0 &&
+                                       rect.top < vh && rect.bottom > 0;
+                    const pe = (style.pointerEvents || "auto").toLowerCase();
+                    const disabled = n.disabled === true ||
+                                     n.getAttribute("aria-disabled") === "true" ||
+                                     pe === "none";
+
                     out.push({
                         tag: tag,
                         text: textVal,
@@ -154,6 +175,16 @@ async def locate_elements(page: Page, text: str = "", role: str = "") -> list[di
                         id: n.id || "",
                         value: tag === "input" ? (n.value || "") : "",
                         selector: selector,
+                        enabled: !disabled,
+                        inViewport: inViewport,
+                        rect: {
+                            x: Math.round(rect.left), y: Math.round(rect.top),
+                            w: Math.round(rect.width), h: Math.round(rect.height)
+                        },
+                        visibility: {
+                            display: style.display, visibility: style.visibility,
+                            pointerEvents: pe
+                        },
                     });
                 }
                 return out;
@@ -163,6 +194,34 @@ async def locate_elements(page: Page, text: str = "", role: str = "") -> list[di
         )
         if not isinstance(raw, list):
             return []
-        return [d for d in raw if isinstance(d, dict)]
+        elements = [d for d in raw if isinstance(d, dict)]
+        await _confirm_actionable(page, elements)
+        return elements
     except Exception:
         return []
+
+
+async def _confirm_actionable(page: Page, elements: list[dict]) -> None:
+    """Second-layer Playwright actionability confirmation over surviving candidates.
+
+    Runs ``is_visible``/``is_enabled`` per element so "can this be operated now" is
+    confirmed by real interaction checks rather than layout heuristics alone. Only
+    already-screened candidates reach here, keeping the per-element round trips small.
+    Sets ``actionable`` on each entry and mirrors it onto ``enabled`` when a handle
+    could be resolved.
+    """
+    for el in elements:
+        selector = el.get("selector") or ""
+        confirmed: bool | None = None
+        if selector:
+            try:
+                handle = await page.query_selector(selector)
+                if handle is not None:
+                    confirmed = bool(await handle.is_visible()) and bool(await handle.is_enabled())
+            except Exception:
+                confirmed = None
+        if confirmed is None:
+            el["actionable"] = bool(el.get("enabled", True))
+        else:
+            el["actionable"] = confirmed
+            el["enabled"] = confirmed

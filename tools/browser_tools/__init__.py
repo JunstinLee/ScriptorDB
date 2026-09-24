@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from tools.browser_tools import (
+    actions,
     cookies,
     dom,
     filter_apply,
@@ -8,8 +9,9 @@ from tools.browser_tools import (
     inspect,
     links,
     navigation,
+    selectors,
     table,
     tabs,
 )
 
-__all__ = ["cookies", "dom", "filter_apply", "filter_detect", "inspect", "links", "navigation", "table", "tabs", "visual"]
+__all__ = ["actions", "cookies", "dom", "filter_apply", "filter_detect", "inspect", "links", "navigation", "selectors", "table", "tabs", "visual"]
