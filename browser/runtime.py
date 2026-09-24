@@ -103,10 +103,17 @@ async def locate_elements(
     ``enabled``/``inViewport``/``rect``/``visibility``/``inActive`` signals), then
     :func:`_confirm_actionable` does a second-layer Playwright actionability
     confirmation over the surviving candidates. Each entry carries
-    ``{tag, text, role, id, value, selector, enabled, inViewport, inActive, rect,
-    visibility, actionable}`` where ``selector`` can be passed straight back to
-    ``browser_click``/``browser_fill``. ``text`` (substring of element text) and
-    ``role`` optionally narrow the result. Raises nothing; returns ``[]`` on error.
+    ``{tag, text, role, id, value, ariaLabel, selector, semantic, path, enabled,
+    inViewport, inActive, rect, visibility, actionable}`` where ``selector`` can be
+    passed straight back to ``browser_click``/``browser_fill``. ``selector`` is built
+    deterministically (stable attribute -> aria-label -> unique text -> ``nth-of-type``
+    CSS path) so the same element resolves the same way across repeated locates.
+    ``text`` (substring of element text) and ``role`` optionally narrow the result.
+
+    ``path`` (body -> self tag chain), ``ariaLabel`` and ``semantic`` are informational
+    only: they are surfaced in this return structure and never gate actionability,
+    which stays with the visibility / active-container / interactivity signals. Raises
+    nothing; returns ``[]`` on error.
 
     ``scope`` bounds how wide the scan goes: ``"visible"`` (default) keeps only
     components inside the viewport **and** the current active container so hidden
@@ -208,7 +215,103 @@ async def locate_elements(
                     }
                     return null;
                 };
+                const countMatches = (sel) => {
+                    try { return document.querySelectorAll(sel).length; } catch (e) { return 0; }
+                };
+                const attrSelector = (attr, value) =>
+                    "[" + attr + "=" + JSON.stringify(value) + "]";
+                const cssPath = (el) => {
+                    const parts = [];
+                    let node = el;
+                    while (node && node.nodeType === 1) {
+                        const nodeTag = node.tagName.toLowerCase();
+                        const nodeType = (node.getAttribute("type") || "").toLowerCase();
+                        let part = (nodeTag === "input" && nodeType)
+                            ? nodeTag + "[type=" + JSON.stringify(nodeType) + "]" : nodeTag;
+                        const parent = node.parentElement;
+                        if (parent) {
+                            const sameTag = Array.from(parent.children)
+                                .filter((c) => c.tagName === node.tagName);
+                            if (sameTag.length > 1) {
+                                part += ":nth-of-type(" + (sameTag.indexOf(node) + 1) + ")";
+                            }
+                        }
+                        parts.unshift(part);
+                        const candidate = parts.join(" > ");
+                        if (countMatches(candidate) === 1) return candidate;
+                        if (parent === null || parent === document.documentElement) break;
+                        node = parent;
+                    }
+                    return parts.join(" > ") || el.tagName.toLowerCase();
+                };
+                const domPath = (el) => {
+                    const parts = [];
+                    let node = el;
+                    while (node && node.nodeType === 1) {
+                        parts.unshift(node.tagName.toLowerCase());
+                        if (node === document.body) break;
+                        node = node.parentElement;
+                    }
+                    return parts.join(" > ");
+                };
+                const DATE_CTX_SEL = [
+                    ".picker", ".calendar", ".ant-picker", ".ant-calendar",
+                    ".el-date", ".el-date-picker", ".el-picker-panel",
+                    ".t-date-picker", "[class*='picker']", "[class*='calendar']",
+                    "[class*='date-picker']", "[class*='datepicker']"
+                ].join(",");
+                const NAV_RE = /上一|下一|上个月|下个月|prev|next|arrow|chevron|backward|forward/i;
+                const MONTH_RE = /年|月|year|month|decade/i;
+                const semanticTag = (el, tag, textVal) => {
+                    let ctx = null;
+                    try { ctx = el.closest(DATE_CTX_SEL); } catch (e) { ctx = null; }
+                    if (!ctx) return null;
+                    const hint = ((el.getAttribute("aria-label") || "") + " " +
+                                  (el.getAttribute("class") || "")).trim();
+                    if (NAV_RE.test(hint)) return "calendar-navigation";
+                    if ((tag === "td" || tag === "div" || tag === "span") &&
+                        /^\\d{1,2}$/.test(textVal)) return "calendar-day";
+                    if (MONTH_RE.test(hint)) return "calendar-month";
+                    return null;
+                };
                 const nodes = Array.from(document.querySelectorAll(tagSel));
+                const readText = (n) => (n.innerText || n.getAttribute("aria-label") || "")
+                    .replace(/\\s+/g, " ").trim().slice(0, 120);
+                const textCount = new Map();
+                for (const n of nodes) {
+                    const t = readText(n);
+                    if (t) textCount.set(t, (textCount.get(t) || 0) + 1);
+                }
+                const selFor = (el, tag, textVal) => {
+                    for (const attr of ["data-testid", "data-test", "data-qa"]) {
+                        const v = el.getAttribute(attr);
+                        if (v) {
+                            const sel = attrSelector(attr, v);
+                            if (countMatches(sel) === 1) return sel;
+                        }
+                    }
+                    const type = (el.getAttribute("type") || "").toLowerCase();
+                    const base = (tag === "input" && type)
+                        ? tag + "[type=" + JSON.stringify(type) + "]" : tag;
+                    if (el.id) {
+                        const sel = "#" + CSS.escape(el.id);
+                        if (countMatches(sel) === 1) return sel;
+                    }
+                    const name = el.getAttribute("name");
+                    if (name) {
+                        const sel = base + "[name=" + JSON.stringify(name) + "]";
+                        if (countMatches(sel) === 1) return sel;
+                    }
+                    const aria = el.getAttribute("aria-label");
+                    if (aria) {
+                        const sel = base + "[aria-label=" + JSON.stringify(aria) + "]";
+                        if (countMatches(sel) === 1) return sel;
+                    }
+                    if (textVal && textCount.get(textVal) === 1) {
+                        return "text=" + JSON.stringify(textVal.slice(0, 60));
+                    }
+                    return cssPath(el);
+                };
                 const out = [];
                 for (const n of nodes) {
                     const tag = n.tagName.toLowerCase();
@@ -222,8 +325,7 @@ async def locate_elements(
                                      style.visibility === "hidden" ||
                                      rect.width <= 0 || rect.height <= 0;
                     if (screened && scope !== "page") continue;
-                    let textVal = (n.innerText || n.getAttribute("aria-label") || "")
-                        .replace(/\\s+/g, " ").trim().slice(0, 120);
+                    let textVal = readText(n);
                     if (filters.text) {
                         if (!textVal || !textVal.toLowerCase().includes(filters.text.toLowerCase())) continue;
                     }
@@ -240,14 +342,7 @@ async def locate_elements(
                     }
                     if (filters.role && roleAttr && !roleAttr.toLowerCase().includes(filters.role.toLowerCase())) continue;
 
-                    let selector = "";
-                    if (textVal) selector = "text=" + JSON.stringify(textVal.slice(0, 60));
-                    else if (n.id) selector = "#" + CSS.escape(n.id);
-                    else if (n.name) selector = tag + "[name=" + JSON.stringify(n.name) + "]";
-                    else if (n.getAttribute("placeholder")) selector = tag + "[placeholder=" + JSON.stringify(n.getAttribute("placeholder")) + "]";
-                    else if (n.getAttribute("aria-label")) selector = tag + "[aria-label=" + JSON.stringify(n.getAttribute("aria-label")) + "]";
-                    else if (roleAttr) selector = "role=" + roleAttr;
-                    else selector = tag;
+                    const selector = selFor(n, tag, textVal);
 
                     const inViewport = rect.left < vw && rect.right > 0 &&
                                        rect.top < vh && rect.bottom > 0;
@@ -267,7 +362,10 @@ async def locate_elements(
                         role: roleAttr,
                         id: n.id || "",
                         value: tag === "input" ? (n.value || "") : "",
+                        ariaLabel: n.getAttribute("aria-label") || "",
                         selector: selector,
+                        semantic: semanticTag(n, tag, textVal),
+                        path: domPath(n),
                         enabled: !disabled,
                         inViewport: inViewport,
                         inActive: inActive,

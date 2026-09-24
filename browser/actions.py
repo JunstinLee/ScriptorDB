@@ -17,6 +17,13 @@ async def scroll_by(page: Page, pixels: int) -> str:
 
 async def click(page: Page, selector: str, timeout: int = 30_000) -> str:
     try:
+        element = await page.query_selector(selector)
+        if element is None:
+            return f"Click failed: element not found: {selector}"
+        if not await element.is_visible():
+            return f"Click failed: element is not visible: {selector}"
+        if not await element.is_enabled():
+            return f"Click failed: element is disabled: {selector}"
         await page.click(selector, timeout=timeout)
         return f"Clicked element: {selector}"
     except Exception as e:

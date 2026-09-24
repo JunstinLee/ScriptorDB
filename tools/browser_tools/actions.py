@@ -93,6 +93,8 @@ async def browser_click(
     detail = selector
     pre = trace.get("pre_click") or {}
     final_url = trace.get("final_url") or ""
+    if final_url:
+        result += f"\nPage state: {final_url} ({trace.get('title') or ''})"
     if pre.get("url") and final_url and pre.get("url") != final_url:
         detail = f"{selector} -> {final_url}"
     manager.record_action("click", detail, selector=selector,
