@@ -28,6 +28,7 @@ async def browser_locate(
     ctx: RunContext[Settings],
     text: str = "",
     role: str = "",
+    scope: str = "visible",
 ) -> str:
     """List interactive elements on the current page with ready-to-reuse selectors.
 
@@ -36,6 +37,12 @@ async def browser_locate(
     (ex. `text=导出`, `#id`, `input[name="…"]`). Optionally filter by `text` (substring
     of the element's text) or `role` (button/textbox/tab/link/combobox/...). Read-only:
     this tool does not change the page.
+
+    `scope` chooses how wide to scan: `"visible"` (default) exposes only components in
+    the current viewport within the active container, so hidden sibling panels (ex. the
+    inactive month-panel of a date picker) are excluded; widen to `"container"` to keep
+    the whole active container (including slightly off-screen parts) or `"page"` to scan
+    the entire DOM. Hidden elements only appear at `scope="page"`.
     """
     from browser.runtime import locate_elements
 
@@ -45,7 +52,11 @@ async def browser_locate(
     if blocked := _check_blocked(manager):
         return blocked
 
-    elements = await locate_elements(page, text=text, role=role)
+    scope = (scope or "visible").strip().lower()
+    if scope not in ("visible", "container", "page"):
+        scope = "visible"
+
+    elements = await locate_elements(page, text=text, role=role, scope=scope)
     filters = []
     if text:
         filters.append(f"text={text}")
@@ -53,6 +64,19 @@ async def browser_locate(
         filters.append(f"role={role}")
     if not elements:
         suffix = f" (filter: {', '.join(filters)})" if filters else ""
+        if scope == "visible":
+            return (
+                f"No interactive elements in the current visible layer{suffix}. "
+                "Results are filtered to the current viewport and active container, so "
+                "hidden sibling panels and off-screen nodes are excluded. "
+                'Widen the scope: call browser_locate with scope="container" for the whole '
+                'active container, or scope="page" to scan the entire DOM.'
+            )
+        if scope == "container":
+            return (
+                f"No interactive elements in the active container{suffix}. "
+                'Widen the scope: call browser_locate with scope="page" to scan the entire DOM.'
+            )
         return f"No interactive elements found.{suffix}"
 
     elements.sort(key=lambda el: (not el.get("inViewport"), not el.get("actionable")))
@@ -64,10 +88,10 @@ async def browser_locate(
         lines.append(
             f"{i}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]{label} -> {el.get('selector')}"
         )
-    manager.record_action(
-        "locate",
-        f"{len(elements)} elements" + (f" ({', '.join(filters)})" if filters else ""),
-    )
+    detail = f"scope={scope}"
+    if filters:
+        detail += f", {', '.join(filters)}"
+    manager.record_action("locate", f"{len(elements)} elements ({detail})")
     return "\n".join(lines)
 
 
