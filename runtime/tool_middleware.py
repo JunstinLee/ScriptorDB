@@ -13,6 +13,7 @@ from runtime.middleware_probe import (
     _same_domain,
     _target_url_from_prompt,
 )
+from schemas import ToolResult
 
 logger = get_logger("tool_middleware")
 
@@ -129,10 +130,12 @@ def _label(tool_name: str, replacement: str, kwargs: dict, result: Any) -> str:
     )
 
 
-def _result_is_empty(result: str | dict) -> bool:
+def _result_is_empty(result: Any) -> bool:
+    if isinstance(result, ToolResult):
+        return not result.success
     if isinstance(result, dict):
         return not result.get("rows") and not result.get("links")
-    low = result.lower()
+    low = str(result).lower()
     return any(marker in low for marker in _EMPTY_RESULT_MARKERS)
 
 

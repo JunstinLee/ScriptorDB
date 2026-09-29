@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from playwright.async_api import Page
+from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
 
 async def scroll_to_bottom(page: Page) -> str:
@@ -26,8 +26,13 @@ async def click(page: Page, selector: str, timeout: int = 30_000) -> str:
             return f"Click failed: element is disabled: {selector}"
         await page.click(selector, timeout=timeout)
         return f"Clicked element: {selector}"
+    except PlaywrightTimeoutError:
+        return (
+            f"Click failed: timed out after {timeout}ms — element not actionable "
+            f"(covered by another element, unstable, or detached): {selector}"
+        )
     except Exception as e:
-        return f"Click failed: {e}"
+        return f"Click failed: {selector} ({type(e).__name__}: {e})"
 
 
 async def fill(page: Page, selector: str, text: str, timeout: int = 30_000) -> str:

@@ -104,7 +104,8 @@ async def locate_elements(
     :func:`_confirm_actionable` does a second-layer Playwright actionability
     confirmation over the surviving candidates. Each entry carries
     ``{tag, text, role, id, value, ariaLabel, selector, semantic, path, enabled,
-    inViewport, inActive, rect, visibility, actionable}`` where ``selector`` can be
+    receivesEvents, inViewport, inActive, rect, visibility, actionable}`` where
+    ``selector`` can be
     passed straight back to ``browser_click``/``browser_fill``. ``selector`` is built
     deterministically (stable attribute -> aria-label -> unique text -> ``nth-of-type``
     CSS path) so the same element resolves the same way across repeated locates.
@@ -356,6 +357,13 @@ async def locate_elements(
                     if (scope === "visible" && !(inViewport && inActive)) continue;
                     if (scope === "container" && !inActive) continue;
 
+                    let receivesEvents = true;
+                    if (inViewport && rect.width > 0 && rect.height > 0) {
+                        const hit = document.elementFromPoint(
+                            rect.left + rect.width / 2, rect.top + rect.height / 2);
+                        receivesEvents = !!hit && (hit === n || n.contains(hit));
+                    }
+
                     out.push({
                         tag: tag,
                         text: textVal,
@@ -367,6 +375,7 @@ async def locate_elements(
                         semantic: semanticTag(n, tag, textVal),
                         path: domPath(n),
                         enabled: !disabled,
+                        receivesEvents: receivesEvents,
                         inViewport: inViewport,
                         inActive: inActive,
                         rect: {
@@ -396,11 +405,13 @@ async def locate_elements(
 async def _confirm_actionable(page: Page, elements: list[dict]) -> None:
     """Second-layer Playwright actionability confirmation over surviving candidates.
 
-    Runs ``is_visible``/``is_enabled`` per element so "can this be operated now" is
-    confirmed by real interaction checks rather than layout heuristics alone. Only
-    already-screened candidates reach here, keeping the per-element round trips small.
-    Sets ``actionable`` on each entry and mirrors it onto ``enabled`` when a handle
-    could be resolved.
+    Runs ``is_visible``/``is_enabled`` per element and folds in the first-layer
+    ``receivesEvents`` hit test (does the element's center actually receive the
+    pointer, i.e. is it covered by an overlay/sibling) so "can this be operated
+    now" matches what ``page.click`` will accept. Only already-screened
+    candidates reach here, keeping the per-element round trips small. Sets
+    ``actionable`` on each entry and mirrors it onto ``enabled`` when a handle
+    could be resolved; an unresolvable selector is treated as not actionable.
     """
     for el in elements:
         selector = el.get("selector") or ""
@@ -409,11 +420,15 @@ async def _confirm_actionable(page: Page, elements: list[dict]) -> None:
             try:
                 handle = await page.query_selector(selector)
                 if handle is not None:
-                    confirmed = bool(await handle.is_visible()) and bool(await handle.is_enabled())
+                    confirmed = (
+                        bool(await handle.is_visible())
+                        and bool(await handle.is_enabled())
+                        and bool(el.get("receivesEvents", True))
+                    )
             except Exception:
                 confirmed = None
         if confirmed is None:
-            el["actionable"] = bool(el.get("enabled", True))
+            el["actionable"] = False
         else:
             el["actionable"] = confirmed
             el["enabled"] = confirmed

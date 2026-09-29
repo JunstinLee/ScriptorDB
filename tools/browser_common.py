@@ -82,7 +82,7 @@ async def _settle_after_click(page) -> None:
     await page.wait_for_timeout(500)
 
 
-async def _wait_for_download(manager, since: float, timeout: float = 30.0) -> dict | None:
+async def _wait_for_download(manager, since: float, timeout: float = 2.0) -> dict | None:
     """Wait for a new download record (ts >= since) to appear, up to ``timeout`` seconds.
 
     Polls ``manager.recent_downloads`` so a download that arrives later than the click

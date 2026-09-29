@@ -4,6 +4,7 @@ import time
 
 from config.settings import Settings
 from pydantic_ai import RunContext
+from schemas import ToolErrorInfo, ToolResult
 from tools.browser_common import (
     _check_blocked,
     _ensure_downloads_dir,
@@ -17,6 +18,15 @@ from tools.browser_tools.selectors import (
     _normalize_selector,
 )
 from tools.tool_decorators import db_tool
+
+
+def _click_error_category(message: str) -> str:
+    low = message.lower()
+    if "not found" in low:
+        return "resource_not_found"
+    if "timed out" in low or "timeout" in low:
+        return "execution_timeout"
+    return "internal_error"
 
 
 @db_tool(name="browser_wait_for_selector", category="browser", timeout=15, sequential=True)
@@ -52,8 +62,8 @@ async def browser_click(
     ctx: RunContext[Settings],
     selector: str,
     text: str = "",
-    download_wait: int = 30,
-) -> str:
+    download_wait: int = 2,
+) -> str | ToolResult:
     """Click the first element matching `selector`.
 
     `selector` accepts both CSS and Playwright engine selectors: `#id`, `.class`,
@@ -81,6 +91,7 @@ async def browser_click(
 
     clicked_at = time.time()
     result = await _click(page, selector, timeout=_ACTION_TIMEOUT_MS)
+    click_failed = result.startswith("Click failed")
 
     await _settle_after_click(page)
     if download_wait > 0:
@@ -103,6 +114,14 @@ async def browser_click(
     if failed:
         manager.record_element_failure(selector)
         await manager.detect_takeover()
+    if click_failed:
+        return ToolResult(
+            success=False,
+            error=ToolErrorInfo(
+                category=_click_error_category(result),
+                message=result,
+            ),
+        )
     return result
 
 

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from pydantic_ai import Tool
+from schemas import ToolErrorInfo, ToolResult
 
 from core.logging_setup import get_logger
 
@@ -51,9 +52,15 @@ def _wrap_browser_tool(
                 except asyncio.TimeoutError:
                     task.cancel()
                     await asyncio.gather(task, return_exceptions=True)
-                    return (
-                        f"Failed: tool execution timed out after {timeout} seconds; "
-                        "the operation did not complete. Retry or use another approach."
+                    return ToolResult(
+                        success=False,
+                        error=ToolErrorInfo(
+                            category="execution_timeout",
+                            message=(
+                                f"Failed: tool execution timed out after {timeout} seconds; "
+                                "the operation did not complete. Retry or use another approach."
+                            ),
+                        ),
                     )
 
             enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
@@ -67,9 +74,15 @@ def _wrap_browser_tool(
             return await execute_switch(ctx, name, kwargs, decision)
         except Exception as e:
             logger.exception("tool %s raised uncaught %s: %s", name, type(e).__name__, e)
-            return (
-                f"Failed: tool execution error ({type(e).__name__}: {e}). "
-                "Retry or use another approach."
+            return ToolResult(
+                success=False,
+                error=ToolErrorInfo(
+                    category="internal_error",
+                    message=(
+                        f"Failed: tool execution error ({type(e).__name__}: {e}). "
+                        "Retry or use another approach."
+                    ),
+                ),
             )
 
     return wrapped
