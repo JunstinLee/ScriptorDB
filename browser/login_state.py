@@ -130,13 +130,40 @@ async def _has_login_action(page: LoginPage) -> bool:
         return False
 
 
-async def _login_page_signals(page: LoginPage) -> tuple[bool, str]:
+# 登录页信号缓存（只缓存"非登录页"结论）：MutationObserver 触发时由
+# login_watcher 清空，避免常驻轮询每 1.5s 重复付多段 evaluate。
+_signals_cache: dict[str, tuple[bool, str]] = {}
+
+
+def invalidate_login_signals() -> None:
+    """DOM 变动 / 导航后清空登录页信号缓存。"""
+    _signals_cache.clear()
+
+
+async def _login_page_signals(
+    page: LoginPage, *, cached: bool = False
+) -> tuple[bool, str]:
     """返回 (是否登录页, 证据)。
 
     信号：URL 指向登录路径，或「存在密码框」且（标题含登录关键词
     或表单含登录操作）。中英双语，覆盖中文站点——这类页面标题常只
     写机构名/品牌名，登录线索在提交按钮文本上。
+
+    ``cached=True`` 时按 URL 复用"非登录页"结论（常驻 watcher 轮询用）；
+    阳性结论不缓存，登录态一到即被重新识别。
     """
+    url = getattr(page, "url", "") or ""
+    if cached:
+        hit = _signals_cache.get(url)
+        if hit is not None:
+            return hit
+    result = await _compute_login_page_signals(page)
+    if cached and not result[0]:
+        _signals_cache[url] = result
+    return result
+
+
+async def _compute_login_page_signals(page: LoginPage) -> tuple[bool, str]:
     if _is_login_url(page.url):
         return True, "URL points to a login path"
     if not await _has_password_input(page):

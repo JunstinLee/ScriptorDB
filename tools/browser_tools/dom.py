@@ -8,6 +8,58 @@ from tools.browser_tools.selectors import _normalize_selector
 from tools.tool_decorators import db_tool
 
 
+def _state_counts(elements: list[dict]) -> tuple[int, int, int]:
+    """统计 usable / blocked / unverified 三态计数。"""
+    usable = blocked = unverified = 0
+    for el in elements:
+        state = el.get("state")
+        if state == "usable":
+            usable += 1
+        elif state == "blocked":
+            blocked += 1
+        elif state == "unverified":
+            unverified += 1
+    return usable, blocked, unverified
+
+
+def _blocked_reason_counts(elements: list[dict]) -> dict[str, int]:
+    """blocked 条目的原因分布（hidden / disabled / covered / detached）。"""
+    reasons: dict[str, int] = {}
+    for el in elements:
+        if el.get("state") == "blocked":
+            reason = el.get("state_reason") or "unknown"
+            reasons[reason] = reasons.get(reason, 0) + 1
+    return reasons
+
+
+def _format_element_line(index: int, el: dict, suffix: str = "") -> str:
+    snippet = (el.get("text") or el.get("value") or "").strip()
+    label = f" {snippet[:40]!r}" if snippet else ""
+    return (
+        f"{index}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]"
+        f"{label} -> {el.get('selector')}{suffix}"
+    )
+
+
+def _empty_elements_hint(scope: str, filters: list[str]) -> str:
+    suffix = f" (filter: {', '.join(filters)})" if filters else ""
+    if scope == "visible":
+        return (
+            f"No interactive elements in the current visible layer{suffix}. "
+            "Results are filtered to the current viewport and active container, so "
+            "hidden sibling panels and off-screen nodes are excluded. Wait for the "
+            "panel to settle (browser_wait_for_selector), or retry with "
+            'scope="container" for the whole active container.'
+        )
+    if scope == "container":
+        return (
+            f"No interactive elements in the active container{suffix}. "
+            "Wait for the panel to appear (browser_wait_for_selector) and retry; use "
+            'scope="page" only as a last resort — it applies a candidate cap and may be incomplete.'
+        )
+    return f"No interactive elements found.{suffix}"
+
+
 @db_tool(name="browser_get_text", category="browser", timeout=15, sequential=True)
 async def browser_get_text(ctx: RunContext[Settings]) -> str:
     manager, page = _require_browser()
@@ -38,11 +90,18 @@ async def browser_locate(
     of the element's text) or `role` (button/textbox/tab/link/combobox/...). Read-only:
     this tool does not change the page.
 
+    The main list contains only elements Playwright confirmed as **usable right now**
+    (visible, enabled, and actually receiving pointer events). Elements confirmed
+    unusable (hidden / disabled / covered) are omitted. When nothing qualifies, the tool
+    degrades to elements it could not verify, each tagged `[unverified]` with a trailing
+    count — confirm those (browser_wait_for_selector / browser_query) before acting.
+
     `scope` chooses how wide to scan: `"visible"` (default) exposes only components in
     the current viewport within the active container, so hidden sibling panels (ex. the
     inactive month-panel of a date picker) are excluded; widen to `"container"` to keep
     the whole active container (including slightly off-screen parts) or `"page"` to scan
-    the entire DOM. Hidden elements only appear at `scope="page"`.
+    the entire DOM. Hidden elements only appear at `scope="page"`. `scope="page"` applies
+    a candidate cap, so its result may be incomplete.
     """
     from browser.runtime import locate_elements
 
@@ -62,37 +121,50 @@ async def browser_locate(
         filters.append(f"text={text}")
     if role:
         filters.append(f"role={role}")
-    if not elements:
-        suffix = f" (filter: {', '.join(filters)})" if filters else ""
-        if scope == "visible":
-            return (
-                f"No interactive elements in the current visible layer{suffix}. "
-                "Results are filtered to the current viewport and active container, so "
-                "hidden sibling panels and off-screen nodes are excluded. "
-                'Widen the scope: call browser_locate with scope="container" for the whole '
-                'active container, or scope="page" to scan the entire DOM.'
-            )
-        if scope == "container":
-            return (
-                f"No interactive elements in the active container{suffix}. "
-                'Widen the scope: call browser_locate with scope="page" to scan the entire DOM.'
-            )
-        return f"No interactive elements found.{suffix}"
 
-    elements.sort(key=lambda el: (not el.get("inViewport"), not el.get("actionable")))
-
-    lines = []
-    for i, el in enumerate(elements, 1):
-        snippet = (el.get("text") or el.get("value") or "").strip()
-        label = f" {snippet[:40]!r}" if snippet else ""
-        lines.append(
-            f"{i}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]{label} -> {el.get('selector')}"
-        )
+    usable, blocked, unverified = _state_counts(elements)
     detail = f"scope={scope}"
     if filters:
         detail += f", {', '.join(filters)}"
-    manager.record_action("locate", f"{len(elements)} elements ({detail})")
-    return "\n".join(lines)
+    stats = (
+        f"{len(elements)} elements ({detail}; "
+        f"usable={usable}, blocked={blocked}, unverified={unverified})"
+    )
+    reasons = _blocked_reason_counts(elements)
+    if reasons:
+        stats += " blocked_reasons=" + ", ".join(
+            f"{name}={count}" for name, count in sorted(reasons.items())
+        )
+    manager.record_action("locate", stats)
+
+    if usable:
+        return "\n".join(
+            _format_element_line(i, el)
+            for i, el in enumerate(
+                (e for e in elements if e.get("state") == "usable"), 1
+            )
+        )
+
+    if unverified:
+        unverified_elements = [el for el in elements if el.get("state") == "unverified"]
+        lines = [
+            _format_element_line(i, el, " [unverified]")
+            for i, el in enumerate(unverified_elements, 1)
+        ]
+        lines.append(
+            f"[{len(unverified_elements)} unverified element(s): Playwright could not confirm "
+            "them as ready to use. Wait for the page to settle (browser_wait_for_selector) or "
+            "inspect with browser_query before acting.]"
+        )
+        return "\n".join(lines)
+
+    hint = _empty_elements_hint(scope, filters)
+    if blocked:
+        hint += (
+            f"\n[{blocked} matching element(s) exist but are currently hidden, "
+            "disabled, or covered.]"
+        )
+    return hint
 
 
 @db_tool(name="browser_query", category="browser", timeout=10, sequential=False)

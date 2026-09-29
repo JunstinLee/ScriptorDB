@@ -63,15 +63,26 @@ def _wrap_browser_tool(
                         ),
                     )
 
+            async def tracked(call):
+                # 工具执行期间置忙标志：LoginWatcher 据此让出同一 page 的连接。
+                from browser import get_manager
+
+                manager = get_manager()
+                manager.tool_started()
+                try:
+                    return await call()
+                finally:
+                    manager.tool_finished()
+
             enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
             if not enabled:
-                return await run_with_timeout()
+                return await tracked(run_with_timeout)
             from runtime.tool_middleware import evaluate_call, execute_switch
 
             decision = await evaluate_call(ctx, name)
             if decision == "allow":
-                return await run_with_timeout()
-            return await execute_switch(ctx, name, kwargs, decision)
+                return await tracked(run_with_timeout)
+            return await tracked(lambda: execute_switch(ctx, name, kwargs, decision))
         except Exception as e:
             logger.exception("tool %s raised uncaught %s: %s", name, type(e).__name__, e)
             return ToolResult(

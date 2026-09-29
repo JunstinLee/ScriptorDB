@@ -1,8 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 from playwright.async_api import Page
+
+from browser.locate_script import LOCATE_ELEMENTS_JS
+from core.logging_setup import get_logger
+
+logger = get_logger("browser.runtime")
+
+# 确认阶段的成本预算：候选先按「在视口 / 活跃容器 / 有没有稳定属性」预排序，
+# 只对前 N 个做 Playwright 二次确认，其余截断（避免 3N 次串行往返打爆 15s 预算）。
+MAX_CONFIRM_CANDIDATES = 60
+CONFIRM_CONCURRENCY = 6
 
 
 class InvalidSelectorError(Exception):
@@ -93,23 +104,50 @@ async def get_image_sources(page: Page) -> str:
         return f"Get image sources error: {e}"
 
 
+def _has_stable_attr(el: dict) -> bool:
+    """候选是否由稳定属性定位（id / aria-label / name / data-test*）——预排序用。"""
+    selector = el.get("selector") or ""
+    return (
+        bool(el.get("id"))
+        or bool(el.get("ariaLabel"))
+        or selector.startswith("#")
+        or "data-test" in selector
+        or "[name=" in selector
+    )
+
+
 async def locate_elements(
     page: Page, text: str = "", role: str = "", scope: str = "visible"
 ) -> list[dict]:
     """Collect visible, interactive elements into ready-to-reuse selectors.
 
-    Two-layer visibility: the JS pass does a first-layer layout screening (drops
-    ``display:none`` / ``visibility:hidden`` / zero-size nodes and attaches graded
-    ``enabled``/``inViewport``/``rect``/``visibility``/``inActive`` signals), then
-    :func:`_confirm_actionable` does a second-layer Playwright actionability
-    confirmation over the surviving candidates. Each entry carries
-    ``{tag, text, role, id, value, ariaLabel, selector, semantic, path, enabled,
-    receivesEvents, inViewport, inActive, rect, visibility, actionable}`` where
-    ``selector`` can be
-    passed straight back to ``browser_click``/``browser_fill``. ``selector`` is built
-    deterministically (stable attribute -> aria-label -> unique text -> ``nth-of-type``
-    CSS path) so the same element resolves the same way across repeated locates.
-    ``text`` (substring of element text) and ``role`` optionally narrow the result.
+    Two-layer pipeline: :data:`~browser.locate_script.LOCATE_ELEMENTS_JS` does a
+    first-layer layout screening (drops ``display:none`` / ``visibility:hidden`` /
+    zero-size nodes and attaches the raw signals ``enabled``/``inViewport``/
+    ``receivesEvents``/``rect``/``visibility``/``inActive``), then
+    :func:`_confirm_actionable` decides a three-state ``state`` per surviving
+    candidate from those signals plus Playwright's own ``is_visible``/``is_enabled``.
+
+    ``state`` is one of:
+
+    - ``"usable"``    — the selector resolves and Playwright confirms visible,
+      enabled and actually receiving pointer events; safe to click/fill.
+    - ``"blocked"``   — the selector resolves but the element is not operable now;
+      ``state_reason`` names why (``hidden`` / ``disabled`` / ``covered`` / ``detached``).
+    - ``"unverified"`` — the selector could not be resolved (``query_selector``
+      returned ``None`` or raised), so actionability is simply unknown.
+
+    The distinction matters to callers: "known unusable" and "not verified" are no
+    longer collapsed into one boolean. ``actionable`` is kept as a derived convenience
+    flag (``state == "usable"``); ``enabled`` stays the raw JS layout heuristic.
+
+    Each entry also carries ``{tag, text, role, id, value, ariaLabel, selector,
+    semantic, path, receivesEvents, inViewport, inActive, rect, visibility,
+    state, state_reason, actionable}`` where ``selector`` can be passed straight back
+    to ``browser_click``/``browser_fill``. ``selector`` is built deterministically
+    (stable attribute -> aria-label -> unique text -> ``nth-of-type`` CSS path) so the
+    same element resolves the same way across repeated locates. ``text`` (substring of
+    element text) and ``role`` optionally narrow the result.
 
     ``path`` (body -> self tag chain), ``ariaLabel`` and ``semantic`` are informational
     only: they are surfaced in this return structure and never gate actionability,
@@ -121,276 +159,16 @@ async def locate_elements(
     sibling panels (ex. the coexisting visible/hidden month-panels of a date picker)
     stay out of the result; ``"container"`` keeps the whole active container even
     when slightly off-viewport; ``"page"`` drops the screening and returns the raw
-    DOM matches. Breadth is capped here in the tool layer — callers can widen the
-    scope but cannot bypass visibility/active-container filtering.
+    DOM matches. Confirmation is capped at :data:`MAX_CONFIRM_CANDIDATES`, so breadth
+    is bounded here in the tool layer — callers can widen the scope but cannot bypass
+    visibility/active-container filtering nor the cap.
     """
     scope = (scope or "visible").strip().lower()
     if scope not in ("visible", "container", "page"):
         scope = "visible"
     try:
         raw = await page.evaluate(
-            """
-            (filters) => {
-                const tagSel = [
-                    "a", "button", "input", "select", "textarea",
-                    "li", "div", "span", "td", "label",
-                    "[role='button']", "[role='link']", "[role='tab']",
-                    "[role='menuitem']", "[role='checkbox']", "[role='radio']",
-                    "[role='textbox']", "[role='combobox']", "[role='searchbox']",
-                    "[role='switch']", "[role='option']"
-                ].join(",");
-                const scope = filters.scope || "visible";
-                const vw = document.documentElement.clientWidth;
-                const vh = document.documentElement.clientHeight;
-                const laidOutCache = new WeakMap();
-                const laidOut = (el) => {
-                    let v = laidOutCache.get(el);
-                    if (v !== undefined) return v;
-                    const cs = getComputedStyle(el);
-                    const r = el.getBoundingClientRect();
-                    v = !(cs.display === "none" || cs.visibility === "hidden" ||
-                          r.width <= 0 || r.height <= 0);
-                    laidOutCache.set(el, v);
-                    return v;
-                };
-                const structCache = new WeakMap();
-                const structCount = (el) => {
-                    let v = structCache.get(el);
-                    if (v === undefined) {
-                        v = el.querySelectorAll(tagSel).length;
-                        structCache.set(el, v);
-                    }
-                    return v;
-                };
-                const visCache = new WeakMap();
-                const visibleCount = (el) => {
-                    let v = visCache.get(el);
-                    if (v !== undefined) return v;
-                    let c = 0;
-                    for (const d of el.querySelectorAll(tagSel)) {
-                        if (laidOut(d)) c++;
-                    }
-                    visCache.set(el, c);
-                    return c;
-                };
-                const activeCache = new WeakMap();
-                const isActiveContainer = (el) => {
-                    let v = activeCache.get(el);
-                    if (v !== undefined) return v;
-                    v = true;
-                    const parent = el.parentElement;
-                    if (parent && parent !== document.body && parent !== document.documentElement) {
-                        let regions = 0, hasVisible = false, hasHidden = false;
-                        for (const sib of parent.children) {
-                            if (structCount(sib) >= 2) {
-                                regions++;
-                                if (visibleCount(sib) > 0) hasVisible = true;
-                                else hasHidden = true;
-                            }
-                        }
-                        if (regions >= 2 && hasVisible && hasHidden) {
-                            v = visibleCount(el) > 0;
-                        }
-                    }
-                    activeCache.set(el, v);
-                    return v;
-                };
-                const containerOf = (node) => {
-                    let p = node.parentElement;
-                    while (p && p !== document.body && p !== document.documentElement) {
-                        if (structCount(p) >= 2) {
-                            const parent = p.parentElement;
-                            if (parent && parent !== document.body && parent !== document.documentElement) {
-                                let regions = 0, hasVisible = false, hasHidden = false;
-                                for (const sib of parent.children) {
-                                    if (structCount(sib) >= 2) {
-                                        regions++;
-                                        if (visibleCount(sib) > 0) hasVisible = true;
-                                        else hasHidden = true;
-                                    }
-                                }
-                                if (regions >= 2 && hasVisible && hasHidden) return p;
-                            }
-                        }
-                        p = p.parentElement;
-                    }
-                    return null;
-                };
-                const countMatches = (sel) => {
-                    try { return document.querySelectorAll(sel).length; } catch (e) { return 0; }
-                };
-                const attrSelector = (attr, value) =>
-                    "[" + attr + "=" + JSON.stringify(value) + "]";
-                const cssPath = (el) => {
-                    const parts = [];
-                    let node = el;
-                    while (node && node.nodeType === 1) {
-                        const nodeTag = node.tagName.toLowerCase();
-                        const nodeType = (node.getAttribute("type") || "").toLowerCase();
-                        let part = (nodeTag === "input" && nodeType)
-                            ? nodeTag + "[type=" + JSON.stringify(nodeType) + "]" : nodeTag;
-                        const parent = node.parentElement;
-                        if (parent) {
-                            const sameTag = Array.from(parent.children)
-                                .filter((c) => c.tagName === node.tagName);
-                            if (sameTag.length > 1) {
-                                part += ":nth-of-type(" + (sameTag.indexOf(node) + 1) + ")";
-                            }
-                        }
-                        parts.unshift(part);
-                        const candidate = parts.join(" > ");
-                        if (countMatches(candidate) === 1) return candidate;
-                        if (parent === null || parent === document.documentElement) break;
-                        node = parent;
-                    }
-                    return parts.join(" > ") || el.tagName.toLowerCase();
-                };
-                const domPath = (el) => {
-                    const parts = [];
-                    let node = el;
-                    while (node && node.nodeType === 1) {
-                        parts.unshift(node.tagName.toLowerCase());
-                        if (node === document.body) break;
-                        node = node.parentElement;
-                    }
-                    return parts.join(" > ");
-                };
-                const DATE_CTX_SEL = [
-                    ".picker", ".calendar", ".ant-picker", ".ant-calendar",
-                    ".el-date", ".el-date-picker", ".el-picker-panel",
-                    ".t-date-picker", "[class*='picker']", "[class*='calendar']",
-                    "[class*='date-picker']", "[class*='datepicker']"
-                ].join(",");
-                const NAV_RE = /上一|下一|上个月|下个月|prev|next|arrow|chevron|backward|forward/i;
-                const MONTH_RE = /年|月|year|month|decade/i;
-                const semanticTag = (el, tag, textVal) => {
-                    let ctx = null;
-                    try { ctx = el.closest(DATE_CTX_SEL); } catch (e) { ctx = null; }
-                    if (!ctx) return null;
-                    const hint = ((el.getAttribute("aria-label") || "") + " " +
-                                  (el.getAttribute("class") || "")).trim();
-                    if (NAV_RE.test(hint)) return "calendar-navigation";
-                    if ((tag === "td" || tag === "div" || tag === "span") &&
-                        /^\\d{1,2}$/.test(textVal)) return "calendar-day";
-                    if (MONTH_RE.test(hint)) return "calendar-month";
-                    return null;
-                };
-                const nodes = Array.from(document.querySelectorAll(tagSel));
-                const readText = (n) => (n.innerText || n.getAttribute("aria-label") || "")
-                    .replace(/\\s+/g, " ").trim().slice(0, 120);
-                const textCount = new Map();
-                for (const n of nodes) {
-                    const t = readText(n);
-                    if (t) textCount.set(t, (textCount.get(t) || 0) + 1);
-                }
-                const selFor = (el, tag, textVal) => {
-                    for (const attr of ["data-testid", "data-test", "data-qa"]) {
-                        const v = el.getAttribute(attr);
-                        if (v) {
-                            const sel = attrSelector(attr, v);
-                            if (countMatches(sel) === 1) return sel;
-                        }
-                    }
-                    const type = (el.getAttribute("type") || "").toLowerCase();
-                    const base = (tag === "input" && type)
-                        ? tag + "[type=" + JSON.stringify(type) + "]" : tag;
-                    if (el.id) {
-                        const sel = "#" + CSS.escape(el.id);
-                        if (countMatches(sel) === 1) return sel;
-                    }
-                    const name = el.getAttribute("name");
-                    if (name) {
-                        const sel = base + "[name=" + JSON.stringify(name) + "]";
-                        if (countMatches(sel) === 1) return sel;
-                    }
-                    const aria = el.getAttribute("aria-label");
-                    if (aria) {
-                        const sel = base + "[aria-label=" + JSON.stringify(aria) + "]";
-                        if (countMatches(sel) === 1) return sel;
-                    }
-                    if (textVal && textCount.get(textVal) === 1) {
-                        return "text=" + JSON.stringify(textVal.slice(0, 60));
-                    }
-                    return cssPath(el);
-                };
-                const out = [];
-                for (const n of nodes) {
-                    const tag = n.tagName.toLowerCase();
-                    if (tag === "input") {
-                        const t = (n.type || "text").toLowerCase();
-                        if (t === "hidden" || t === "submit" || t === "button" || t === "image") continue;
-                    }
-                    const style = getComputedStyle(n);
-                    const rect = n.getBoundingClientRect();
-                    const screened = style.display === "none" ||
-                                     style.visibility === "hidden" ||
-                                     rect.width <= 0 || rect.height <= 0;
-                    if (screened && scope !== "page") continue;
-                    let textVal = readText(n);
-                    if (filters.text) {
-                        if (!textVal || !textVal.toLowerCase().includes(filters.text.toLowerCase())) continue;
-                    }
-                    let roleAttr = n.getAttribute("role") || "";
-                    if (!roleAttr) {
-                        if (tag === "a") roleAttr = "link";
-                        else if (tag === "button") roleAttr = "button";
-                        else if (tag === "select") roleAttr = "combobox";
-                        else if (tag === "textarea") roleAttr = "textbox";
-                        else if (tag === "input") {
-                            const t = (n.type || "text").toLowerCase();
-                            roleAttr = (t === "checkbox" || t === "radio") ? t : "textbox";
-                        }
-                    }
-                    if (filters.role && roleAttr && !roleAttr.toLowerCase().includes(filters.role.toLowerCase())) continue;
-
-                    const selector = selFor(n, tag, textVal);
-
-                    const inViewport = rect.left < vw && rect.right > 0 &&
-                                       rect.top < vh && rect.bottom > 0;
-                    const pe = (style.pointerEvents || "auto").toLowerCase();
-                    const disabled = n.disabled === true ||
-                                     n.getAttribute("aria-disabled") === "true" ||
-                                     pe === "none";
-
-                    const container = containerOf(n);
-                    const inActive = container ? isActiveContainer(container) : true;
-                    if (scope === "visible" && !(inViewport && inActive)) continue;
-                    if (scope === "container" && !inActive) continue;
-
-                    let receivesEvents = true;
-                    if (inViewport && rect.width > 0 && rect.height > 0) {
-                        const hit = document.elementFromPoint(
-                            rect.left + rect.width / 2, rect.top + rect.height / 2);
-                        receivesEvents = !!hit && (hit === n || n.contains(hit));
-                    }
-
-                    out.push({
-                        tag: tag,
-                        text: textVal,
-                        role: roleAttr,
-                        id: n.id || "",
-                        value: tag === "input" ? (n.value || "") : "",
-                        ariaLabel: n.getAttribute("aria-label") || "",
-                        selector: selector,
-                        semantic: semanticTag(n, tag, textVal),
-                        path: domPath(n),
-                        enabled: !disabled,
-                        receivesEvents: receivesEvents,
-                        inViewport: inViewport,
-                        inActive: inActive,
-                        rect: {
-                            x: Math.round(rect.left), y: Math.round(rect.top),
-                            w: Math.round(rect.width), h: Math.round(rect.height)
-                        },
-                        visibility: {
-                            display: style.display, visibility: style.visibility,
-                            pointerEvents: pe
-                        },
-                    });
-                }
-                return out;
-            }
-            """,
+            LOCATE_ELEMENTS_JS,
             {"text": text or "", "role": role or "", "scope": scope},
         )
         if not isinstance(raw, list):
@@ -403,32 +181,82 @@ async def locate_elements(
 
 
 async def _confirm_actionable(page: Page, elements: list[dict]) -> None:
-    """Second-layer Playwright actionability confirmation over surviving candidates.
+    """Second-layer Playwright confirmation that decides each candidate's ``state``.
 
-    Runs ``is_visible``/``is_enabled`` per element and folds in the first-layer
-    ``receivesEvents`` hit test (does the element's center actually receive the
-    pointer, i.e. is it covered by an overlay/sibling) so "can this be operated
-    now" matches what ``page.click`` will accept. Only already-screened
-    candidates reach here, keeping the per-element round trips small. Sets
-    ``actionable`` on each entry and mirrors it onto ``enabled`` when a handle
-    could be resolved; an unresolvable selector is treated as not actionable.
+    Operability is a three-state, not a boolean: a candidate whose selector resolves
+    but is not operable now is ``blocked`` (with a ``state_reason``), while one whose
+    selector cannot be resolved at all is ``unverified`` — the two are kept apart so
+    downstream output can filter verified elements and still fall back explicitly.
+
+    Cost is bounded two ways so the whole pass fits the tool's 15 s budget: candidates
+    are pre-sorted (in-viewport, active container, stable attribute first) and capped at
+    :data:`MAX_CONFIRM_CANDIDATES`, then confirmed with :data:`CONFIRM_CONCURRENCY`
+    concurrent workers instead of 3 serial round trips per element. ``elements`` is
+    reduced in place to the confirmed (and reordered) set.
     """
-    for el in elements:
-        selector = el.get("selector") or ""
-        confirmed: bool | None = None
-        if selector:
+    ordered = sorted(
+        elements,
+        key=lambda el: (
+            not el.get("inViewport", False),
+            not el.get("inActive", True),
+            not _has_stable_attr(el),
+        ),
+    )
+    candidates = ordered[:MAX_CONFIRM_CANDIDATES]
+    dropped = len(ordered) - len(candidates)
+    if dropped:
+        logger.info(
+            "locate: confirming %d/%d candidates (%d dropped by cap)",
+            len(candidates), len(ordered), dropped,
+        )
+
+    semaphore = asyncio.Semaphore(CONFIRM_CONCURRENCY)
+
+    async def confirm(el: dict) -> None:
+        async with semaphore:
+            await _confirm_one(page, el)
+
+    await asyncio.gather(*(confirm(el) for el in candidates))
+    elements[:] = candidates
+
+
+async def _confirm_one(page: Page, el: dict) -> None:
+    """Resolve one candidate's ``state`` / ``state_reason`` from Playwright."""
+    selector = el.get("selector") or ""
+    state = "unverified"
+    reason = ""
+    if selector:
+        handle = None
+        try:
+            handle = await page.query_selector(selector)
+        except Exception as e:
+            logger.debug(
+                "locate: selector %r not parsed (%s)", selector, type(e).__name__,
+            )
+        if handle is not None:
             try:
-                handle = await page.query_selector(selector)
-                if handle is not None:
-                    confirmed = (
-                        bool(await handle.is_visible())
-                        and bool(await handle.is_enabled())
-                        and bool(el.get("receivesEvents", True))
+                visible = bool(await handle.is_visible())
+                enabled = bool(await handle.is_enabled())
+            except Exception as e:
+                message = str(e).lower()
+                if "detach" in message or "not attached" in message:
+                    state, reason = "blocked", "detached"
+                else:
+                    logger.debug(
+                        "locate: handle check failed for %r (%s)",
+                        selector, type(e).__name__,
                     )
-            except Exception:
-                confirmed = None
-        if confirmed is None:
-            el["actionable"] = False
-        else:
-            el["actionable"] = confirmed
-            el["enabled"] = confirmed
+            else:
+                if visible and enabled and bool(el.get("receivesEvents", True)):
+                    state = "usable"
+                else:
+                    state = "blocked"
+                    if not visible:
+                        reason = "hidden"
+                    elif not enabled:
+                        reason = "disabled"
+                    else:
+                        reason = "covered"
+    el["state"] = state
+    el["state_reason"] = reason
+    el["actionable"] = state == "usable"

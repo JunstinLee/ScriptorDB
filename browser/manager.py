@@ -37,6 +37,7 @@ class BrowserManager:
         self._takeover = HumanTakeoverManager()
         self._nav_timeout_count = 0
         self._element_failure_count: dict[str, int] = {}
+        self._active_tools = 0
         self._auth_origin: str | None = None
         self._downloads_dir: Path | None = None
         self._recent_downloads: list[dict] = []
@@ -96,6 +97,18 @@ class BrowserManager:
         })
         if len(self._actions) > 200:
             self._actions = self._actions[-200:]
+
+    def tool_started(self) -> None:
+        """标记一个浏览器工具开始执行（LoginWatcher 据此让出 page）。"""
+        self._active_tools += 1
+
+    def tool_finished(self) -> None:
+        if self._active_tools > 0:
+            self._active_tools -= 1
+
+    @property
+    def is_tool_running(self) -> bool:
+        return self._active_tools > 0
 
     def reset_state(self) -> None:
         self._history.clear()
@@ -352,6 +365,7 @@ class BrowserManager:
         self._launched_at = None
         self._screencast_connection = None
         self._auth_origin = None
+        self._active_tools = 0
         self._takeover.reset()
         self.tabs.detach()
         self.trace.reset()
