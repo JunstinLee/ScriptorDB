@@ -461,8 +461,8 @@
       "scroll_up": "Scroll up {px}px",
       "press": "Press {key}",
       "cookies": "Cookies saved",
-      "evaluate": "Evaluate JavaScript",
-      "query": "Query {selector}",
+      "find": "Find: {detail}",
+      "read": "Read: {detail}",
       "launch": "Launch browser"
     }
   },

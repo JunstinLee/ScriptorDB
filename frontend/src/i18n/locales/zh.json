@@ -454,8 +454,8 @@
       "scroll_up": "向上滚动 {px}px",
       "press": "按下 {key}",
       "cookies": "已保存 Cookie",
-      "evaluate": "执行 JavaScript",
-      "query": "查询 {selector}",
+      "find": "查找：{detail}",
+      "read": "读取：{detail}",
       "launch": "启动浏览器"
     }
   },

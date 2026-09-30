@@ -26,8 +26,8 @@ const TOOL_LABELS: Record<string, (detail: string, t: Translate) => string> = {
   },
   browser_press_key: (d, t) => t("browser.action.press", { key: extractKey(d, t) }),
   browser_get_cookies: (_d, t) => t("browser.action.cookies"),
-  browser_evaluate: (_d, t) => t("browser.action.evaluate"),
-  browser_query: (d, t) => t("browser.action.query", { selector: extractSelector(d) }),
+  browser_find: (d, t) => t("browser.action.find", { detail: extractSelector(d) }),
+  browser_read: (d, t) => t("browser.action.read", { detail: extractSelector(d) }),
   browser_launch: (_d, t) => t("browser.action.launch"),
 };
 
