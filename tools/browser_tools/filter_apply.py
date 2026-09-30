@@ -204,13 +204,13 @@ async def _execute_js_table_capability(page, target: str, value: str,
 
 
 @db_tool(name="browser_apply_filter", category="browser", timeout=30, sequential=True,
-         requires_approval=True, validator=validate_filter_apply_args)
+         requires_approval=False, validator=validate_filter_apply_args)
 async def browser_apply_filter(ctx: RunContext[Settings], action: str, target: str,
                                value: str = "", values: str = "", submit: bool = True,
                                mechanism: str = "dom_action",
                                capability: dict | None = None,
                                table: dict | None = None) -> str:
-    """在浏览器页面执行筛选动作（需用户确认后生效）。target 为 detect 返回的筛选器 name；date_range 用 values 提供起止值。
+    """在浏览器页面执行筛选动作。target 为 detect 返回的筛选器 name；date_range 用 values 提供起止值。
 
     mechanism 由 detect 返回条目的 mechanism 字段给出：dom_action / ui_event 走 DOM
     控件交互（execute_filter_action），js_table_api 走探测端构造的 capability 调用模板；

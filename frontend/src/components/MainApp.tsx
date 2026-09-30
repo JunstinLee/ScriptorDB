@@ -132,7 +132,7 @@ export default function MainApp({
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, loginFormInfo, loginFlowStatus, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
+  const { handleSend, handleApprovalSubmit, approvalRequest, loginFormInfo, loginFlowStatus, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
     activeSessionId,
     addUserMessage,
     appendEvent,
@@ -321,7 +321,6 @@ export default function MainApp({
               cookiesLoading={browserPanel.cookiesLoading}
               onLoadProfile={browserPanel.handleLoadProfile}
               sessionId={activeSessionId ?? ""}
-              filterSchema={filterSchema}
               loginForm={loginFormInfo}
               loginFlowStatus={loginFlowStatus}
               credentialConfigured={loginAutofill.configured}
@@ -329,7 +328,6 @@ export default function MainApp({
               credentialUrl={loginAutofill.url}
               fieldCandidates={loginAutofill.fieldCandidates}
               onCredentialStatusChange={(v) => loginAutofill.setConfigured(v)}
-              onFiltersApplied={browserPanel.refreshBrowser}
               onCloseBrowser={() => {
                 void closeBrowser().then(() => browserPanel.refreshBrowser());
               }}
@@ -405,7 +403,6 @@ export default function MainApp({
         onUndoConfirmClose={() => setUndoConfirmGroupId(null)}
         onUndoConfirm={handleRevertConfirm}
         approvalRequest={approvalRequest}
-        filterSchema={filterSchema}
         onApprovalSubmit={handleApprovalSubmit}
         onSwitchWorkspace={handleSwitchWorkspace}
         onCreateWorkspace={onCreateWorkspace}

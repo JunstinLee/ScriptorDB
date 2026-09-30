@@ -1,7 +1,7 @@
 """计划 02：approval 分流 + override_args 回传的服务端快测（无浏览器、无网络）。
 
 覆盖验收标准 3：
-- `_process_deferred_requests` 将 `browser_apply_filter` 归入 pending_calls（其余工具不受影响）
+- `browser_apply_filter` 已改为自动通过：`_process_deferred_requests` 不再为其产生 approval_request
 - `signal_approval` 带 override_args → `ToolApproved(override_args=…)`（无 override_args 时与现状一致）
 - all-denied → `ToolDenied` 走标准 deferred 续跑（不再特判终止）
 - `_run_loop` 挂起等待审批、唤醒后同一流继续（接管同模式）
@@ -72,17 +72,11 @@ def _seed_pending(request_id: str, deferred_calls: list[dict], session_id: str =
 # ---------- _process_deferred_requests 分流 ----------
 
 
-async def test_apply_filter_goes_to_pending_calls():
+async def test_apply_filter_is_auto_approved():
     ev = _process_deferred_requests(
         "s1", "run1", [], _deferred(_apply_filter_call()), tracker=None
     )
-    assert ev is not None and ev["type"] == "approval_request"
-    call = ev["calls"][0]
-    assert call["tool_call_id"] == "c1"
-    assert call["tool_name"] == "browser_apply_filter"
-    assert call["args"]["value"] == "Active"
-    # import 专用键不得出现在筛选确认条目
-    assert "row_count" not in call and "table_name" not in call
+    assert ev is None
 
 
 async def test_low_risk_write_still_auto_approved():
@@ -97,10 +91,15 @@ async def test_unknown_tool_still_auto_approved():
     assert _process_deferred_requests("s1", "run1", [], d, tracker=None) is None
 
 
-async def test_mixed_calls_carry_auto_results_in_pending():
+async def test_mixed_calls_carry_auto_results_in_pending(monkeypatch):
     """混合批次：auto 组结果随 pending 保存，唤醒后与人工决定合并。"""
+    monkeypatch.setattr("runtime.approval.policy.count_import_rows", lambda _p: 500)
     d = _deferred(
-        _apply_filter_call("c1"),
+        ToolCallPart(
+            tool_name="import_csv_to_db",
+            args={"filepath": "x.csv", "table_name": "t"},
+            tool_call_id="c1",
+        ),
         ToolCallPart(tool_name="execute_ddl", args={"sql": "x"}, tool_call_id="c4"),
     )
     ev = _process_deferred_requests("s1", "run1", [], d, tracker=None)

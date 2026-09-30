@@ -1,14 +1,12 @@
 import { t } from "../i18n";
 import ApiKeyRequiredModal from "./ApiKeyRequiredModal";
 import ConfirmDialog from "./common/ConfirmDialog";
-import { FilterConfirmDrawer } from "./FilterConfirmDrawer";
 import SettingsModal from "./SettingsModal";
 import SwitchingOverlay from "./common/SwitchingOverlay";
 import WorkspacePicker from "./WorkspacePicker";
 import type {
   ApprovalRequestEvent,
   ApiKeyStatusKind,
-  FilterSchema,
   WorkspaceCreateRequest,
   WorkspaceDetail,
   WorkspaceItem,
@@ -32,7 +30,6 @@ interface AppDialogsProps {
   onUndoConfirmClose: () => void;
   onUndoConfirm: () => void;
   approvalRequest: ApprovalRequestEvent | null;
-  filterSchema: FilterSchema | null;
   onApprovalSubmit: (
     approved: boolean,
     overrideArgs?: Record<string, Record<string, unknown>>,
@@ -54,7 +51,7 @@ interface AppDialogsProps {
 
 /**
  * 全部弹窗/覆盖层容器：
- * SettingsModal、撤销确认、审批（FilterConfirmDrawer / ConfirmDialog）、
+ * SettingsModal、撤销确认、审批确认（ConfirmDialog）、
  * WorkspacePicker、SwitchingOverlay。
  * 只负责弹窗的开关与接线，不持有业务状态（设置开关状态由上层传入）。
  */
@@ -74,7 +71,6 @@ export default function AppDialogs({
   onUndoConfirmClose,
   onUndoConfirm,
   approvalRequest,
-  filterSchema,
   onApprovalSubmit,
   onSwitchWorkspace,
   onCreateWorkspace,
@@ -148,34 +144,24 @@ export default function AppDialogs({
         confirmLabel={t("chat.undo")}
       />
 
-      {approvalRequest !== null &&
-      approvalRequest.calls[0]?.tool_name === "browser_apply_filter" ? (
-        <FilterConfirmDrawer
-          request={approvalRequest}
-          schema={filterSchema}
-          onApprove={(overrideArgs) => onApprovalSubmit(true, overrideArgs)}
-          onReject={() => onApprovalSubmit(false)}
-        />
-      ) : (
-        <ConfirmDialog
-          isOpen={approvalRequest !== null}
-          onClose={() => onApprovalSubmit(false)}
-          onConfirm={() => onApprovalSubmit(true)}
-          title={t("chat.import_dialog.title")}
-          message={
-            approvalRequest
-              ? t("chat.import_dialog.message", {
-                  tool:
-                    approvalRequest.calls[0]?.tool_name ??
-                    t("chat.import_dialog.tool_fallback"),
-                  count: approvalRequest.calls[0]?.row_count ?? 0,
-                  table: approvalRequest.calls[0]?.table_name ?? "",
-                })
-              : ""
-          }
-          confirmLabel={t("common.confirm")}
-        />
-      )}
+      <ConfirmDialog
+        isOpen={approvalRequest !== null}
+        onClose={() => onApprovalSubmit(false)}
+        onConfirm={() => onApprovalSubmit(true)}
+        title={t("chat.import_dialog.title")}
+        message={
+          approvalRequest
+            ? t("chat.import_dialog.message", {
+                tool:
+                  approvalRequest.calls[0]?.tool_name ??
+                  t("chat.import_dialog.tool_fallback"),
+                count: approvalRequest.calls[0]?.row_count ?? 0,
+                table: approvalRequest.calls[0]?.table_name ?? "",
+              })
+            : ""
+        }
+        confirmLabel={t("common.confirm")}
+      />
 
       <WorkspacePicker
         workspaces={workspaces}

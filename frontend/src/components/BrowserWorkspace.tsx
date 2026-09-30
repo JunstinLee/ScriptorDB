@@ -7,14 +7,12 @@ import type {
   BrowserProfileItem,
   CookieInfo,
   ExtraCandidate,
-  FilterSchema,
   LoginFlowStatus,
   LoginFormPayload,
 } from "../types";
 import { BrowserSessionInfo } from "./BrowserSessionInfo";
 import { BrowserViewportStream } from "./BrowserViewportStream";
 import { BrowserStatusBar } from "./BrowserStatusBar";
-import { FilterPanel } from "./FilterPanel";
 import { HumanTakeoverDrawer } from "./HumanTakeoverPanel";
 import { OtpGuidanceNotice } from "./OtpGuidanceNotice";
 import { LoginStatusPanel } from "./LoginStatusPanel";
@@ -38,7 +36,6 @@ interface BrowserWorkspaceProps {
   cookiesLoading?: boolean;
   onLoadProfile?: (name: string) => void;
   sessionId?: string;
-  filterSchema?: FilterSchema | null;
   loginForm?: LoginFormPayload | null;
   /** 最近一次 login_flow_status（旁路状态；autofill 进度/otp 引导） */
   loginFlowStatus?: LoginFlowStatus | null;
@@ -49,7 +46,6 @@ interface BrowserWorkspaceProps {
   fieldCandidates?: ExtraCandidate[];
   /** 保存/删除后本地翻转 configured */
   onCredentialStatusChange?: (configured: boolean) => void;
-  onFiltersApplied?: () => void;
   onCloseBrowser?: () => void;
 }
 
@@ -133,7 +129,6 @@ export function BrowserWorkspace({
   sessionId,
   actions,
   isRunning,
-  filterSchema,
   loginForm,
   loginFlowStatus,
   credentialConfigured,
@@ -141,7 +136,6 @@ export function BrowserWorkspace({
   credentialUrl,
   fieldCandidates,
   onCredentialStatusChange,
-  onFiltersApplied,
   onCloseBrowser,
 }: BrowserWorkspaceProps) {
   const [reconfigureOpen, setReconfigureOpen] = useState(false);
@@ -184,15 +178,6 @@ export function BrowserWorkspace({
           onLoadProfile={onLoadProfile}
           actions={actions}
           isRunning={isRunning}
-        />
-      )}
-
-      {state?.launched && (
-        <FilterPanel
-          schema={filterSchema ?? null}
-          isRunning={isRunning ?? false}
-          sessionId={sessionId ?? ""}
-          onApplied={onFiltersApplied}
         />
       )}
 

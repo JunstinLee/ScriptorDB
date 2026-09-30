@@ -1,5 +1,3 @@
-import type { FilterActionType } from "./filters";
-
 /** 浏览器单次操作记录 */
 export interface BrowserAction {
   tool: string;
@@ -43,24 +41,6 @@ export interface BrowserState {
   idle_close_remaining: number;
   actions: BrowserAction[];
   history: BrowserHistoryEntry[];
-}
-
-export interface InteractRequest {
-  action:
-    | "click"
-    | "fill"
-    | "press_key"
-    | "scroll"
-    | "navigate"
-    | "go_back"
-    | "go_forward"
-    | FilterActionType;
-  selector?: string;
-  value?: string;
-  scroll_pixels?: number;
-  target?: string;
-  values?: string;
-  submit?: boolean;
 }
 
 export interface InteractByCoordsRequest {

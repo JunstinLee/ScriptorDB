@@ -1,6 +1,6 @@
 import { t } from "../i18n";
 import { request, WorkspaceNotSelectedError } from "./core";
-import type { InteractRequest, InteractByCoordsRequest, InteractResponse, ViewportSizeResponse, BrowserState, CookiesResponse, ProfilesResponse, SetCookieRequest } from "../types";
+import type { InteractByCoordsRequest, InteractResponse, ViewportSizeResponse, BrowserState, CookiesResponse, ProfilesResponse, SetCookieRequest } from "../types";
 
 export async function fetchBrowserState(): Promise<BrowserState> {
   return request<BrowserState>("/browser/state");
@@ -8,13 +8,6 @@ export async function fetchBrowserState(): Promise<BrowserState> {
 
 export async function closeBrowser(): Promise<void> {
   await request("/browser/close", { method: "POST" });
-}
-
-export async function interactBrowser(req: InteractRequest): Promise<InteractResponse> {
-  return request<InteractResponse>("/browser/interact", {
-    method: "POST",
-    body: JSON.stringify(req),
-  });
 }
 
 export async function interactByCoords(x: number, y: number, vw: number, vh: number): Promise<InteractResponse> {
