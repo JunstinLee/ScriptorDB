@@ -40,12 +40,12 @@ logger = get_logger("agent_runner.translator")
 # 其余工具无系统密码入口，保持原样。
 _SENSITIVE_TEXT_FIELDS = {
     "browser_fill": "text",
-    "browser_evaluate": "js",
+    "browser_read": "js",
 }
 
 
 def _redact_clean_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
-    """返回 args 的脱敏副本（browser_fill.text / browser_evaluate.js 过 redact）。"""
+    """返回 args 的脱敏副本（browser_fill.text / browser_read.js 过 redact）。"""
     field = _SENSITIVE_TEXT_FIELDS.get(tool_name)
     if field is None or not isinstance(args.get(field), str):
         return args
@@ -133,7 +133,7 @@ class EventTranslator:
     async def _handle_tool_call(
         self, ctx: RunContext[Any], event: FunctionToolCallEvent
     ) -> None:
-        # 敏感工具（browser_fill/browser_evaluate）参数可能携带系统密码：
+        # 敏感工具（browser_fill/browser_read）参数可能携带系统密码：
         # tracker 日志/SSE/tool_parts 只收脱敏副本；原始 part 不改动
         # （内存消息原样回放给模型）。
         part = event.part

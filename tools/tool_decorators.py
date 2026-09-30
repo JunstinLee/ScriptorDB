@@ -109,6 +109,7 @@ class ToolDef:
         "requires_approval",
         "validator",
         "sequential",
+        "defer_loading",
     )
 
     def __init__(
@@ -122,6 +123,7 @@ class ToolDef:
         requires_approval: bool = False,
         validator: Callable[..., Any] | None = None,
         sequential: bool = False,
+        defer_loading: bool = False,
     ):
         self.func = func
         self.name = name or func.__name__
@@ -131,6 +133,7 @@ class ToolDef:
         self.requires_approval = requires_approval
         self.validator = validator
         self.sequential = sequential
+        self.defer_loading = defer_loading
 
     def to_tool(self) -> Tool:
         func = self.func
@@ -149,6 +152,7 @@ class ToolDef:
             requires_approval=self.requires_approval,
             args_validator=self.validator,
             sequential=self.sequential,
+            defer_loading=self.defer_loading,
             include_return_schema=True,
         )
 
@@ -169,6 +173,7 @@ def db_tool(
     requires_approval: bool = False,
     validator: Callable[..., Any] | None = None,
     sequential: bool = False,
+    defer_loading: bool = False,
 ):
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         _tool_defs.append(
@@ -181,6 +186,7 @@ def db_tool(
                 requires_approval=requires_approval,
                 validator=validator,
                 sequential=sequential,
+                defer_loading=defer_loading,
             )
         )
         return func

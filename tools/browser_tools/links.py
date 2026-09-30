@@ -119,7 +119,7 @@ async def _extract_across_site_pages(
     return merge_extractions(extractions)
 
 
-@db_tool(name="browser_extract_links", category="browser", timeout=60, sequential=False)
+@db_tool(name="browser_extract_links", category="browser", timeout=60, sequential=False, defer_loading=True)
 async def browser_extract_links(
     ctx: RunContext[Settings],
     selector: str = "",

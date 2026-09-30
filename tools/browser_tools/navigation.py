@@ -71,7 +71,7 @@ async def browser_get_url(ctx: RunContext[Settings]) -> str:
     return url
 
 
-@db_tool(name="browser_go_back", category="browser", timeout=15, sequential=True)
+@db_tool(name="browser_go_back", category="browser", timeout=15, sequential=True, defer_loading=True)
 async def browser_go_back(ctx: RunContext[Settings]) -> str:
     from browser.actions import go_back as _back
 
@@ -92,7 +92,7 @@ async def browser_go_back(ctx: RunContext[Settings]) -> str:
     return result
 
 
-@db_tool(name="browser_go_forward", category="browser", timeout=15, sequential=True)
+@db_tool(name="browser_go_forward", category="browser", timeout=15, sequential=True, defer_loading=True)
 async def browser_go_forward(ctx: RunContext[Settings]) -> str:
     from browser.actions import go_forward as _forward
 
@@ -113,7 +113,7 @@ async def browser_go_forward(ctx: RunContext[Settings]) -> str:
     return result
 
 
-@db_tool(name="browser_load_state", category="browser", timeout=15, sequential=True)
+@db_tool(name="browser_load_state", category="browser", timeout=15, sequential=True, defer_loading=True)
 async def browser_load_state(ctx: RunContext[Settings], state: str = "load") -> str:
     from browser.context import wait_for_load_state as _wait
 

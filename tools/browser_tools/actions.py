@@ -269,7 +269,7 @@ async def browser_press_key(ctx: RunContext[Settings], key: str) -> str:
     return result
 
 
-@db_tool(name="browser_scroll", category="browser", timeout=15, sequential=False)
+@db_tool(name="browser_scroll", category="browser", timeout=15, sequential=False, defer_loading=True)
 async def browser_scroll(
     ctx: RunContext[Settings],
     to_bottom: bool = True,

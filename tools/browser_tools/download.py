@@ -64,7 +64,7 @@ async def _save_download(
     )
 
 
-@db_tool(name="browser_download", category="browser", timeout=90, sequential=True)
+@db_tool(name="browser_download", category="browser", timeout=90, sequential=True, defer_loading=True)
 async def browser_download(
     ctx: RunContext[Settings],
     url: str = "",

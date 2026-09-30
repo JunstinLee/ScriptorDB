@@ -18,9 +18,7 @@ from schemas import ToolResult
 logger = get_logger("tool_middleware")
 
 _BLOCKED_TOOLS = {
-    "browser_query",
-    "browser_get_text",
-    "browser_evaluate",
+    "browser_read",
 }
 
 _SWITCH_LABEL = (
@@ -59,15 +57,15 @@ _EMPTY_RESULT_MARKERS = (
 # Filtering tasks: when the page exposes filter components, low-level DOM
 # probing tools must not be used to construct filters — the detect/apply
 # pipeline (browser_detect_filters → browser_apply_filter → browser_download)
-# is the only sanctioned path.
-_FILTER_PROBE_TOOLS = {"browser_evaluate"}          # blocked whenever the page has filter components
-_FILTER_POST_DETECT_TOOLS = {"browser_query"}       # blocked once browser_detect_filters has run this round
+# is the only sanctioned path. browser_read carries the former evaluate (js) and
+# query (selector) modes: a js read is probed on any filter page, a selector read
+# only once browser_detect_filters has run this round.
 
 _FILTER_LABEL = (
     "[Middleware] {tool_name} intercepted: the current page exposes filter components. "
     "Filtering must go through the detect/apply pipeline: "
     "browser_detect_filters → browser_apply_filter → browser_download. "
-    "Do not use browser_evaluate / browser_query to probe page structure to construct filters. "
+    "Do not use browser_read to probe page structure to construct filters. "
     "Call browser_detect_filters to obtain the Filter Schema; if the detected capabilities are "
     "insufficient, re-run browser_detect_filters or tell the user the filter cannot be completed."
 )
@@ -79,7 +77,6 @@ _FILTER_REPEAT_LABEL = (
 
 # UI discovery / probing evaluate：带 DOM 结构指纹的脚本 + 页面处于可操作 UI →
 # 引导回工具路径。纯计算 / 读原生浏览器状态的脚本由 allowlist 放行。
-_UI_PROBE_TOOLS = {"browser_evaluate"}
 _UI_PROBE_FINGERPRINTS = (
     "queryselector", "queryselectorall", "getboundingclientrect",
     "outerhtml", "innerhtml", "classlist", "classname",
@@ -96,15 +93,15 @@ _UI_PROBE_ALLOWLIST = (
 
 _UI_PROBE_LABEL = (
     "[Middleware] {tool_name} intercepted: this looks like a UI/structure probing script. "
-    "Discover elements with browser_locate (it returns ready-to-use selectors plus semantic labels), "
-    "read text or values with browser_get_text / browser_query (attribute=\"value\"), and act with "
-    "browser_click / browser_fill / browser_select_option. browser_evaluate is reserved for native "
+    "Discover elements with browser_find (it returns ready-to-use selectors plus semantic labels), "
+    "read text or values with browser_read (selector + attribute=\"value\"), and act with "
+    "browser_click / browser_fill / browser_select_option. browser_read js is reserved for native "
     "state the standard tools cannot reach (pure computation, canvas pixels, localStorage, navigator)."
 )
 
 _UI_PROBE_REPEAT_LABEL = (
     "[Middleware] {tool_name} UI-probe script intercepted repeatedly this round — do not call it again. "
-    "Use browser_locate / browser_get_text / browser_query instead."
+    "Use browser_find / browser_read instead."
 )
 
 _lock = threading.Lock()
@@ -212,7 +209,7 @@ async def evaluate_call(ctx, tool_name: str, args: dict | None = None) -> str:
     - "filter-block"/"filter-repeat": block; page exposes an interactive filtering UI
     - "ui-probe-block"/"ui-probe-repeat": block; DOM/UI probing script on an interactive page
 
-    ``args`` carries the tool kwargs so a ``browser_evaluate`` call's ``js`` can be
+    ``args`` carries the tool kwargs so a ``browser_read`` call's ``js`` can be
     fingerprinted; scripts reading native state (localStorage / navigator / canvas …)
     are allowlisted and pass through.
 
@@ -229,16 +226,21 @@ async def evaluate_call(ctx, tool_name: str, args: dict | None = None) -> str:
 
     js = args.get("js") if isinstance(args, dict) else ""
     allowlisted = bool(js) and _js_allowlisted(js)
+    read_js = tool_name == "browser_read" and bool(js and js.strip())
+    read_selector = (
+        tool_name == "browser_read"
+        and not read_js
+        and isinstance(args, dict)
+        and bool(str(args.get("selector") or "").strip())
+    )
 
     # Pages exposing an interactive filtering UI: low-level probing tools must not
     # be used to construct filters or probe page structure — the detect/apply
-    # pipeline (and browser_locate) is the sanctioned path.
-    if tool_name in _FILTER_PROBE_TOOLS or (
-        tool_name in _FILTER_POST_DETECT_TOOLS and round_id in _round_detect_used
-    ):
+    # pipeline (and browser_find) is the sanctioned path.
+    if read_js or (read_selector and round_id in _round_detect_used):
         if not allowlisted and await _page_has_filter_components():
             count = _bump_round_block(round_id, tool_name)
-            if tool_name in _UI_PROBE_TOOLS and _looks_like_ui_probe(js):
+            if read_js and _looks_like_ui_probe(js):
                 logger.info(
                     "tool middleware: blocking %s (ui-probe #%d) — DOM probing on interactive page",
                     tool_name, count,

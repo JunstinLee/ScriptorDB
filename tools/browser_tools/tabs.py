@@ -9,7 +9,7 @@ from tools.tool_decorators import db_tool
 logger = get_logger("tools.browser.tabs")
 
 
-@db_tool(name="browser_get_tabs", category="browser", timeout=10, sequential=False)
+@db_tool(name="browser_get_tabs", category="browser", timeout=10, sequential=False, defer_loading=True)
 async def browser_get_tabs(ctx: RunContext[Settings]) -> str:
     manager, _ = _require_browser()
     if manager.page() is None:
@@ -38,7 +38,7 @@ async def browser_get_tabs(ctx: RunContext[Settings]) -> str:
     return "\n".join(lines)
 
 
-@db_tool(name="browser_switch_tab", category="browser", timeout=10, sequential=True)
+@db_tool(name="browser_switch_tab", category="browser", timeout=10, sequential=True, defer_loading=True)
 async def browser_switch_tab(ctx: RunContext[Settings], index: int) -> str:
     manager, _ = _require_browser()
     if not manager.tabs.pages():

@@ -6,7 +6,6 @@ from tools.browser_tools import (
     dom,
     filter_apply,
     filter_detect,
-    inspect,
     links,
     navigation,
     selectors,
@@ -14,4 +13,4 @@ from tools.browser_tools import (
     tabs,
 )
 
-__all__ = ["actions", "cookies", "dom", "filter_apply", "filter_detect", "inspect", "links", "navigation", "selectors", "table", "tabs", "visual"]
+__all__ = ["actions", "cookies", "dom", "filter_apply", "filter_detect", "links", "navigation", "selectors", "table", "tabs"]

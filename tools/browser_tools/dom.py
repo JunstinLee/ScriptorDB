@@ -65,41 +65,72 @@ def _empty_elements_hint(scope: str, filters: list[str]) -> str:
     return f"No interactive elements found.{suffix}"
 
 
-@db_tool(name="browser_get_text", category="browser", timeout=15, sequential=True)
-async def browser_get_text(ctx: RunContext[Settings]) -> str:
-    manager, page = _require_browser()
-    if page is None:
-        return "Browser not launched. Please call browser_launch first."
-    if blocked := _check_blocked(manager):
-        return blocked
+_INSPECT_JS = """\
+(params) => {
+  const extRe = /[.](pdf|xls|xlsx|zip|csv)([?#]|$)/i;
+  const anchors = Array.from(document.querySelectorAll("a[href]")).filter((a) => extRe.test(a.href));
+  const seen = new Map();
+  for (const a of anchors) {
+    let el = a.parentElement;
+    while (el && el !== document.documentElement) {
+      const text = (el.innerText || "").replace(/\\s+/g, " ").trim();
+      if (text.length >= params.minText) {
+        const classes = el.className ? String(el.className).trim().split(/\\s+/).join(".") : "";
+        const key = el.tagName + (classes ? "." + classes : "");
+        let rec = seen.get(key);
+        if (!rec) {
+          rec = {
+            selector: el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + (classes ? "." + classes : ""),
+            hits: 0,
+            links: 0,
+            sampleText: "",
+            sampleLinks: [],
+          };
+          seen.set(key, rec);
+        }
+        rec.hits++;
+        rec.links++;
+        if (!rec.sampleText) rec.sampleText = text.slice(0, params.maxSample);
+        if (rec.sampleLinks.length < 3) rec.sampleLinks.push(a.href);
+        break;
+      }
+      el = el.parentElement;
+    }
+  }
+  const candidates = Array.from(seen.values())
+    .filter((r) => r.links >= params.minLinks)
+    .sort((x, y) => y.hits - x.hits)
+    .slice(0, params.maxCandidates);
+  return { documentLinkCount: anchors.length, candidates };
+}
+"""
 
-    title = await page.title()
-    text = await page.inner_text("body")
-    result = f"# {title}\n\n{text}"
-    manager.record_action("get_text", f"Retrieved {len(result)} chars")
-    return result
 
-
-@db_tool(name="browser_locate", category="browser", timeout=15, sequential=False)
-async def browser_locate(
+@db_tool(name="browser_find", category="browser", timeout=15, sequential=False)
+async def browser_find(
     ctx: RunContext[Settings],
     text: str = "",
     role: str = "",
     scope: str = "visible",
-) -> str:
-    """List interactive elements on the current page with ready-to-reuse selectors.
+    mode: str = "elements",
+    max_candidates: int = 8,
+    min_links: int = 1,
+    min_text: int = 5,
+    max_sample: int = 300,
+):
+    """Find things on the current page. Read-only: this tool does not change the page.
 
+    `mode="elements"` (default) lists interactive elements with ready-to-reuse selectors.
     Use this to discover what is clickable or fillable before acting. Each line ends
     with a `selector` that can be passed straight back to `browser_click`/`browser_fill`
     (ex. `text=导出`, `#id`, `input[name="…"]`). Optionally filter by `text` (substring
-    of the element's text) or `role` (button/textbox/tab/link/combobox/...). Read-only:
-    this tool does not change the page.
+    of the element's text) or `role` (button/textbox/tab/link/combobox/...).
 
     The main list contains only elements Playwright confirmed as **usable right now**
     (visible, enabled, and actually receiving pointer events). Elements confirmed
     unusable (hidden / disabled / covered) are omitted. When nothing qualifies, the tool
     degrades to elements it could not verify, each tagged `[unverified]` with a trailing
-    count — confirm those (browser_wait_for_selector / browser_query) before acting.
+    count — confirm those (browser_wait_for_selector / browser_read) before acting.
 
     `scope` chooses how wide to scan: `"visible"` (default) exposes only components in
     the current viewport within the active container, so hidden sibling panels (ex. the
@@ -107,7 +138,19 @@ async def browser_locate(
     the whole active container (including slightly off-screen parts) or `"page"` to scan
     the entire DOM. Hidden elements only appear at `scope="page"`. `scope="page"` applies
     a candidate cap, so its result may be incomplete.
+
+    `mode="containers"` scans the rendered DOM for document links (PDF/Excel/ZIP/CSV)
+    and reports the containers that hold them, for orientation only. Row location is
+    automatic: call `browser_extract_table` with no selectors — do not pass the candidate
+    selectors shown here to any tool. The result is final data — no further parsing,
+    transformation, or computation is needed.
     """
+    if (mode or "elements").strip().lower() == "containers":
+        return await _find_containers(ctx, max_candidates, min_links, min_text, max_sample)
+    return await _find_elements(ctx, text, role, scope)
+
+
+async def _find_elements(ctx, text: str, role: str, scope: str):
     from browser.runtime import locate_elements
 
     manager, page = _require_browser()
@@ -159,7 +202,7 @@ async def browser_locate(
         lines.append(
             f"[{len(unverified_elements)} unverified element(s): Playwright could not confirm "
             "them as ready to use. Wait for the page to settle (browser_wait_for_selector) or "
-            "inspect with browser_query before acting.]"
+            "inspect with browser_read before acting.]"
         )
         return "\n".join(lines)
 
@@ -172,20 +215,90 @@ async def browser_locate(
     return hint
 
 
-@db_tool(name="browser_query", category="browser", timeout=10, sequential=False)
-async def browser_query(
+async def _find_containers(
+    ctx,
+    max_candidates: int,
+    min_links: int,
+    min_text: int,
+    max_sample: int,
+) -> dict:
+    manager, page_obj = _require_browser()
+    if page_obj is None:
+        return {"error": "Browser not launched. Please call browser_launch first."}
+    if blocked := _check_blocked(manager):
+        return {"error": blocked}
+
+    try:
+        payload = await page_obj.evaluate(
+            _INSPECT_JS,
+            {
+                "maxCandidates": max(max_candidates, 1),
+                "minLinks": max(min_links, 0),
+                "minText": max(min_text, 0),
+                "maxSample": max(max_sample, 50),
+            },
+        )
+    except Exception as e:
+        manager.record_action("inspect_structure", f"error: {e}", success=False)
+        return {"error": f"Structure inspection failed: {e}"}
+
+    if not isinstance(payload, dict):
+        payload = {"documentLinkCount": 0, "candidates": []}
+
+    candidates = [c for c in payload.get("candidates", []) if isinstance(c, dict)]
+    manager.record_action(
+        "inspect_structure",
+        f"{payload.get('documentLinkCount', 0)} doc links, {len(candidates)} candidates",
+    )
+
+    return {
+        "documentLinkCount": payload.get("documentLinkCount", 0),
+        "candidates": candidates,
+    }
+
+
+@db_tool(name="browser_read", category="browser", timeout=15, sequential=True)
+async def browser_read(
     ctx: RunContext[Settings],
-    selector: str,
+    selector: str = "",
     attribute: str = "",
     all: bool = False,
+    js: str = "",
 ) -> str | ToolResult:
-    """Read the text (or an attribute) of elements matching `selector`.
+    """Read from the current page. Read-only: this tool does not change the page.
 
-    `selector` accepts both CSS and Playwright engine selectors: `#id`, `.class`,
-    `text=导出`, `li:has-text("导出全部")`, `role=button[name="导出"]`.
-    Pass `attribute` (e.g. `href`, `value`) to read an attribute instead of text,
-    and `all=True` to return every match.
+    - With no `selector` and no `js`: returns the whole page text (`# title` + body text).
+    - With `selector`: returns the text of the matching element. `selector` accepts both
+      CSS and Playwright engine selectors (`#id`, `.class`, `text=导出`,
+      `li:has-text("导出全部")`, `role=button[name="导出"]`). Pass `attribute` (e.g. `href`,
+      `value`) to read an attribute instead of text, and `all=True` to return every match.
+    - With `js`: evaluates the snippet and returns the JSON-encoded result. Reserved for
+      native state the standard tools cannot reach (pure computation, canvas pixels,
+      localStorage, navigator); do not use it to probe page structure — use
+      `browser_find` / `browser_read` (selector) instead.
     """
+    if (js or "").strip():
+        return await _read_js(ctx, js)
+    if (selector or "").strip():
+        return await _read_selector(ctx, selector, attribute, all)
+    return await _read_page_text(ctx)
+
+
+async def _read_page_text(ctx) -> str:
+    manager, page = _require_browser()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    if blocked := _check_blocked(manager):
+        return blocked
+
+    title = await page.title()
+    text = await page.inner_text("body")
+    result = f"# {title}\n\n{text}"
+    manager.record_action("get_text", f"Retrieved {len(result)} chars")
+    return result
+
+
+async def _read_selector(ctx, selector: str, attribute: str, all: bool) -> str | ToolResult:
     from browser.runtime import get_image_sources, query_attr, query_attr_all, query_text, query_text_all
     from browser.runtime import InvalidSelectorError
     from browser.sensitive import is_password_control
@@ -233,8 +346,7 @@ async def browser_query(
     return result
 
 
-@db_tool(name="browser_evaluate", category="browser", timeout=15, sequential=False)
-async def browser_evaluate(ctx: RunContext[Settings], js: str) -> str:
+async def _read_js(ctx, js: str) -> str:
     from browser.runtime import evaluate as _eval
     from browser.sensitive import current_site_password
     from runtime.redact import redact

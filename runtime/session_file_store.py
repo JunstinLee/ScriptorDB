@@ -5,10 +5,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import TypeAdapter
 from pydantic_ai.messages import (
     ModelMessage,
     ModelRequest,
+    ModelRequestPart,
     ModelResponse,
+    ModelResponsePart,
     TextPart,
     ToolCallPart,
     ToolReturnPart,
@@ -27,6 +30,13 @@ from schemas import MessageItem, StoredRun
 from runtime.session_model import Session, SessionStore
 
 logger = get_logger("session_file_store")
+
+# 框架 part 的往返：除上面显式处理的四类外，其余 part（ToolSearchCall/ReturnPart、
+# LoadCapabilityCall/ReturnPart、ToolAvailabilityDeltaPart、RetryPromptPart 等）按其
+# part_kind dump 存盘，并用框架自己的联合类型恢复。这些 part 记录"哪些工具已放出"，
+# 丢失会导致恢复会话后按需加载的工具重新变隐藏。
+_REQUEST_PART_TA = TypeAdapter(ModelRequestPart)
+_RESPONSE_PART_TA = TypeAdapter(ModelResponsePart)
 
 _DEFAULT_STORAGE = GLOBAL_CONFIG_DIR / "global_sessions"
 _PAYLOAD_VERSION = 2
@@ -60,6 +70,16 @@ def _part_to_data(part: Any) -> dict | None:
             "tool_name": part.tool_name,
             "content": redact(_content_to_data(part.content)),
         }
+    # 其余框架 part（ToolSearchCall/ReturnPart、LoadCapabilityCall/ReturnPart、
+    # ToolAvailabilityDeltaPart、RetryPromptPart 等）原样 dump；它们不承载用户
+    # 文本，无需脱敏。to_jsonable_python 同时兼容 pydantic 模型与 dataclass。
+    try:
+        dump = to_jsonable_python(part)
+    except Exception as e:
+        logger.warning("failed to serialize framework part %s: %s", type(part).__name__, e)
+        return None
+    if isinstance(dump, dict):
+        return {"type": "framework-part", "data": dump}
     return None
 
 
@@ -97,6 +117,15 @@ def _part_from_data(part_data: dict) -> Any | None:
                 tool_name=part_data["tool_name"],
                 content=part_data.get("content", ""),
             )
+        if ptype == "framework-part":
+            data = part_data.get("data")
+            if not isinstance(data, dict):
+                return None
+            for ta in (_REQUEST_PART_TA, _RESPONSE_PART_TA):
+                try:
+                    return ta.validate_python(data)
+                except Exception:
+                    continue
     except Exception:
         return None
     return None

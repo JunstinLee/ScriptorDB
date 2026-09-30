@@ -23,15 +23,12 @@ from tools.browser_tools.cookies import (  # noqa: E402
     browser_set_cookies,
 )
 from tools.browser_tools.dom import (  # noqa: E402
-    browser_evaluate,
-    browser_get_text,
-    browser_locate,
-    browser_query,
+    browser_find,
+    browser_read,
 )
 from tools.browser_tools.download import browser_download  # noqa: E402
 from tools.browser_tools.filter_apply import browser_apply_filter  # noqa: E402
 from tools.browser_tools.filter_detect import browser_detect_filters  # noqa: E402
-from tools.browser_tools.inspect import browser_inspect_structure  # noqa: E402
 from tools.browser_tools.links import browser_extract_links  # noqa: E402
 from tools.browser_tools.navigation import (  # noqa: E402
     browser_get_url,
@@ -50,24 +47,21 @@ __all__ = [
     "browser_click",
     "browser_detect_filters",
     "browser_download",
-    "browser_evaluate",
     "browser_extract_links",
     "browser_extract_rows",
     "browser_extract_table",
     "browser_fill",
+    "browser_find",
     "browser_get_cookies",
     "browser_get_tabs",
-    "browser_get_text",
     "browser_get_url",
     "browser_go_back",
     "browser_go_forward",
-    "browser_inspect_structure",
     "browser_launch",
-    "browser_locate",
     "browser_load_state",
     "browser_navigate",
     "browser_press_key",
-    "browser_query",
+    "browser_read",
     "browser_select_option",
     "browser_scroll",
     "browser_set_cookies",
