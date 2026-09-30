@@ -29,6 +29,16 @@ def _click_error_category(message: str) -> str:
     return "internal_error"
 
 
+def _format_click_target(target: dict) -> str:
+    tag = target.get("tag") or ""
+    role = target.get("role") or tag
+    text = (target.get("text") or target.get("ariaLabel") or "").strip()
+    value = (target.get("value") or "").strip()
+    label = f" {text[:40]!r}" if text else ""
+    val = f" value={value[:40]!r}" if value else ""
+    return f"Target: <{tag}> [{role}]{label}{val}"
+
+
 @db_tool(name="browser_wait_for_selector", category="browser", timeout=15, sequential=True)
 async def browser_wait_for_selector(
     ctx: RunContext[Settings],
@@ -90,27 +100,43 @@ async def browser_click(
         await manager.trace.record_pre_click(page, selector)
 
     clicked_at = time.time()
-    result = await _click(page, selector, timeout=_ACTION_TIMEOUT_MS)
-    click_failed = result.startswith("Click failed")
+    click_result = await _click(page, selector, timeout=_ACTION_TIMEOUT_MS)
+    click_failed = click_result.startswith("Click failed")
+    # 失败判定只看 click 执行结果，避免页面数据（快照里的 value 文本）误触发
+    # record_element_failure / detect_takeover。
+    failed = "failed" in click_result.lower() or "error" in click_result.lower()
 
-    await _settle_after_click(page)
+    snapshot = await _settle_after_click(page, selector)
+    lines = [click_result]
     if download_wait > 0:
         entry = await _wait_for_download(manager, clicked_at, download_wait)
         if entry and entry.get("ok"):
-            result += f"\nCaptured download: {entry.get('filename')} ({entry.get('path')})"
+            lines.append(f"Captured download: {entry.get('filename')} ({entry.get('path')})")
         elif entry:
-            result += f"\nWarning: a download was triggered but not saved: {entry.get('reason')}"
+            lines.append(f"Warning: a download was triggered but not saved: {entry.get('reason')}")
+
+    target = snapshot.get("target")
+    if isinstance(target, dict):
+        lines.append(_format_click_target(target))
+    lines.append(f"Overlay: {snapshot.get('overlays', 0)} visible panel(s)")
+    fields = snapshot.get("fields") or []
+    if fields:
+        lines.append("Fields: " + "; ".join(
+            f"placeholder={f.get('placeholder')!r} value={f.get('value')!r}"
+            for f in fields if isinstance(f, dict)
+        ))
+
     trace = await manager.trace.record_post_nav(page)
     detail = selector
     pre = trace.get("pre_click") or {}
     final_url = trace.get("final_url") or ""
     if final_url:
-        result += f"\nPage state: {final_url} ({trace.get('title') or ''})"
+        lines.append(f"Page state: {final_url} ({trace.get('title') or ''})")
     if pre.get("url") and final_url and pre.get("url") != final_url:
         detail = f"{selector} -> {final_url}"
+    result = "\n".join(lines)
     manager.record_action("click", detail, selector=selector,
                           success="Clicked" in result)
-    failed = "failed" in str(result).lower() or "error" in str(result).lower()
     if failed:
         manager.record_element_failure(selector)
         await manager.detect_takeover()
@@ -118,7 +144,7 @@ async def browser_click(
         return ToolResult(
             success=False,
             error=ToolErrorInfo(
-                category=_click_error_category(result),
+                category=_click_error_category(click_result),
                 message=result,
             ),
         )

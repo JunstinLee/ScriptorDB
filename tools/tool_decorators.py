@@ -79,7 +79,7 @@ def _wrap_browser_tool(
                 return await tracked(run_with_timeout)
             from runtime.tool_middleware import evaluate_call, execute_switch
 
-            decision = await evaluate_call(ctx, name)
+            decision = await evaluate_call(ctx, name, kwargs)
             if decision == "allow":
                 return await tracked(run_with_timeout)
             return await tracked(lambda: execute_switch(ctx, name, kwargs, decision))

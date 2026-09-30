@@ -33,11 +33,16 @@ def _blocked_reason_counts(elements: list[dict]) -> dict[str, int]:
 
 
 def _format_element_line(index: int, el: dict, suffix: str = "") -> str:
-    snippet = (el.get("text") or el.get("value") or "").strip()
+    text = (el.get("text") or "").strip()
+    value = (el.get("value") or "").strip()
+    snippet = text or value
     label = f" {snippet[:40]!r}" if snippet else ""
+    semantic = el.get("semantic")
+    sem = f" <{semantic}>" if semantic else ""
+    val = f" value={value[:40]!r}" if value and text else ""
     return (
-        f"{index}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]"
-        f"{label} -> {el.get('selector')}{suffix}"
+        f"{index}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]{sem}"
+        f"{label}{val} -> {el.get('selector')}{suffix}"
     )
 
 

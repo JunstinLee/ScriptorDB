@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from browser import get_manager
+from schemas import ToolResult
 from tests.support.ctx import make_ctx
 from tools.browser import (
     browser_click,
@@ -82,7 +83,11 @@ class TestBrowserClick:
         mock_page.click = AsyncMock(side_effect=Exception("Element not found"))
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_click(make_ctx(), ".missing")
-            assert "failed" in result.lower() or "element" in result.lower()
+        # 点击失败按契约返回 ToolResult（而非字符串）
+        assert isinstance(result, ToolResult)
+        assert result.success is False
+        message = (result.error.message or "").lower()
+        assert "failed" in message or "element" in message
 
 
 class TestBrowserFill:

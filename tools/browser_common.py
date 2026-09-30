@@ -74,12 +74,66 @@ async def _click_next(page, selector: str) -> bool:
             return False
 
 
-async def _settle_after_click(page) -> None:
+_CLICK_SNAPSHOT_JS = """(selector) => {
+    const laidOut = (el) => {
+        const cs = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        return !(cs.display === "none" || cs.visibility === "hidden" ||
+                 r.width <= 0 || r.height <= 0);
+    };
+    let target = null;
+    if (selector) {
+        try {
+            const t = document.querySelector(selector);
+            if (t) {
+                target = {
+                    tag: t.tagName.toLowerCase(),
+                    role: t.getAttribute("role") || "",
+                    text: (t.innerText || "").trim().slice(0, 60),
+                    ariaLabel: t.getAttribute("aria-label") || "",
+                    value: (t.value !== undefined ? String(t.value) : ""),
+                };
+            }
+        } catch (e) { target = null; }
+    }
+    let overlays = 0;
+    for (const o of document.querySelectorAll(
+        'dialog, [role="dialog"], [role="menu"], [role="listbox"], [aria-modal="true"], ' +
+        '[class*="popover"], [class*="dropdown"], [class*="picker-panel"], ' +
+        '.t-popup, .t-date-picker__panel'
+    )) {
+        if (laidOut(o)) overlays++;
+    }
+    const fields = [];
+    for (const el of document.querySelectorAll("input, textarea")) {
+        if (!laidOut(el)) continue;
+        const placeholder = el.getAttribute("placeholder") || "";
+        const value = el.value || "";
+        if (!placeholder && !value) continue;
+        fields.push({ placeholder: placeholder, value: value });
+        if (fields.length >= 8) break;
+    }
+    return { target: target, overlays: overlays, fields: fields };
+}"""
+
+
+async def _settle_after_click(page, selector: str = "") -> dict:
+    """点击后等页面稳定，并返回一次轻量状态快照。
+
+    快照含目标控件信息、当前可见覆盖层数、以及可见输入框/文本域的
+    placeholder 与 value —— 让一次 click 就能判定"值有没有写进去、
+    面板有没有关掉"，避免模型再用 get_text/evaluate 反复复核。
+    """
     try:
         await page.wait_for_load_state("networkidle", timeout=4000)
     except Exception:
         pass
     await page.wait_for_timeout(500)
+    try:
+        snapshot = await page.evaluate(_CLICK_SNAPSHOT_JS, selector or "")
+    except Exception:
+        return {}
+    return snapshot if isinstance(snapshot, dict) else {}
 
 
 async def _wait_for_download(manager, since: float, timeout: float = 2.0) -> dict | None:

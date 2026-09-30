@@ -77,6 +77,36 @@ _FILTER_REPEAT_LABEL = (
     "Use the browser_detect_filters / browser_apply_filter pipeline, or tell the user the filter cannot be completed."
 )
 
+# UI discovery / probing evaluate：带 DOM 结构指纹的脚本 + 页面处于可操作 UI →
+# 引导回工具路径。纯计算 / 读原生浏览器状态的脚本由 allowlist 放行。
+_UI_PROBE_TOOLS = {"browser_evaluate"}
+_UI_PROBE_FINGERPRINTS = (
+    "queryselector", "queryselectorall", "getboundingclientrect",
+    "outerhtml", "innerhtml", "classlist", "classname",
+    "getattribute(", "elementfrompoint", "nextsibling", "parentelement",
+    "children.length",
+)
+_UI_PROBE_ALLOWLIST = (
+    "localstorage", "sessionstorage", "indexeddb", "document.cookie",
+    "navigator.", "performance.", "canvas", "getcontext(", "webgl",
+    "devicepixelratio", "window.innerwidth", "window.innerheight",
+    "matchmedia", "date.now", "math.", "json.", "crypto.",
+    "fetch(", "xmlhttprequest",
+)
+
+_UI_PROBE_LABEL = (
+    "[Middleware] {tool_name} intercepted: this looks like a UI/structure probing script. "
+    "Discover elements with browser_locate (it returns ready-to-use selectors plus semantic labels), "
+    "read text or values with browser_get_text / browser_query (attribute=\"value\"), and act with "
+    "browser_click / browser_fill / browser_select_option. browser_evaluate is reserved for native "
+    "state the standard tools cannot reach (pure computation, canvas pixels, localStorage, navigator)."
+)
+
+_UI_PROBE_REPEAT_LABEL = (
+    "[Middleware] {tool_name} UI-probe script intercepted repeatedly this round — do not call it again. "
+    "Use browser_locate / browser_get_text / browser_query instead."
+)
+
 _lock = threading.Lock()
 _round_blocks: dict[str, dict[str, int]] = {}
 _round_browser_used: set[str] = set()
@@ -108,6 +138,18 @@ def _mark_browser_used(round_id: str) -> None:
         if len(_round_browser_used) > _MAX_ROUNDS:
             _round_browser_used.clear()
         _round_browser_used.add(round_id)
+
+
+def _js_allowlisted(js: str) -> bool:
+    """纯计算 / 读原生浏览器状态的脚本：放行（escape hatch）。"""
+    low = js.lower()
+    return any(token in low for token in _UI_PROBE_ALLOWLIST)
+
+
+def _looks_like_ui_probe(js: str) -> bool:
+    """脚本是否带 DOM 结构探测指纹（查选择器 / 读 value / 枚举节点 / 读面板结构）。"""
+    low = js.lower()
+    return any(token in low for token in _UI_PROBE_FINGERPRINTS)
 
 
 def _find_tool_func(name: str):
@@ -159,7 +201,7 @@ def _browser_extract_kwargs(tool_name: str, args: dict, current_url: str) -> dic
     return kwargs
 
 
-async def evaluate_call(ctx, tool_name: str) -> str:
+async def evaluate_call(ctx, tool_name: str, args: dict | None = None) -> str:
     """Decide whether a tool call may execute.
 
     Returns one of:
@@ -167,7 +209,12 @@ async def evaluate_call(ctx, tool_name: str) -> str:
     - "switch":     block and auto-switch to a more appropriate tool
     - "repeat":     block; same tool already blocked this round — do not run anything
     - "no-python":  block; browser control task forbids python_sandbox_execute
-    - "filter-block"/"filter-repeat": block; page exposes filter components
+    - "filter-block"/"filter-repeat": block; page exposes an interactive filtering UI
+    - "ui-probe-block"/"ui-probe-repeat": block; DOM/UI probing script on an interactive page
+
+    ``args`` carries the tool kwargs so a ``browser_evaluate`` call's ``js`` can be
+    fingerprinted; scripts reading native state (localStorage / navigator / canvas …)
+    are allowlisted and pass through.
 
     Fails open: any uncertainty → "allow".
     """
@@ -180,13 +227,23 @@ async def evaluate_call(ctx, tool_name: str) -> str:
     if tool_name == "browser_detect_filters":
         _round_detect_used.add(round_id)
 
-    # Pages exposing filter components: low-level probing tools must not be
-    # used to construct filters — the detect/apply pipeline is the only path.
+    js = args.get("js") if isinstance(args, dict) else ""
+    allowlisted = bool(js) and _js_allowlisted(js)
+
+    # Pages exposing an interactive filtering UI: low-level probing tools must not
+    # be used to construct filters or probe page structure — the detect/apply
+    # pipeline (and browser_locate) is the sanctioned path.
     if tool_name in _FILTER_PROBE_TOOLS or (
         tool_name in _FILTER_POST_DETECT_TOOLS and round_id in _round_detect_used
     ):
-        if await _page_has_filter_components():
+        if not allowlisted and await _page_has_filter_components():
             count = _bump_round_block(round_id, tool_name)
+            if tool_name in _UI_PROBE_TOOLS and _looks_like_ui_probe(js):
+                logger.info(
+                    "tool middleware: blocking %s (ui-probe #%d) — DOM probing on interactive page",
+                    tool_name, count,
+                )
+                return "ui-probe-repeat" if count >= 2 else "ui-probe-block"
             if count >= 2:
                 return "filter-repeat"
             return "filter-block"
@@ -218,6 +275,10 @@ async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
         return _FILTER_LABEL.format(tool_name=tool_name)
     if decision == "filter-repeat":
         return _FILTER_REPEAT_LABEL.format(tool_name=tool_name)
+    if decision == "ui-probe-block":
+        return _UI_PROBE_LABEL.format(tool_name=tool_name)
+    if decision == "ui-probe-repeat":
+        return _UI_PROBE_REPEAT_LABEL.format(tool_name=tool_name)
 
     current = _current_page_url()
     target = _target_url_from_prompt(ctx)

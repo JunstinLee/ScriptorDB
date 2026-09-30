@@ -15,6 +15,15 @@ LOCATE_ELEMENTS_JS = r"""
         "[role='switch']", "[role='option']"
     ].join(",");
     const scope = filters.scope || "visible";
+    const extraSel = filters.extraSelector || "";
+    const overlaySel = filters.overlaySelector || "";
+    const quotas = filters.familyQuotas || {};
+    const totalCap = filters.totalCap || 60;
+    let classRe = null;
+    try {
+        classRe = filters.classPattern ? new RegExp(filters.classPattern, "i") : null;
+    } catch (e) { classRe = null; }
+    const interactiveAria = ["aria-haspopup", "aria-expanded", "aria-controls"];
     const vw = document.documentElement.clientWidth;
     const vh = document.documentElement.clientHeight;
     const laidOutCache = new WeakMap();
@@ -150,7 +159,104 @@ LOCATE_ELEMENTS_JS = r"""
         if (MONTH_RE.test(hint)) return "calendar-month";
         return null;
     };
-    const nodes = Array.from(document.querySelectorAll(tagSel));
+    // 候选池 = 标准控件（tagSel）∪ 组件库可交互节点（extraSel）。
+    // 只有非标准控件才过 extraInteractive 判定，标准控件保持原语义。
+    const primarySet = new Set(document.querySelectorAll(tagSel));
+    const nodes = Array.from(primarySet);
+    if (extraSel) {
+        for (const el of document.querySelectorAll(extraSel)) {
+            if (!primarySet.has(el)) nodes.push(el);
+        }
+    }
+    const INTERACTIVE_TAGS = new Set([
+        "div", "span", "td", "th", "li", "tr", "a", "label", "i", "em", "b",
+        "strong", "p", "button", "input", "select", "textarea", "option",
+        "summary", "section",
+    ]);
+    const extraInteractive = (el, tag) => {
+        if (!INTERACTIVE_TAGS.has(tag)) return false;
+        for (const attr of interactiveAria) {
+            if (el.hasAttribute(attr)) return true;
+        }
+        if ((el.getAttribute("role") || "").trim()) return true;
+        const tabindex = el.getAttribute("tabindex");
+        if (tabindex !== null && Number(tabindex) >= 0) return true;
+        if (classRe && classRe.test(el.getAttribute("class") || "")) return true;
+        const dataset = el.dataset || {};
+        for (const key in dataset) {
+            if (/click|action|toggle|open|trigger|select/.test(key)) return true;
+        }
+        return false;
+    };
+    // 候选族：只为「防止单一大族垄断名额」，不追求精确识别控件类型。
+    // 全部基于 tag / class / role / text 的属性读取，不触碰布局。
+    const DATE_TOKENS = /date|calendar|picker|month|year|day/i;
+    const familyOf = (el, tag, roleAttr, textVal) => {
+        let n = el, depth = 0;
+        while (n && depth <= 4) {
+            const cls = n.getAttribute("class") || "";
+            if (cls && DATE_TOKENS.test(cls)) return "date";
+            n = n.parentElement;
+            depth++;
+        }
+        if (tag === "input" || tag === "select" || tag === "textarea") return "input";
+        if (/textbox|combobox|searchbox|switch|checkbox|radio|spinbutton/.test(roleAttr)) {
+            return "input";
+        }
+        const navHint = (el.getAttribute("aria-label") || "") + " " +
+                        (el.getAttribute("class") || "") + " " + textVal;
+        if (NAV_RE.test(navHint)) return "nav";
+        if (tag === "button" || tag === "summary" ||
+            /^(button|menuitem|option|tab|switch)$/.test(roleAttr)) return "button";
+        if (tag === "a" || roleAttr === "link") return "link";
+        return "other";
+    };
+    // 族内轻量评分：稳定属性优先，不涉及任何布局属性。
+    const cheapScore = (el, tag, family, textVal) => {
+        let score = 0;
+        if (el.id) score += 3;
+        for (const attr of ["data-testid", "data-test", "data-qa"]) {
+            if (el.getAttribute(attr)) { score += 3; break; }
+        }
+        if (el.getAttribute("aria-label")) score += 2;
+        for (const attr of interactiveAria) {
+            if (el.hasAttribute(attr)) { score += 1; break; }
+        }
+        if (el.getAttribute("role")) score += 1;
+        if (classRe && classRe.test(el.getAttribute("class") || "")) score += 2;
+        if (family === "date") score += 2;
+        if (tag === "button" || tag === "a" || tag === "input" || tag === "select") score += 1;
+        if (textVal && textVal.length <= 40) score += 1;
+        return score;
+    };
+    const overlayCache = new WeakMap();
+    const overlayOf = (el) => {
+        let owner = overlayCache.get(el);
+        if (owner !== undefined) return owner;
+        owner = null;
+        if (overlaySel) {
+            let n = el;
+            while (n && n.nodeType === 1 && n !== document.documentElement) {
+                try {
+                    if (n.matches && n.matches(overlaySel) && laidOut(n)) {
+                        owner = n;
+                        break;
+                    }
+                } catch (e) { /* 非法/不支持的选择器：忽略该节点 */ }
+                n = n.parentElement;
+            }
+        }
+        overlayCache.set(el, owner);
+        return owner;
+    };
+    const keyCache = new WeakMap();
+    const containerKeyOf = (el) => {
+        let key = keyCache.get(el);
+        if (key !== undefined) return key;
+        key = el.id ? "#" + el.id : domPath(el);
+        keyCache.set(el, key);
+        return key;
+    };
     const readText = (n) => (n.innerText || n.getAttribute("aria-label") || "")
         .replace(/\s+/g, " ").trim().slice(0, 120);
     const textCount = new Map();
@@ -188,20 +294,17 @@ LOCATE_ELEMENTS_JS = r"""
         }
         return cssPath(el);
     };
-    const out = [];
+    // 第一段：低成本候选族判断 + 族内评分。只读属性，不做任何布局查询，
+    // 因此可以对整个 DOM 跑而不触发重排。
+    const candidates = [];
     for (const n of nodes) {
         const tag = n.tagName.toLowerCase();
         if (tag === "input") {
             const t = (n.type || "text").toLowerCase();
             if (t === "hidden" || t === "submit" || t === "button" || t === "image") continue;
         }
-        const style = getComputedStyle(n);
-        const rect = n.getBoundingClientRect();
-        const screened = style.display === "none" ||
-                         style.visibility === "hidden" ||
-                         rect.width <= 0 || rect.height <= 0;
-        if (screened && scope !== "page") continue;
-        let textVal = readText(n);
+        if (!primarySet.has(n) && !extraInteractive(n, tag)) continue;
+        const textVal = readText(n);
         if (filters.text) {
             if (!textVal || !textVal.toLowerCase().includes(filters.text.toLowerCase())) continue;
         }
@@ -217,6 +320,60 @@ LOCATE_ELEMENTS_JS = r"""
             }
         }
         if (filters.role && roleAttr && !roleAttr.toLowerCase().includes(filters.role.toLowerCase())) continue;
+        const family = familyOf(n, tag, roleAttr, textVal);
+        candidates.push({
+            node: n, tag: tag, roleAttr: roleAttr, text: textVal, family: family,
+            score: cheapScore(n, tag, family, textVal),
+        });
+    }
+
+    // 第二段：族配额 + 共享余量 → 硬上限。这里就截断，后面昂贵的布局检查
+    // 只会看到 ≤ totalCap 个节点。
+    const FAMILIES = ["date", "nav", "input", "button", "link", "other"];
+    const buckets = {};
+    for (const f of FAMILIES) buckets[f] = [];
+    for (const c of candidates) {
+        (buckets[c.family] || buckets.other).push(c);
+    }
+    for (const f of FAMILIES) buckets[f].sort((a, b) => b.score - a.score);
+    const admitted = [];
+    const cursor = {};
+    for (const f of FAMILIES) cursor[f] = 0;
+    const takeUpTo = (f, limit) => {
+        let taken = 0;
+        while (cursor[f] < buckets[f].length && taken < limit &&
+               admitted.length < totalCap) {
+            admitted.push(buckets[f][cursor[f]++]);
+            taken++;
+        }
+    };
+    // 各族先拿保底配额；配额用完就不再收同族元素。
+    for (const f of FAMILIES) takeUpTo(f, quotas[f] || 0);
+    // 剩余名额按族轮转，避免单一大族垄断共享余量。
+    let progress = true;
+    while (admitted.length < totalCap && progress) {
+        progress = false;
+        for (const f of FAMILIES) {
+            if (admitted.length >= totalCap) break;
+            const before = admitted.length;
+            takeUpTo(f, 1);
+            if (admitted.length > before) progress = true;
+        }
+    }
+
+    // 第三段：只对受控候选做布局初筛（可见性 / 视口 / 命中测试）。
+    const out = [];
+    for (const c of admitted) {
+        const n = c.node;
+        const tag = c.tag;
+        const roleAttr = c.roleAttr;
+        const textVal = c.text;
+        const style = getComputedStyle(n);
+        const rect = n.getBoundingClientRect();
+        const screened = style.display === "none" ||
+                         style.visibility === "hidden" ||
+                         rect.width <= 0 || rect.height <= 0;
+        if (screened && scope !== "page") continue;
 
         const selector = selFor(n, tag, textVal);
 
@@ -227,7 +384,10 @@ LOCATE_ELEMENTS_JS = r"""
                          n.getAttribute("aria-disabled") === "true" ||
                          pe === "none";
 
+        const overlayEl = overlayOf(n);
         const container = containerOf(n);
+        const owner = overlayEl || container;
+        const containerKey = owner ? containerKeyOf(owner) : "";
         const inActive = container ? isActiveContainer(container) : true;
         if (scope === "visible" && !(inViewport && inActive)) continue;
         if (scope === "container" && !inActive) continue;
@@ -253,6 +413,8 @@ LOCATE_ELEMENTS_JS = r"""
             receivesEvents: receivesEvents,
             inViewport: inViewport,
             inActive: inActive,
+            overlay: !!overlayEl,
+            containerKey: containerKey,
             rect: {
                 x: Math.round(rect.left), y: Math.round(rect.top),
                 w: Math.round(rect.width), h: Math.round(rect.height)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import time
 from urllib.parse import urlparse
 
 from core.logging_setup import get_logger
@@ -52,8 +53,10 @@ _URL_PATH_SIGNALS = ("filings", "documents", "docs", "download", "archive")
 
 _URL_RE = re.compile(r"https?://[^\s\"'<>，。；）)】\]}]+")
 
-# url -> 页面是否暴露筛选组件（browser 会话内缓存）
-_page_filter_cache: dict[str, bool] = {}
+# url -> (记录时刻, 页面是否暴露筛选组件)。SPA 路由/弹窗状态会变化，
+# 按 TTL 失效而不是永久按键锁定，避免弹层开合后判据失真。
+_page_filter_cache: dict[str, tuple[float, bool]] = {}
+_PAGE_FILTER_TTL = 30.0
 
 
 def _browser_launched() -> bool:
@@ -130,39 +133,52 @@ def _is_document_discovery(ctx) -> bool:
 
 
 async def _page_has_filter_components() -> bool:
-    """True when the current page exposes filter components (table root + filter controls).
+    """True when the current page exposes an interactive filtering UI.
 
-    Framework-agnostic: table roots come from the generic selectors plus the
-    root markers registered in filter_probes.FRAMEWORK_PROBES (data-driven,
-    nothing hard-coded here). Cached per URL.
+    Multi-signal union: table roots (generic selectors + filter_probes
+    FRAMEWORK_PROBES root markers) OR component-library widget containers
+    (filter_probes.FILTER_WIDGET_SELECTORS) OR custom filter inputs
+    (placeholder "filter"/"筛选", contenteditable). This recognises
+    component-library filter UIs (TDesign/AntD date pickers, dropdowns,
+    popovers) that have no native ``<select>``. Cached per URL with a short TTL
+    so SPA route/popover changes invalidate it.
     """
     url = _current_page_url()
-    if url and url in _page_filter_cache:
-        return _page_filter_cache[url]
+    if url:
+        entry = _page_filter_cache.get(url)
+        if entry and (time.monotonic() - entry[0]) < _PAGE_FILTER_TTL:
+            return entry[1]
     try:
         from browser import get_manager
 
         page = get_manager().page()
         if page is None:
             return False
-        from tools.browser_tools.filter_probes import FRAMEWORK_PROBES
+        from tools.browser_tools.filter_probes import (
+            FILTER_WIDGET_SELECTORS,
+            FRAMEWORK_PROBES,
+        )
 
         table_selectors = 'table, [role="table"], [role="grid"]' + "".join(
             f', {p["root_marker"]}' for p in FRAMEWORK_PROBES
         )
+        widget_selectors = ", ".join(FILTER_WIDGET_SELECTORS)
         has = await page.evaluate(
-            f"""() => {{
-                const hasTable = !!document.querySelector('{table_selectors}');
-                if (!hasTable) return false;
+            """(sel) => {
+                const hasTable = !!document.querySelector(sel.tables);
+                const hasWidget = !!document.querySelector(sel.widgets);
                 const hasFilterInput = !!document.querySelector(
-                    'input[placeholder*="filter" i], input[placeholder*="筛选" i]');
+                    'input[placeholder*="filter" i], input[placeholder*="筛选" i], '
+                    + "[contenteditable=''], [contenteditable='true']");
                 const hasFilterSelect = [...document.querySelectorAll('select')]
                     .some(s => s.options.length > 1);
-                return hasFilterInput || hasFilterSelect;
-            }}"""
+                return (hasTable && (hasFilterInput || hasFilterSelect || hasWidget))
+                    || (hasWidget && hasFilterInput);
+            }""",
+            {"tables": table_selectors, "widgets": widget_selectors},
         )
     except Exception:
         return False
     if url:
-        _page_filter_cache[url] = bool(has)
+        _page_filter_cache[url] = (time.monotonic(), bool(has))
     return bool(has)

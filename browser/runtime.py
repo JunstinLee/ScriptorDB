@@ -5,15 +5,34 @@ import json
 
 from playwright.async_api import Page
 
+from browser import locate_probes
 from browser.locate_script import LOCATE_ELEMENTS_JS
 from core.logging_setup import get_logger
 
 logger = get_logger("browser.runtime")
 
-# 确认阶段的成本预算：候选先按「在视口 / 活跃容器 / 有没有稳定属性」预排序，
-# 只对前 N 个做 Playwright 二次确认，其余截断（避免 3N 次串行往返打爆 15s 预算）。
+# 确认阶段的成本预算。候选数量在 JS 源头就被控制住（族配额 + 共享余量，
+# 见 locate_script.LOCATE_ELEMENTS_JS），MAX_CONFIRM_CANDIDATES 是硬上限；
+# Python 侧只做最终排序与确认，不再承担「上千 → 60」的截断。
 MAX_CONFIRM_CANDIDATES = 60
 CONFIRM_CONCURRENCY = 6
+
+# 候选族保底配额：防止单一大族（整页的 div/span）吃光名额。各族先拿固定配额，
+# 配额用完不再收同族元素；剩余名额按族轮转分配。`other` 无保底，只能用共享余量。
+LOCATE_FAMILY_QUOTAS = {
+    "date": 24,
+    "nav": 6,
+    "input": 10,
+    "button": 12,
+    "link": 4,
+    "other": 0,
+}
+
+# 原生具备 disabled 语义的表单控件：只有这些节点才让 is_enabled() 参与一票否决；
+# 组件库把交互语义放在 div/span/td 上，is_enabled() 对其无意义。
+_FORM_CONTROL_TAGS = {
+    "button", "input", "select", "textarea", "option", "optgroup", "fieldset",
+}
 
 
 class InvalidSelectorError(Exception):
@@ -116,6 +135,46 @@ def _has_stable_attr(el: dict) -> bool:
     )
 
 
+def _candidate_rank(el: dict) -> tuple:
+    """预排序键：「活跃覆盖层 > 活跃容器 > 视口 > 其余」，同级再看稳定属性。
+
+    活跃覆盖层（已打开的面板 / 下拉 / 弹层）里的节点最该被保留，排在首位，
+    避免被全局 cap 挤到 60 名之外。
+    """
+    if el.get("overlay") and el.get("containerKey"):
+        tier = 0
+    elif el.get("containerKey") and el.get("inActive", True):
+        tier = 1
+    elif el.get("inViewport", False):
+        tier = 2
+    else:
+        tier = 3
+    return (
+        tier,
+        not el.get("inViewport", False),
+        not el.get("inActive", True),
+        not _has_stable_attr(el),
+    )
+
+
+def _order_candidates(elements: list[dict]) -> list[dict]:
+    """最终排序：活跃覆盖层 > 活跃容器 > 视口 > 其余。
+
+    数量已在 JS 源头按族配额 + 共享余量截断，Python 不再做批量剔除，只负责
+    让确认顺序把已打开的覆盖层（日期面板 / 下拉）排在前面。末尾的兜底切片是
+    防御性的，不应触发；一旦触发说明 JS 限流失效，记 WARNING。
+    """
+    ordered = sorted(elements, key=_candidate_rank)
+    if len(ordered) > MAX_CONFIRM_CANDIDATES:
+        logger.warning(
+            "locate: JS candidate cap did not hold (%d > %d); truncating defensively",
+            len(ordered), MAX_CONFIRM_CANDIDATES,
+        )
+        ordered = ordered[:MAX_CONFIRM_CANDIDATES]
+    logger.info("locate: confirming %d candidates", len(ordered))
+    return ordered
+
+
 async def locate_elements(
     page: Page, text: str = "", role: str = "", scope: str = "visible"
 ) -> list[dict]:
@@ -159,9 +218,10 @@ async def locate_elements(
     sibling panels (ex. the coexisting visible/hidden month-panels of a date picker)
     stay out of the result; ``"container"`` keeps the whole active container even
     when slightly off-viewport; ``"page"`` drops the screening and returns the raw
-    DOM matches. Confirmation is capped at :data:`MAX_CONFIRM_CANDIDATES`, so breadth
-    is bounded here in the tool layer — callers can widen the scope but cannot bypass
-    visibility/active-container filtering nor the cap.
+    DOM matches. Breadth is bounded at the source: the JS layer admits candidates by
+    family quota + shared remainder up to :data:`MAX_CONFIRM_CANDIDATES` before any
+    layout work runs, so callers can widen the scope but cannot make the pipeline
+    examine an unbounded number of nodes.
     """
     scope = (scope or "visible").strip().lower()
     if scope not in ("visible", "container", "page"):
@@ -169,7 +229,16 @@ async def locate_elements(
     try:
         raw = await page.evaluate(
             LOCATE_ELEMENTS_JS,
-            {"text": text or "", "role": role or "", "scope": scope},
+            {
+                "text": text or "",
+                "role": role or "",
+                "scope": scope,
+                "extraSelector": locate_probes.interactive_extra_selector(),
+                "overlaySelector": locate_probes.overlay_selector(),
+                "classPattern": locate_probes.CLASS_PATTERN,
+                "totalCap": MAX_CONFIRM_CANDIDATES,
+                "familyQuotas": LOCATE_FAMILY_QUOTAS,
+            },
         )
         if not isinstance(raw, list):
             return []
@@ -188,27 +257,14 @@ async def _confirm_actionable(page: Page, elements: list[dict]) -> None:
     selector cannot be resolved at all is ``unverified`` — the two are kept apart so
     downstream output can filter verified elements and still fall back explicitly.
 
-    Cost is bounded two ways so the whole pass fits the tool's 15 s budget: candidates
-    are pre-sorted (in-viewport, active container, stable attribute first) and capped at
-    :data:`MAX_CONFIRM_CANDIDATES`, then confirmed with :data:`CONFIRM_CONCURRENCY`
+    Cost is bounded two ways so the whole pass fits the tool's 15 s budget: the JS layer
+    already capped the pool at :data:`MAX_CONFIRM_CANDIDATES` (family quota + shared
+    remainder), and here the candidates are only reordered (active overlay / active
+    container / in-viewport first) and then confirmed with :data:`CONFIRM_CONCURRENCY`
     concurrent workers instead of 3 serial round trips per element. ``elements`` is
     reduced in place to the confirmed (and reordered) set.
     """
-    ordered = sorted(
-        elements,
-        key=lambda el: (
-            not el.get("inViewport", False),
-            not el.get("inActive", True),
-            not _has_stable_attr(el),
-        ),
-    )
-    candidates = ordered[:MAX_CONFIRM_CANDIDATES]
-    dropped = len(ordered) - len(candidates)
-    if dropped:
-        logger.info(
-            "locate: confirming %d/%d candidates (%d dropped by cap)",
-            len(candidates), len(ordered), dropped,
-        )
+    candidates = _order_candidates(elements)
 
     semaphore = asyncio.Semaphore(CONFIRM_CONCURRENCY)
 
@@ -247,13 +303,17 @@ async def _confirm_one(page: Page, el: dict) -> None:
                         selector, type(e).__name__,
                     )
             else:
-                if visible and enabled and bool(el.get("receivesEvents", True)):
+                # 仅原生表单控件让 is_enabled() 参与一票否决；组件库把交互语义放在
+                # div/span/td 上，is_enabled() 对其恒为真且无意义，不应因此被判 blocked。
+                tag = (el.get("tag") or "").lower()
+                strict_enabled = enabled or tag not in _FORM_CONTROL_TAGS
+                if visible and strict_enabled and bool(el.get("receivesEvents", True)):
                     state = "usable"
                 else:
                     state = "blocked"
                     if not visible:
                         reason = "hidden"
-                    elif not enabled:
+                    elif not strict_enabled:
                         reason = "disabled"
                     else:
                         reason = "covered"
