@@ -102,11 +102,34 @@ async def browser_click(
     clicked_at = time.time()
     click_result = await _click(page, selector, timeout=_ACTION_TIMEOUT_MS)
     click_failed = click_result.startswith("Click failed")
+    if click_failed:
+        from browser.runtime import locate_elements
+
+        candidates = await locate_elements(page, scope="visible")
+        target = next((el for el in candidates if el.get("selector") == selector), None)
+        container_key = target.get("containerKey") if target else None
+        if container_key:
+            candidates = [
+                el for el in candidates
+                if el.get("containerKey") == container_key
+                and el.get("semantic") in ("calendar-day", "calendar-navigation", "calendar-month")
+            ]
+        else:
+            candidates = [
+                el for el in candidates
+                if el.get("semantic") in ("calendar-day", "calendar-navigation", "calendar-month")
+            ]
+        if candidates:
+            click_result += "\nCurrent calendar candidates: " + "; ".join(
+                f"{el.get('text') or el.get('ariaLabel') or el.get('semantic')}"
+                f" [{el.get('state')}]: {el.get('selector')}"
+                for el in candidates[:20]
+            )
     # 失败判定只看 click 执行结果，避免页面数据（快照里的 value 文本）误触发
     # record_element_failure / detect_takeover。
     failed = "failed" in click_result.lower() or "error" in click_result.lower()
 
-    snapshot = await _settle_after_click(page, selector)
+    snapshot = await _settle_after_click(page, selector) if not click_failed else {}
     lines = [click_result]
     if download_wait > 0:
         entry = await _wait_for_download(manager, clicked_at, download_wait)

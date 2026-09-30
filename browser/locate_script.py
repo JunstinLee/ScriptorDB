@@ -192,6 +192,7 @@ LOCATE_ELEMENTS_JS = r"""
     // 全部基于 tag / class / role / text 的属性读取，不触碰布局。
     const DATE_TOKENS = /date|calendar|picker|month|year|day/i;
     const familyOf = (el, tag, roleAttr, textVal) => {
+        if (semanticTag(el, tag, textVal) === "calendar-navigation") return "nav";
         let n = el, depth = 0;
         while (n && depth <= 4) {
             const cls = n.getAttribute("class") || "";
@@ -225,6 +226,7 @@ LOCATE_ELEMENTS_JS = r"""
         if (el.getAttribute("role")) score += 1;
         if (classRe && classRe.test(el.getAttribute("class") || "")) score += 2;
         if (family === "date") score += 2;
+        if (semanticTag(el, tag, textVal) === "calendar-day") score += 3;
         if (tag === "button" || tag === "a" || tag === "input" || tag === "select") score += 1;
         if (textVal && textVal.length <= 40) score += 1;
         return score;
@@ -265,11 +267,17 @@ LOCATE_ELEMENTS_JS = r"""
         if (t) textCount.set(t, (textCount.get(t) || 0) + 1);
     }
     const selFor = (el, tag, textVal) => {
-        for (const attr of ["data-testid", "data-test", "data-qa"]) {
+        const dateContext = el.closest(DATE_CTX_SEL);
+        const contextSelector = dateContext ? cssPath(dateContext) : "";
+        const stableAttrs = ["data-testid", "data-test", "data-qa"];
+        if (dateContext) stableAttrs.push("data-date", "data-value", "data-day", "title");
+        for (const attr of stableAttrs) {
             const v = el.getAttribute(attr);
             if (v) {
-                const sel = attrSelector(attr, v);
-                if (countMatches(sel) === 1) return sel;
+                const local = attrSelector(attr, v);
+                const scoped = contextSelector ? contextSelector + " " + local : local;
+                if (countMatches(scoped) === 1) return scoped;
+                if (countMatches(local) === 1) return local;
             }
         }
         const type = (el.getAttribute("type") || "").toLowerCase();

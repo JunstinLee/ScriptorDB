@@ -20,7 +20,7 @@ CONFIRM_CONCURRENCY = 6
 # 候选族保底配额：防止单一大族（整页的 div/span）吃光名额。各族先拿固定配额，
 # 配额用完不再收同族元素；剩余名额按族轮转分配。`other` 无保底，只能用共享余量。
 LOCATE_FAMILY_QUOTAS = {
-    "date": 24,
+    "date": 42,
     "nav": 6,
     "input": 10,
     "button": 12,

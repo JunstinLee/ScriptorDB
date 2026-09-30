@@ -47,10 +47,9 @@ async def _do_select(loc, target: str, value: str) -> str:
     return f"Set {target} = {value}"
 
 
-async def _do_input(page, loc, target: str, value: str) -> str:
+async def _do_input(loc, target: str, value: str) -> str:
     try:
         await loc.fill(value)
-        await page.keyboard.press("Enter")
     except Exception as e:
         return f"Failed: error filling '{target}': {e}"
     return f"Filled {target} = {value}"
@@ -107,7 +106,7 @@ async def _do_dates(page, loc, target: str, values_raw: str) -> str:
     return f"Set {target} = {values[0]} ~ {values[1]}"
 
 
-async def _click_submit(page, loc) -> str:
+async def _click_submit(page, loc, allow_enter: bool = False) -> str:
     btn_re = re.compile(_SUBMIT_LABEL_RE, re.IGNORECASE)
     try:
         form = loc.locator("xpath=ancestor::form[1]")
@@ -120,9 +119,12 @@ async def _click_submit(page, loc) -> str:
         if await btn.count() > 0:
             await btn.click()
             return "Clicked the submit button"
+        if allow_enter:
+            await loc.press("Enter")
+            return "Submitted with Enter"
+        return ""
     except Exception as e:
-        return f"Hint: submit button click failed (the filter may already be applied): {e}"
-    return ""
+        return f"Hint: submit failed: {e}"
 
 
 async def execute_filter_action(page, action: str, target: str, value: str = "",
@@ -139,7 +141,7 @@ async def execute_filter_action(page, action: str, target: str, value: str = "",
         if action == "select":
             lines.append(await _do_select(loc, target, value))
         elif action == "input":
-            lines.append(await _do_input(page, loc, target, value))
+            lines.append(await _do_input(loc, target, value))
         elif action == "toggle":
             lines.append(await _do_toggle(loc, target, value))
         elif action == "set_range":
@@ -148,9 +150,17 @@ async def execute_filter_action(page, action: str, target: str, value: str = "",
             lines.append(await _do_dates(page, loc, target, values))
         else:
             return f"Failed: unknown action {action} (available: {FILTER_ACTIONS})"
+        if lines and is_filter_failure(lines[-1]):
+            return "\n".join(line for line in lines if line)
         if submit:
-            lines.append(await _click_submit(page, loc))
+            lines.append(await _click_submit(page, loc, allow_enter=action == "input"))
             await _settle_after_click(page)
+            if action == "input":
+                try:
+                    current_value = await loc.input_value()
+                    lines.append(f"Current value after submit: {current_value}")
+                except Exception:
+                    lines.append("Could not read the input value after submit")
     except Exception as e:
         return f"Failed: error executing the filter action: {e}"
     return "\n".join(line for line in lines if line)
