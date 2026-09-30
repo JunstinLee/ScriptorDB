@@ -7,9 +7,8 @@ import pytest
 from browser import get_manager
 from tests.support.ctx import make_ctx
 from tools.browser import (
-    browser_evaluate,
     browser_load_state,
-    browser_query,
+    browser_read,
     browser_scroll,
 )
 
@@ -49,7 +48,7 @@ class TestBrowserEvaluate:
     @pytest.mark.asyncio
     async def test_evaluate_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_evaluate(make_ctx(), "document.title")
+            result = await browser_read(make_ctx(), js="document.title")
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -57,7 +56,7 @@ class TestBrowserEvaluate:
         mock_page = AsyncMock()
         mock_page.evaluate = AsyncMock(return_value="Apple")
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_evaluate(make_ctx(), "document.title")
+            result = await browser_read(make_ctx(), js="document.title")
             assert "Apple" in result
             mock_page.evaluate.assert_awaited_once()
 
@@ -66,7 +65,7 @@ class TestBrowserEvaluate:
         mock_page = AsyncMock()
         mock_page.evaluate = AsyncMock(side_effect=Exception("eval error"))
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_evaluate(make_ctx(), "bad.code")
+            result = await browser_read(make_ctx(), js="bad.code")
             assert "error" in result.lower()
 
 
@@ -74,7 +73,7 @@ class TestBrowserQuery:
     @pytest.mark.asyncio
     async def test_query_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_query(make_ctx(), "h1")
+            result = await browser_read(make_ctx(), "h1")
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -86,7 +85,7 @@ class TestBrowserQuery:
         mock_page.query_selector = AsyncMock(return_value=mock_element)
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(make_ctx(), "h1")
+            result = await browser_read(make_ctx(), "h1")
             assert "Hello World" in result
             mock_page.query_selector.assert_awaited_once_with("h1")
 
@@ -101,7 +100,7 @@ class TestBrowserQuery:
         mock_page.query_selector_all = AsyncMock(return_value=[mock_el_0, mock_el_1])
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(make_ctx(), "li", all=True)
+            result = await browser_read(make_ctx(), "li", all=True)
             assert "[0] First" in result
             assert "[1] Second" in result
             mock_page.query_selector_all.assert_awaited_once_with("li")
@@ -115,7 +114,7 @@ class TestBrowserQuery:
         mock_page.query_selector = AsyncMock(return_value=mock_element)
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(make_ctx(), "a", attribute="href")
+            result = await browser_read(make_ctx(), "a", attribute="href")
             assert "https://example.com" in result
             mock_page.query_selector.assert_awaited_once_with("a")
 
@@ -125,7 +124,7 @@ class TestBrowserQuery:
         mock_page.query_selector = AsyncMock(return_value=None)
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(make_ctx(), ".nonexistent")
+            result = await browser_read(make_ctx(), ".nonexistent")
             assert "No element found" in result
 
 
@@ -136,7 +135,7 @@ class TestBrowserQueryImages:
         mock_page.evaluate = AsyncMock(return_value=["/img/a.png", "/img/b.png"])
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(make_ctx(), "img[src]", attribute="src", all=True)
+            result = await browser_read(make_ctx(), "img[src]", attribute="src", all=True)
             assert "[0] /img/a.png" in result
             assert "[1] /img/b.png" in result
 
@@ -146,7 +145,7 @@ class TestBrowserQueryImages:
         mock_page.evaluate = AsyncMock(return_value=[])
 
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_query(make_ctx(), "img[src]", attribute="src", all=True)
+            result = await browser_read(make_ctx(), "img[src]", attribute="src", all=True)
             assert "no images" in result.lower()
 
 

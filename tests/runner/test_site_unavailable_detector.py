@@ -60,8 +60,8 @@ def test_detect_ignores_online_site_signals(text: str):
 @pytest.mark.parametrize(
     "tool_name, text",
     [
-        ("browser_evaluate", '{"url":"https://x/invoice-query","count":0,"bodyLen":502}'),  # 字节数
-        ("browser_get_text", "发票金额 502.00"),                                             # 金额
+        ("browser_read", '{"url":"https://x/invoice-query","count":0,"bodyLen":502}'),  # 字节数
+        ("browser_read", "发票金额 502.00"),                                            # 金额
         ("browser_navigate", 'Navigation failed: {"code":503}'),                             # JSON 字段值
     ],
 )
@@ -77,9 +77,8 @@ def test_detect_matches_status_code_with_context():
 
 def test_detect_ignores_read_only_browser_tools():
     """只读页面、操作页面的浏览器工具不再参与检测。"""
-    assert detect_site_unavailable("browser_evaluate", "502 Bad Gateway") is None
-    assert detect_site_unavailable("browser_get_text", "502 Bad Gateway") is None
-    assert detect_site_unavailable("browser_query", "service unavailable") is None
+    assert detect_site_unavailable("browser_read", "502 Bad Gateway") is None
+    assert detect_site_unavailable("browser_read", "service unavailable") is None
 
 
 def test_detect_ignores_non_network_tools():

@@ -16,12 +16,12 @@ class TestBrowserBusinessIntegration:
     async def test_github_login_cookie_persistence(self):
         from tools.browser import (
             browser_clear_cookies,
-            browser_evaluate,
             browser_fill,
             browser_get_cookies,
             browser_get_url,
             browser_launch,
             browser_navigate,
+            browser_read,
             browser_wait_for_selector,
         )
 
@@ -52,7 +52,7 @@ class TestBrowserBusinessIntegration:
 
         result = await browser_navigate(make_ctx(), "https://github.com/login")
         result = await browser_wait_for_selector(make_ctx(), "#login_field")
-        result = await browser_evaluate(make_ctx(), "document.querySelector('#login_field').value")
+        result = await browser_read(make_ctx(), js="document.querySelector('#login_field').value")
         assert result == '""'
 
     @pytest.mark.asyncio
@@ -60,11 +60,11 @@ class TestBrowserBusinessIntegration:
     async def test_google_search_and_navigation(self):
         from tools.browser import (
             browser_fill,
-            browser_get_text,
             browser_get_url,
             browser_launch,
             browser_navigate,
             browser_press_key,
+            browser_read,
             browser_wait_for_selector,
         )
 
@@ -83,7 +83,7 @@ class TestBrowserBusinessIntegration:
         result = await browser_wait_for_selector(make_ctx(), "#search")
         assert "visible" in result.lower() or "now" in result.lower()
 
-        result = await browser_get_text(make_ctx())
+        result = await browser_read(make_ctx())
         assert "pydantic" in result.lower() or "github" in result.lower()
 
     @pytest.mark.asyncio
@@ -95,7 +95,7 @@ class TestBrowserBusinessIntegration:
             browser_launch,
             browser_navigate,
             browser_press_key,
-            browser_query,
+            browser_read,
             browser_scroll,
             browser_wait_for_selector,
         )
@@ -114,7 +114,7 @@ class TestBrowserBusinessIntegration:
         result = await browser_wait_for_selector(
             None, "[data-component-type='s-search-result'] h2 span"
         )
-        result = await browser_query(
+        result = await browser_read(
             None, "[data-component-type='s-search-result'] h2 span", all=True
         )
         assert len(result) > 0
@@ -127,11 +127,11 @@ class TestBrowserBusinessIntegration:
     async def test_notion_login_page_interaction(self):
         from tools.browser import (
             browser_fill,
-            browser_get_text,
             browser_get_url,
             browser_launch,
             browser_navigate,
             browser_press_key,
+            browser_read,
             browser_wait_for_selector,
         )
 
@@ -149,5 +149,5 @@ class TestBrowserBusinessIntegration:
 
         result = await browser_press_key(make_ctx(), "Enter")
 
-        result = await browser_get_text(make_ctx())
+        result = await browser_read(make_ctx())
         assert len(result) > 0

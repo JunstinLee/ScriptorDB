@@ -1,8 +1,8 @@
-"""browser_locate 三态与输出降级阶梯。
+"""browser_find 三态与输出降级阶梯。
 
 覆盖：
 - ``_confirm_actionable`` 把候选判成 usable / blocked(原因) / unverified 三态；
-- ``browser_locate`` 主输出只含 usable，为空时才降级输出带 [unverified] 的兜底，
+- ``browser_find`` 主输出只含 usable，为空时才降级输出带 [unverified] 的兜底，
   blocked 条目被省略；
 - 确认阶段的候选上限（成本控制）与「enabled 不再被覆写」的契约。
 """
@@ -15,7 +15,7 @@ import pytest
 
 from browser.runtime import MAX_CONFIRM_CANDIDATES, _confirm_actionable
 from tools.browser_tools import dom as dom_mod
-from tools.browser_tools.dom import browser_locate
+from tools.browser_tools.dom import browser_find
 
 pytestmark = pytest.mark.usefixtures("cleanup_browser")
 
@@ -190,7 +190,7 @@ def _locate_el(selector: str, state: str, reason: str = "", text: str = "") -> d
 
 
 class TestBrowserLocateOutput:
-    """browser_locate 的过滤 / 降级 / 标注。"""
+    """browser_find 的过滤 / 降级 / 标注。"""
 
     @pytest.mark.asyncio
     async def test_main_list_outputs_only_usable(self, monkeypatch):
@@ -201,7 +201,7 @@ class TestBrowserLocateOutput:
             _locate_el("#c", "blocked", "hidden"),
         ]
         manager = _stub_locate(monkeypatch, elements)
-        result = await browser_locate(_ctx(), "")
+        result = await browser_find(_ctx(), "")
         assert "#a" in result
         assert "#b" not in result
         assert "#c" not in result
@@ -220,7 +220,7 @@ class TestBrowserLocateOutput:
             _locate_el("#b", "blocked", "covered"),
         ]
         _stub_locate(monkeypatch, elements)
-        result = await browser_locate(_ctx(), "")
+        result = await browser_find(_ctx(), "")
         lines = result.splitlines()
         assert lines[0].endswith("[unverified]")
         assert lines[1].endswith("[unverified]")
@@ -232,7 +232,7 @@ class TestBrowserLocateOutput:
         """只有 blocked 条目：不输出条目行，空结果提示附 blocked 计数。"""
         elements = [_locate_el("#b", "blocked", "disabled")]
         _stub_locate(monkeypatch, elements)
-        result = await browser_locate(_ctx(), "")
+        result = await browser_find(_ctx(), "")
         assert "#b" not in result
         assert "No interactive elements" in result
         assert "1 matching element(s) exist" in result
@@ -241,7 +241,7 @@ class TestBrowserLocateOutput:
     async def test_visible_empty_hint_points_to_wait_not_page(self, monkeypatch):
         """visible 空结果优先建议 browser_wait_for_selector，不再直接推 scope=page。"""
         _stub_locate(monkeypatch, [])
-        result = await browser_locate(_ctx(), "")
+        result = await browser_find(_ctx(), "")
         assert "browser_wait_for_selector" in result
         assert 'scope="page"' not in result
 
@@ -249,7 +249,7 @@ class TestBrowserLocateOutput:
     async def test_page_scope_empty_hint_is_plain(self, monkeypatch):
         """page 空结果是朴素文案（不承诺可再放宽）。"""
         _stub_locate(monkeypatch, [])
-        result = await browser_locate(_ctx(), "", scope="page")
+        result = await browser_find(_ctx(), "", scope="page")
         assert result.startswith("No interactive elements found.")
 
     @pytest.mark.asyncio
@@ -261,7 +261,7 @@ class TestBrowserLocateOutput:
             _locate_el("#c", "blocked", "covered"),
         ]
         manager = _stub_locate(monkeypatch, elements)
-        await browser_locate(_ctx(), "")
+        await browser_find(_ctx(), "")
         detail = manager.actions[-1][1]
         assert "usable=1" in detail
         assert "blocked=2" in detail

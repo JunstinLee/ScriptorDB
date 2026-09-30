@@ -79,12 +79,12 @@ _TABULATOR_HTML = """<!doctype html><html><head><meta charset="utf-8">
 
 async def _wait_tabulator_rows(count: int) -> None:
     """轮询等待 Tabulator 渲染出 count 行（CDN 加载 + 初始化是异步的）。"""
-    from tools.browser import browser_evaluate
+    from tools.browser import browser_read
 
     for _ in range(40):
         try:
-            n = await browser_evaluate(
-                _ctx(), "document.querySelectorAll('.tabulator-row').length"
+            n = await browser_read(
+                _ctx(), js="document.querySelectorAll('.tabulator-row').length"
             )
             if int(n or 0) >= count:
                 return
@@ -123,9 +123,9 @@ class TestFiltersSlow:
     async def test_apply_select_and_submit(self, tmp_path):
         from tools.browser import (
             browser_apply_filter,
-            browser_evaluate,
             browser_launch,
             browser_navigate,
+            browser_read,
         )
 
         page_file = tmp_path / "filters.html"
@@ -137,7 +137,7 @@ class TestFiltersSlow:
                                             target="Status", value="Active", submit=True)
         assert "Set Status = Active" in result
         assert "Clicked the submit button" in result
-        out = await browser_evaluate(_ctx(), "document.getElementById('result').textContent")
+        out = await browser_read(_ctx(), js="document.getElementById('result').textContent")
         assert "result:active:" in out  # 结果区已按筛选更新
 
     @pytest.mark.asyncio
@@ -204,9 +204,9 @@ class TestFiltersSlow:
         from tools.browser import (
             browser_apply_filter,
             browser_detect_filters,
-            browser_evaluate,
             browser_launch,
             browser_navigate,
+            browser_read,
         )
 
         page_file = tmp_path / "tabulator.html"
@@ -224,10 +224,10 @@ class TestFiltersSlow:
                                          capability=gender["capability"],
                                          table=gender["table"])
         assert "Set Gender = female" in res
-        n = await browser_evaluate(_ctx(), "document.querySelectorAll('.tabulator-row').length")
+        n = await browser_read(_ctx(), js="document.querySelectorAll('.tabulator-row').length")
         assert int(n) == 2                     # 仅 female 两行（Mary May / Christine Lobowski）
-        state = await browser_evaluate(
+        state = await browser_read(
             _ctx(),
-            "JSON.stringify(Tabulator.findTable(document.querySelector('.tabulator'))[0].getFilters())",
+            js="JSON.stringify(Tabulator.findTable(document.querySelector('.tabulator'))[0].getFilters())",
         )
-        assert "female" in state                # 实例筛选状态已生效（browser_evaluate 返回 JSON 编码串）
+        assert "female" in state                # 实例筛选状态已生效（browser_read 的 js 返回 JSON 编码串）

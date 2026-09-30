@@ -15,12 +15,10 @@ class TestBrowserDynamicRender:
     @pytest.mark.slow
     async def test_apple_dynamic_render(self):
         from tools.browser import (
-            browser_evaluate,
-            browser_get_text,
             browser_launch,
             browser_load_state,
             browser_navigate,
-            browser_query,
+            browser_read,
             browser_scroll,
         )
 
@@ -33,13 +31,13 @@ class TestBrowserDynamicRender:
         result = await browser_load_state(make_ctx(), "networkidle")
         assert "reached load state" in result.lower()
 
-        result = await browser_evaluate(make_ctx(), "document.title")
+        result = await browser_read(make_ctx(), js="document.title")
         assert "Apple" in result
 
-        result = await browser_query(make_ctx(), "h1")
+        result = await browser_read(make_ctx(), "h1")
         assert len(result) > 0
 
-        result = await browser_query(make_ctx(), "img[src]", attribute="src", all=True)
+        result = await browser_read(make_ctx(), "img[src]", attribute="src", all=True)
         assert len(result) > 0
 
         result = await browser_scroll(make_ctx(), to_bottom=True)

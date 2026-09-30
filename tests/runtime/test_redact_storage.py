@@ -5,7 +5,12 @@ import json
 from pydantic_ai.messages import ModelRequest, ToolCallPart, ToolReturnPart
 
 from runtime.redact import register_password
-from runtime.session_file_store import FileSessionStore, _content_to_data, _part_to_data
+from runtime.session_file_store import (
+    FileSessionStore,
+    _content_to_data,
+    _part_from_data,
+    _part_to_data,
+)
 from runtime.session_model import Session
 
 
@@ -30,7 +35,7 @@ def test_part_to_data_redacts_tool_return_content():
     """ToolReturnPart 的 content 落盘前脱敏。"""
     register_password("secret99")
     part = ToolReturnPart(
-        tool_name="browser_query",
+        tool_name="browser_read",
         content="[redacted: password field]",
         tool_call_id="c1",
     )
@@ -99,7 +104,7 @@ def test_session_store_roundtrip_no_plaintext(tmp_path):
                 tool_call_id="c1",
             ),
             ToolReturnPart(
-                tool_name="browser_query",
+                tool_name="browser_read",
                 content="[redacted: password field]",
                 tool_call_id="c1",
             ),
@@ -123,3 +128,39 @@ def test_session_store_roundtrip_no_plaintext(tmp_path):
     assert isinstance(call, ToolCallPart)
     assert call.tool_name == "browser_fill"
     assert isinstance(first.parts[1], ToolReturnPart)
+
+
+# ---- 框架附加 part 的往返（按需加载的可用性记录） ----
+
+
+def test_part_to_data_roundtrips_framework_parts():
+    """框架附加 part 落盘后原样往返。
+
+    这些 part 记录「哪些工具已放出」；一旦丢失，恢复会话后按需加载的工具
+    会重新变隐藏。
+    """
+    from pydantic_ai.messages import RetryPromptPart
+
+    part = RetryPromptPart(content="try again", tool_name="t", tool_call_id="c1")
+    data = _part_to_data(part)
+    assert data is not None
+    restored = _part_from_data(data)
+    assert isinstance(restored, RetryPromptPart)
+    assert restored.content == "try again"
+
+
+def test_part_to_data_roundtrips_tool_availability_delta():
+    """框架若提供 ToolAvailabilityDeltaPart，其往返必须保真（版本相关）。"""
+    from pydantic_ai import messages as messages_mod
+
+    cls = getattr(messages_mod, "ToolAvailabilityDeltaPart", None)
+    if cls is None:
+        import pytest
+
+        pytest.skip("framework version has no ToolAvailabilityDeltaPart")
+    part = cls(tools_added=["browser_download"], tool_call_id="c1")
+    data = _part_to_data(part)
+    assert data is not None
+    restored = _part_from_data(data)
+    assert isinstance(restored, cls)
+    assert restored.tools_added == ["browser_download"]

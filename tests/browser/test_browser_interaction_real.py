@@ -21,7 +21,7 @@ class TestBrowserInteraction:
             browser_load_state,
             browser_navigate,
             browser_press_key,
-            browser_query,
+            browser_read,
             browser_wait_for_selector,
         )
 
@@ -45,13 +45,13 @@ class TestBrowserInteraction:
         result = await browser_press_key(make_ctx(), "Enter")
         assert "Pressed" in result or "Enter" in result
 
-        result = await browser_query(make_ctx(), ".todo-list li")
+        result = await browser_read(make_ctx(), ".todo-list li")
         assert "Buy milk" in result
 
         result = await browser_click(make_ctx(), ".todo-list li .toggle")
         assert "Clicked" in result or "toggle" in result
 
-        result = await browser_query(make_ctx(), ".todo-list li", attribute="class")
+        result = await browser_read(make_ctx(), ".todo-list li", attribute="class")
         assert "completed" in result
 
         result = await browser_fill(make_ctx(), ".new-todo", "Read book")
@@ -60,13 +60,13 @@ class TestBrowserInteraction:
         result = await browser_press_key(make_ctx(), "Enter")
         assert "Pressed" in result or "Enter" in result
 
-        result = await browser_query(make_ctx(), ".todo-list li", all=True)
+        result = await browser_read(make_ctx(), ".todo-list li", all=True)
         assert "Buy milk" in result
         assert "Read book" in result
 
         result = await browser_click(make_ctx(), ".clear-completed")
         assert "Clicked" in result or "clear-completed" in result
 
-        result = await browser_query(make_ctx(), ".todo-list li", all=True)
+        result = await browser_read(make_ctx(), ".todo-list li", all=True)
         assert "Buy milk" not in result
         assert "Read book" in result

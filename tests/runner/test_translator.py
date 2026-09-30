@@ -111,7 +111,7 @@ async def test_translator_unknown_event_type_warns_not_raises():
 
 @pytest.mark.asyncio
 async def test_translator_redacts_registered_password_in_tool_call():
-    """已登记密码出现在 browser_fill/browser_evaluate 参数时，
+    """已登记密码出现在 browser_fill/browser_read 参数时，
     tracker/SSE/tool_parts 只见脱敏副本（实时层不留明文）。"""
     from runtime.redact import register_password
 
