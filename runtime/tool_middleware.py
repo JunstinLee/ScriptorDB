@@ -104,10 +104,22 @@ _UI_PROBE_REPEAT_LABEL = (
     "Use browser_find / browser_read instead."
 )
 
+# 重复 find 熔断：同一逻辑 run、同一页、同一导航修订、同一查询指纹已被成功回答过，
+# 模型再发一次相同的 browser_find 只会得到同样结果——改用已经拿到的 ref。
+_FIND_REPEAT_LABEL = (
+    "[Middleware] browser_find intercepted: this exact query (same page, same navigation state, "
+    "same text/role/scope) has already been answered in this run. Do not scan again — reuse the "
+    "`ref` values already returned for this page and pass them to "
+    "browser_click / browser_fill / browser_select_option. If the target is not among them, change "
+    "the query (text / role / scope) instead of repeating it."
+)
+
 _lock = threading.Lock()
 _round_blocks: dict[str, dict[str, int]] = {}
 _round_browser_used: set[str] = set()
 _round_detect_used: set[str] = set()       # rounds where browser_detect_filters already ran
+# 每次成功的 browser_find 记录，按 _run_key 归组；条目见 record_find。
+_round_finds: dict[str, list[dict[str, Any]]] = {}
 
 _MAX_ROUNDS = 1000
 
@@ -118,6 +130,133 @@ def _is_browser_tool(tool_name: str) -> bool:
 
 def _round_key(ctx) -> str:
     return getattr(ctx, "run_id", None) or "default-round"
+
+
+def _run_key(ctx) -> str:
+    """一次逻辑 run 的稳定身份。
+
+    取 ``ctx.deps.run_id``（由 lifecycle 在每次 agent.run 前写入 RunTracker 的 run_id，
+    贯穿审批暂停/恢复的续跑循环），退化到 pydantic 的 ``ctx.run_id``（每次 agent.run 都会
+    变，仅作兜底）。不要复用 ``_round_key``。
+    """
+    deps = getattr(ctx, "deps", None)
+    run_id = getattr(deps, "run_id", None) if deps is not None else None
+    if run_id:
+        return str(run_id)
+    return getattr(ctx, "run_id", None) or "default-round"
+
+
+def _manager():
+    from browser import get_manager
+
+    return get_manager()
+
+
+def _page_key(manager) -> str:
+    """当前活动页身份；无页面返回 ``""``（上层 fail-open）。"""
+    try:
+        page = manager.page()
+    except Exception:
+        return ""
+    return str(id(page)) if page is not None else ""
+
+
+def _nav_revision(manager) -> int:
+    """当前活动页的导航修订计数；读取失败按 0 处理。"""
+    try:
+        return int(manager.nav_revision())
+    except Exception:
+        return 0
+
+
+def _page_url(manager) -> str:
+    """当前活动页 URL；无页面返回 ``""``。"""
+    try:
+        page = manager.page()
+    except Exception:
+        return ""
+    return (getattr(page, "url", "") or "") if page is not None else ""
+
+
+def _find_fingerprint(text: str, role: str, scope: str) -> str:
+    """把 browser_find 的查询参数组装为稳定指纹。"""
+    return f"{scope}||{role}||{text}"
+
+
+def record_find(
+    ctx,
+    *,
+    page_key: str,
+    page_url: str,
+    nav_rev: int,
+    fingerprint: str,
+    produced: bool,
+) -> None:
+    """记录一次 browser_find 的结果（由工具层在产出 ref 后回写）。"""
+    run_key = _run_key(ctx)
+    with _lock:
+        if len(_round_finds) > _MAX_ROUNDS:
+            _round_finds.clear()
+        _round_finds.setdefault(run_key, []).append({
+            "page_key": page_key,
+            "page_url": page_url,
+            "nav_rev": nav_rev,
+            "fingerprint": fingerprint,
+            "produced": produced,
+        })
+
+
+def clear_run(run_key: str) -> None:
+    """run 终结时清理该 run 的 find 记录，避免跨 run 累积。"""
+    with _lock:
+        _round_finds.pop(run_key, None)
+
+
+def _is_repeat_find(ctx, args: dict | None) -> bool:
+    """同一 run / 页 / 导航修订 / 查询指纹上是否已有成功 find 记录。
+
+    不确定（取不到 run 或 page）一律返回 ``False``（fail-open）。
+    """
+    run_key = _run_key(ctx)
+    if not run_key:
+        return False
+    try:
+        manager = _manager()
+    except Exception:
+        return False
+    page_key = _page_key(manager)
+    if not page_key:
+        return False
+    page_url = _page_url(manager)
+    nav_rev = _nav_revision(manager)
+
+    raw_mode = args.get("mode") if isinstance(args, dict) else None
+    mode = (str(raw_mode) if raw_mode else "elements").strip().lower()
+    if mode != "elements":
+        # containers 模式是另一种查询，且不产出 ref，不参与熔断。
+        return False
+
+    text = str(args.get("text") or "") if isinstance(args, dict) else ""
+    role = str(args.get("role") or "") if isinstance(args, dict) else ""
+    raw_scope = args.get("scope") if isinstance(args, dict) else None
+    scope = (str(raw_scope) if raw_scope else "visible").strip().lower()
+    if scope not in ("visible", "container", "page"):
+        scope = "visible"
+    fingerprint = _find_fingerprint(text, role, scope)
+
+    with _lock:
+        records = list(_round_finds.get(run_key, ()))
+    for record in records:
+        if not record.get("produced"):
+            continue
+        if (
+            record.get("page_key") == page_key
+            and record.get("nav_rev") == nav_rev
+            and record.get("page_url") == page_url
+            and record.get("fingerprint") == fingerprint
+        ):
+            return True
+    return False
 
 
 def _bump_round_block(round_id: str, tool_name: str) -> int:
@@ -208,6 +347,7 @@ async def evaluate_call(ctx, tool_name: str, args: dict | None = None) -> str:
     - "no-python":  block; browser control task forbids python_sandbox_execute
     - "filter-block"/"filter-repeat": block; page exposes an interactive filtering UI
     - "ui-probe-block"/"ui-probe-repeat": block; DOM/UI probing script on an interactive page
+    - "find-repeat":  block; the same browser_find query already succeeded on this page state
 
     ``args`` carries the tool kwargs so a ``browser_read`` call's ``js`` can be
     fingerprinted; scripts reading native state (localStorage / navigator / canvas …)
@@ -254,6 +394,12 @@ async def evaluate_call(ctx, tool_name: str, args: dict | None = None) -> str:
         if round_id in _round_browser_used or _browser_launched():
             logger.info("tool middleware: blocking python_sandbox_execute — browser control active (round %s)", round_id)
 
+    if tool_name == "browser_find":
+        if _is_repeat_find(ctx, args):
+            logger.info("tool middleware: blocking browser_find (find-repeat) — run %s", _run_key(ctx))
+            return "find-repeat"
+        return "allow"
+
     if tool_name not in _BLOCKED_TOOLS:
         return "allow"
     if not _is_document_discovery(ctx):
@@ -281,6 +427,8 @@ async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
         return _UI_PROBE_LABEL.format(tool_name=tool_name)
     if decision == "ui-probe-repeat":
         return _UI_PROBE_REPEAT_LABEL.format(tool_name=tool_name)
+    if decision == "find-repeat":
+        return _FIND_REPEAT_LABEL
 
     current = _current_page_url()
     target = _target_url_from_prompt(ctx)

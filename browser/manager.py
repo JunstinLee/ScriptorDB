@@ -33,6 +33,10 @@ class BrowserManager:
         self._launching = False
 
         self._history: list[dict[str, str]] = []
+        # 每页一个导航修订计数（键为 id(page)）：显式导航时递增，供 middleware
+        # 判断「同一页是否重新导航过」。点击触发的整页跳转不经过 record_navigate，
+        # 由 URL 相等兜底。
+        self._nav_revisions: dict[int, int] = {}
         self._actions: list[dict] = []
         self._launched_at: float | None = None
         self._takeover = HumanTakeoverManager()
@@ -85,9 +89,19 @@ class BrowserManager:
             "title": title,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
-        # 显式导航后该页 ref 立即失效。Page 对象跨导航不变，故 self.page() 即刚导航的页；
+        page = self.page()
+        if page is not None:
+            self._nav_revisions[id(page)] = self._nav_revisions.get(id(page), 0) + 1
+        # 显式导航后该页 ref 立即失效。Page 对象跨导航不变，故 page 即刚导航的页；
         # 点击触发的整页跳转不经此处，由执行期的 URL + 签名校验兜底。
-        invalidate_page(self.page())
+        invalidate_page(page)
+
+    def nav_revision(self) -> int:
+        """当前活动页的导航修订计数；无页面返回 0。"""
+        page = self.page()
+        if page is None:
+            return 0
+        return self._nav_revisions.get(id(page), 0)
 
     def record_action(self, tool: str, detail: str, success: bool = True,
                       selector: str = "", coords: dict | None = None) -> None:
@@ -116,6 +130,7 @@ class BrowserManager:
 
     def reset_state(self) -> None:
         self._history.clear()
+        self._nav_revisions.clear()
         self._actions.clear()
         self._launched_at = None
         invalidate_all()
@@ -363,6 +378,7 @@ class BrowserManager:
 
     def _clear_browser_refs(self, log_warning: bool = False) -> None:
         had_browser = any((self._playwright, self._browser, self._context, self._page))
+        self._nav_revisions.clear()
         self._playwright = None
         self._browser = None
         self._context = None

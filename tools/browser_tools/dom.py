@@ -3,6 +3,13 @@ from __future__ import annotations
 from browser.refs import mint_ref
 from config.settings import Settings
 from pydantic_ai import RunContext
+from runtime.tool_middleware import (
+    _find_fingerprint,
+    _nav_revision,
+    _page_key,
+    _page_url,
+    record_find,
+)
 from schemas import ToolErrorInfo, ToolResult
 from tools.browser_common import _check_blocked, _require_browser
 from tools.browser_tools.selectors import _normalize_selector
@@ -137,7 +144,9 @@ async def browser_find(
     the page stays on the same URL; after navigation or a full-page reload it goes
     stale and must be re-obtained. If a stale error comes back, call `browser_find`
     again. Optionally filter by `text` (substring of the element's text) or `role`
-    (button/textbox/tab/link/combobox/...).
+    (button/textbox/tab/link/combobox/...). If a call comes back with a `[Middleware]`
+    find-repeat marker instead of results, the same query was already answered on the
+    current page — reuse the refs you already hold rather than scanning again.
 
     The main list contains only elements Playwright confirmed as **usable right now**
     (visible, enabled, and actually receiving pointer events). Elements confirmed
@@ -186,6 +195,16 @@ async def _find_elements(ctx, text: str, role: str, scope: str):
             el["ref"] = mint_ref(
                 page, el.get("selector") or "", el.get("signature") or "", run_id
             )
+    # 回写本次 find 的结果供 middleware 做重复调用熔断（evaluate_call 在工具前调用，
+    # 拿不到结果，只能由工具层产出后回写）。
+    record_find(
+        ctx,
+        page_key=_page_key(manager),
+        page_url=_page_url(manager),
+        nav_rev=_nav_revision(manager),
+        fingerprint=_find_fingerprint(text, role, scope),
+        produced=any(el.get("state") == "usable" for el in elements),
+    )
     filters = []
     if text:
         filters.append(f"text={text}")
