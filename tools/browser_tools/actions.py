@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+from browser.refs import resolve_ref
 from config.settings import Settings
 from pydantic_ai import RunContext
 from schemas import ToolErrorInfo, ToolResult
@@ -39,6 +40,55 @@ def _format_click_target(target: dict) -> str:
     return f"Target: <{tag}> [{role}]{label}{val}"
 
 
+def _stale_ref(ref: str, reason: str = "") -> ToolResult:
+    detail = f" ({reason})" if reason else ""
+    return ToolResult(
+        success=False,
+        error=ToolErrorInfo(
+            category="stale_ref",
+            message=(
+                f"Ref '{ref}' is stale{detail}. The page or element changed since the "
+                "ref was minted. Call browser_find again to get a fresh ref."
+            ),
+        ),
+    )
+
+
+async def _element_signature(handle) -> str:
+    from browser.locate_script import ELEMENT_SIGNATURE_JS
+
+    try:
+        return str(await handle.evaluate(ELEMENT_SIGNATURE_JS))
+    except Exception:
+        return ""
+
+
+async def _resolve_ref_target(manager, ref: str):
+    """把 ref 解析回 (page, locator)，并证明它仍指向同一元素。
+
+    先比对铸造时 URL（点击触发的整页跳转不经失效挂点，Page 对象跨导航不变，
+    只比签名会让同 locator 同签名的元素被静默误命中），再比对稳定签名。任一
+    不中 → ``stale_ref`` 的 ToolResult。
+    """
+    record = resolve_ref(ref)
+    if record is None:
+        return _stale_ref(ref, "unknown ref")
+    page = record.page
+    if page is None or page.is_closed():
+        return _stale_ref(ref, "its page is closed")
+    if (page.url or "") != record.page_url:
+        return _stale_ref(ref, "the page URL changed")
+    try:
+        handle = await page.query_selector(record.locator)
+    except Exception:
+        handle = None
+    if handle is None:
+        return _stale_ref(ref, "the element is no longer present")
+    if await _element_signature(handle) != record.signature:
+        return _stale_ref(ref, "the element changed")
+    return page, record.locator
+
+
 @db_tool(name="browser_wait_for_selector", category="browser", timeout=15, sequential=True)
 async def browser_wait_for_selector(
     ctx: RunContext[Settings],
@@ -70,14 +120,20 @@ async def browser_wait_for_selector(
 @db_tool(name="browser_click", category="browser", timeout=15, sequential=True)
 async def browser_click(
     ctx: RunContext[Settings],
-    selector: str,
+    selector: str = "",
     text: str = "",
+    ref: str = "",
     download_wait: int = 2,
 ) -> str | ToolResult:
-    """Click the first element matching `selector`.
+    """Click the first element matching `selector` (or the element a `ref` points to).
 
-    `selector` accepts both CSS and Playwright engine selectors: `#id`, `.class`,
-    `text=导出`, `li:has-text("导出全部")`, `role=button[name="导出"]`.
+    Prefer `ref` when you have one: pass the `ref` from `browser_find` and this tool
+    locates the element directly without re-scanning the page. A ref is only valid
+    while the page URL is unchanged; if it returns a `stale_ref` error the page has
+    navigated — call `browser_find` again for a fresh ref (do not retry the old one).
+
+    Otherwise `selector` accepts both CSS and Playwright engine selectors: `#id`,
+    `.class`, `text=导出`, `li:has-text("导出全部")`, `role=button[name="导出"]`.
     As a shortcut, pass `text="导出全部"` instead of a selector to click by text.
     If the click triggers a download, this waits up to `download_wait` seconds for the
     file to be saved to the workspace outputs dir and reports "Captured download" with
@@ -86,14 +142,29 @@ async def browser_click(
     from browser.actions import click as _click
     from browser.highlights import highlight_click
 
-    if not selector and text:
-        selector = f"text={text}"
-    selector = _normalize_selector(selector)
     manager, page = _require_browser()
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    if (ref or "").strip():
+        target = await _resolve_ref_target(manager, ref.strip())
+        if isinstance(target, ToolResult):
+            manager.record_action("click", f"stale ref {ref}", success=False)
+            return target
+        page, selector = target
+    else:
+        if not selector and text:
+            selector = f"text={text}"
+        if not selector:
+            return ToolResult(
+                success=False,
+                error=ToolErrorInfo(
+                    category="invalid_selector",
+                    message="browser_click needs a `selector`, `text`, or `ref`.",
+                ),
+            )
+        selector = _normalize_selector(selector)
     _ensure_downloads_dir(manager, ctx)
     if not _is_engine_selector(selector):
         await highlight_click(page, selector)
@@ -175,10 +246,19 @@ async def browser_click(
 
 
 @db_tool(name="browser_fill", category="browser", timeout=15, sequential=True)
-async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> str:
-    """Fill the field matching `selector` with `text`.
+async def browser_fill(
+    ctx: RunContext[Settings],
+    selector: str = "",
+    text: str = "",
+    ref: str = "",
+) -> str | ToolResult:
+    """Fill the field matching `selector` (or the element a `ref` points to) with `text`.
 
-    `selector` accepts CSS and Playwright engine selectors (`#id`,
+    Prefer `ref` when you have one: pass the `ref` from `browser_find` and the field is
+    located directly without re-scanning. A ref is only valid while the page URL is
+    unchanged; on a `stale_ref` error call `browser_find` again for a fresh ref.
+
+    Otherwise `selector` accepts CSS and Playwright engine selectors (`#id`,
     `input[placeholder="…"]`, `role=textbox[name="…"]`). Filling a read-only or
     disabled field fails immediately; use the page's own widget (e.g. a date
     picker) for such fields instead.
@@ -191,7 +271,22 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
-    selector = _normalize_selector(selector)
+    if (ref or "").strip():
+        target = await _resolve_ref_target(manager, ref.strip())
+        if isinstance(target, ToolResult):
+            manager.record_action("fill", f"stale ref {ref}", success=False)
+            return target
+        page, selector = target
+    else:
+        if not selector:
+            return ToolResult(
+                success=False,
+                error=ToolErrorInfo(
+                    category="invalid_selector",
+                    message="browser_fill needs a `selector` or `ref`.",
+                ),
+            )
+        selector = _normalize_selector(selector)
     pwd = current_site_password(
         page.url, ctx.deps.workspace_id if ctx.deps else None
     )
@@ -227,10 +322,19 @@ async def browser_fill(ctx: RunContext[Settings], selector: str, text: str) -> s
 @db_tool(name="browser_select_option", category="browser", timeout=15, sequential=True)
 async def browser_select_option(
     ctx: RunContext[Settings],
-    selector: str,
+    selector: str = "",
     value: str = "",
     label: str = "",
-) -> str:
+    ref: str = "",
+) -> str | ToolResult:
+    """Select an option in the `<select>` matching `selector` (or the element a `ref` points to).
+
+    Prefer `ref` when you have one: pass the `ref` from `browser_find` and the control is
+    located directly without re-scanning. A ref is only valid while the page URL is
+    unchanged; on a `stale_ref` error call `browser_find` again for a fresh ref.
+
+    Pass `value` (the option's value attribute) or `label` (its visible text).
+    """
     from browser.actions import select_option as _select
     from browser.highlights import highlight_input, highlight_input_remove
 
@@ -239,6 +343,20 @@ async def browser_select_option(
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):
         return blocked
+    if (ref or "").strip():
+        target = await _resolve_ref_target(manager, ref.strip())
+        if isinstance(target, ToolResult):
+            manager.record_action("select_option", f"stale ref {ref}", success=False)
+            return target
+        page, selector = target
+    elif not selector:
+        return ToolResult(
+            success=False,
+            error=ToolErrorInfo(
+                category="invalid_selector",
+                message="browser_select_option needs a `selector` or `ref`.",
+            ),
+        )
     if not value and not label:
         return "browser_select_option requires a value or a label"
     if not _is_engine_selector(selector):

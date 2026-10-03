@@ -164,10 +164,19 @@ class _Manager:
         self.actions.append((tool, detail))
 
 
+class _FakePage:
+    url = "https://example.com/page"
+
+
 def _stub_locate(monkeypatch, elements: list[dict]) -> _Manager:
     manager = _Manager()
-    monkeypatch.setattr(dom_mod, "_require_browser", lambda: (manager, object()))
+    monkeypatch.setattr(dom_mod, "_require_browser", lambda: (manager, _FakePage()))
     monkeypatch.setattr(dom_mod, "_check_blocked", lambda _m: None)
+    # ref 铸造用确定性桩，便于断言输出行尾。
+    monkeypatch.setattr(
+        dom_mod, "mint_ref",
+        lambda page, locator, signature, run_id: f"ref:{locator}",
+    )
 
     import browser.runtime as runtime_mod
 
@@ -184,6 +193,7 @@ def _locate_el(selector: str, state: str, reason: str = "", text: str = "") -> d
         "role": "button",
         "text": text or selector,
         "selector": selector,
+        "signature": f"sig:{selector}",
         "state": state,
         "state_reason": reason,
     }
@@ -194,7 +204,7 @@ class TestBrowserLocateOutput:
 
     @pytest.mark.asyncio
     async def test_main_list_outputs_only_usable(self, monkeypatch):
-        """同时存在 usable 与 unverified 时，只输出 usable，且不出现 [unverified]。"""
+        """同时存在 usable 与 unverified 时，只输出 usable（行尾为 ref），不出现 [unverified]。"""
         elements = [
             _locate_el("#a", "usable"),
             _locate_el("#b", "unverified"),
@@ -202,7 +212,8 @@ class TestBrowserLocateOutput:
         ]
         manager = _stub_locate(monkeypatch, elements)
         result = await browser_find(_ctx(), "")
-        assert "#a" in result
+        assert "ref:#a" in result
+        assert "-> #a" not in result
         assert "#b" not in result
         assert "#c" not in result
         assert "[unverified]" not in result

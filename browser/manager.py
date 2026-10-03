@@ -13,6 +13,7 @@ from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
+from browser.refs import invalidate_all, invalidate_page
 from browser.tabs import TabManager
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
 from browser.trace import ClickTracer
@@ -84,6 +85,9 @@ class BrowserManager:
             "title": title,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+        # 显式导航后该页 ref 立即失效。Page 对象跨导航不变，故 self.page() 即刚导航的页；
+        # 点击触发的整页跳转不经此处，由执行期的 URL + 签名校验兜底。
+        invalidate_page(self.page())
 
     def record_action(self, tool: str, detail: str, success: bool = True,
                       selector: str = "", coords: dict | None = None) -> None:
@@ -114,6 +118,7 @@ class BrowserManager:
         self._history.clear()
         self._actions.clear()
         self._launched_at = None
+        invalidate_all()
 
     async def get_state(self) -> dict:
         launched = self.is_launched()
@@ -369,6 +374,7 @@ class BrowserManager:
         self._takeover.reset()
         self.tabs.detach()
         self.trace.reset()
+        invalidate_all()
         if had_browser and log_warning:
             logger.warning("browser target unavailable; cleared Playwright state")
 

@@ -4,8 +4,25 @@ from __future__ import annotations
 # 契约：这里只产出原始信号（selector / enabled / receivesEvents / inViewport /
 # inActive / rect / visibility …），"可操作性三态"一律由 Python 侧的
 # `_confirm_actionable` 判定，避免字段语义在两层之间漂移。
+# 元素稳定签名（阶段 1 铸造 / 阶段 4 执行期复算共用同一份源码，避免两层语义漂移）。
+# 只读属性派生信号：tag / role / aria-label / 归一化 text；刻意排除 value 与 rect ——
+# value 随输入变化、rect 随布局变化，都会把「未变的元素」误判成 stale。
+ELEMENT_SIGNATURE_JS = r"""
+(el, tag, textVal) => {
+    if (tag === undefined) tag = (el.tagName || "").toLowerCase();
+    if (textVal === undefined) {
+        textVal = el.innerText || el.getAttribute("aria-label") || "";
+    }
+    const role = (el.getAttribute("role") || "").trim();
+    const aria = (el.getAttribute("aria-label") || "").trim();
+    const text = (textVal || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    return [tag, role, aria, text].join("\u0001");
+}
+"""
+
 LOCATE_ELEMENTS_JS = r"""
 (filters) => {
+    const signatureOf = __ELEMENT_SIGNATURE__;
     const tagSel = [
         "a", "button", "input", "select", "textarea",
         "li", "div", "span", "td", "label",
@@ -415,6 +432,7 @@ LOCATE_ELEMENTS_JS = r"""
             value: tag === "input" ? (n.value || "") : "",
             ariaLabel: n.getAttribute("aria-label") || "",
             selector: selector,
+            signature: signatureOf(n, tag, textVal),
             semantic: semanticTag(n, tag, textVal),
             path: domPath(n),
             enabled: !disabled,
@@ -435,4 +453,4 @@ LOCATE_ELEMENTS_JS = r"""
     }
     return out;
 }
-"""
+""".replace("__ELEMENT_SIGNATURE__", ELEMENT_SIGNATURE_JS)

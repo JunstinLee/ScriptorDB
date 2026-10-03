@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from browser.refs import mint_ref
 from config.settings import Settings
 from pydantic_ai import RunContext
 from schemas import ToolErrorInfo, ToolResult
@@ -40,10 +41,17 @@ def _format_element_line(index: int, el: dict, suffix: str = "") -> str:
     semantic = el.get("semantic")
     sem = f" <{semantic}>" if semantic else ""
     val = f" value={value[:40]!r}" if value and text else ""
+    target = el.get("ref") or el.get("selector") or ""
     return (
         f"{index}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]{sem}"
-        f"{label}{val} -> {el.get('selector')}{suffix}"
+        f"{label}{val} -> {target}{suffix}"
     )
+
+
+_REUSE_REF_HINT = (
+    " If you already hold a `ref` for the target from an earlier browser_find, "
+    "pass that ref to the action tool directly instead of scanning again."
+)
 
 
 def _empty_elements_hint(scope: str, filters: list[str]) -> str:
@@ -55,14 +63,16 @@ def _empty_elements_hint(scope: str, filters: list[str]) -> str:
             "hidden sibling panels and off-screen nodes are excluded. Wait for the "
             "panel to settle (browser_wait_for_selector), or retry with "
             'scope="container" for the whole active container.'
+            + _REUSE_REF_HINT
         )
     if scope == "container":
         return (
             f"No interactive elements in the active container{suffix}. "
             "Wait for the panel to appear (browser_wait_for_selector) and retry; use "
             'scope="page" only as a last resort — it applies a candidate cap and may be incomplete.'
+            + _REUSE_REF_HINT
         )
-    return f"No interactive elements found.{suffix}"
+    return f"No interactive elements found.{suffix}{_REUSE_REF_HINT}"
 
 
 _INSPECT_JS = """\
@@ -120,11 +130,14 @@ async def browser_find(
 ):
     """Find things on the current page. Read-only: this tool does not change the page.
 
-    `mode="elements"` (default) lists interactive elements with ready-to-reuse selectors.
+    `mode="elements"` (default) lists interactive elements with ready-to-reuse refs.
     Use this to discover what is clickable or fillable before acting. Each line ends
-    with a `selector` that can be passed straight back to `browser_click`/`browser_fill`
-    (ex. `text=导出`, `#id`, `input[name="…"]`). Optionally filter by `text` (substring
-    of the element's text) or `role` (button/textbox/tab/link/combobox/...).
+    with a `ref` (ex. `ref_1a2b3c4d`) that can be passed straight back to
+    `browser_click`/`browser_fill`/`browser_select_option`. A ref is valid only while
+    the page stays on the same URL; after navigation or a full-page reload it goes
+    stale and must be re-obtained. If a stale error comes back, call `browser_find`
+    again. Optionally filter by `text` (substring of the element's text) or `role`
+    (button/textbox/tab/link/combobox/...).
 
     The main list contains only elements Playwright confirmed as **usable right now**
     (visible, enabled, and actually receiving pointer events). Elements confirmed
@@ -164,6 +177,15 @@ async def _find_elements(ctx, text: str, role: str, scope: str):
         scope = "visible"
 
     elements = await locate_elements(page, text=text, role=role, scope=scope)
+    # 只为 Playwright 已确认可用的元素铸造 ref；unverified 保持原有降级输出。
+    # run_id 取 deps.run_id（一次逻辑 run 恒定），不可取 ctx.run_id —— 后者每次
+    # agent.run 都会变，审批暂停/恢复的续跑会换新值。
+    run_id = ctx.deps.run_id if ctx.deps else ""
+    for el in elements:
+        if el.get("state") == "usable":
+            el["ref"] = mint_ref(
+                page, el.get("selector") or "", el.get("signature") or "", run_id
+            )
     filters = []
     if text:
         filters.append(f"text={text}")
