@@ -4,6 +4,7 @@ import time
 
 from browser.refs import resolve_ref
 from config.settings import Settings
+from core.logging_setup import get_logger
 from pydantic_ai import RunContext
 from schemas import ToolErrorInfo, ToolResult
 from tools.browser_common import (
@@ -19,6 +20,16 @@ from tools.browser_tools.selectors import (
     _normalize_selector,
 )
 from tools.tool_decorators import db_tool
+
+logger = get_logger(__name__)
+
+_REF_RESOLVE_TIMEOUT_MS = 1500
+
+_REASON_UNKNOWN = "unknown"
+_REASON_PAGE_CLOSED = "page_closed"
+_REASON_URL_CHANGED = "url_changed"
+_REASON_ELEMENT_MISSING = "element_missing"
+_REASON_SIGNATURE_MISMATCH = "signature_mismatch"
 
 
 def _click_error_category(message: str) -> str:
@@ -41,6 +52,7 @@ def _format_click_target(target: dict) -> str:
 
 
 def _stale_ref(ref: str, reason: str = "") -> ToolResult:
+    logger.info("ref stale: %s (%s)", ref, reason or _REASON_UNKNOWN)
     detail = f" ({reason})" if reason else ""
     return ToolResult(
         success=False,
@@ -54,38 +66,47 @@ def _stale_ref(ref: str, reason: str = "") -> ToolResult:
     )
 
 
-async def _element_signature(handle) -> str:
+async def _element_signature(handle) -> str | None:
     from browser.locate_script import ELEMENT_SIGNATURE_JS
 
     try:
         return str(await handle.evaluate(ELEMENT_SIGNATURE_JS))
     except Exception:
-        return ""
+        return None
 
 
 async def _resolve_ref_target(manager, ref: str):
     """把 ref 解析回 (page, locator)，并证明它仍指向同一元素。
 
     先比对铸造时 URL（点击触发的整页跳转不经失效挂点，Page 对象跨导航不变，
-    只比签名会让同 locator 同签名的元素被静默误命中），再比对稳定签名。任一
-    不中 → ``stale_ref`` 的 ToolResult。
+    只比签名会让同 locator 同签名的元素被静默误命中），再等元素挂载后比对稳定
+    签名。URL 不符 → ``stale_ref``；签名算不出（``None``）→ 宽容命中并记
+    ``unverified reuse``；签名明确不等 → ``stale_ref``。
     """
     record = resolve_ref(ref)
     if record is None:
-        return _stale_ref(ref, "unknown ref")
+        return _stale_ref(ref, _REASON_UNKNOWN)
     page = record.page
     if page is None or page.is_closed():
-        return _stale_ref(ref, "its page is closed")
+        return _stale_ref(ref, _REASON_PAGE_CLOSED)
     if (page.url or "") != record.page_url:
-        return _stale_ref(ref, "the page URL changed")
+        return _stale_ref(ref, _REASON_URL_CHANGED)
+    try:
+        await page.wait_for_selector(record.locator, timeout=_REF_RESOLVE_TIMEOUT_MS)
+    except Exception:
+        return _stale_ref(ref, _REASON_ELEMENT_MISSING)
     try:
         handle = await page.query_selector(record.locator)
     except Exception:
         handle = None
     if handle is None:
-        return _stale_ref(ref, "the element is no longer present")
-    if await _element_signature(handle) != record.signature:
-        return _stale_ref(ref, "the element changed")
+        return _stale_ref(ref, _REASON_ELEMENT_MISSING)
+    signature = await _element_signature(handle)
+    if signature is None:
+        logger.info("ref reuse unverified: %s (signature unavailable)", ref)
+        return page, record.locator
+    if signature != record.signature:
+        return _stale_ref(ref, _REASON_SIGNATURE_MISMATCH)
     return page, record.locator
 
 

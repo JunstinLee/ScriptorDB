@@ -48,7 +48,12 @@ def _format_element_line(index: int, el: dict, suffix: str = "") -> str:
     semantic = el.get("semantic")
     sem = f" <{semantic}>" if semantic else ""
     val = f" value={value[:40]!r}" if value and text else ""
-    target = el.get("ref") or el.get("selector") or ""
+    target = el.get("ref") or ""
+    if not target:
+        anchor = snippet[:40]
+        target = f"text={anchor!r}" if anchor else (
+            "(unverified — no reusable handle; wait for it to settle then re-run browser_find)"
+        )
     return (
         f"{index}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]{sem}"
         f"{label}{val} -> {target}{suffix}"

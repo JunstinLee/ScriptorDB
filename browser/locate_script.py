@@ -11,7 +11,7 @@ ELEMENT_SIGNATURE_JS = r"""
 (el, tag, textVal) => {
     if (tag === undefined) tag = (el.tagName || "").toLowerCase();
     if (textVal === undefined) {
-        textVal = el.innerText || el.getAttribute("aria-label") || "";
+        textVal = el.getAttribute("aria-label") || el.textContent || "";
     }
     const role = (el.getAttribute("role") || "").trim();
     const aria = (el.getAttribute("aria-label") || "").trim();
@@ -278,6 +278,9 @@ LOCATE_ELEMENTS_JS = r"""
     };
     const readText = (n) => (n.innerText || n.getAttribute("aria-label") || "")
         .replace(/\s+/g, " ").trim().slice(0, 120);
+    // 签名专用文本：只由属性 / 非渲染文本派生，且与 ELEMENT_SIGNATURE_JS 的缺省
+    // 来源同序同源（aria-label → textContent），避免 innerText 的渲染抖动污染签名。
+    const sigText = (n) => n.getAttribute("aria-label") || n.textContent || "";
     const textCount = new Map();
     for (const n of nodes) {
         const t = readText(n);
@@ -432,7 +435,7 @@ LOCATE_ELEMENTS_JS = r"""
             value: tag === "input" ? (n.value || "") : "",
             ariaLabel: n.getAttribute("aria-label") || "",
             selector: selector,
-            signature: signatureOf(n, tag, textVal),
+            signature: signatureOf(n, tag, sigText(n)),
             semantic: semanticTag(n, tag, textVal),
             path: domPath(n),
             enabled: !disabled,

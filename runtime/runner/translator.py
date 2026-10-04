@@ -117,8 +117,6 @@ class EventTranslator:
                 await self._handle_part_start(event)
             elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
                 await self._handle_text_delta(event.delta)
-            else:
-                logger.warning("unhandled run event type: %s", type(event).__name__)
 
     async def _handle_part_start(self, event: PartStartEvent) -> None:
         part = event.part

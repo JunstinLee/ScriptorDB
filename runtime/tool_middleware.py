@@ -178,9 +178,19 @@ def _page_url(manager) -> str:
     return (getattr(page, "url", "") or "") if page is not None else ""
 
 
+def _normalize_query_part(value: Any) -> str:
+    """归一化 browser_find 的 text / role：折叠连续空白并小写。"""
+    return " ".join(str(value or "").split()).lower()
+
+
 def _find_fingerprint(text: str, role: str, scope: str) -> str:
-    """把 browser_find 的查询参数组装为稳定指纹。"""
-    return f"{scope}||{role}||{text}"
+    """把 browser_find 的查询参数组装为稳定指纹。
+
+    ``text`` / ``role`` 归一化（去首尾空白、折叠连续空白、小写），使同一意图的
+    大小写 / 空白变体归为同一条；``scope`` 保留原值 —— visible / container / page
+    语义不同，合并会误拦合法的扩大重扫。
+    """
+    return f"{scope}||{_normalize_query_part(role)}||{_normalize_query_part(text)}"
 
 
 def record_find(
@@ -254,6 +264,24 @@ def _is_repeat_find(ctx, args: dict | None) -> bool:
             and record.get("nav_rev") == nav_rev
             and record.get("page_url") == page_url
             and record.get("fingerprint") == fingerprint
+        ):
+            return True
+
+    # 弱命中：同一 run / 页 / 导航修订 / URL，text+role 归一化后相同、两次均
+    # produced，仅 scope 不同 → 仍是同一意图的重复重扫（模型常把 scope 升级
+    # visible → container → page 当重试阶梯）。page_url / nav_rev 变化仍放行。
+    scope_fingerprints = {
+        _find_fingerprint(text, role, candidate_scope)
+        for candidate_scope in ("visible", "container", "page")
+    }
+    for record in records:
+        if not record.get("produced"):
+            continue
+        if (
+            record.get("page_key") == page_key
+            and record.get("nav_rev") == nav_rev
+            and record.get("page_url") == page_url
+            and record.get("fingerprint") in scope_fingerprints
         ):
             return True
     return False
