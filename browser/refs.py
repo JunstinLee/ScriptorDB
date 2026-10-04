@@ -31,12 +31,20 @@ class RefRecord:
     signature: str
     run_id: str
     created_at: float
+    locator_kind: str = "path"
 
 
 _registry: dict[str, RefRecord] = {}
 
 
-def mint_ref(page: "Page", locator: str, signature: str, run_id: str) -> str:
+def mint_ref(
+    page: "Page",
+    locator: str,
+    signature: str,
+    run_id: str,
+    *,
+    locator_kind: str = "path",
+) -> str:
     """铸造一个 ref，并在同一入口钉住铸造时的 ``page.url``。"""
     ref = "ref_" + secrets.token_hex(4)
     _registry[ref] = RefRecord(
@@ -47,6 +55,7 @@ def mint_ref(page: "Page", locator: str, signature: str, run_id: str) -> str:
         signature=signature,
         run_id=run_id,
         created_at=time(),
+        locator_kind=locator_kind,
     )
     return ref
 
@@ -54,6 +63,11 @@ def mint_ref(page: "Page", locator: str, signature: str, run_id: str) -> str:
 def resolve_ref(ref: str) -> RefRecord | None:
     """按 ref 取回记录；不存在返回 ``None``。"""
     return _registry.get(ref)
+
+
+def invalidate_ref(ref: str) -> None:
+    """失效指定的单条 ref；不存在则无操作。"""
+    _registry.pop(ref, None)
 
 
 def invalidate_page(page: Any) -> None:

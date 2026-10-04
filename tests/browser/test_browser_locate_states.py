@@ -175,7 +175,7 @@ def _stub_locate(monkeypatch, elements: list[dict]) -> _Manager:
     # ref 铸造用确定性桩，便于断言输出行尾。
     monkeypatch.setattr(
         dom_mod, "mint_ref",
-        lambda page, locator, signature, run_id: f"ref:{locator}",
+        lambda page, locator, signature, run_id, *, locator_kind="path": f"ref:{locator}",
     )
 
     import browser.runtime as runtime_mod
@@ -193,6 +193,7 @@ def _locate_el(selector: str, state: str, reason: str = "", text: str = "") -> d
         "role": "button",
         "text": text or selector,
         "selector": selector,
+        "locatorKind": "id",
         "signature": f"sig:{selector}",
         "state": state,
         "state_reason": reason,

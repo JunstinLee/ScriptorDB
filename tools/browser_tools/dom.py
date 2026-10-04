@@ -15,6 +15,10 @@ from tools.browser_common import _check_blocked, _require_browser
 from tools.browser_tools.selectors import _normalize_selector
 from tools.tool_decorators import db_tool
 
+# 身份可证的定位器种类：只有这些定位串能保证解析回同一节点，才配铸造 ref。
+# 弱种类（text / path）会让执行期的签名比较作用到别的节点上，索性不铸 ref。
+_STRONG_LOCATOR_KINDS = {"data", "id", "name", "aria"}
+
 
 def _state_counts(elements: list[dict]) -> tuple[int, int, int]:
     """统计 usable / blocked / unverified 三态计数。"""
@@ -51,9 +55,14 @@ def _format_element_line(index: int, el: dict, suffix: str = "") -> str:
     target = el.get("ref") or ""
     if not target:
         anchor = snippet[:40]
-        target = f"text={anchor!r}" if anchor else (
-            "(unverified — no reusable handle; wait for it to settle then re-run browser_find)"
-        )
+        if el.get("state") == "usable":
+            target = f"text={anchor!r}" if anchor else (
+                "(no reusable ref for this locator; use the selector above)"
+            )
+        else:
+            target = f"text={anchor!r}" if anchor else (
+                "(unverified — no reusable handle; wait for it to settle then re-run browser_find)"
+            )
     return (
         f"{index}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]{sem}"
         f"{label}{val} -> {target}{suffix}"
@@ -196,10 +205,15 @@ async def _find_elements(ctx, text: str, role: str, scope: str):
     # agent.run 都会变，审批暂停/恢复的续跑会换新值。
     run_id = ctx.deps.run_id if ctx.deps else ""
     for el in elements:
-        if el.get("state") == "usable":
-            el["ref"] = mint_ref(
-                page, el.get("selector") or "", el.get("signature") or "", run_id
-            )
+        if el.get("state") != "usable":
+            continue
+        kind = el.get("locatorKind") or "path"
+        if kind not in _STRONG_LOCATOR_KINDS:
+            continue
+        el["ref"] = mint_ref(
+            page, el.get("selector") or "", el.get("signature") or "", run_id,
+            locator_kind=kind,
+        )
     # 回写本次 find 的结果供 middleware 做重复调用熔断（evaluate_call 在工具前调用，
     # 拿不到结果，只能由工具层产出后回写）。
     record_find(

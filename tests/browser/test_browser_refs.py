@@ -3,7 +3,8 @@
 覆盖：
 - 同页同 URL 同签名复用 ref → 命中；
 - 点击触发跳转致 ``page.url`` 变化 → ``stale_ref``；
-- 元素签名变化 → ``stale_ref``；
+- 强定位器硬身份（tag/role/aria）冲突 → ``stale_ref``；
+- 硬身份一致仅软文本抖动 / 弱定位器硬身份冲突 → 放行（unverified）；
 - 显式导航（``record_navigate``）后 ref 失效；
 - ``run_id`` 取自铸造方（``deps.run_id``），逻辑 run 内恒定。
 """
@@ -59,6 +60,11 @@ class _Manager:
         pass
 
 
+def _sig(tag: str = "button", role: str = "", aria: str = "", text: str = "") -> str:
+    """构造 4 段签名（tag / role / aria / text），与 ``ELEMENT_SIGNATURE_JS`` 同格式。"""
+    return "\u0001".join([tag, role, aria, text])
+
+
 @pytest.fixture(autouse=True)
 def _clean_refs():
     refs.invalidate_all()
@@ -72,8 +78,9 @@ class TestResolveRefTarget:
     @pytest.mark.asyncio
     async def test_same_url_same_signature_hits(self):
         """同页同 URL 同签名 → 返回 (page, locator)，且不重新扫描页面。"""
-        page = _Page("https://example.com/a", _Handle("sig-1"))
-        ref = refs.mint_ref(page, "#go", "sig-1", "run-1")
+        sig = _sig(tag="button", role="button", text="Go")
+        page = _Page("https://example.com/a", _Handle(sig))
+        ref = refs.mint_ref(page, "#go", sig, "run-1", locator_kind="id")
         target = await actions_mod._resolve_ref_target(_Manager(), ref)
         assert isinstance(target, tuple)
         assert target[0] is page
@@ -83,8 +90,9 @@ class TestResolveRefTarget:
     @pytest.mark.asyncio
     async def test_url_change_is_stale(self):
         """铸造后 page.url 变化（点击触发整页跳转）→ stale_ref。"""
-        page = _Page("https://example.com/a", _Handle("sig-1"))
-        ref = refs.mint_ref(page, "#go", "sig-1", "run-1")
+        sig = _sig(tag="button", role="button", text="Go")
+        page = _Page("https://example.com/a", _Handle(sig))
+        ref = refs.mint_ref(page, "#go", sig, "run-1", locator_kind="id")
         page.url = "https://example.com/b"
         result = await actions_mod._resolve_ref_target(_Manager(), ref)
         assert isinstance(result, ToolResult)
@@ -92,12 +100,37 @@ class TestResolveRefTarget:
 
     @pytest.mark.asyncio
     async def test_signature_change_is_stale(self):
-        """元素签名变化 → stale_ref。"""
-        page = _Page("https://example.com/a", _Handle("sig-2"))
-        ref = refs.mint_ref(page, "#go", "sig-1", "run-1")
+        """强定位器 + 硬身份冲突（tag / role 变）→ stale_ref。"""
+        minted = _sig(tag="button", role="button", text="Go")
+        current = _sig(tag="a", role="link", text="Go")
+        page = _Page("https://example.com/a", _Handle(current))
+        ref = refs.mint_ref(page, "#go", minted, "run-1", locator_kind="id")
         result = await actions_mod._resolve_ref_target(_Manager(), ref)
         assert isinstance(result, ToolResult)
         assert result.error.category == "stale_ref"
+
+    @pytest.mark.asyncio
+    async def test_soft_text_drift_hits(self):
+        """硬身份一致、仅软文本（textContent）抖动 → 命中，不判 stale。"""
+        minted = _sig(tag="button", role="button", text="Go")
+        current = _sig(tag="button", role="button", text="Go now")
+        page = _Page("https://example.com/a", _Handle(current))
+        ref = refs.mint_ref(page, "#go", minted, "run-1", locator_kind="id")
+        target = await actions_mod._resolve_ref_target(_Manager(), ref)
+        assert isinstance(target, tuple)
+        assert target[1] == "#go"
+
+    @pytest.mark.asyncio
+    async def test_weak_locator_hard_mismatch_is_unverified(self):
+        """弱定位器（text / path）硬身份冲突 → 放行，且顺手失效该 ref。"""
+        minted = _sig(tag="button", role="button", text="Go")
+        current = _sig(tag="a", role="link", text="Go")
+        page = _Page("https://example.com/a", _Handle(current))
+        ref = refs.mint_ref(page, "text=Go", minted, "run-1", locator_kind="text")
+        target = await actions_mod._resolve_ref_target(_Manager(), ref)
+        assert isinstance(target, tuple)
+        assert target[1] == "text=Go"
+        assert refs.resolve_ref(ref) is None
 
     @pytest.mark.asyncio
     async def test_missing_element_is_stale(self):
@@ -143,8 +176,9 @@ class TestRefScope:
     @pytest.mark.asyncio
     async def test_ref_survives_ctx_run_id_change(self):
         """审批恢复换新 ``ctx.run_id`` 后，旧 ref 仍可解析（run_id 取自铸造方）。"""
-        page = _Page("https://example.com/a", _Handle("sig-1"))
-        ref = refs.mint_ref(page, "#go", "sig-1", "logical-run")
+        sig = _sig(tag="button", role="button", text="Go")
+        page = _Page("https://example.com/a", _Handle(sig))
+        ref = refs.mint_ref(page, "#go", sig, "logical-run", locator_kind="id")
         record = refs.resolve_ref(ref)
         assert record is not None
         assert record.run_id == "logical-run"
@@ -160,7 +194,10 @@ class TestResolveRefTargetUnverified:
         """``_element_signature`` 抛异常 → 返回 (page, locator)，不判 stale。"""
         handle = _Handle(error=RuntimeError("evaluate failed"))
         page = _Page("https://example.com/a", handle)
-        ref = refs.mint_ref(page, "#go", "sig-1", "run-1")
+        ref = refs.mint_ref(
+            page, "#go", _sig(tag="button", role="button", text="Go"), "run-1",
+            locator_kind="id",
+        )
         target = await actions_mod._resolve_ref_target(_Manager(), ref)
         assert isinstance(target, tuple)
         assert target[1] == "#go"

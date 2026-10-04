@@ -296,8 +296,8 @@ LOCATE_ELEMENTS_JS = r"""
             if (v) {
                 const local = attrSelector(attr, v);
                 const scoped = contextSelector ? contextSelector + " " + local : local;
-                if (countMatches(scoped) === 1) return scoped;
-                if (countMatches(local) === 1) return local;
+                if (countMatches(scoped) === 1) return { selector: scoped, kind: "data" };
+                if (countMatches(local) === 1) return { selector: local, kind: "data" };
             }
         }
         const type = (el.getAttribute("type") || "").toLowerCase();
@@ -305,22 +305,22 @@ LOCATE_ELEMENTS_JS = r"""
             ? tag + "[type=" + JSON.stringify(type) + "]" : tag;
         if (el.id) {
             const sel = "#" + CSS.escape(el.id);
-            if (countMatches(sel) === 1) return sel;
+            if (countMatches(sel) === 1) return { selector: sel, kind: "id" };
         }
         const name = el.getAttribute("name");
         if (name) {
             const sel = base + "[name=" + JSON.stringify(name) + "]";
-            if (countMatches(sel) === 1) return sel;
+            if (countMatches(sel) === 1) return { selector: sel, kind: "name" };
         }
         const aria = el.getAttribute("aria-label");
         if (aria) {
             const sel = base + "[aria-label=" + JSON.stringify(aria) + "]";
-            if (countMatches(sel) === 1) return sel;
+            if (countMatches(sel) === 1) return { selector: sel, kind: "aria" };
         }
         if (textVal && textCount.get(textVal) === 1) {
-            return "text=" + JSON.stringify(textVal.slice(0, 60));
+            return { selector: "text=" + JSON.stringify(textVal.slice(0, 60)), kind: "text" };
         }
-        return cssPath(el);
+        return { selector: cssPath(el), kind: "path" };
     };
     // 第一段：低成本候选族判断 + 族内评分。只读属性，不做任何布局查询，
     // 因此可以对整个 DOM 跑而不触发重排。
@@ -403,7 +403,7 @@ LOCATE_ELEMENTS_JS = r"""
                          rect.width <= 0 || rect.height <= 0;
         if (screened && scope !== "page") continue;
 
-        const selector = selFor(n, tag, textVal);
+        const loc = selFor(n, tag, textVal);
 
         const inViewport = rect.left < vw && rect.right > 0 &&
                            rect.top < vh && rect.bottom > 0;
@@ -434,7 +434,8 @@ LOCATE_ELEMENTS_JS = r"""
             id: n.id || "",
             value: tag === "input" ? (n.value || "") : "",
             ariaLabel: n.getAttribute("aria-label") || "",
-            selector: selector,
+            selector: loc.selector,
+            locatorKind: loc.kind,
             signature: signatureOf(n, tag, sigText(n)),
             semantic: semanticTag(n, tag, textVal),
             path: domPath(n),

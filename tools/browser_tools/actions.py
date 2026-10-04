@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from browser.refs import resolve_ref
+from browser.refs import invalidate_ref, resolve_ref
 from config.settings import Settings
 from core.logging_setup import get_logger
 from pydantic_ai import RunContext
@@ -30,6 +30,9 @@ _REASON_PAGE_CLOSED = "page_closed"
 _REASON_URL_CHANGED = "url_changed"
 _REASON_ELEMENT_MISSING = "element_missing"
 _REASON_SIGNATURE_MISMATCH = "signature_mismatch"
+
+# 不保身份的定位器种类：它们本就可能解析回别的节点，硬身份冲突不能据此判 stale。
+_WEAK_LOCATOR_KINDS = {"text", "path"}
 
 
 def _click_error_category(message: str) -> str:
@@ -66,6 +69,17 @@ def _stale_ref(ref: str, reason: str = "") -> ToolResult:
     )
 
 
+def _split_signature(sig: str) -> tuple[str, str]:
+    """把 ``[tag, role, aria, text]`` 签名拆成 (硬身份, 软文本)。
+
+    段数不等于 4 视为不可判，返回 ``("", "")``，由调用方按「算不出」处理。
+    """
+    parts = (sig or "").split("\u0001")
+    if len(parts) != 4:
+        return "", ""
+    return "\u0001".join(parts[:3]), parts[3]
+
+
 async def _element_signature(handle) -> str | None:
     from browser.locate_script import ELEMENT_SIGNATURE_JS
 
@@ -79,9 +93,9 @@ async def _resolve_ref_target(manager, ref: str):
     """把 ref 解析回 (page, locator)，并证明它仍指向同一元素。
 
     先比对铸造时 URL（点击触发的整页跳转不经失效挂点，Page 对象跨导航不变，
-    只比签名会让同 locator 同签名的元素被静默误命中），再等元素挂载后比对稳定
-    签名。URL 不符 → ``stale_ref``；签名算不出（``None``）→ 宽容命中并记
-    ``unverified reuse``；签名明确不等 → ``stale_ref``。
+    只比签名会让同 locator 同签名的元素被静默误命中），再等元素挂载后分级比对
+    签名：硬身份（tag / role / aria）一致即命中；软文本抖动、签名算不出都记
+    ``unverified`` 放行；仅硬身份冲突且定位器保身份（强种类）才 ``stale_ref``。
     """
     record = resolve_ref(ref)
     if record is None:
@@ -105,9 +119,22 @@ async def _resolve_ref_target(manager, ref: str):
     if signature is None:
         logger.info("ref reuse unverified: %s (signature unavailable)", ref)
         return page, record.locator
-    if signature != record.signature:
-        return _stale_ref(ref, _REASON_SIGNATURE_MISMATCH)
-    return page, record.locator
+    hard, soft = _split_signature(signature)
+    rec_hard, rec_soft = _split_signature(record.signature)
+    if not hard or not rec_hard:
+        logger.info("ref reuse unverified: %s (signature unavailable)", ref)
+        return page, record.locator
+    if hard == rec_hard:
+        if soft != rec_soft:
+            logger.info("ref reuse unverified: %s (soft text drift)", ref)
+        return page, record.locator
+    if record.locator_kind in _WEAK_LOCATOR_KINDS:
+        logger.info(
+            "ref reuse unverified: %s (weak locator %s)", ref, record.locator_kind
+        )
+        invalidate_ref(ref)
+        return page, record.locator
+    return _stale_ref(ref, _REASON_SIGNATURE_MISMATCH)
 
 
 @db_tool(name="browser_wait_for_selector", category="browser", timeout=15, sequential=True)
