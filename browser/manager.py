@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import inspect
-import json
 import math
-import re
 import time
 from contextlib import suppress
 from datetime import datetime, timezone
@@ -13,6 +10,7 @@ from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
+from browser.downloads import DownloadRecorder
 from browser.refs import invalidate_all, invalidate_page
 from browser.tabs import TabManager
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
@@ -54,8 +52,7 @@ class BrowserManager:
         self._element_failure_count: dict[str, int] = {}
         self._active_tools = 0
         self._auth_origin: str | None = None
-        self._downloads_dir: Path | None = None
-        self._recent_downloads: list[dict] = []
+        self._downloads = DownloadRecorder()
         self._screencast_connection: object | None = None
         self._idle_close_task: asyncio.Task | None = None
         self._idle_close_deadline: float | None = None
@@ -68,16 +65,11 @@ class BrowserManager:
 
     def set_downloads_dir(self, path: Path | None) -> None:
         """设置浏览器下载文件的保存目录；None 表示不自动保存。"""
-        self._downloads_dir = Path(path) if path else None
+        self._downloads.set_dir(path)
 
     def recent_downloads(self, since: float) -> list[dict]:
         """返回 since（含）之后收到的下载记录。"""
-        return [r for r in self._recent_downloads if r.get("ts", 0) >= since]
-
-    def _record_download(self, *, ok: bool, **fields) -> None:
-        self._recent_downloads.append({"ok": ok, "ts": time.time(), **fields})
-        if len(self._recent_downloads) > 20:
-            self._recent_downloads = self._recent_downloads[-20:]
+        return self._downloads.recent(since)
 
     def set_screencast_connection(self, conn: object | None) -> None:
         self._screencast_connection = conn
@@ -265,36 +257,8 @@ class BrowserManager:
         return f"Browser launched successfully in visible mode"
 
     async def _on_download(self, download) -> None:
-        """任意浏览器下载自动保存到 _downloads_dir，结果记入 _recent_downloads。"""
-        if not self._downloads_dir:
-            logger.warning("download event ignored: downloads dir not configured")
-            self._record_download(ok=False, reason="downloads dir not configured")
-            return
-        try:
-            if failure := await download.failure():
-                logger.warning(f"download failed: {failure}")
-                self._record_download(ok=False, reason=f"download failed: {failure}")
-                return
-            self._downloads_dir.mkdir(parents=True, exist_ok=True)
-            filename = _sanitize_filename(download.suggested_filename or "download.bin")
-            path = _unique_path(self._downloads_dir, filename)
-            await download.save_as(path)
-            size = path.stat().st_size
-            sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
-            _append_manifest(self._downloads_dir, {
-                "source_url": download.url if hasattr(download, "url") else "",
-                "title": "",
-                "publish_date": "",
-                "filename": path.name,
-                "size": size,
-                "sha256": sha256,
-                "downloaded_at": datetime.now(timezone.utc).isoformat(),
-            })
-            logger.info(f"download saved: {path} ({size} bytes)")
-            self._record_download(ok=True, filename=path.name, path=str(path), size=size)
-        except Exception as e:
-            logger.warning(f"download save failed: {e}")
-            self._record_download(ok=False, reason=f"download save failed: {e}")
+        """任意浏览器下载交给 DownloadRecorder 保存并记录。"""
+        await self._downloads.handle(download)
 
     async def close(self) -> str:
         self.cancel_idle_close()
@@ -525,38 +489,3 @@ class BrowserManager:
 
     def reset_element_failures(self):
         self._element_failure_count.clear()
-
-
-_INVALID_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
-
-
-def _sanitize_filename(name: str) -> str:
-    name = _INVALID_FILENAME_CHARS.sub("_", name).strip()
-    return name or "download.bin"
-
-
-def _unique_path(output_dir: Path, filename: str) -> Path:
-    stem, dot, suffix = filename.rpartition(".")
-    path = output_dir / filename
-    counter = 1
-    while path.exists():
-        if dot:
-            path = output_dir / f"{stem} ({counter}){dot}{suffix}"
-        else:
-            path = output_dir / f"{stem} ({counter})"
-        counter += 1
-    return path
-
-
-def _append_manifest(output_dir: Path, entry: dict) -> None:
-    manifest_file = output_dir / "downloads_manifest.json"
-    entries: list = []
-    if manifest_file.exists():
-        try:
-            data = json.loads(manifest_file.read_text(encoding="utf-8"))
-            if isinstance(data, list):
-                entries = data
-        except (OSError, json.JSONDecodeError):
-            entries = []
-    entries.append(entry)
-    manifest_file.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
