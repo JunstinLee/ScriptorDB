@@ -180,7 +180,9 @@ def _stub_locate(monkeypatch, elements: list[dict]) -> _Manager:
 
     import browser.runtime as runtime_mod
 
-    async def fake_locate(page, text: str = "", role: str = "", scope: str = "visible"):
+    async def fake_locate(
+        page, text: str = "", role: str = "", scope: str = "visible", quick: bool = False
+    ):
         return elements
 
     monkeypatch.setattr(runtime_mod, "locate_elements", fake_locate)

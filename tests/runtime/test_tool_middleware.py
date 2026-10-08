@@ -76,10 +76,23 @@ class TestFindRepeat:
         manager = _Manager(_Page("https://example.com/a"))
         _use_manager(monkeypatch, manager)
         ctx = _Ctx()
+        _record(ctx, manager, text="Go")
+
+        decision = await mw.evaluate_call(
+            ctx, "browser_find", {"text": "Go", "scope": "visible"}
+        )
+        assert decision == "find-repeat"
+
+    @pytest.mark.asyncio
+    async def test_empty_query_allowed(self, monkeypatch):
+        """无 text/role 的空查询不参与熔断 → 始终 allow。"""
+        manager = _Manager(_Page("https://example.com/a"))
+        _use_manager(monkeypatch, manager)
+        ctx = _Ctx()
         _record(ctx, manager)
 
         decision = await mw.evaluate_call(ctx, "browser_find", {"scope": "visible"})
-        assert decision == "find-repeat"
+        assert decision == "allow"
 
     @pytest.mark.asyncio
     async def test_different_fingerprint_allowed(self, monkeypatch):
@@ -98,10 +111,12 @@ class TestFindRepeat:
         manager = _Manager(_Page("https://example.com/a"))
         _use_manager(monkeypatch, manager)
         ctx = _Ctx()
-        _record(ctx, manager)
+        _record(ctx, manager, text="Go")
 
         manager._nav_rev = 1
-        decision = await mw.evaluate_call(ctx, "browser_find", {"scope": "visible"})
+        decision = await mw.evaluate_call(
+            ctx, "browser_find", {"text": "Go", "scope": "visible"}
+        )
         assert decision == "allow"
 
     @pytest.mark.asyncio
@@ -110,10 +125,12 @@ class TestFindRepeat:
         manager = _Manager(_Page("https://example.com/a"))
         _use_manager(monkeypatch, manager)
         ctx = _Ctx()
-        _record(ctx, manager)
+        _record(ctx, manager, text="Go")
 
         manager._page.url = "https://example.com/b"
-        decision = await mw.evaluate_call(ctx, "browser_find", {"scope": "visible"})
+        decision = await mw.evaluate_call(
+            ctx, "browser_find", {"text": "Go", "scope": "visible"}
+        )
         assert decision == "allow"
 
     @pytest.mark.asyncio
@@ -122,10 +139,12 @@ class TestFindRepeat:
         manager = _Manager(_Page("https://example.com/a"))
         _use_manager(monkeypatch, manager)
         ctx = _Ctx()
-        _record(ctx, manager)
+        _record(ctx, manager, text="Go")
 
         manager._page = _Page("https://example.com/a")
-        decision = await mw.evaluate_call(ctx, "browser_find", {"scope": "visible"})
+        decision = await mw.evaluate_call(
+            ctx, "browser_find", {"text": "Go", "scope": "visible"}
+        )
         assert decision == "allow"
 
     @pytest.mark.asyncio
@@ -134,9 +153,11 @@ class TestFindRepeat:
         manager = _Manager(_Page("https://example.com/a"))
         _use_manager(monkeypatch, manager)
         ctx = _Ctx()
-        _record(ctx, manager, produced=False)
+        _record(ctx, manager, text="Go", produced=False)
 
-        decision = await mw.evaluate_call(ctx, "browser_find", {"scope": "visible"})
+        decision = await mw.evaluate_call(
+            ctx, "browser_find", {"text": "Go", "scope": "visible"}
+        )
         assert decision == "allow"
 
     @pytest.mark.asyncio
@@ -156,9 +177,11 @@ class TestFindRepeat:
         manager = _Manager(None)
         _use_manager(monkeypatch, manager)
         ctx = _Ctx()
-        _record(ctx, _Manager(_Page("https://example.com/a")))
+        _record(ctx, _Manager(_Page("https://example.com/a")), text="Go")
 
-        decision = await mw.evaluate_call(ctx, "browser_find", {"scope": "visible"})
+        decision = await mw.evaluate_call(
+            ctx, "browser_find", {"text": "Go", "scope": "visible"}
+        )
         assert decision == "allow"
 
 
@@ -170,12 +193,12 @@ class TestRunScope:
         """审批恢复换新 ctx.run_id，但 deps.run_id 不变 → 仍命中。"""
         manager = _Manager(_Page("https://example.com/a"))
         _use_manager(monkeypatch, manager)
-        _record(_Ctx(deps_run_id="logical", ctx_run_id="r1"), manager)
+        _record(_Ctx(deps_run_id="logical", ctx_run_id="r1"), manager, text="Go")
 
         decision = await mw.evaluate_call(
             _Ctx(deps_run_id="logical", ctx_run_id="r2"),
             "browser_find",
-            {"scope": "visible"},
+            {"text": "Go", "scope": "visible"},
         )
         assert decision == "find-repeat"
 
@@ -184,10 +207,10 @@ class TestRunScope:
         """另一次逻辑 run 不共享状态 → allow。"""
         manager = _Manager(_Page("https://example.com/a"))
         _use_manager(monkeypatch, manager)
-        _record(_Ctx(deps_run_id="run-1"), manager)
+        _record(_Ctx(deps_run_id="run-1"), manager, text="Go")
 
         decision = await mw.evaluate_call(
-            _Ctx(deps_run_id="run-2"), "browser_find", {"scope": "visible"}
+            _Ctx(deps_run_id="run-2"), "browser_find", {"text": "Go", "scope": "visible"}
         )
         assert decision == "allow"
 
@@ -196,11 +219,11 @@ class TestRunScope:
         """run 终结清理后不再命中。"""
         manager = _Manager(_Page("https://example.com/a"))
         _use_manager(monkeypatch, manager)
-        _record(_Ctx(deps_run_id="run-1"), manager)
+        _record(_Ctx(deps_run_id="run-1"), manager, text="Go")
 
         mw.clear_run("run-1")
         decision = await mw.evaluate_call(
-            _Ctx(deps_run_id="run-1"), "browser_find", {"scope": "visible"}
+            _Ctx(deps_run_id="run-1"), "browser_find", {"text": "Go", "scope": "visible"}
         )
         assert decision == "allow"
 
