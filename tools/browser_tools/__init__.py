@@ -4,13 +4,16 @@ from tools.browser_tools import (
     actions,
     cookies,
     dom,
+    fill,
     filter_apply,
     filter_detect,
+    find,
     links,
     navigation,
+    read,
     selectors,
     table,
     tabs,
 )
 
-__all__ = ["actions", "cookies", "dom", "filter_apply", "filter_detect", "links", "navigation", "selectors", "table", "tabs"]
+__all__ = ["actions", "cookies", "dom", "fill", "filter_apply", "filter_detect", "find", "links", "navigation", "read", "selectors", "table", "tabs"]

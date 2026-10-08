@@ -11,12 +11,14 @@ from tools.browser_common import (  # noqa: E402
 )
 from tools.browser_tools.actions import (  # noqa: E402
     browser_click,
-    browser_fill,
-    browser_fill_form,
     browser_press_key,
     browser_scroll,
     browser_select_option,
     browser_wait_for_selector,
+)
+from tools.browser_tools.fill import (  # noqa: E402
+    browser_fill,
+    browser_fill_form,
 )
 from tools.browser_tools.cookies import (  # noqa: E402
     browser_clear_cookies,
