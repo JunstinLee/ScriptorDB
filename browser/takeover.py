@@ -1,16 +1,29 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 
-from browser.login_state import LOGIN_TITLE_KEYWORDS
+from browser.human_detection import (  # noqa: F401  (re-export)
+    HumanTrigger,
+    detect_element_failure_trigger,
+    detect_human_needed,
+    detect_timeout_trigger,
+)
 from core.logging_setup import get_logger
 
 logger = get_logger("browser.takeover")
+
+__all__ = [
+    "HumanTakeoverState",
+    "HumanTakeoverManager",
+    "TAKEOVER_TIMEOUT",
+    "HumanTrigger",
+    "detect_human_needed",
+    "detect_timeout_trigger",
+    "detect_element_failure_trigger",
+]
 
 
 class HumanTakeoverState(str, Enum):
