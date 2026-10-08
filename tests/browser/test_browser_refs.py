@@ -293,10 +293,12 @@ class TestRepeatFindScopeVariant:
 
     def test_scope_variant_is_repeat(self, monkeypatch):
         """同元素换 scope 重扫 → 判为重复。"""
-        monkeypatch.setattr(tm, "_manager", lambda: object())
-        monkeypatch.setattr(tm, "_page_key", lambda manager: "page-1")
-        monkeypatch.setattr(tm, "_page_url", lambda manager: "https://example.com/a")
-        monkeypatch.setattr(tm, "_nav_revision", lambda manager: 3)
+        from runtime.middleware import context as mw_ctx
+
+        monkeypatch.setattr(mw_ctx, "_manager", lambda: object())
+        monkeypatch.setattr(mw_ctx, "_page_key", lambda manager: "page-1")
+        monkeypatch.setattr(mw_ctx, "_page_url", lambda manager: "https://example.com/a")
+        monkeypatch.setattr(mw_ctx, "_nav_revision", lambda manager: 3)
         tm._round_finds.clear()
         try:
             tm.record_find(

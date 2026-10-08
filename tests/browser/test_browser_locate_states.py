@@ -14,8 +14,8 @@ from typing import Any
 import pytest
 
 from browser.runtime import MAX_CONFIRM_CANDIDATES, _confirm_actionable
-from tools.browser_tools import dom as dom_mod
-from tools.browser_tools.dom import browser_find
+from tools.browser_tools import find as find_mod
+from tools.browser_tools.find import browser_find
 
 pytestmark = pytest.mark.usefixtures("cleanup_browser")
 
@@ -170,11 +170,11 @@ class _FakePage:
 
 def _stub_locate(monkeypatch, elements: list[dict]) -> _Manager:
     manager = _Manager()
-    monkeypatch.setattr(dom_mod, "_require_browser", lambda: (manager, _FakePage()))
-    monkeypatch.setattr(dom_mod, "_check_blocked", lambda _m: None)
+    monkeypatch.setattr(find_mod, "_require_browser", lambda: (manager, _FakePage()))
+    monkeypatch.setattr(find_mod, "_check_blocked", lambda _m: None)
     # ref 铸造用确定性桩，便于断言输出行尾。
     monkeypatch.setattr(
-        dom_mod, "mint_ref",
+        find_mod, "mint_ref",
         lambda page, locator, signature, run_id, *, locator_kind="path": f"ref:{locator}",
     )
 
