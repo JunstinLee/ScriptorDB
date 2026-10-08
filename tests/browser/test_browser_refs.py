@@ -3,8 +3,8 @@
 覆盖：
 - 同页同 URL 同签名复用 ref → 命中；
 - 点击触发跳转致 ``page.url`` 变化 → ``stale_ref``；
-- 强定位器硬身份（tag/role/aria）冲突 → ``stale_ref``；
-- 硬身份一致仅软文本抖动 / 弱定位器硬身份冲突 → 放行（unverified）；
+- 强定位器结构身份（tag/role）冲突 → ``stale_ref``；
+- aria/text 漂移、弱定位器身份冲突 → 放行（unverified）；
 - 显式导航（``record_navigate``）后 ref 失效；
 - ``run_id`` 取自铸造方（``deps.run_id``），逻辑 run 内恒定。
 """
@@ -114,6 +114,17 @@ class TestResolveRefTarget:
         """硬身份一致、仅软文本（textContent）抖动 → 命中，不判 stale。"""
         minted = _sig(tag="button", role="button", text="Go")
         current = _sig(tag="button", role="button", text="Go now")
+        page = _Page("https://example.com/a", _Handle(current))
+        ref = refs.mint_ref(page, "#go", minted, "run-1", locator_kind="id")
+        target = await actions_mod._resolve_ref_target(_Manager(), ref)
+        assert isinstance(target, tuple)
+        assert target[1] == "#go"
+
+    @pytest.mark.asyncio
+    async def test_aria_drift_hits(self):
+        """结构身份（tag/role）一致、仅 aria-label 漂移 → 命中，不判 stale。"""
+        minted = _sig(tag="button", role="button", aria="Submit", text="Go")
+        current = _sig(tag="button", role="button", aria="Submit search", text="Go")
         page = _Page("https://example.com/a", _Handle(current))
         ref = refs.mint_ref(page, "#go", minted, "run-1", locator_kind="id")
         target = await actions_mod._resolve_ref_target(_Manager(), ref)

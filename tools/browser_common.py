@@ -117,18 +117,21 @@ _CLICK_SNAPSHOT_JS = """(selector) => {
 }"""
 
 
-async def _settle_after_click(page, selector: str = "") -> dict:
+async def _settle_after_click(page, selector: str = "", quick: bool = False) -> dict:
     """点击后等页面稳定，并返回一次轻量状态快照。
 
     快照含目标控件信息、当前可见覆盖层数、以及可见输入框/文本域的
     placeholder 与 value —— 让一次 click 就能判定"值有没有写进去、
     面板有没有关掉"，避免模型再用 get_text/evaluate 反复复核。
     """
-    try:
-        await page.wait_for_load_state("networkidle", timeout=4000)
-    except Exception:
-        pass
-    await page.wait_for_timeout(500)
+    # quick=True（点击失败路径）跳过 networkidle 等待：点击自身最长 12s 超时，
+    # 若再叠 4.5s 等待会撞上工具 15s 上限，反把失败变成超时。
+    if not quick:
+        try:
+            await page.wait_for_load_state("networkidle", timeout=4000)
+        except Exception:
+            pass
+        await page.wait_for_timeout(500)
     try:
         snapshot = await page.evaluate(_CLICK_SNAPSHOT_JS, selector or "")
     except Exception:

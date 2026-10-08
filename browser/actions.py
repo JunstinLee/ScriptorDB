@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from playwright.async_api import Page, TimeoutError as PlaywrightTimeoutError
 
+# 点击前元素不可见时的有界重试预算：面板动画 / 列表重建常在此期间完成，
+# 给足窗口即可把大量「暂时隐藏」从失败里救回来。
+_VISIBLE_RETRY_MS = 2000
+
 
 async def scroll_to_bottom(page: Page) -> str:
     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -21,7 +25,17 @@ async def click(page: Page, selector: str, timeout: int = 30_000) -> str:
         if element is None:
             return f"Click failed: element not found: {selector}"
         if not await element.is_visible():
-            return f"Click failed: element is not visible: {selector}"
+            # 元素可能只是暂时隐藏（面板动画 / 列表重建）：先给一次有界的可见性
+            # 等待，再重新取句柄复核，避免把可恢复的过渡态直接判成失败。
+            try:
+                await page.wait_for_selector(
+                    selector, state="visible", timeout=_VISIBLE_RETRY_MS,
+                )
+            except Exception:
+                pass
+            element = await page.query_selector(selector)
+            if element is None or not await element.is_visible():
+                return f"Click failed: element is not visible: {selector}"
         if not await element.is_enabled():
             return f"Click failed: element is disabled: {selector}"
         await page.click(selector, timeout=timeout)

@@ -39,6 +39,12 @@ def _click_error_category(message: str) -> str:
     low = message.lower()
     if "not found" in low:
         return "resource_not_found"
+    if "not visible" in low or "is disabled" in low or "not actionable" in low:
+        return "not_actionable"
+    # 遮挡要先于超时判定：被别的元素挡住时 page.click 也抛 PlaywrightTimeoutError，
+    # 文案里同时含 "timed out" 与 "covered"，先匹配超时会把遮挡误报成超时。
+    if "covered" in low or "intercepts pointer events" in low:
+        return "element_covered"
     if "timed out" in low or "timeout" in low:
         return "execution_timeout"
     return "internal_error"
@@ -70,14 +76,17 @@ def _stale_ref(ref: str, reason: str = "") -> ToolResult:
 
 
 def _split_signature(sig: str) -> tuple[str, str]:
-    """把 ``[tag, role, aria, text]`` 签名拆成 (硬身份, 软文本)。
+    """把 ``[tag, role, aria, text]`` 签名拆成 (结构身份, 可变信号)。
 
+    结构身份只取 tag / role：二者由标记本身决定，最稳定。aria-label 与
+    textContent 在 SPA 里每一轮渲染都可能被改写（状态切换、文案刷新），
+    放进结构身份会把「同一个元素」误判成 stale，故降级为可变信号。
     段数不等于 4 视为不可判，返回 ``("", "")``，由调用方按「算不出」处理。
     """
     parts = (sig or "").split("\u0001")
     if len(parts) != 4:
         return "", ""
-    return "\u0001".join(parts[:3]), parts[3]
+    return "\u0001".join(parts[:2]), "\u0001".join(parts[2:])
 
 
 async def _element_signature(handle) -> str | None:
@@ -248,7 +257,7 @@ async def browser_click(
     # record_element_failure / detect_takeover。
     failed = "failed" in click_result.lower() or "error" in click_result.lower()
 
-    snapshot = await _settle_after_click(page, selector) if not click_failed else {}
+    snapshot = await _settle_after_click(page, selector, quick=click_failed)
     lines = [click_result]
     if download_wait > 0:
         entry = await _wait_for_download(manager, clicked_at, download_wait)
