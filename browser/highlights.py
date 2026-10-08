@@ -50,7 +50,29 @@ async def inject_highlight_runtime(page: Page) -> None:
         logger.warning(f"highlight runtime injection skipped error={e}")
 
 
-async def highlight_click(page: Page, selector: str, duration_ms: int = 600) -> None:
+_HIGHLIGHT_CLICK_REMOVE_JS = """
+    const el = document.getElementById('__scdb_highlight_click');
+    if (el) el.remove();
+"""
+
+
+async def _remove_click_highlight_later(page: Page, duration_ms: int) -> None:
+    """延迟清理点击高亮（不阻塞主执行流）。"""
+    await asyncio.sleep(duration_ms / 1000)
+    try:
+        await page.evaluate(_HIGHLIGHT_CLICK_REMOVE_JS)
+    except Exception:
+        pass
+
+
+async def highlight_click(
+    page: Page, selector: str, duration_ms: int = 600, block: bool = True
+) -> None:
+    """在 `selector` 上投放一次性点击高亮；默认阻塞 `duration_ms` 后清理。
+
+    装饰性操作：`block=False` 时投放后立即返回，清理交给后台任务，不占用主执行流。
+    高亮层为 `pointer-events: none`，不遮挡后续点击。
+    """
     await inject_highlight_runtime(page)
     try:
         await page.evaluate(
@@ -71,11 +93,11 @@ async def highlight_click(page: Page, selector: str, duration_ms: int = 600) -> 
     except Exception as e:
         logger.warning(f"highlight_click skipped selector={selector} error={e}")
         return
+    if not block:
+        asyncio.create_task(_remove_click_highlight_later(page, duration_ms))
+        return
     await asyncio.sleep(duration_ms / 1000)
-    await page.evaluate("""
-        const el = document.getElementById('__scdb_highlight_click');
-        if (el) el.remove();
-    """)
+    await page.evaluate(_HIGHLIGHT_CLICK_REMOVE_JS)
 
 
 async def highlight_input(page: Page, selector: str) -> None:

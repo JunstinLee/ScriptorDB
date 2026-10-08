@@ -23,6 +23,13 @@ logger = get_logger("browser.manager")
 
 IDLE_CLOSE_TIMEOUT = 60
 
+# 会改变页面内容（DOM 状态）的动作工具：它们成功执行后推进内容修订计数，
+# 供重复 find 判定区分「同一页、无动作」与「同一 URL、点完按钮后整页重渲染」。
+_CONTENT_MUTATING_TOOLS = frozenset({
+    "click", "fill", "select_option", "press_key",
+    "navigate", "go_back", "go_forward",
+})
+
 
 class BrowserManager:
     def __init__(self) -> None:
@@ -37,6 +44,9 @@ class BrowserManager:
         # 判断「同一页是否重新导航过」。点击触发的整页跳转不经过 record_navigate，
         # 由 URL 相等兜底。
         self._nav_revisions: dict[int, int] = {}
+        # 与 _nav_revisions 平行的「页面内容修订」计数（键为 id(page)）：动作工具成功后
+        # 递增，供重复 find 判定识别「URL 未变但 DOM 已更换」（点击 Start/Next 等）。
+        self._content_revisions: dict[int, int] = {}
         self._actions: list[dict] = []
         self._launched_at: float | None = None
         self._takeover = HumanTakeoverManager()
@@ -103,6 +113,17 @@ class BrowserManager:
             return 0
         return self._nav_revisions.get(id(page), 0)
 
+    def content_revision(self) -> int:
+        """当前活动页的内容修订计数；无页面返回 0。
+
+        与 ``nav_revision`` 平行，但由动作工具（click/fill/select_option/…）成功后推进，
+        用于识别「URL 未变、无显式导航，但页面内容已被替换」的场景。
+        """
+        page = self.page()
+        if page is None:
+            return 0
+        return self._content_revisions.get(id(page), 0)
+
     def record_action(self, tool: str, detail: str, success: bool = True,
                       selector: str = "", coords: dict | None = None) -> None:
         self._actions.append({
@@ -115,6 +136,11 @@ class BrowserManager:
         })
         if len(self._actions) > 200:
             self._actions = self._actions[-200:]
+        # 成功的动作工具可能改变页面内容：推进内容修订。拿不准（读不到 page）则不动。
+        if success and tool in _CONTENT_MUTATING_TOOLS:
+            page = self.page()
+            if page is not None:
+                self._content_revisions[id(page)] = self._content_revisions.get(id(page), 0) + 1
 
     def tool_started(self) -> None:
         """标记一个浏览器工具开始执行（LoginWatcher 据此让出 page）。"""
@@ -131,6 +157,7 @@ class BrowserManager:
     def reset_state(self) -> None:
         self._history.clear()
         self._nav_revisions.clear()
+        self._content_revisions.clear()
         self._actions.clear()
         self._launched_at = None
         invalidate_all()
@@ -379,6 +406,7 @@ class BrowserManager:
     def _clear_browser_refs(self, log_warning: bool = False) -> None:
         had_browser = any((self._playwright, self._browser, self._context, self._page))
         self._nav_revisions.clear()
+        self._content_revisions.clear()
         self._playwright = None
         self._browser = None
         self._context = None

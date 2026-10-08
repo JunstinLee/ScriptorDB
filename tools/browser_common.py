@@ -125,10 +125,12 @@ async def _settle_after_click(page, selector: str = "", quick: bool = False) -> 
     面板有没有关掉"，避免模型再用 get_text/evaluate 反复复核。
     """
     # quick=True（点击失败路径）跳过 networkidle 等待：点击自身最长 12s 超时，
-    # 若再叠 4.5s 等待会撞上工具 15s 上限，反把失败变成超时。
+    # 若再叠固定等待会撞上工具 15s 上限，反把失败变成超时。
+    # 站点多为前端渲染 + 秒级刷新，networkidle 判据偏脆，容易吃满超时，
+    # 故把等待窗口压到 2s + 500ms，仍返回同一份快照供上层消费。
     if not quick:
         try:
-            await page.wait_for_load_state("networkidle", timeout=4000)
+            await page.wait_for_load_state("networkidle", timeout=2000)
         except Exception:
             pass
         await page.wait_for_timeout(500)
@@ -139,13 +141,71 @@ async def _settle_after_click(page, selector: str = "", quick: bool = False) -> 
     return snapshot if isinstance(snapshot, dict) else {}
 
 
-async def _wait_for_download(manager, since: float, timeout: float = 2.0) -> dict | None:
+_CLICK_MAY_DOWNLOAD_JS = """(selector) => {
+    const hit = (text) => {
+        const low = String(text || '').toLowerCase();
+        return ['下载', '导出', 'download', 'export'].some((h) => low.includes(h));
+    };
+    try {
+        const el = document.querySelector(selector);
+        if (!el) return false;
+        if (el.hasAttribute && el.hasAttribute('download')) return true;
+        const href = (el.getAttribute && (el.getAttribute('href') || '')) || '';
+        if (href && /\\.(csv|xls|xlsx|pdf|zip|doc|docx|ppt|pptx|txt)([?#]|$)/i.test(href)) {
+            return true;
+        }
+        const text = (el.innerText || el.textContent || '') + ' ' + (el.getAttribute('aria-label') || '');
+        return hit(text);
+    } catch (e) {
+        return true;
+    }
+}"""
+
+
+_READ_VALUE_JS = """(selector) => {
+    try {
+        const el = document.querySelector(selector);
+        if (!el) return null;
+        return (el.value !== undefined ? String(el.value) : '');
+    } catch (e) {
+        return null;
+    }
+}"""
+
+
+async def _read_control_value(page, selector: str) -> str | None:
+    """读取控件写入后的 value；读不到（选择器非法 / 元素缺失）返回 None。"""
+    try:
+        value = await page.evaluate(_READ_VALUE_JS, selector)
+    except Exception:
+        return None
+    return value if isinstance(value, str) else None
+
+
+async def _click_may_download(page, selector: str) -> bool:
+    """判断这次点击是否可能触发下载（带 download 属性 / 文件链接 / 下载类文案）。
+
+    拿不准（选择器不是合法 CSS、脚本抛错）时返回 True —— 宁可多等一次也不漏下载。
+    """
+    try:
+        return bool(await page.evaluate(_CLICK_MAY_DOWNLOAD_JS, selector))
+    except Exception:
+        return True
+
+
+async def _wait_for_download(
+    manager, since: float, timeout: float = 2.0, may_download: bool = True
+) -> dict | None:
     """Wait for a new download record (ts >= since) to appear, up to ``timeout`` seconds.
 
     Polls ``manager.recent_downloads`` so a download that arrives later than the click
     is still confirmed instead of being missed. Returns the newest record (``ok`` True or
     False), or ``None`` if nothing arrives before the timeout.
+
+    ``may_download=False`` 时确定不会有下载，直接返回 ``None``（跳过轮询）。
     """
+    if not may_download:
+        return None
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         entries = manager.recent_downloads(since)

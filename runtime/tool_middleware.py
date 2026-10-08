@@ -169,6 +169,14 @@ def _nav_revision(manager) -> int:
         return 0
 
 
+def _content_revision(manager) -> int:
+    """当前活动页的内容修订计数；读取失败或 manager 不支持时按 0 处理。"""
+    try:
+        return int(manager.content_revision())
+    except Exception:
+        return 0
+
+
 def _page_url(manager) -> str:
     """当前活动页 URL；无页面返回 ``""``。"""
     try:
@@ -183,14 +191,18 @@ def _normalize_query_part(value: Any) -> str:
     return " ".join(str(value or "").split()).lower()
 
 
-def _find_fingerprint(text: str, role: str, scope: str) -> str:
+def _find_fingerprint(text: str, role: str, scope: str, content_rev: int = 0) -> str:
     """把 browser_find 的查询参数组装为稳定指纹。
 
     ``text`` / ``role`` 归一化（去首尾空白、折叠连续空白、小写），使同一意图的
     大小写 / 空白变体归为同一条；``scope`` 保留原值 —— visible / container / page
-    语义不同，合并会误拦合法的扩大重扫。
+    语义不同，合并会误拦合法的扩大重扫。末尾追加内容修订号：同一 URL 下页面内容
+    已被动作工具更换（内容修订推进）时指纹随之变化，不再误判为重复重扫。
     """
-    return f"{scope}||{_normalize_query_part(role)}||{_normalize_query_part(text)}"
+    return (
+        f"{scope}||{_normalize_query_part(role)}||{_normalize_query_part(text)}"
+        f"||{int(content_rev or 0)}"
+    )
 
 
 def record_find(
@@ -248,11 +260,16 @@ def _is_repeat_find(ctx, args: dict | None) -> bool:
 
     text = str(args.get("text") or "") if isinstance(args, dict) else ""
     role = str(args.get("role") or "") if isinstance(args, dict) else ""
+    # 空查询（无 text/role）不参与熔断：它常用于"重新看一眼整页"，页面换状态后
+    # 本就需要重扫，拦下来只会把模型推向未受管控的裸 JS 路径。
+    if not _normalize_query_part(text) and not _normalize_query_part(role):
+        return False
     raw_scope = args.get("scope") if isinstance(args, dict) else None
     scope = (str(raw_scope) if raw_scope else "visible").strip().lower()
     if scope not in ("visible", "container", "page"):
         scope = "visible"
-    fingerprint = _find_fingerprint(text, role, scope)
+    content_rev = _content_revision(manager)
+    fingerprint = _find_fingerprint(text, role, scope, content_rev)
 
     with _lock:
         records = list(_round_finds.get(run_key, ()))
@@ -271,7 +288,7 @@ def _is_repeat_find(ctx, args: dict | None) -> bool:
     # produced，仅 scope 不同 → 仍是同一意图的重复重扫（模型常把 scope 升级
     # visible → container → page 当重试阶梯）。page_url / nav_rev 变化仍放行。
     scope_fingerprints = {
-        _find_fingerprint(text, role, candidate_scope)
+        _find_fingerprint(text, role, candidate_scope, content_rev)
         for candidate_scope in ("visible", "container", "page")
     }
     for record in records:

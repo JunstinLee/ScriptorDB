@@ -15,6 +15,9 @@ logger = get_logger("browser.runtime")
 # 见 locate_script.LOCATE_ELEMENTS_JS），MAX_CONFIRM_CANDIDATES 是硬上限；
 # Python 侧只做最终排序与确认，不再承担「上千 → 60」的截断。
 MAX_CONFIRM_CANDIDATES = 60
+# 轻量模式（"找入口/找按钮"等简单场景）下的候选上限：只保留最可能的一小批，
+# 降低确认开销。仍是硬上限，由 JS 源头按同一套族配额逻辑截断。
+QUICK_CONFIRM_CANDIDATES = 20
 CONFIRM_CONCURRENCY = 6
 
 # 候选族保底配额：防止单一大族（整页的 div/span）吃光名额。各族先拿固定配额，
@@ -176,7 +179,7 @@ def _order_candidates(elements: list[dict]) -> list[dict]:
 
 
 async def locate_elements(
-    page: Page, text: str = "", role: str = "", scope: str = "visible"
+    page: Page, text: str = "", role: str = "", scope: str = "visible", quick: bool = False
 ) -> list[dict]:
     """Collect visible, interactive elements into ready-to-reuse selectors.
 
@@ -226,6 +229,7 @@ async def locate_elements(
     scope = (scope or "visible").strip().lower()
     if scope not in ("visible", "container", "page"):
         scope = "visible"
+    total_cap = QUICK_CONFIRM_CANDIDATES if quick else MAX_CONFIRM_CANDIDATES
     try:
         raw = await page.evaluate(
             LOCATE_ELEMENTS_JS,
@@ -236,7 +240,7 @@ async def locate_elements(
                 "extraSelector": locate_probes.interactive_extra_selector(),
                 "overlaySelector": locate_probes.overlay_selector(),
                 "classPattern": locate_probes.CLASS_PATTERN,
-                "totalCap": MAX_CONFIRM_CANDIDATES,
+                "totalCap": total_cap,
                 "familyQuotas": LOCATE_FAMILY_QUOTAS,
             },
         )

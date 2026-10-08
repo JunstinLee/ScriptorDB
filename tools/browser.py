@@ -12,6 +12,7 @@ from tools.browser_common import (  # noqa: E402
 from tools.browser_tools.actions import (  # noqa: E402
     browser_click,
     browser_fill,
+    browser_fill_form,
     browser_press_key,
     browser_scroll,
     browser_select_option,
@@ -51,6 +52,7 @@ __all__ = [
     "browser_extract_rows",
     "browser_extract_table",
     "browser_fill",
+    "browser_fill_form",
     "browser_find",
     "browser_get_cookies",
     "browser_get_tabs",

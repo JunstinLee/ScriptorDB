@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import time
+
 from browser import get_manager
 from config.settings import Settings
 from core.logging_setup import get_logger
@@ -8,6 +11,29 @@ from tools.browser_common import _check_blocked, _require_browser, _settle_after
 from tools.tool_decorators import db_tool
 
 logger = get_logger("tools.browser.navigation")
+
+# browser_launch 与 browser_navigate 同刻发起时，navigate 最多等启动就绪的秒数。
+_LAUNCH_READY_TIMEOUT = 20.0
+
+
+async def _wait_for_launch_ready(manager, timeout: float = _LAUNCH_READY_TIMEOUT):
+    """若 browser_launch 正在启动中，等它就绪后返回该 page；否则返回 None。
+
+    只处理"启动进行中"的竞态：未启动且没有启动在途时立即返回 None，保持
+    "Browser not launched" 的既有对外契约。
+    """
+    if not getattr(manager, "_launching", False) and not manager.is_launched():
+        return None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if manager.is_launched():
+            page = manager.page()
+            if page is not None:
+                return page
+        if not getattr(manager, "_launching", False) and not manager.is_launched():
+            return None
+        await asyncio.sleep(0.1)
+    return None
 
 
 @db_tool(name="browser_launch", category="browser", timeout=30, sequential=True)
@@ -30,6 +56,10 @@ async def browser_navigate(ctx: RunContext[Settings], url: str) -> str:
     from browser.highlights import inject_highlight_runtime
 
     manager, page = _require_browser()
+    if page is None:
+        # launch/navigate 同刻发起时 launch 可能仍在进行：等它就绪，消除竞态。
+        # 未启动且无启动在途时返回 None，保持原有 "not launched" 返回文案。
+        page = await _wait_for_launch_ready(manager)
     if page is None:
         return "Browser not launched. Please call browser_launch first."
     if blocked := _check_blocked(manager):

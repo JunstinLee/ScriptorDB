@@ -4,6 +4,7 @@ from browser.refs import mint_ref
 from config.settings import Settings
 from pydantic_ai import RunContext
 from runtime.tool_middleware import (
+    _content_revision,
     _find_fingerprint,
     _nav_revision,
     _page_key,
@@ -57,7 +58,8 @@ def _format_element_line(index: int, el: dict, suffix: str = "") -> str:
         anchor = snippet[:40]
         if el.get("state") == "usable":
             target = f"text={anchor!r}" if anchor else (
-                "(no reusable ref for this locator; use the selector above)"
+                "(dynamic locator — no reusable ref; pass the selector above straight to "
+                "browser_click/browser_fill instead of re-reading the DOM)"
             )
         else:
             target = f"text={anchor!r}" if anchor else (
@@ -144,6 +146,7 @@ async def browser_find(
     role: str = "",
     scope: str = "visible",
     mode: str = "elements",
+    quick: bool = False,
     max_candidates: int = 8,
     min_links: int = 1,
     min_text: int = 5,
@@ -175,6 +178,10 @@ async def browser_find(
     the entire DOM. Hidden elements only appear at `scope="page"`. `scope="page"` applies
     a candidate cap, so its result may be incomplete.
 
+    Pass `quick=True` for a lightweight scan that confirms fewer candidates — useful when
+    you just want to find an entry point or a button. Calls with no `text`/`role` default
+    to `quick=True`.
+
     `mode="containers"` scans the rendered DOM for document links (PDF/Excel/ZIP/CSV)
     and reports the containers that hold them, for orientation only. Row location is
     automatic: call `browser_extract_table` with no selectors — do not pass the candidate
@@ -183,10 +190,10 @@ async def browser_find(
     """
     if (mode or "elements").strip().lower() == "containers":
         return await _find_containers(ctx, max_candidates, min_links, min_text, max_sample)
-    return await _find_elements(ctx, text, role, scope)
+    return await _find_elements(ctx, text, role, scope, quick)
 
 
-async def _find_elements(ctx, text: str, role: str, scope: str):
+async def _find_elements(ctx, text: str, role: str, scope: str, quick: bool = False):
     from browser.runtime import locate_elements
 
     manager, page = _require_browser()
@@ -198,8 +205,11 @@ async def _find_elements(ctx, text: str, role: str, scope: str):
     scope = (scope or "visible").strip().lower()
     if scope not in ("visible", "container", "page"):
         scope = "visible"
+    # 无 text/role 的"找入口/找按钮"场景采用更保守默认：走轻量模式，少确认候选。
+    if not (text or "").strip() and not (role or "").strip():
+        quick = True
 
-    elements = await locate_elements(page, text=text, role=role, scope=scope)
+    elements = await locate_elements(page, text=text, role=role, scope=scope, quick=quick)
     # 只为 Playwright 已确认可用的元素铸造 ref；unverified 保持原有降级输出。
     # run_id 取 deps.run_id（一次逻辑 run 恒定），不可取 ctx.run_id —— 后者每次
     # agent.run 都会变，审批暂停/恢复的续跑会换新值。
@@ -221,7 +231,7 @@ async def _find_elements(ctx, text: str, role: str, scope: str):
         page_key=_page_key(manager),
         page_url=_page_url(manager),
         nav_rev=_nav_revision(manager),
-        fingerprint=_find_fingerprint(text, role, scope),
+        fingerprint=_find_fingerprint(text, role, scope, _content_revision(manager)),
         produced=any(el.get("state") == "usable" for el in elements),
     )
     filters = []

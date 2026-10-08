@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 
 from browser.refs import invalidate_ref, resolve_ref
@@ -9,7 +10,9 @@ from pydantic_ai import RunContext
 from schemas import ToolErrorInfo, ToolResult
 from tools.browser_common import (
     _check_blocked,
+    _click_may_download,
     _ensure_downloads_dir,
+    _read_control_value,
     _require_browser,
     _settle_after_click,
     _wait_for_download,
@@ -25,6 +28,14 @@ logger = get_logger(__name__)
 
 _REF_RESOLVE_TIMEOUT_MS = 1500
 
+# browser_click 的下载等待默认秒数。等于该值时走「按需判断」（见 _click_may_download）；
+# 显式传其它正值则强制等待，0 跳过等待。
+_DEFAULT_DOWNLOAD_WAIT = 2
+
+# browser_fill_form 单次调用允许的最大字段数（与典型表单列数量级一致）。超限直接失败，
+# 不静默截断——静默丢字段会造成数据错误。
+_MAX_FILL_FORM_FIELDS = 10
+
 _REASON_UNKNOWN = "unknown"
 _REASON_PAGE_CLOSED = "page_closed"
 _REASON_URL_CHANGED = "url_changed"
@@ -33,6 +44,14 @@ _REASON_SIGNATURE_MISMATCH = "signature_mismatch"
 
 # 不保身份的定位器种类：它们本就可能解析回别的节点，硬身份冲突不能据此判 stale。
 _WEAK_LOCATOR_KINDS = {"text", "path"}
+
+# 唯一性强的定位符种类：冲突时先重采样签名、再按「选择器仍唯一可解析」放行，
+# 不直接判 stale（动态重渲染页面里角色/属性抖动会误伤）。
+_STRONG_UNIQUE_LOCATOR_KINDS = {"id", "data"}
+
+# 强唯一定位符冲突时重采样签名的窗口：tries 次、每次间隔 delay 秒，取出现次数最多者。
+_SIGNATURE_RESAMPLE_TRIES = 3
+_SIGNATURE_RESAMPLE_DELAY = 0.05
 
 
 def _click_error_category(message: str) -> str:
@@ -78,15 +97,16 @@ def _stale_ref(ref: str, reason: str = "") -> ToolResult:
 def _split_signature(sig: str) -> tuple[str, str]:
     """把 ``[tag, role, aria, text]`` 签名拆成 (结构身份, 可变信号)。
 
-    结构身份只取 tag / role：二者由标记本身决定，最稳定。aria-label 与
-    textContent 在 SPA 里每一轮渲染都可能被改写（状态切换、文案刷新），
-    放进结构身份会把「同一个元素」误判成 stale，故降级为可变信号。
-    段数不等于 4 视为不可判，返回 ``("", "")``，由调用方按「算不出」处理。
+    结构身份只取 tag：标签名由标记本身决定，最稳定。role 会被状态切换/渲染
+    改写（例如同一节点在 clickable/render 之间切换 role），aria-label 与
+    textContent 在 SPA 里每轮渲染都可能被改写，放进结构身份都会把「同一个
+    元素」误判成 stale，故一律降级为可变信号。段数不等于 4 视为不可判，
+    返回 ``("", "")``，由调用方按「算不出」处理。
     """
     parts = (sig or "").split("\u0001")
     if len(parts) != 4:
         return "", ""
-    return "\u0001".join(parts[:2]), "\u0001".join(parts[2:])
+    return parts[0], "\u0001".join(parts[1:])
 
 
 async def _element_signature(handle) -> str | None:
@@ -98,13 +118,35 @@ async def _element_signature(handle) -> str | None:
         return None
 
 
+async def _resample_signature(handle) -> str | None:
+    """短窗口内多次取签名，取出现次数最多者（动态重渲染下单次采样会抖动）。"""
+    samples: list[str] = []
+    for _ in range(_SIGNATURE_RESAMPLE_TRIES):
+        sig = await _element_signature(handle)
+        if sig:
+            samples.append(sig)
+        await asyncio.sleep(_SIGNATURE_RESAMPLE_DELAY)
+    if not samples:
+        return None
+    return max(set(samples), key=samples.count)
+
+
+async def _selector_unique(page, selector: str) -> bool:
+    """选择器是否仍唯一可解析（强唯一定位符按此判定元素未变）。"""
+    try:
+        return len(await page.query_selector_all(selector)) == 1
+    except Exception:
+        return False
+
+
 async def _resolve_ref_target(manager, ref: str):
     """把 ref 解析回 (page, locator)，并证明它仍指向同一元素。
 
     先比对铸造时 URL（点击触发的整页跳转不经失效挂点，Page 对象跨导航不变，
     只比签名会让同 locator 同签名的元素被静默误命中），再等元素挂载后分级比对
-    签名：硬身份（tag / role / aria）一致即命中；软文本抖动、签名算不出都记
-    ``unverified`` 放行；仅硬身份冲突且定位器保身份（强种类）才 ``stale_ref``。
+    签名（硬身份只取 tag）：硬身份一致即命中；软信号抖动、签名算不出都记
+    ``unverified`` 放行；硬身份冲突时——弱定位器失效后放行；强唯一定位符
+    （id / data）先重采样签名，仍冲突且选择器已不唯一才 ``stale_ref``。
     """
     record = resolve_ref(ref)
     if record is None:
@@ -143,6 +185,24 @@ async def _resolve_ref_target(manager, ref: str):
         )
         invalidate_ref(ref)
         return page, record.locator
+    if record.locator_kind in _STRONG_UNIQUE_LOCATOR_KINDS:
+        # 唯一性强：先短窗口重采样，取到稳定签名后再比一次硬身份。
+        stable = await _resample_signature(handle)
+        if stable is not None:
+            resampled_hard, _ = _split_signature(stable)
+            if resampled_hard and resampled_hard == rec_hard:
+                logger.info(
+                    "ref reuse unverified: %s (strong locator %s, resampled match)",
+                    ref, record.locator_kind,
+                )
+                return page, record.locator
+        # 仍冲突但选择器唯一可解析：按「定位符保身份」放行。
+        if await _selector_unique(page, record.locator):
+            logger.info(
+                "ref reuse unverified: %s (strong locator %s, selector still unique)",
+                ref, record.locator_kind,
+            )
+            return page, record.locator
     return _stale_ref(ref, _REASON_SIGNATURE_MISMATCH)
 
 
@@ -169,7 +229,7 @@ async def browser_wait_for_selector(
     selector = _normalize_selector(selector)
     result = await _wait(page, selector, state)  # type: ignore[arg-type]
     if not _is_engine_selector(selector):
-        await highlight_click(page, selector)
+        await highlight_click(page, selector, block=False)
     manager.record_action("wait_for_selector", selector, selector=selector)
     return result
 
@@ -180,7 +240,7 @@ async def browser_click(
     selector: str = "",
     text: str = "",
     ref: str = "",
-    download_wait: int = 2,
+    download_wait: int = _DEFAULT_DOWNLOAD_WAIT,
 ) -> str | ToolResult:
     """Click the first element matching `selector` (or the element a `ref` points to).
 
@@ -224,7 +284,7 @@ async def browser_click(
         selector = _normalize_selector(selector)
     _ensure_downloads_dir(manager, ctx)
     if not _is_engine_selector(selector):
-        await highlight_click(page, selector)
+        await highlight_click(page, selector, block=False)
         await manager.trace.record_pre_click(page, selector)
 
     clicked_at = time.time()
@@ -259,8 +319,15 @@ async def browser_click(
 
     snapshot = await _settle_after_click(page, selector, quick=click_failed)
     lines = [click_result]
-    if download_wait > 0:
-        entry = await _wait_for_download(manager, clicked_at, download_wait)
+    if download_wait != 0:
+        # 默认值走「按需判断」：只有可能下载的点击才等；显式传其它正值则强制等待。
+        if download_wait == _DEFAULT_DOWNLOAD_WAIT:
+            may_download = await _click_may_download(page, selector)
+        else:
+            may_download = True
+        entry = await _wait_for_download(
+            manager, clicked_at, download_wait, may_download=may_download
+        )
         if entry and entry.get("ok"):
             lines.append(f"Captured download: {entry.get('filename')} ({entry.get('path')})")
         elif entry:
@@ -373,7 +440,136 @@ async def browser_fill(
     ):
         manager.record_element_failure(selector)
         await manager.detect_takeover()
+    # 成功后在返回文本里附上写入后的 value，省掉模型再发一次回读自检。
+    # 追加放在失败判定之后，避免页面数据里的 "failed"/"error" 文本污染判定。
+    if "Filled" in result and not _is_engine_selector(selector):
+        value_after = await _read_control_value(page, selector)
+        if value_after is not None:
+            result = f"{result} (value now {value_after!r})"
     return result
+
+
+async def _fill_form_error(message: str) -> ToolResult:
+    return ToolResult(
+        success=False,
+        error=ToolErrorInfo(category="invalid_selector", message=message),
+    )
+
+
+def _fill_form_entry_key(entry: dict) -> str:
+    """字段的身份键：selector 优先，其次 ref；都没有返回空串（视为未知字段名）。"""
+    selector = str(entry.get("selector") or "").strip()
+    if selector:
+        return _normalize_selector(selector)
+    ref = str(entry.get("ref") or "").strip()
+    return f"ref:{ref}" if ref else ""
+
+
+async def _fill_form_one(manager, ctx, page, entry: dict) -> tuple[bool, str, object]:
+    """填写单个字段（沿用 browser_fill 的定位/高亮/副作用），返回 (ok, 展示文本, page)。
+
+    page 会随 ref 解析结果更新（ref 命中时返回 ref 铸造时的 page）。
+    """
+    from browser.actions import fill as _fill
+    from browser.highlights import highlight_input, highlight_input_remove
+    from browser.sensitive import current_site_password, is_password_control
+
+    selector = str(entry.get("selector") or "").strip()
+    ref = str(entry.get("ref") or "").strip()
+    value = str(entry.get("text") or "")
+    label = selector or ref
+    if ref:
+        target = await _resolve_ref_target(manager, ref)
+        if isinstance(target, ToolResult):
+            manager.record_action("fill", f"stale ref {ref}", success=False)
+            detail = target.error.message if target.error else "stale ref"
+            return False, f"{label}: {detail}", page
+        page, selector = target
+    else:
+        selector = _normalize_selector(selector)
+    pwd = current_site_password(page.url, ctx.deps.workspace_id if ctx.deps else None)
+    if (
+        await is_password_control(page, selector)
+        and pwd is not None
+        and pwd in value
+    ):
+        manager.record_action(
+            "fill", "skipped (system-filled password)",
+            selector=selector, success=True,
+        )
+        return True, f"{label}: filled automatically by the system", page
+    if not _is_engine_selector(selector):
+        await highlight_input(page, selector)
+    try:
+        result = await _fill(page, selector, value, timeout=_ACTION_TIMEOUT_MS)
+    finally:
+        await highlight_input_remove(page)
+    ok = "Filled" in result
+    manager.record_action("fill", selector, selector=selector, success=ok)
+    if "not editable" not in str(result).lower() and (
+        "failed" in str(result).lower() or "error" in str(result).lower()
+    ):
+        manager.record_element_failure(selector)
+        await manager.detect_takeover()
+    return ok, f"{label}: {result}", page
+
+
+@db_tool(name="browser_fill_form", category="browser", timeout=15, sequential=True)
+async def browser_fill_form(
+    ctx: RunContext[Settings],
+    fields: list[dict],
+) -> str | ToolResult:
+    """Fill multiple form fields in one call.
+
+    `fields` is a list of entries, each shaped like a `browser_fill` call:
+    `{"selector": "#name", "text": "Alice"}` (or `{"ref": "ref_1a2b3c4d", "text": "Alice"}`).
+    Each entry needs a `selector` or a `ref`; the value to write goes in `text`.
+
+    At most 10 fields per call — pass more and the call fails (split it into several
+    calls). Duplicate `selector`/`ref` entries and entries missing both also fail.
+    Fields are filled serially; the result reports each field's outcome.
+    """
+    manager, page = _require_browser()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    if blocked := _check_blocked(manager):
+        return blocked
+    if not isinstance(fields, list) or not fields:
+        return await _fill_form_error(
+            "browser_fill_form needs a non-empty `fields` list."
+        )
+    if len(fields) > _MAX_FILL_FORM_FIELDS:
+        return await _fill_form_error(
+            f"browser_fill_form accepts at most {_MAX_FILL_FORM_FIELDS} fields per call "
+            f"(got {len(fields)}). Split it into multiple calls."
+        )
+    seen: set[str] = set()
+    for index, entry in enumerate(fields):
+        if not isinstance(entry, dict):
+            return await _fill_form_error(
+                f"browser_fill_form entry #{index} must be an object with "
+                "`selector` or `ref` plus `text`."
+            )
+        key = _fill_form_entry_key(entry)
+        if not key:
+            return await _fill_form_error(
+                f"browser_fill_form entry #{index} has neither `selector` nor `ref`."
+            )
+        if key in seen:
+            return await _fill_form_error(
+                f"browser_fill_form entry #{index} duplicates field {key!r}."
+            )
+        seen.add(key)
+
+    lines: list[str] = []
+    ok_count = 0
+    for entry in fields:
+        ok, detail, page = await _fill_form_one(manager, ctx, page, entry)
+        if ok:
+            ok_count += 1
+        lines.append(f"- {detail}")
+    header = f"Filled {ok_count}/{len(fields)} field(s):"
+    return "\n".join([header, *lines])
 
 
 @db_tool(name="browser_select_option", category="browser", timeout=15, sequential=True)
