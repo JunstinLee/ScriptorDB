@@ -21,10 +21,14 @@ async def browser_read(
     attribute: str = "",
     all: bool = False,
     js: str = "",
+    form: bool = False,
 ) -> str | ToolResult:
     """Read from the current page. Read-only: this tool does not change the page.
 
-    - With no `selector` and no `js`: returns the whole page text (`# title` + body text).
+    Entry precedence when several are given: `js` > `form` > `selector` > no-arg.
+
+    - With no `selector`, no `js` and no `form`: returns the whole page text
+      (`# title` + body text).
     - With `selector`: returns the text of the matching element. `selector` accepts both
       CSS and Playwright engine selectors (`#id`, `.class`, `text=导出`,
       `li:has-text("导出全部")`, `role=button[name="导出"]`). Pass `attribute` (e.g. `href`,
@@ -32,10 +36,16 @@ async def browser_read(
     - With `js`: evaluates the snippet and returns the JSON-encoded result. Reserved for
       native state the standard tools cannot reach (pure computation, canvas pixels,
       localStorage, navigator); do not use it to probe page structure — use
-      `browser_find` / `browser_read` (selector) instead.
+      `browser_find` / `form=True` instead.
+    - With `form=True`: returns one line per visible form control
+      (`label -> selector (type, value=…)`, with `<select>` options), ready to pass back
+      to `browser_fill` / `browser_click`. Use this instead of writing a JS snippet to
+      enumerate form fields.
     """
     if (js or "").strip():
         return await _read_js(ctx, js)
+    if form:
+        return await _read_form(ctx)
     if (selector or "").strip():
         return await _read_selector(ctx, selector, attribute, all)
     return await _read_page_text(ctx)
@@ -48,11 +58,76 @@ async def _read_page_text(ctx) -> str:
     if blocked := _check_blocked(manager):
         return blocked
 
+    from runtime.tool_middleware import (
+        STATE,
+        _content_revision,
+        _nav_revision,
+        _page_key,
+        _run_key,
+    )
+
+    run_key = _run_key(ctx)
+    page_key = _page_key(manager)
+    nav_rev = _nav_revision(manager)
+    content_rev = _content_revision(manager)
+    if run_key and page_key:
+        prev = STATE.get_page_read(run_key)
+        if prev and prev[:3] == (page_key, nav_rev, content_rev):
+            return (
+                f"Page unchanged since your last full read ({prev[3]} chars); reuse it, "
+                "or pass a `selector` / `js` / `form=True`."
+            )
+
     title = await page.title()
     text = await page.inner_text("body")
     result = f"# {title}\n\n{text}"
+    if run_key and page_key:
+        STATE.set_page_read(run_key, (page_key, nav_rev, content_rev, len(result)))
     manager.record_action("get_text", f"Retrieved {len(result)} chars")
     return result
+
+
+async def _read_form(ctx) -> str | ToolResult:
+    from browser.form_scan import extract_form_js
+
+    manager, page = _require_browser()
+    if page is None:
+        return "Browser not launched. Please call browser_launch first."
+    if blocked := _check_blocked(manager):
+        return blocked
+    try:
+        controls = await page.evaluate(extract_form_js())
+    except Exception as e:
+        manager.record_action("read_form", f"error: {e}", success=False)
+        return ToolResult(
+            success=False,
+            error=ToolErrorInfo(category="internal_error", message=f"Form read failed: {e}"),
+        )
+    visible = [c for c in controls or [] if isinstance(c, dict) and c.get("visible")]
+    manager.record_action("read_form", f"{len(visible)} controls")
+    if not visible:
+        return "No visible form controls on the current page."
+    return "\n".join(_format_control_line(c) for c in visible)
+
+
+def _format_control_line(control: dict) -> str:
+    label = (control.get("label") or control.get("placeholder")
+             or control.get("name") or control.get("id") or "").strip()
+    tag = control.get("tag") or ""
+    ctype = control.get("type") or ""
+    detail = tag + (f"[{ctype}]" if tag == "input" and ctype else "")
+    if control.get("checked") is not None:
+        detail += f" checked={control.get('checked')}"
+    elif control.get("value"):
+        detail += f" value={control.get('value')!r}"
+    line = f"- {label!r} -> {control.get('selector')} ({detail})"
+    options = control.get("options")
+    if options:
+        opts = ", ".join(
+            repr(str(o.get("value"))) for o in options if isinstance(o, dict)
+        )
+        line += f" options=[{opts}]"
+    return line
 
 
 async def _read_selector(ctx, selector: str, attribute: str, all: bool) -> str | ToolResult:

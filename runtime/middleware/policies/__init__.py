@@ -5,11 +5,15 @@ from __future__ import annotations
 from runtime.middleware.policies.document_switch import DocumentSwitchPolicy
 from runtime.middleware.policies.filter_pipeline import FilterPipelinePolicy
 from runtime.middleware.policies.find_repeat import FindRepeatPolicy
+from runtime.middleware.policies.js_structure import JsStructureSwitchPolicy
+from runtime.middleware.policies.link_switch import LinkSwitchPolicy
 from runtime.middleware.policies.python_guard import PythonGuardPolicy
 
 __all__ = [
     "DocumentSwitchPolicy",
     "FilterPipelinePolicy",
     "FindRepeatPolicy",
+    "JsStructureSwitchPolicy",
+    "LinkSwitchPolicy",
     "PythonGuardPolicy",
 ]

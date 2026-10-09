@@ -57,8 +57,10 @@ _UI_PROBE_LABEL = (
     "[Middleware] {tool_name} intercepted: this looks like a UI/structure probing script. "
     "Discover elements with browser_find (it returns ready-to-use selectors plus semantic labels), "
     "read text or values with browser_read (selector + attribute=\"value\"), and act with "
-    "browser_click / browser_fill / browser_select_option. browser_read js is reserved for native "
-    "state the standard tools cannot reach (pure computation, canvas pixels, localStorage, navigator)."
+    "browser_click / browser_fill / browser_select_option. For form fields, use browser_read with "
+    "form=True to get each control's label, selector and value in one call. browser_read js is "
+    "reserved for native state the standard tools cannot reach (pure computation, canvas pixels, "
+    "localStorage, navigator)."
 )
 
 _UI_PROBE_REPEAT_LABEL = (

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from browser.form_scan import extract_form_js
 from browser.login_state import LoginPage, _login_page_signals
 from core.logging_setup import get_logger
 
@@ -33,102 +34,8 @@ _SUBMIT_TEXT = (
 
 # 一次性 evaluate：遍历可见表单控件，返回结构化元数据（不含角色分类）。
 # 有 <form> 时只遍历表单内控件，否则回退整个文档（JS 框架常见无 form 表单）。
-_EXTRACT_FORM_JS = """() => {
-  const visible = (el) => {
-    const r = el.getBoundingClientRect();
-    const cs = getComputedStyle(el);
-    return cs.display !== "none" && cs.visibility !== "hidden"
-      && r.width > 0 && r.height > 0;
-  };
-  const textOf = (el) => (el.textContent || "").replace(/\\s+/g, " ").trim();
-  const labelFor = (el) => {
-    if (el.id) {
-      const l = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
-      if (l) return textOf(l);
-    }
-    const wrap = el.closest("label");
-    if (wrap) return textOf(wrap);
-    const aria = el.getAttribute("aria-label");
-    if (aria) return aria.trim();
-    if (el.labels && el.labels.length) return textOf(el.labels[0]);
-    return "";
-  };
-  const countMatches = (sel) => {
-    try { return document.querySelectorAll(sel).length; } catch (e) { return 0; }
-  };
-  const selectorFor = (el) => {
-    const tag = el.tagName.toLowerCase();
-    const type = (el.getAttribute("type") || "").toLowerCase();
-    const base = tag === "input" && type
-      ? tag + '[type=' + JSON.stringify(type) + ']' : tag;
-    // ① id：全页唯一才采用
-    if (el.id) {
-      const byId = "#" + CSS.escape(el.id);
-      if (countMatches(byId) === 1) return byId;
-    }
-    // ② name：全页唯一才采用
-    const name = el.getAttribute("name");
-    if (name) {
-      const byName = base + '[name=' + JSON.stringify(name) + ']';
-      if (countMatches(byName) === 1) return byName;
-    }
-    // ③ 结构路径：自底向上拼「标签 + 同标签兄弟序号」，拼到全页唯一为止
-    //    （element-ui 这类「每个 input 单独包一层」的结构靠祖先层区分）
-    const parts = [];
-    let node = el;
-    while (node && node.nodeType === 1) {
-      const nodeTag = node.tagName.toLowerCase();
-      const nodeType = (node.getAttribute("type") || "").toLowerCase();
-      let part = nodeTag === "input" && nodeType
-        ? nodeTag + '[type=' + JSON.stringify(nodeType) + ']' : nodeTag;
-      const parent = node.parentElement;
-      if (parent) {
-        const sameTag = Array.from(parent.children)
-          .filter((c) => c.tagName === node.tagName);
-        if (sameTag.length > 1) {
-          part += ":nth-of-type(" + (sameTag.indexOf(node) + 1) + ")";
-        }
-      }
-      parts.unshift(part);
-      const candidate = parts.join(" > ");
-      if (countMatches(candidate) === 1) return candidate;
-      if (parent === null || parent === document.documentElement) break;
-      node = parent;
-    }
-    return parts.join(" > ") || base;
-  };
-  const controls = [];
-  const seen = new Set();
-  const push = (el, inForm) => {
-    if (seen.has(el)) return;
-    seen.add(el);
-    controls.push({
-      tag: el.tagName.toLowerCase(),
-      type: (el.getAttribute("type") || "").toLowerCase(),
-      name: el.getAttribute("name") || "",
-      id: el.id || "",
-      placeholder: el.getAttribute("placeholder") || "",
-      autocomplete: el.getAttribute("autocomplete") || "",
-      required: !!el.required,
-      label: labelFor(el),
-      text: textOf(el),
-      selector: selectorFor(el),
-      visible: visible(el),
-      in_form: inForm,
-    });
-  };
-  const forms = Array.from(document.querySelectorAll("form"));
-  if (forms.length) {
-    forms.forEach((form) => {
-      form.querySelectorAll("input, select, textarea, button")
-        .forEach((el) => push(el, true));
-    });
-  } else {
-    document.querySelectorAll("input, select, textarea, button")
-      .forEach((el) => push(el, false));
-  }
-  return controls;
-}"""
+# 扫描逻辑与 browser_read 表单读、点击快照共用，见 browser/form_scan.py。
+_EXTRACT_FORM_JS = extract_form_js()
 
 
 @dataclass

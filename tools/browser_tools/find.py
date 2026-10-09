@@ -60,15 +60,20 @@ def _format_element_line(index: int, el: dict, suffix: str = "") -> str:
     target = el.get("ref") or ""
     if not target:
         anchor = snippet[:40]
-        if el.get("state") == "usable":
-            target = f"text={anchor!r}" if anchor else (
-                "(dynamic locator — no reusable ref; pass the selector above straight to "
-                "browser_click/browser_fill instead of re-reading the DOM)"
+        selector = (el.get("selector") or "").strip()
+        state = el.get("state")
+        parts = [f"text={anchor!r}"] if anchor else []
+        if selector:
+            note = "dynamic locator" if state == "usable" else "unverified"
+            parts.append(f"{selector} ({note})")
+        if not parts:
+            parts.append(
+                "(no reusable ref — pass the selector above straight to "
+                "browser_click/browser_fill, or re-run browser_find after the panel settles)"
+                if state == "usable"
+                else "(unverified — no reusable handle; wait for it to settle then re-run browser_find)"
             )
-        else:
-            target = f"text={anchor!r}" if anchor else (
-                "(unverified — no reusable handle; wait for it to settle then re-run browser_find)"
-            )
+        target = " / ".join(parts)
     return (
         f"{index}. <{el.get('tag')}> [{el.get('role') or el.get('tag')}]{sem}"
         f"{label}{val} -> {target}{suffix}"

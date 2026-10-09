@@ -60,6 +60,13 @@ def _format_click_target(target: dict) -> str:
     return f"Target: <{tag}> [{role}]{label}{val}"
 
 
+def _format_snapshot_field(field: dict) -> str:
+    name = (field.get("label") or field.get("placeholder") or "").strip()
+    selector = field.get("selector") or ""
+    value = field.get("value") or ""
+    return f"{name!r} -> {selector} (value={value!r})"
+
+
 @db_tool(name="browser_wait_for_selector", category="browser", timeout=15, sequential=True)
 async def browser_wait_for_selector(
     ctx: RunContext[Settings],
@@ -194,8 +201,7 @@ async def browser_click(
     fields = snapshot.get("fields") or []
     if fields:
         lines.append("Fields: " + "; ".join(
-            f"placeholder={f.get('placeholder')!r} value={f.get('value')!r}"
-            for f in fields if isinstance(f, dict)
+            _format_snapshot_field(f) for f in fields if isinstance(f, dict)
         ))
 
     trace = await manager.trace.record_post_nav(page)

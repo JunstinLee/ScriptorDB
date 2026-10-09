@@ -4,6 +4,7 @@ import asyncio
 import time
 
 from browser import get_manager
+from browser.form_scan import FORM_SCAN_SNIPPET
 from browser.takeover import HumanTakeoverState
 from core.logging_setup import get_logger
 
@@ -74,7 +75,9 @@ async def _click_next(page, selector: str) -> bool:
             return False
 
 
-_CLICK_SNAPSHOT_JS = """(selector) => {
+_CLICK_SNAPSHOT_FIELD_LIMIT = 8
+
+_CLICK_SNAPSHOT_JS_TEMPLATE = """(selector) => {
     const laidOut = (el) => {
         const cs = getComputedStyle(el);
         const r = el.getBoundingClientRect();
@@ -104,17 +107,30 @@ _CLICK_SNAPSHOT_JS = """(selector) => {
     )) {
         if (laidOut(o)) overlays++;
     }
+__FORM_SCAN__
     const fields = [];
-    for (const el of document.querySelectorAll("input, textarea")) {
-        if (!laidOut(el)) continue;
-        const placeholder = el.getAttribute("placeholder") || "";
+    for (const el of __scanFormControls()) {
+        if (!el.visible) continue;
+        const placeholder = el.placeholder || "";
         const value = el.value || "";
         if (!placeholder && !value) continue;
-        fields.push({ placeholder: placeholder, value: value });
-        if (fields.length >= 8) break;
+        fields.push({
+            label: el.label || "",
+            selector: el.selector || "",
+            type: el.type || "",
+            placeholder: placeholder,
+            value: value,
+        });
+        if (fields.length >= __FIELD_LIMIT__) break;
     }
     return { target: target, overlays: overlays, fields: fields };
 }"""
+
+_CLICK_SNAPSHOT_JS = (
+    _CLICK_SNAPSHOT_JS_TEMPLATE
+    .replace("__FORM_SCAN__", FORM_SCAN_SNIPPET)
+    .replace("__FIELD_LIMIT__", str(_CLICK_SNAPSHOT_FIELD_LIMIT))
+)
 
 
 async def _settle_after_click(page, selector: str = "", quick: bool = False) -> dict:

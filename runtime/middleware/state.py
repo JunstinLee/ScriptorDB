@@ -20,6 +20,8 @@ class RoundState:
     - ``browser_used``：本回合是否已调用过浏览器工具（python 守卫观测用）。
     - ``detect_used``：本回合是否已跑过 ``browser_detect_filters``。
     - ``finds``：``run_key -> [find 记录]``（重复 find 熔断用）。
+    - ``page_reads``：``run_key -> (page_key, nav_rev, content_rev, chars)``
+      （重复整页读短路用）。
     """
 
     def __init__(self) -> None:
@@ -28,6 +30,7 @@ class RoundState:
         self.browser_used: set[str] = set()
         self.detect_used: set[str] = set()
         self.finds: dict[str, list[dict[str, Any]]] = {}
+        self.page_reads: dict[str, tuple] = {}
 
     @property
     def lock(self) -> threading.Lock:
@@ -67,9 +70,22 @@ class RoundState:
         with self._lock:
             return list(self.finds.get(run_key, ()))
 
+    def set_page_read(self, run_key: str, record: tuple) -> None:
+        """记录一次整页读的 ``(page_key, nav_rev, content_rev, chars)``。"""
+        with self._lock:
+            if len(self.page_reads) > _MAX_ROUNDS:
+                self.page_reads.clear()
+            self.page_reads[run_key] = record
+
+    def get_page_read(self, run_key: str) -> tuple | None:
+        """取回上一次整页读的记录；无则 ``None``。"""
+        with self._lock:
+            return self.page_reads.get(run_key)
+
     def clear_run(self, run_key: str) -> None:
         with self._lock:
             self.finds.pop(run_key, None)
+            self.page_reads.pop(run_key, None)
 
 
 STATE = RoundState()

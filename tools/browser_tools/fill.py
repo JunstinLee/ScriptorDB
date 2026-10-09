@@ -173,7 +173,15 @@ async def _fill_form_one(manager, ctx, page, entry: dict) -> tuple[bool, str, ob
         return False, f"{label}: {outcome.message}", outcome.page
     if outcome.status == "skipped_password":
         return True, f"{label}: filled automatically by the system", outcome.page
-    return outcome.status == "filled", f"{label}: {outcome.message}", outcome.page
+    detail = f"{label}: {outcome.message}"
+    # 成功后在返回文本里附上写入后的 value，省掉模型再发一次回读自检（与 browser_fill 同形）。
+    if outcome.status == "filled" and not _is_engine_selector(outcome.selector):
+        from browser.sensitive import is_password_control
+        if not await is_password_control(outcome.page, outcome.selector):
+            value_after = await _read_control_value(outcome.page, outcome.selector)
+            if value_after is not None:
+                detail = f"{detail} (value now {value_after!r})"
+    return outcome.status == "filled", detail, outcome.page
 
 
 @db_tool(name="browser_fill_form", category="browser", timeout=15, sequential=True)

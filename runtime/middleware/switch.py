@@ -17,6 +17,7 @@ from runtime.middleware.labels import (
     _FIND_REPEAT_LABEL,
     _NO_PYTHON_LABEL,
     _NO_PYTHON_REPEAT_LABEL,
+    _REPEAT_LABEL,
     _SWITCH_LABEL,
     _UI_PROBE_LABEL,
     _UI_PROBE_REPEAT_LABEL,
@@ -94,6 +95,8 @@ async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
         return _UI_PROBE_REPEAT_LABEL.format(tool_name=tool_name)
     if decision == "find-repeat":
         return _FIND_REPEAT_LABEL
+    if decision == "link-repeat":
+        return _REPEAT_LABEL.format(tool_name=tool_name)
 
     current = _current_page_url()
     target = _target_url_from_prompt(ctx)
