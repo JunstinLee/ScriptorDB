@@ -64,7 +64,14 @@ def _format_snapshot_field(field: dict) -> str:
     name = (field.get("label") or field.get("placeholder") or "").strip()
     selector = field.get("selector") or ""
     value = field.get("value") or ""
-    return f"{name!r} -> {selector} (value={value!r})"
+    line = f"{name!r} -> {selector} (value={value!r})"
+    options = field.get("options")
+    if options:
+        opts = ", ".join(
+            repr(str(o.get("value"))) for o in options if isinstance(o, dict)
+        )
+        line += f" options=[{opts}]"
+    return line
 
 
 @db_tool(name="browser_wait_for_selector", category="browser", timeout=15, sequential=True)

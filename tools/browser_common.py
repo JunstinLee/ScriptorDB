@@ -75,7 +75,7 @@ async def _click_next(page, selector: str) -> bool:
             return False
 
 
-_CLICK_SNAPSHOT_FIELD_LIMIT = 8
+_CLICK_SNAPSHOT_FIELD_LIMIT = 20
 
 _CLICK_SNAPSHOT_JS_TEMPLATE = """(selector) => {
     const laidOut = (el) => {
@@ -111,15 +111,13 @@ __FORM_SCAN__
     const fields = [];
     for (const el of __scanFormControls()) {
         if (!el.visible) continue;
-        const placeholder = el.placeholder || "";
-        const value = el.value || "";
-        if (!placeholder && !value) continue;
         fields.push({
-            label: el.label || "",
+            label: el.label || el.name || el.id || el.placeholder || "",
             selector: el.selector || "",
             type: el.type || "",
-            placeholder: placeholder,
-            value: value,
+            placeholder: el.placeholder || "",
+            value: el.value || "",
+            options: el.options || [],
         });
         if (fields.length >= __FIELD_LIMIT__) break;
     }

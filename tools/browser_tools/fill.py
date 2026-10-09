@@ -26,7 +26,7 @@ logger = get_logger("tools.browser.fill")
 
 # browser_fill_form 单次调用允许的最大字段数（与典型表单列数量级一致）。超限直接失败，
 # 不静默截断——静默丢字段会造成数据错误。
-_MAX_FILL_FORM_FIELDS = 10
+_MAX_FILL_FORM_FIELDS = 12
 
 
 @dataclass
@@ -161,11 +161,34 @@ async def _fill_form_one(manager, ctx, page, entry: dict) -> tuple[bool, str, ob
     """填写单个字段（沿用 browser_fill 的定位/高亮/副作用），返回 (ok, 展示文本, page)。
 
     page 会随 ref 解析结果更新（ref 命中时返回 ref 铸造时的 page）。
+    带 ``label`` 的字段项按 ``<select>`` 处理：以 ``label`` 作为选项文本走
+    select_option 原语。
     """
     selector = str(entry.get("selector") or "").strip()
     ref = str(entry.get("ref") or "").strip()
     value = str(entry.get("text") or "")
+    option_label = str(entry.get("label") or "").strip()
     label = selector or ref
+    if option_label:
+        from browser.actions import select_option as _select
+
+        if ref:
+            target = await _resolve_ref_target(manager, ref)
+            if isinstance(target, ToolResult):
+                manager.record_action("select_option", f"stale ref {ref}", success=False)
+                detail = target.error.message if target.error else "stale ref"
+                return False, f"{label}: {detail}", page
+            page, selector = target
+        else:
+            selector = _normalize_selector(selector)
+        result = await _select(page, selector, label=option_label, timeout=_ACTION_TIMEOUT_MS)
+        ok = "Selected" in result
+        manager.record_action("select_option", f"{selector} = {option_label}",
+                              selector=selector, success=ok)
+        if not ok:
+            manager.record_element_failure(selector)
+            await manager.detect_takeover()
+        return ok, f"{label}: {result}", page
     outcome = await _fill_control(
         manager, ctx, page, selector=selector, ref=ref, value=value
     )
@@ -192,10 +215,15 @@ async def browser_fill_form(
     """Fill multiple form fields in one call.
 
     `fields` is a list of entries, each shaped like a `browser_fill` call:
-    `{"selector": "#name", "text": "Alice"}` (or `{"ref": "ref_1a2b3c4d", "text": "Alice"}`).
+    `{"selector": "#name", "text": "Alice"}` (or `{"ref": "ref_<from browser_find>", "text": "Alice"}`).
     Each entry needs a `selector` or a `ref`; the value to write goes in `text`.
 
-    At most 10 fields per call — pass more and the call fails (split it into several
+    For a `<select>` control, put the option's visible text in `label` instead of
+    `text` — the entry is then handled with the browser_select_option primitive, so a
+    dropdown is filled in the same call as the text fields:
+    `{"selector": "#country", "label": "China"}`.
+
+    At most 12 fields per call — pass more and the call fails (split it into several
     calls). Duplicate `selector`/`ref` entries and entries missing both also fail.
     Fields are filled serially; the result reports each field's outcome.
     """

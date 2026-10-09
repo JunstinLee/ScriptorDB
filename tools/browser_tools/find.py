@@ -165,7 +165,7 @@ async def browser_find(
 
     `mode="elements"` (default) lists interactive elements with ready-to-reuse refs.
     Use this to discover what is clickable or fillable before acting. Each line ends
-    with a `ref` (ex. `ref_1a2b3c4d`) that can be passed straight back to
+    with a `ref` (ex. `ref_<from browser_find>`) that can be passed straight back to
     `browser_click`/`browser_fill`/`browser_select_option`. A ref is valid only while
     the page stays on the same URL; after navigation or a full-page reload it goes
     stale and must be re-obtained. If a stale error comes back, call `browser_find`

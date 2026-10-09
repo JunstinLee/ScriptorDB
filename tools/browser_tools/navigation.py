@@ -37,7 +37,12 @@ async def _wait_for_launch_ready(manager, timeout: float = _LAUNCH_READY_TIMEOUT
 
 
 @db_tool(name="browser_launch", category="browser", timeout=30, sequential=True)
-async def browser_launch(ctx: RunContext[Settings]) -> str:
+async def browser_launch(ctx: RunContext[Settings], url: str = "") -> str:
+    """Launch the browser and, if `url` is given, navigate to it in the same call.
+
+    Pass `url` to open the starting page directly — this replaces the usual
+    `browser_launch` followed by `browser_navigate` pair with a single call.
+    """
     from config.workspace_paths import workspace_outputs_dir
 
     manager = get_manager()
@@ -47,6 +52,10 @@ async def browser_launch(ctx: RunContext[Settings]) -> str:
         manager.set_downloads_dir(workspace_outputs_dir(ctx.deps.workspace_path))
     result = await manager.launch()
     manager.record_action("launch", result)
+    target = (url or "").strip()
+    if target:
+        nav_result = await browser_navigate(ctx, target)
+        return f"{result}\n{nav_result}"
     return result
 
 

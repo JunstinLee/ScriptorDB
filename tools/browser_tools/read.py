@@ -77,6 +77,12 @@ async def _read_page_text(ctx) -> str:
                 f"Page unchanged since your last full read ({prev[3]} chars); reuse it, "
                 "or pass a `selector` / `js` / `form=True`."
             )
+        form_prev = STATE.get_form_read(run_key)
+        if form_prev == (page_key, nav_rev, content_rev):
+            return (
+                "Page unchanged since your last form read; reuse the fields it returned, "
+                "or pass a `selector` / `js`."
+            )
 
     title = await page.title()
     text = await page.inner_text("body")
@@ -89,6 +95,13 @@ async def _read_page_text(ctx) -> str:
 
 async def _read_form(ctx) -> str | ToolResult:
     from browser.form_scan import extract_form_js
+    from runtime.tool_middleware import (
+        STATE,
+        _content_revision,
+        _nav_revision,
+        _page_key,
+        _run_key,
+    )
 
     manager, page = _require_browser()
     if page is None:
@@ -102,6 +115,12 @@ async def _read_form(ctx) -> str | ToolResult:
         return ToolResult(
             success=False,
             error=ToolErrorInfo(category="internal_error", message=f"Form read failed: {e}"),
+        )
+    run_key = _run_key(ctx)
+    page_key = _page_key(manager)
+    if run_key and page_key:
+        STATE.set_form_read(
+            run_key, (page_key, _nav_revision(manager), _content_revision(manager))
         )
     visible = [c for c in controls or [] if isinstance(c, dict) and c.get("visible")]
     manager.record_action("read_form", f"{len(visible)} controls")

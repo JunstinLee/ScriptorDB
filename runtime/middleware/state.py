@@ -22,6 +22,8 @@ class RoundState:
     - ``finds``：``run_key -> [find 记录]``（重复 find 熔断用）。
     - ``page_reads``：``run_key -> (page_key, nav_rev, content_rev, chars)``
       （重复整页读短路用）。
+    - ``form_reads``：``run_key -> (page_key, nav_rev, content_rev)``
+      （整页读与已完成的 form 读去重用）。
     """
 
     def __init__(self) -> None:
@@ -31,6 +33,7 @@ class RoundState:
         self.detect_used: set[str] = set()
         self.finds: dict[str, list[dict[str, Any]]] = {}
         self.page_reads: dict[str, tuple] = {}
+        self.form_reads: dict[str, tuple] = {}
 
     @property
     def lock(self) -> threading.Lock:
@@ -82,10 +85,23 @@ class RoundState:
         with self._lock:
             return self.page_reads.get(run_key)
 
+    def set_form_read(self, run_key: str, record: tuple) -> None:
+        """记录一次表单读的 ``(page_key, nav_rev, content_rev)``。"""
+        with self._lock:
+            if len(self.form_reads) > _MAX_ROUNDS:
+                self.form_reads.clear()
+            self.form_reads[run_key] = record
+
+    def get_form_read(self, run_key: str) -> tuple | None:
+        """取回上一次表单读的记录；无则 ``None``。"""
+        with self._lock:
+            return self.form_reads.get(run_key)
+
     def clear_run(self, run_key: str) -> None:
         with self._lock:
             self.finds.pop(run_key, None)
             self.page_reads.pop(run_key, None)
+            self.form_reads.pop(run_key, None)
 
 
 STATE = RoundState()

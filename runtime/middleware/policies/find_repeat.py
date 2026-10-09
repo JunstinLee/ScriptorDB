@@ -105,6 +105,30 @@ def _is_repeat_find(ctx, args: dict | None) -> bool:
             and record.get("fingerprint") in scope_fingerprints
         ):
             return True
+
+    # 重叠命中：同一 run / 页 / 导航修订 / URL、旧记录已 produced，新查询与旧指纹
+    # 虽不完全相同，但 role 归一化后相同、或 text 互为子串 → 视为同一意图的重复
+    # 重扫（模型常把 role 换成 text 或收窄 text 当作重试）。指纹格式为
+    # ``scope||role||text||content_rev``。
+    new_text = ctxmod._normalize_query_part(text)
+    new_role = ctxmod._normalize_query_part(role)
+    for record in records:
+        if not record.get("produced"):
+            continue
+        if (
+            record.get("page_key") != page_key
+            or record.get("nav_rev") != nav_rev
+            or record.get("page_url") != page_url
+        ):
+            continue
+        parts = str(record.get("fingerprint", "")).split("||")
+        if len(parts) != 4:
+            continue
+        old_role, old_text = parts[1], parts[2]
+        if new_role and new_role == old_role:
+            return True
+        if new_text and old_text and (new_text in old_text or old_text in new_text):
+            return True
     return False
 
 
