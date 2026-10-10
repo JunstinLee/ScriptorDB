@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
-import re
 import time
 from pathlib import Path
+
+from config.secrets import SUPPORTED_PROVIDERS
 
 CACHE_TTL = 3600
 
@@ -11,7 +12,8 @@ CACHE_TTL = 3600
 def _cache_path(provider: str) -> Path:
     from platformdirs import user_cache_dir
 
-    safe_provider = re.sub(r"[^A-Za-z0-9_.-]", "_", provider.strip()) or "default"
+    normalized_provider = provider.strip()
+    safe_provider = normalized_provider if normalized_provider in SUPPORTED_PROVIDERS else "default"
 
     old_path = Path.home() / ".cache" / "scriptordb"
     if old_path.exists():
