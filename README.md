@@ -76,6 +76,24 @@ Beyond crawling, the agent can drive a real (visible) Playwright browser — nav
 - **Human takeover when it matters** — Captcha, MFA, OAuth logins, and antibot walls are detected automatically; the agent pauses and hands control to you, then resumes the same run with your actions injected once you hand control back.
 - **Live viewport** — The browser screen streams to the web UI over WebRTC, so you can watch every step.
 
+#### End-to-End Example — Automation Challenges Playground
+
+A real run against [Automation Challenges Playground](https://process-practice.dev/): the agent opens the site, enters the **Excel Forms** challenge, downloads the Excel file the site generates, reads its data, then fills and submits the form exactly as the page requires. Form fields can change position and identifier on every round, so the agent re-inspects the page each time instead of hard-coding selectors, and pauses for human takeover whenever a verification step needs a person. Only one completion is required per challenge. This test used the **DeepSeek V4.1 Flash** model throughout.
+
+| # | Step | What Happens | Notes |
+|---|------|--------------|-------|
+| 1 | Open the playground | Navigate to `https://process-practice.dev/` | Visible Playwright browser |
+| 2 | Enter Excel Forms | Pick the **Excel Forms** challenge | Difficulty selectable |
+| 3 | Download the Excel file | Grab the workbook the site generates | Saved to the workspace outputs directory |
+| 4 | Read the data | Parse rows and cells out of the downloaded file | Excel reader |
+| 5 | Fill the form | Map each value to the field the page asks for | Fields may shift position and identifier every round, so the page is re-inspected |
+| 6 | Submit | Submit the completed form | Completes the challenge once |
+
+| Difficulty | Tool calls to complete |
+|------------|------------------------|
+| Easy | 34 |
+| Medium | 70 |
+
 ### 🔍 Search Session History
 Session history is searchable so you can quickly find past questions and results across long-running conversations.
 
