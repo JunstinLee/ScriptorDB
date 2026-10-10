@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from pathlib import Path
 
@@ -10,13 +11,15 @@ CACHE_TTL = 3600
 def _cache_path(provider: str) -> Path:
     from platformdirs import user_cache_dir
 
+    safe_provider = re.sub(r"[^A-Za-z0-9_.-]", "_", provider.strip()) or "default"
+
     old_path = Path.home() / ".cache" / "scriptordb"
     if old_path.exists():
         cache_dir = old_path
     else:
         cache_dir = Path(user_cache_dir("scriptordb", ensure_exists=True))
     cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / f"models_{provider}.json"
+    return cache_dir / f"models_{safe_provider}.json"
 
 
 def load_cache(provider: str) -> list[str] | None:
