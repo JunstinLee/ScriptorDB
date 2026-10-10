@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol, Sequence
 from urllib.parse import urlparse
@@ -36,7 +37,7 @@ class LoginPage(Protocol):
 
     async def evaluate(self, expression: str, arg: Any = None) -> Any: ...
 
-# URL 路径中的登录关键词（信号之一，不单独定论）
+# URL 路径/哈希路由中的登录关键词（信号之一，不单独定论）
 _LOGIN_URL_KEYWORDS = (
     "/login",
     "/signin",
@@ -46,8 +47,40 @@ _LOGIN_URL_KEYWORDS = (
     "/accounts/login",
     "/sessions/login",
 )
-_LOGIN_TITLE_KEYWORDS = ("sign in", "log in", "login", "signin")
+# 标题登录关键词（中英双语）：中文站点标题含「登录」而无英文
+LOGIN_TITLE_KEYWORDS = (
+    "sign in", "log in", "login", "signin", "logon",
+    "登录", "登入",
+)
+# 表单级登录语义关键词：中文站点标题常只写机构名/品牌名，线索在提交按钮文本上
+_LOGIN_ACTION_KEYWORDS = (
+    "login", "log in", "sign in", "signin", "sign-in",
+    "登录", "登入",
+)
 _PASSWORD_INPUT_JS = "() => !!document.querySelector('input[type=password]')"
+_LOGIN_ACTION_JS = """() => {
+  const visible = (el) => {
+    const r = el.getBoundingClientRect();
+    const cs = getComputedStyle(el);
+    return r.width > 0 && r.height > 0
+      && cs.display !== 'none' && cs.visibility !== 'hidden';
+  };
+  const hints = %s;
+  const hit = (t) => hints.some((h) => (t || '').toLowerCase().includes(h));
+  const nodes = document.querySelectorAll(
+    'button, input[type=submit], input[type=button], a[role=button]');
+  for (const el of nodes) {
+    if (!visible(el)) continue;
+    if (hit(el.textContent) || hit(el.value) || hit(el.getAttribute('aria-label'))) {
+      return true;
+    }
+  }
+  const labels = document.querySelectorAll('form label, form legend');
+  for (const el of labels) {
+    if (visible(el) && hit(el.textContent)) return true;
+  }
+  return false;
+}""" % json.dumps(list(_LOGIN_ACTION_KEYWORDS), ensure_ascii=False)
 
 
 @dataclass
@@ -73,11 +106,13 @@ def netloc_of(url: str) -> str:
 
 
 def _is_login_url(url: str) -> bool:
+    """URL 路径或哈希路由指向登录路径（覆盖 SPA 的 #/login）。"""
     try:
-        path = urlparse(url).path.lower()
+        parsed = urlparse(url)
     except ValueError:
         return False
-    return any(kw in path for kw in _LOGIN_URL_KEYWORDS)
+    target = f"{parsed.path} {parsed.fragment}".lower()
+    return any(kw in target for kw in _LOGIN_URL_KEYWORDS)
 
 
 async def _has_password_input(page: LoginPage) -> bool:
@@ -87,16 +122,60 @@ async def _has_password_input(page: LoginPage) -> bool:
         return False
 
 
-async def _login_page_signals(page: LoginPage) -> tuple[bool, str]:
-    """返回 (是否登录页, 证据)。"""
+async def _has_login_action(page: LoginPage) -> bool:
+    """表单级登录语义：可见提交按钮/label 文本含登录关键词。"""
+    try:
+        return bool(await page.evaluate(_LOGIN_ACTION_JS))
+    except Exception:
+        return False
+
+
+# 登录页信号缓存（只缓存"非登录页"结论）：MutationObserver 触发时由
+# login_watcher 清空，避免常驻轮询每 1.5s 重复付多段 evaluate。
+_signals_cache: dict[str, tuple[bool, str]] = {}
+
+
+def invalidate_login_signals() -> None:
+    """DOM 变动 / 导航后清空登录页信号缓存。"""
+    _signals_cache.clear()
+
+
+async def _login_page_signals(
+    page: LoginPage, *, cached: bool = False
+) -> tuple[bool, str]:
+    """返回 (是否登录页, 证据)。
+
+    信号：URL 指向登录路径，或「存在密码框」且（标题含登录关键词
+    或表单含登录操作）。中英双语，覆盖中文站点——这类页面标题常只
+    写机构名/品牌名，登录线索在提交按钮文本上。
+
+    ``cached=True`` 时按 URL 复用"非登录页"结论（常驻 watcher 轮询用）；
+    阳性结论不缓存，登录态一到即被重新识别。
+    """
+    url = getattr(page, "url", "") or ""
+    if cached:
+        hit = _signals_cache.get(url)
+        if hit is not None:
+            return hit
+    result = await _compute_login_page_signals(page)
+    if cached and not result[0]:
+        _signals_cache[url] = result
+    return result
+
+
+async def _compute_login_page_signals(page: LoginPage) -> tuple[bool, str]:
     if _is_login_url(page.url):
-        return True, "URL 指向登录路径"
+        return True, "URL points to a login path"
+    if not await _has_password_input(page):
+        return False, ""
     try:
         title = (await page.title()) or ""
     except Exception:
         title = ""
-    if any(kw in title.lower() for kw in _LOGIN_TITLE_KEYWORDS) and await _has_password_input(page):
-        return True, "页面标题含登录关键词且存在密码输入框"
+    if any(kw in title.lower() for kw in LOGIN_TITLE_KEYWORDS):
+        return True, "Page title contains login keywords and a password input is present"
+    if await _has_login_action(page):
+        return True, "Password input is present and the form contains a login action"
     return False, ""
 
 
@@ -130,7 +209,7 @@ async def detect_login_state(
         return LoginState(
             status="unknown",
             domain="",
-            reason="当前页面无有效域名（about:blank 等）",
+            reason="No valid domain for the current page (about:blank, etc.)",
         )
 
     cookies = await _cookies_for_domain(page, domain)
@@ -147,10 +226,10 @@ async def detect_login_state(
         )
         if present:
             state.status = "logged_in"
-            state.reason = f"保存的会话 cookie 仍存在 ({len(present)}/{len(expected_cookie_names)})"
+            state.reason = f"Saved session cookies are still present ({len(present)}/{len(expected_cookie_names)})"
         else:
             state.status = "logged_out"
-            state.reason = "保存的会话 cookie 已全部缺失，登录态已失效"
+            state.reason = "All saved session cookies are missing; the session has expired"
         logger.info(
             "login state: 会话 cookie 判定 domain=%s status=%s on_login_page=%s present=%d/%d cookies=%s",
             domain, state.status, on_login_page, len(present), len(expected_cookie_names), cookie_names,
@@ -178,7 +257,7 @@ async def detect_login_state(
         return LoginState(
             status="logged_in",
             domain=domain,
-            reason=f"存在 {len(cookie_names)} 个域名 cookie",
+            reason=f"Domain cookies present: {len(cookie_names)}",
             session_cookies=cookie_names,
         )
 
@@ -186,5 +265,5 @@ async def detect_login_state(
     return LoginState(
         status="unknown",
         domain=domain,
-        reason="无 cookie 且不在登录页，需访问受保护页面确认",
+        reason="No cookies and not on a login page; visit a protected page to confirm",
     )

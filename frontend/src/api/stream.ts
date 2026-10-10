@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import type { ChatRequest, StreamRunEvent } from "../types";
 import { WorkspaceNotSelectedError } from "./core";
 
@@ -120,7 +121,7 @@ export function processSseStream(
           resolve();
           return;
         }
-        onError(err instanceof Error ? err : new Error("Unknown error"));
+        onError(err instanceof Error ? err : new Error(t("error.unknown")));
         resolve();
       }
     })();
@@ -144,14 +145,14 @@ async function consumeSse(
           return;
         }
       }
-      callbacks.onError(new Error(`HTTP ${res.status}`));
+      callbacks.onError(new Error(t("error.http_status", { status: res.status })));
       return;
     }
 
     await processSseStream(res, callbacks, controller.signal);
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return;
-    callbacks.onError(err instanceof Error ? err : new Error("Unknown error"));
+    callbacks.onError(err instanceof Error ? err : new Error(t("error.unknown")));
   }
 }
 

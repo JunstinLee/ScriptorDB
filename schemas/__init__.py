@@ -41,6 +41,8 @@ from schemas.session import (
 )
 from schemas.settings import (
     ApiKeyRequest,
+    ApiKeyStatus,
+    ApiKeyStatusKind,
     ApiKeyTestResponse,
     ProviderInfo,
     SettingsResponse,

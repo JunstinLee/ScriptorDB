@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from browser.form_scan import extract_form_js
 from browser.login_state import LoginPage, _login_page_signals
 from core.logging_setup import get_logger
 
@@ -33,72 +34,8 @@ _SUBMIT_TEXT = (
 
 # 一次性 evaluate：遍历可见表单控件，返回结构化元数据（不含角色分类）。
 # 有 <form> 时只遍历表单内控件，否则回退整个文档（JS 框架常见无 form 表单）。
-_EXTRACT_FORM_JS = """() => {
-  const visible = (el) => {
-    const r = el.getBoundingClientRect();
-    const cs = getComputedStyle(el);
-    return cs.display !== "none" && cs.visibility !== "hidden"
-      && r.width > 0 && r.height > 0;
-  };
-  const textOf = (el) => (el.textContent || "").replace(/\\s+/g, " ").trim();
-  const labelFor = (el) => {
-    if (el.id) {
-      const l = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
-      if (l) return textOf(l);
-    }
-    const wrap = el.closest("label");
-    if (wrap) return textOf(wrap);
-    const aria = el.getAttribute("aria-label");
-    if (aria) return aria.trim();
-    if (el.labels && el.labels.length) return textOf(el.labels[0]);
-    return "";
-  };
-  const selectorFor = (el) => {
-    if (el.id) return "#" + CSS.escape(el.id);
-    const name = el.getAttribute("name");
-    if (name) return el.tagName.toLowerCase() + '[name=' + JSON.stringify(name) + ']';
-    const tag = el.tagName.toLowerCase();
-    const type = (el.getAttribute("type") || "").toLowerCase();
-    const base = tag === "input" && type
-      ? tag + '[type=' + JSON.stringify(type) + ']' : tag;
-    const parent = el.parentElement;
-    const siblings = parent ? Array.from(parent.querySelectorAll(base)) : [el];
-    if (siblings.length === 1) return base;
-    const idx = siblings.indexOf(el) + 1;
-    return base + ":nth-of-type(" + idx + ")";
-  };
-  const controls = [];
-  const seen = new Set();
-  const push = (el, inForm) => {
-    if (seen.has(el)) return;
-    seen.add(el);
-    controls.push({
-      tag: el.tagName.toLowerCase(),
-      type: (el.getAttribute("type") || "").toLowerCase(),
-      name: el.getAttribute("name") || "",
-      id: el.id || "",
-      placeholder: el.getAttribute("placeholder") || "",
-      autocomplete: el.getAttribute("autocomplete") || "",
-      required: !!el.required,
-      label: labelFor(el),
-      text: textOf(el),
-      selector: selectorFor(el),
-      visible: visible(el),
-      in_form: inForm,
-    });
-  };
-  const forms = Array.from(document.querySelectorAll("form"));
-  if (forms.length) {
-    forms.forEach((form) => {
-      form.querySelectorAll("input, select, textarea, button")
-        .forEach((el) => push(el, true));
-    });
-  } else {
-    document.querySelectorAll("input, select, textarea, button")
-      .forEach((el) => push(el, false));
-  }
-  return controls;
-}"""
+# 扫描逻辑与 browser_read 表单读、点击快照共用，见 browser/form_scan.py。
+_EXTRACT_FORM_JS = extract_form_js()
 
 
 @dataclass
@@ -247,34 +184,35 @@ async def extract_login_form(page: LoginPage) -> LoginFormInfo | None:
         submit=submit,
     )
     logger.info(
-        "login form extracted url=%s fields=%d submit=%s roles=%s",
+        "login form extracted url=%s fields=%d submit=%s roles=%s selectors=%s",
         page.url, len(fields), submit.selector if submit else None,
         [f.role for f in fields],
+        [f.selector for f in fields],
     )
     return info
 
 
 _ROLE_NAMES = {
-    ROLE_USERNAME: "用户名/邮箱",
-    ROLE_PASSWORD: "密码",
-    ROLE_OTP: "验证码/OTP",
-    ROLE_UNKNOWN: "其他字段",
+    ROLE_USERNAME: "Username/Email",
+    ROLE_PASSWORD: "Password",
+    ROLE_OTP: "Verification code/OTP",
+    ROLE_UNKNOWN: "Other field",
 }
 
 
 def format_login_form_message(info: LoginFormInfo) -> str:
-    """把表单信息格式化为注入对话的中文说明（AI 无需调用工具即可填表）。"""
-    lines = [f"检测到登录页面（{info.url}），已自动提取表单字段："]
+    """把表单信息格式化为注入对话的说明（AI 无需调用工具即可填表）。"""
+    lines = [f"Login page detected ({info.url}); form fields were extracted automatically:"]
     for f in info.fields:
         hint = " ".join(x for x in (f.label, f.placeholder, f.name) if x)
-        line = f"- {_ROLE_NAMES.get(f.role, f.role)}：selector={f.selector}"
+        line = f"- {_ROLE_NAMES.get(f.role, f.role)}: selector={f.selector}"
         if hint:
-            line += f"（{hint}）"
+            line += f" ({hint})"
         if f.required:
-            line += " [必填]"
+            line += " [required]"
         lines.append(line)
     if info.submit:
-        lines.append(f"- 提交按钮：selector={info.submit.selector}")
+        lines.append(f"- Submit button: selector={info.submit.selector}")
     else:
-        lines.append("- 未找到提交按钮")
+        lines.append("- No submit button found")
     return "\n".join(lines)

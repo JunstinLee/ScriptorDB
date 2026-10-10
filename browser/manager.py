@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import inspect
-import json
 import math
-import re
 import time
 from contextlib import suppress
 from datetime import datetime, timezone
@@ -13,6 +10,8 @@ from pathlib import Path
 
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
+from browser.downloads import DownloadRecorder
+from browser.refs import invalidate_all, invalidate_page
 from browser.tabs import TabManager
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger
 from browser.trace import ClickTracer
@@ -20,8 +19,14 @@ from core.logging_setup import get_logger
 
 logger = get_logger("browser.manager")
 
-SCREENSHOT_TTL = 30
 IDLE_CLOSE_TIMEOUT = 60
+
+# 会改变页面内容（DOM 状态）的动作工具：它们成功执行后推进内容修订计数，
+# 供重复 find 判定区分「同一页、无动作」与「同一 URL、点完按钮后整页重渲染」。
+_CONTENT_MUTATING_TOOLS = frozenset({
+    "click", "fill", "select_option", "press_key",
+    "navigate", "go_back", "go_forward",
+})
 
 
 class BrowserManager:
@@ -33,15 +38,21 @@ class BrowserManager:
         self._launching = False
 
         self._history: list[dict[str, str]] = []
+        # 每页一个导航修订计数（键为 id(page)）：显式导航时递增，供 middleware
+        # 判断「同一页是否重新导航过」。点击触发的整页跳转不经过 record_navigate，
+        # 由 URL 相等兜底。
+        self._nav_revisions: dict[int, int] = {}
+        # 与 _nav_revisions 平行的「页面内容修订」计数（键为 id(page)）：动作工具成功后
+        # 递增，供重复 find 判定识别「URL 未变但 DOM 已更换」（点击 Start/Next 等）。
+        self._content_revisions: dict[int, int] = {}
         self._actions: list[dict] = []
-        self._last_screenshot: str | None = None
-        self._last_screenshot_time: float = 0
         self._launched_at: float | None = None
         self._takeover = HumanTakeoverManager()
         self._nav_timeout_count = 0
         self._element_failure_count: dict[str, int] = {}
+        self._active_tools = 0
         self._auth_origin: str | None = None
-        self._downloads_dir: Path | None = None
+        self._downloads = DownloadRecorder()
         self._screencast_connection: object | None = None
         self._idle_close_task: asyncio.Task | None = None
         self._idle_close_deadline: float | None = None
@@ -54,7 +65,11 @@ class BrowserManager:
 
     def set_downloads_dir(self, path: Path | None) -> None:
         """设置浏览器下载文件的保存目录；None 表示不自动保存。"""
-        self._downloads_dir = Path(path) if path else None
+        self._downloads.set_dir(path)
+
+    def recent_downloads(self, since: float) -> list[dict]:
+        """返回 since（含）之后收到的下载记录。"""
+        return self._downloads.recent(since)
 
     def set_screencast_connection(self, conn: object | None) -> None:
         self._screencast_connection = conn
@@ -76,10 +91,33 @@ class BrowserManager:
             "title": title,
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
+        page = self.page()
+        if page is not None:
+            self._nav_revisions[id(page)] = self._nav_revisions.get(id(page), 0) + 1
+        # 显式导航后该页 ref 立即失效。Page 对象跨导航不变，故 page 即刚导航的页；
+        # 点击触发的整页跳转不经此处，由执行期的 URL + 签名校验兜底。
+        invalidate_page(page)
+
+    def nav_revision(self) -> int:
+        """当前活动页的导航修订计数；无页面返回 0。"""
+        page = self.page()
+        if page is None:
+            return 0
+        return self._nav_revisions.get(id(page), 0)
+
+    def content_revision(self) -> int:
+        """当前活动页的内容修订计数；无页面返回 0。
+
+        与 ``nav_revision`` 平行，但由动作工具（click/fill/select_option/…）成功后推进，
+        用于识别「URL 未变、无显式导航，但页面内容已被替换」的场景。
+        """
+        page = self.page()
+        if page is None:
+            return 0
+        return self._content_revisions.get(id(page), 0)
 
     def record_action(self, tool: str, detail: str, success: bool = True,
-                      selector: str = "", coords: dict | None = None,
-                      screenshot_path: str = "") -> None:
+                      selector: str = "", coords: dict | None = None) -> None:
         self._actions.append({
             "tool": tool,
             "detail": detail,
@@ -87,21 +125,34 @@ class BrowserManager:
             "success": success,
             "selector": selector,
             "coords": coords or {},
-            "screenshot_path": screenshot_path,
         })
         if len(self._actions) > 200:
             self._actions = self._actions[-200:]
+        # 成功的动作工具可能改变页面内容：推进内容修订。拿不准（读不到 page）则不动。
+        if success and tool in _CONTENT_MUTATING_TOOLS:
+            page = self.page()
+            if page is not None:
+                self._content_revisions[id(page)] = self._content_revisions.get(id(page), 0) + 1
 
-    def record_screenshot(self, path: str) -> None:
-        self._last_screenshot = path
-        self._last_screenshot_time = time.monotonic()
+    def tool_started(self) -> None:
+        """标记一个浏览器工具开始执行（LoginWatcher 据此让出 page）。"""
+        self._active_tools += 1
+
+    def tool_finished(self) -> None:
+        if self._active_tools > 0:
+            self._active_tools -= 1
+
+    @property
+    def is_tool_running(self) -> bool:
+        return self._active_tools > 0
 
     def reset_state(self) -> None:
         self._history.clear()
+        self._nav_revisions.clear()
+        self._content_revisions.clear()
         self._actions.clear()
-        self._last_screenshot = None
-        self._last_screenshot_time = 0
         self._launched_at = None
+        invalidate_all()
 
     async def get_state(self) -> dict:
         launched = self.is_launched()
@@ -136,11 +187,6 @@ class BrowserManager:
             "url": url,
             "title": title,
             "tabs": tabs_overview,
-            "screenshot_available": (
-                self._last_screenshot is not None
-                and (time.monotonic() - self._last_screenshot_time) < SCREENSHOT_TTL
-            ),
-            "screenshot_path": self._last_screenshot,
             "launched_at": self._launched_at,
             "idle_close_active": self.is_idle_close_scheduled(),
             "idle_close_remaining": self.idle_close_remaining(),
@@ -211,32 +257,8 @@ class BrowserManager:
         return f"Browser launched successfully in visible mode"
 
     async def _on_download(self, download) -> None:
-        """任意浏览器下载自动保存到 _downloads_dir（未设置则不保存）。"""
-        if not self._downloads_dir:
-            logger.warning("download event ignored: downloads dir not configured")
-            return
-        try:
-            if failure := await download.failure():
-                logger.warning(f"download failed: {failure}")
-                return
-            self._downloads_dir.mkdir(parents=True, exist_ok=True)
-            filename = _sanitize_filename(download.suggested_filename or "download.bin")
-            path = _unique_path(self._downloads_dir, filename)
-            await download.save_as(path)
-            size = path.stat().st_size
-            sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
-            _append_manifest(self._downloads_dir, {
-                "source_url": download.url if hasattr(download, "url") else "",
-                "title": "",
-                "publish_date": "",
-                "filename": path.name,
-                "size": size,
-                "sha256": sha256,
-                "downloaded_at": datetime.now(timezone.utc).isoformat(),
-            })
-            logger.info(f"download saved: {path} ({size} bytes)")
-        except Exception as e:
-            logger.warning(f"download save failed: {e}")
+        """任意浏览器下载交给 DownloadRecorder 保存并记录。"""
+        await self._downloads.handle(download)
 
     async def close(self) -> str:
         self.cancel_idle_close()
@@ -347,6 +369,8 @@ class BrowserManager:
 
     def _clear_browser_refs(self, log_warning: bool = False) -> None:
         had_browser = any((self._playwright, self._browser, self._context, self._page))
+        self._nav_revisions.clear()
+        self._content_revisions.clear()
         self._playwright = None
         self._browser = None
         self._context = None
@@ -354,9 +378,11 @@ class BrowserManager:
         self._launched_at = None
         self._screencast_connection = None
         self._auth_origin = None
+        self._active_tools = 0
         self._takeover.reset()
         self.tabs.detach()
         self.trace.reset()
+        invalidate_all()
         if had_browser and log_warning:
             logger.warning("browser target unavailable; cleared Playwright state")
 
@@ -463,38 +489,3 @@ class BrowserManager:
 
     def reset_element_failures(self):
         self._element_failure_count.clear()
-
-
-_INVALID_FILENAME_CHARS = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
-
-
-def _sanitize_filename(name: str) -> str:
-    name = _INVALID_FILENAME_CHARS.sub("_", name).strip()
-    return name or "download.bin"
-
-
-def _unique_path(output_dir: Path, filename: str) -> Path:
-    stem, dot, suffix = filename.rpartition(".")
-    path = output_dir / filename
-    counter = 1
-    while path.exists():
-        if dot:
-            path = output_dir / f"{stem} ({counter}){dot}{suffix}"
-        else:
-            path = output_dir / f"{stem} ({counter})"
-        counter += 1
-    return path
-
-
-def _append_manifest(output_dir: Path, entry: dict) -> None:
-    manifest_file = output_dir / "downloads_manifest.json"
-    entries: list = []
-    if manifest_file.exists():
-        try:
-            data = json.loads(manifest_file.read_text(encoding="utf-8"))
-            if isinstance(data, list):
-                entries = data
-        except (OSError, json.JSONDecodeError):
-            entries = []
-    entries.append(entry)
-    manifest_file.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")

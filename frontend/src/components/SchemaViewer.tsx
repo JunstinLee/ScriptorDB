@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChevronDown } from "lucide-react";
 import type { SchemaTable } from "../types";
 import SchemaColumnList from "./SchemaColumnList";
@@ -18,6 +19,7 @@ export default function SchemaViewer({
   selectedTable,
   onTableClick,
 }: SchemaViewerProps) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const selectedRowRef = useRef<HTMLDivElement | null>(null);
 
@@ -60,10 +62,10 @@ export default function SchemaViewer({
   return (
     <div className="flex flex-col gap-1">
       {loading && (
-        <p className="px-2 py-2 text-xs text-muted">Loading...</p>
+        <p className="px-2 py-2 text-xs text-muted">{t("schema.loading")}</p>
       )}
       {!loading && tables.length === 0 && (
-        <p className="px-2 py-2 text-xs text-muted">No tables found. Add a table or import data to see the schema map.</p>
+        <p className="px-2 py-2 text-xs text-muted">{t("schema.empty")}</p>
       )}
       {!loading &&
         tables.length > 0 &&

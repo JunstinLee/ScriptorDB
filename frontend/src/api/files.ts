@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { ApiError, WorkspaceNotSelectedError } from "./core";
 
 const BASE = "/api";
@@ -32,7 +33,7 @@ export async function uploadFile(file: File): Promise<UploadFileResponse> {
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => "Unknown error");
+    const text = await res.text().catch(() => t("error.unknown"));
     if (res.status === 409 && text.includes("WORKSPACE_NOT_SELECTED")) {
       throw new WorkspaceNotSelectedError(text);
     }

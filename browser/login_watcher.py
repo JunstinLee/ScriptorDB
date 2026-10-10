@@ -2,11 +2,16 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable
 
+from browser import get_manager
+from browser.login_state import _login_page_signals, invalidate_login_signals
 from core.logging_setup import get_logger
 
 logger = get_logger("browser.login_watcher")
+
+if TYPE_CHECKING:
+    from browser.login_form import LoginFormInfo
 
 # 只上报与登录表单相关的突变（新增控件节点 / 可见性·类型属性变化），压低 evaluate 次数。
 _MUTATION_OBSERVER_JS = """() => {
@@ -43,7 +48,6 @@ _MUTATION_OBSERVER_JS = """() => {
 
 _DEBOUNCE_SECONDS = 0.4
 _POLL_INTERVAL_SECONDS = 1.5
-_PASSWORD_FINGERPRINT_JS = "() => !!document.querySelector('input[type=password]')"
 _Signature = tuple[str, tuple[tuple[str, str], ...]]
 
 # 活跃 LoginWatcher 注册表：供「凭证保存成功后重置该页填表记忆」使用
@@ -76,7 +80,7 @@ class LoginWatcher:
         self,
         page: Any,
         on_detected: Callable[[dict[str, Any]], Any],
-        on_autofill_candidate: Callable[[dict[str, Any]], Any] | None = None,
+        on_autofill_candidate: Callable[[LoginFormInfo], Any] | None = None,
     ) -> None:
         self._page = page
         self._on_detected = on_detected
@@ -102,6 +106,8 @@ class LoginWatcher:
             return
         self._started = True
         _active_watchers.add(self)
+        # 新 watcher 从干净的信号缓存开始（陈旧"非登录页"结论不得跨页复用）。
+        invalidate_login_signals()
         try:
             await self._page.add_init_script(_MUTATION_OBSERVER_JS)
             await self._page.expose_function(
@@ -132,6 +138,8 @@ class LoginWatcher:
         """MutationObserver 回调（页面上下文）。防抖窗口内合并为一次检测。"""
         if not self._started or self._running_task is None:
             return
+        # DOM 变了：登录页信号缓存（"非登录页"结论）作废，下一轮重新检测。
+        invalidate_login_signals()
         if self._incremental_task is None or self._incremental_task.done():
             loop = self._running_task.get_loop()
             self._incremental_task = loop.create_task(self._debounced_drain())
@@ -159,26 +167,23 @@ class LoginWatcher:
         """一轮增量检测：门卫 → 提取 → 签名去重 → 上报。"""
         if not self._started:
             return
+        if get_manager().is_tool_running:
+            # 工具执行期间让出同一 page 的连接（locate 等工具正在密集往返），
+            # 工具返回后由轮询/突变回调自然补上下一轮。
+            return
         async with self._lock:
             if not self._started:
                 return
             try:
-                has_password = bool(
-                    await self._page.evaluate(_PASSWORD_FINGERPRINT_JS)
-                )
-                if not has_password:
-                    title = ""
-                    try:
-                        title = (await self._page.title()) or ""
-                    except Exception:
-                        pass
-                    if not any(kw in title.lower() for kw in
-                               ("sign in", "log in", "login", "signin")):
-                        self._last_sig = None
-                        self._last_reported_url = None
-                        return
+                # 门卫与提取器共用同一判定（browser.login_state），避免再次分叉。
+                # cached=True：非登录页结论按 URL 复用，DOM 突变时由观察器作废。
+                is_login_page, _ = await _login_page_signals(self._page, cached=True)
             except Exception as e:
-                logger.debug("login_watcher: fingerprint failed: %s", e)
+                logger.debug("login_watcher: login page signals failed: %s", e)
+                return
+            if not is_login_page:
+                self._last_sig = None
+                self._last_reported_url = None
                 return
 
             try:

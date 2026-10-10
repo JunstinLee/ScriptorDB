@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { Popover } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import {
   ChevronDown,
   Database,
@@ -56,6 +57,7 @@ export default function Sidebar({
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const [popoverWidth, setPopoverWidth] = useState(232);
+  const { t } = useTranslation();
 
   const handleSelectWorkspace = useCallback(
     (id: string) => {
@@ -83,8 +85,8 @@ export default function Sidebar({
           className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={onOpenWorkspacePicker}
           disabled={switchingWorkspace}
-          aria-label="Open workspace picker"
-          title={activeWorkspace?.name ?? "No workspace"}
+          aria-label={t("sidebar.open_workspace_picker")}
+          title={activeWorkspace?.name ?? t("workspace.none")}
         >
           <Folder className="size-4" />
         </button>
@@ -93,8 +95,12 @@ export default function Sidebar({
           className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={() => setMysqlOpen(true)}
           disabled={!activeWorkspace || switchingWorkspace}
-          aria-label="Configure database connection"
-          title={activeWorkspace?.db_url?.startsWith("mysql") ? "MySQL" : "SQLite"}
+          aria-label={t("sidebar.configure_database")}
+          title={
+            activeWorkspace?.db_url?.startsWith("mysql")
+              ? t("database.mysql")
+              : t("database.sqlite")
+          }
         >
           <Database className="size-4" />
         </button>
@@ -102,8 +108,8 @@ export default function Sidebar({
           type="button"
           className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={toggleCollapsed}
-          aria-label="Expand sidebar"
-          title="Expand sidebar"
+          aria-label={t("sidebar.expand")}
+          title={t("sidebar.expand")}
         >
           <PanelLeftOpen className="size-4" />
         </button>
@@ -112,8 +118,8 @@ export default function Sidebar({
           type="button"
           className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={() => setIsHistoryOpen(true)}
-          aria-label="Search history"
-          title="Search history"
+          aria-label={t("sidebar.search_history")}
+          title={t("sidebar.search_history")}
         >
           <Search className="size-4" />
         </button>
@@ -121,8 +127,8 @@ export default function Sidebar({
           type="button"
           className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={onNewSession}
-          aria-label="New session"
-          title="New session"
+          aria-label={t("session.new")}
+          title={t("session.new")}
         >
           <MessageSquarePlus className="size-4" />
         </button>
@@ -132,7 +138,7 @@ export default function Sidebar({
           type="button"
           className="rounded-lg p-2 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={onOpenSettings}
-          aria-label="Open settings"
+          aria-label={t("sidebar.open_settings")}
         >
           <SettingsIcon className="size-4" />
         </button>
@@ -151,13 +157,13 @@ export default function Sidebar({
               type="button"
               className="box-border flex w-[220px] min-w-0 items-center gap-2 rounded-lg border border-grid bg-surface px-3 py-2 text-left transition-colors hover:bg-surface/70 focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
               disabled={switchingWorkspace}
-              aria-label="Switch workspace"
+              aria-label={t("workspace.switch")}
               onClick={measureTrigger}
             >
               <Folder className="size-4 shrink-0 text-graphite" />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[13px] font-medium text-ink">
-                  {activeWorkspace?.name ?? "No workspace"}
+                  {activeWorkspace?.name ?? t("workspace.none")}
                 </div>
                 <WorkspacePath
                   path={activeWorkspace?.path}
@@ -174,11 +180,11 @@ export default function Sidebar({
           >
             <Popover.Dialog className="p-1">
               <div className="px-2 py-1.5 text-xs text-muted">
-                Current workspace
+                {t("workspace.current")}
               </div>
               <div className="rounded-md border-l-[3px] border-l-cobalt bg-surface px-3 py-2">
                 <div className="truncate text-sm font-medium">
-                  {activeWorkspace?.name ?? "No workspace"}
+                  {activeWorkspace?.name ?? t("workspace.none")}
                 </div>
                 <WorkspacePath
                   path={activeWorkspace?.path}
@@ -189,7 +195,7 @@ export default function Sidebar({
               {workspaces.filter((w) => w.id !== activeWorkspace?.id).length > 0 && (
                 <>
                   <div className="mt-2 px-2 py-1.5 text-xs text-muted">
-                    Switch to
+                    {t("workspace.switch_to")}
                   </div>
                   <ul className="flex flex-col gap-0.5">
                     {workspaces
@@ -221,14 +227,14 @@ export default function Sidebar({
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface"
                   onClick={onRequestNewWorkspace}
                 >
-                  <Plus className="size-3.5" /> New workspace
+                  <Plus className="size-3.5" /> {t("workspace.new")}
                 </button>
                 <button
                   type="button"
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface"
                   onClick={onOpenWorkspacePicker}
                 >
-                  <Folder className="size-3.5" /> Manage workspaces
+                  <Folder className="size-3.5" /> {t("workspace.manage")}
                 </button>
               </div>
             </Popover.Dialog>
@@ -243,13 +249,17 @@ export default function Sidebar({
           onClick={() => setMysqlOpen(true)}
           disabled={!activeWorkspace || switchingWorkspace}
           className="flex w-full items-center gap-2.5 rounded-lg border border-grid bg-surface px-3 py-2 text-left transition-colors hover:bg-surface/70 focus:outline-2 focus:outline-offset-2 focus:outline-cobalt disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label="Configure database connection"
+          aria-label={t("sidebar.configure_database")}
         >
           <Database className="size-4 shrink-0 text-graphite" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
               <span className="truncate text-[12px] font-medium text-ink">
-                {activeWorkspace ? (activeWorkspace.db_url?.startsWith("mysql") ? "MySQL" : "SQLite") : "No database"}
+                {activeWorkspace
+                  ? activeWorkspace.db_url?.startsWith("mysql")
+                    ? t("database.mysql")
+                    : t("database.sqlite")
+                  : t("database.none")}
               </span>
               {activeWorkspace && (
                 <span
@@ -259,7 +269,7 @@ export default function Sidebar({
               )}
             </div>
             <span className="block truncate text-[11px] text-graphite font-mono">
-              {activeWorkspace?.db_url ?? "Select a workspace first"}
+              {activeWorkspace?.db_url ?? t("database.select_workspace_first")}
             </span>
           </div>
         </button>
@@ -272,8 +282,8 @@ export default function Sidebar({
           type="button"
           className="rounded-md p-1 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={toggleCollapsed}
-          aria-label="Collapse sidebar"
-          title="Collapse sidebar"
+          aria-label={t("sidebar.collapse")}
+          title={t("sidebar.collapse")}
         >
           <PanelLeftClose className="h-3.5 w-3.5" />
         </button>
@@ -286,10 +296,10 @@ export default function Sidebar({
             type="button"
             onClick={() => setIsHistoryOpen(true)}
             className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] font-medium text-graphite transition-colors hover:bg-surface hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
-            aria-label="Search history"
+            aria-label={t("sidebar.search_history")}
           >
             <Search className="size-4" />
-            <span>Search history</span>
+            <span>{t("sidebar.search_history")}</span>
           </button>
         </div>
 
@@ -309,7 +319,7 @@ export default function Sidebar({
         <button
           className="rounded-lg p-1.5 text-graphite transition-colors hover:bg-surface hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"
           onClick={onOpenSettings}
-          aria-label="Open settings"
+          aria-label={t("sidebar.open_settings")}
         >
           <SettingsIcon className="h-4 w-4" />
         </button>

@@ -93,7 +93,6 @@ class HumanTakeoverRequestEvent(BaseModel):
     reason: str
     trigger: str = ""
     current_url: str = ""
-    screenshot_available: bool = False
     timestamp: str
 
 

@@ -1,4 +1,5 @@
 import { useCallback, useState, type Key } from "react";
+import { useTranslation } from "react-i18next";
 import { Tabs } from "@heroui/react";
 import { PanelRightClose, PanelRightOpen, Database, Wrench, List, Map, Globe } from "lucide-react";
 import type { BrowserState, Run, SchemaTable, BrowserProfileItem, CookieInfo } from "../types";
@@ -55,6 +56,7 @@ export default function SchemaSidebar({
   onClearCookies,
   onRefreshCookies,
 }: SchemaSidebarProps) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [selectedTab, setSelectedTab] = useState("schema");
@@ -82,7 +84,7 @@ export default function SchemaSidebar({
         <button
           className="rounded-lg p-1.5 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
           onClick={toggleCollapse}
-          aria-label="Expand schema sidebar"
+          aria-label={t("schema.expand_aria")}
         >
           <PanelRightOpen className="h-4 w-4" />
         </button>
@@ -104,23 +106,23 @@ export default function SchemaSidebar({
         >
           <Tabs.ListContainer>
             <Tabs.List
-              aria-label="Sidebar tabs"
+              aria-label={t("schema.tabs_aria")}
               className="gap-0 *:h-8 *:w-fit *:px-2.5 *:text-[11px] *:font-semibold *:uppercase *:tracking-wider"
             >
               <Tabs.Tab id="schema">
                 <Database className="mr-1.5 inline size-3.5 text-graphite" />
-                Schema
+                {t("schema.tab.schema")}
                 <Tabs.Indicator className="bg-cobalt" />
               </Tabs.Tab>
               <Tabs.Tab id="tools">
                 <Wrench className="mr-1.5 inline size-3.5 text-graphite" />
-                Tools
+                {t("schema.tab.tools")}
                 <Tabs.Indicator className="bg-cobalt" />
               </Tabs.Tab>
               {browserEnabled && (
                 <Tabs.Tab id="profiles">
                   <Globe className="mr-1.5 inline size-3.5 text-graphite" />
-                  Profiles
+                  {t("schema.tab.profiles")}
                   <Tabs.Indicator className="bg-cobalt" />
                 </Tabs.Tab>
               )}
@@ -131,7 +133,7 @@ export default function SchemaSidebar({
           <button
             className="rounded-lg p-1 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
             onClick={toggleCollapse}
-            aria-label="Collapse sidebar"
+            aria-label={t("sidebar.collapse")}
           >
             <PanelRightClose className="h-4 w-4" />
           </button>
@@ -153,7 +155,7 @@ export default function SchemaSidebar({
                 aria-pressed={schemaView === "map"}
               >
                 <Map className="size-3" />
-                Map
+                {t("schema.view.map")}
               </button>
               <button
                 type="button"
@@ -166,7 +168,7 @@ export default function SchemaSidebar({
                 aria-pressed={schemaView === "list"}
               >
                 <List className="size-3" />
-                List
+                {t("schema.view.list")}
               </button>
             </div>
 
@@ -190,7 +192,7 @@ export default function SchemaSidebar({
           <div className="px-2">
             {!activeSessionId ? (
               <div className="flex flex-col items-center justify-center py-12 text-muted">
-                <p className="text-sm">No session selected</p>
+                <p className="text-sm">{t("schema.no_session")}</p>
               </div>
             ) : (
               <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} sidebarHovered={sidebarHovered} browserState={browserState} browserLoading={browserLoading} onViewBrowser={onViewBrowser} />

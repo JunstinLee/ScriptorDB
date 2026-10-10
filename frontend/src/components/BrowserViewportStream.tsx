@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 type StreamState = "connecting" | "connected" | "disconnected";
 
@@ -9,6 +10,7 @@ interface BrowserViewportStreamProps {
 export function BrowserViewportStream({
   takeoverActive = false,
 }: BrowserViewportStreamProps) {
+  const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -71,7 +73,7 @@ export function BrowserViewportStream({
         }
       } catch (err: unknown) {
         if (!disposed) {
-          setError(err instanceof Error ? err.message : "Video stream negotiation failed");
+          setError(err instanceof Error ? err.message : t("browser.negotiation_failed"));
           setState("disconnected");
         }
       }
@@ -93,15 +95,15 @@ export function BrowserViewportStream({
 
     ws.onerror = () => {
       if (!disposed) {
-        setError("WebSocket connection failed");
+        setError(t("browser.ws_connect_failed"));
         setState("disconnected");
       }
     };
 
     ws.onclose = (event) => {
       if (disposed) return;
-      const reason = event.reason || `Connection closed (code ${event.code})`;
-      setError(reason === "Browser target unavailable" ? "Browser page no longer available. Reconnect." : reason);
+      const reason = event.reason || t("browser.closed_code", { code: event.code });
+      setError(reason === "Browser target unavailable" ? t("browser.page_unavailable") : reason);
       setState("disconnected");
     };
 
@@ -112,7 +114,7 @@ export function BrowserViewportStream({
       if (wsRef.current === ws) wsRef.current = null;
       if (pcRef.current === pc) pcRef.current = null;
     };
-  }, [connectionAttempt]);
+  }, [connectionAttempt, t]);
 
   const retry = () => {
     setError(null);
@@ -129,7 +131,7 @@ export function BrowserViewportStream({
             onClick={retry}
             className="text-sm text-accent hover:underline"
           >
-            Retry
+            {t("browser.retry")}
           </button>
         </div>
       </div>
@@ -150,8 +152,8 @@ export function BrowserViewportStream({
       {takeoverActive && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10 pointer-events-none">
           <div className="text-center space-y-2">
-            <p className="text-lg font-semibold text-white">Operate directly in the Chrome window</p>
-            <p className="text-sm text-white/70">Do not click inside this video view</p>
+            <p className="text-lg font-semibold text-white">{t("browser.takeover_overlay_title")}</p>
+            <p className="text-sm text-white/70">{t("browser.takeover_overlay_hint")}</p>
           </div>
         </div>
       )}
@@ -160,7 +162,7 @@ export function BrowserViewportStream({
         <div className="absolute inset-0 flex items-center justify-center bg-background/60">
           <div className="flex flex-col items-center gap-3">
             <div className="size-6 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-            <span className="text-sm text-muted">Connecting to browser...</span>
+            <span className="text-sm text-muted">{t("browser.connecting")}</span>
           </div>
         </div>
       )}
@@ -168,12 +170,12 @@ export function BrowserViewportStream({
       {state === "disconnected" && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/60">
           <div className="flex flex-col items-center gap-3">
-            <span className="text-sm text-muted">Connection lost</span>
+            <span className="text-sm text-muted">{t("browser.connection_lost")}</span>
             <button
               onClick={retry}
               className="rounded-lg bg-accent px-4 py-1.5 text-sm text-white"
             >
-              Reconnect
+              {t("browser.reconnect")}
             </button>
           </div>
         </div>

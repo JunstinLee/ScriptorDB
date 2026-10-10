@@ -405,7 +405,7 @@ class TestBrowserClickTrace:
             result = await browser_click(make_ctx(), ".button")
         assert "Clicked" in result
         assert mgr._actions[-1]["detail"] == ".button -> https://example.com/end"
-        mock_page.click.assert_awaited_once_with(".button")
+        mock_page.click.assert_awaited_once_with(".button", timeout=12_000)
 
 
 class TestLinksModule:

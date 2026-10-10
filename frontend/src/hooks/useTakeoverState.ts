@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { t } from "../i18n";
 
 export type TakeoverPhase =
   | "none"
@@ -51,7 +52,7 @@ export function useTakeoverState(onTimeout?: () => void) {
         setInfo((prev) => ({
           ...prev,
           phase: "cancelled",
-          reason: `Timed out: no user response in ${TAKEOVER_TIMEOUT}s`,
+          reason: t("takeover.timeout_reason", { seconds: TAKEOVER_TIMEOUT }),
         }));
         onTimeout?.();
       }

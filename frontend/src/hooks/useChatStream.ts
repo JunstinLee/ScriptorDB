@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "../i18n";
 import {
   attachSessionStream,
   fetchActiveRun,
@@ -12,7 +13,6 @@ import { useTakeoverState } from "./useTakeoverState";
 import type {
   ApprovalRequestEvent,
   BrowserActionEvent,
-  FilterSchema,
   LoginFlowStatus,
   LoginFormPayload,
   StreamRunEvent,
@@ -78,8 +78,6 @@ export function useChatStream(params: UseChatStreamParams) {
   const attachedRunRef = useRef("");
   const [approvalRequest, setApprovalRequest] =
     useState<ApprovalRequestEvent | null>(null);
-  // 最近一次 browser_detect_filters 的 Filter Schema（新 run 开始时清空）
-  const [filterSchema, setFilterSchema] = useState<FilterSchema | null>(null);
   // 最近一次自动检测到的登录表单（login_form_detected / human_takeover_request 携带）
   const [loginFormInfo, setLoginFormInfo] = useState<LoginFormPayload | null>(null);
   // 最近一次 autofill 登录流程状态（login_flow_status 携带；非敏感）
@@ -115,25 +113,9 @@ export function useChatStream(params: UseChatStreamParams) {
           setBrowserActive(true);
         }
         if (event.type === "run_start") {
-          // 新 run 开始时清空旧 schema/登录表单/登录流程状态，避免残留误导面板/抽屉
-          setFilterSchema(null);
+          // 新 run 开始时清空旧登录表单/登录流程状态，避免残留误导面板/抽屉
           setLoginFormInfo(null);
           setLoginFlowStatus(null);
-        }
-        if (
-          event.type === "tool_result" &&
-          event.tool_name === "browser_detect_filters"
-        ) {
-          try {
-            const parsed = event.output
-              ? (JSON.parse(event.output) as FilterSchema)
-              : null;
-            if (parsed && Array.isArray(parsed.filters)) {
-              setFilterSchema(parsed);
-            }
-          } catch {
-            // 忽略无法解析的 tool_result，保持现有 schema 不变
-          }
         }
         if (event.type === "human_takeover_request") {
           if (event.login_form) setLoginFormInfo(event.login_form);
@@ -200,7 +182,7 @@ export function useChatStream(params: UseChatStreamParams) {
         handleWorkspaceMissing();
         return;
       }
-      appendStreamingText(`\n\nError: ${error.message}`);
+      appendStreamingText(`\n\n${t("error.message_prefix", { message: error.message })}`);
       setLoading(false);
       setApprovalRequest(null);
     },
@@ -397,7 +379,7 @@ export function useChatStream(params: UseChatStreamParams) {
         await submitApproval(sid, request.request_id, approvedMap, overrideArgs);
       } catch (error) {
         makeErrorCallback()(
-          error instanceof Error ? error : new Error("Unknown error"),
+          error instanceof Error ? error : new Error(t("error.unknown")),
         );
       }
     },
@@ -421,7 +403,7 @@ export function useChatStream(params: UseChatStreamParams) {
           if (error instanceof WorkspaceNotSelectedError) {
             handleWorkspaceMissing();
           } else {
-            appendStreamingText(`\n\nError: ${error.message}`);
+            appendStreamingText(`\n\n${t("error.message_prefix", { message: error.message })}`);
             setLoading(false);
           }
           takeover.reset();
@@ -460,7 +442,6 @@ export function useChatStream(params: UseChatStreamParams) {
     handleSend,
     handleApprovalSubmit,
     approvalRequest,
-    filterSchema,
     loginFormInfo,
     loginFlowStatus,
     takeoverInfo: takeover.info,

@@ -56,7 +56,7 @@ def _workspace_ctx(tmp_path):
 
 async def test_missing_target_returns_usage():
     result = await browser_download(make_ctx())
-    assert "url 或 selector 之一" in result
+    assert "requires a url or a selector" in result
 
 
 async def test_browser_not_launched():
@@ -68,7 +68,7 @@ async def test_no_workspace(tmp_path, monkeypatch):
     page, _ = _make_download(tmp_path)
     monkeypatch.setattr(get_manager(), "_page", page)
     result = await browser_download(make_ctx(), url="https://example.com/file.pdf")
-    assert "没有活动工作区" in result
+    assert "no active workspace" in result
 
 
 async def test_download_success_by_url(tmp_path, monkeypatch):
@@ -78,7 +78,7 @@ async def test_download_success_by_url(tmp_path, monkeypatch):
 
     result = await browser_download(ctx, url="https://example.com/report.pdf")
 
-    assert "下载成功" in result
+    assert "Download successful" in result
     saved = tmp_path / ".scriptordb" / "outputs" / "report.pdf"
     assert saved.read_bytes() == PDF_CONTENT
     page.goto.assert_awaited_once_with("https://example.com/report.pdf", wait_until="commit")
@@ -100,7 +100,7 @@ async def test_download_success_by_selector(tmp_path, monkeypatch):
 
     result = await browser_download(ctx, selector="#download-btn")
 
-    assert "下载成功" in result
+    assert "Download successful" in result
     page.click.assert_awaited_once_with("#download-btn")
     page.goto.assert_not_awaited()
     entries = download_manifest.load(download_manifest.manifest_path(tmp_path / ".scriptordb" / "outputs"))
@@ -121,7 +121,7 @@ async def test_download_succeeds_when_navigation_raises(tmp_path, monkeypatch):
 
     result = await browser_download(ctx, url="https://example.com/report.pdf")
 
-    assert "下载成功" in result
+    assert "Download successful" in result
     assert (tmp_path / ".scriptordb" / "outputs" / "report.pdf").exists()
 
 
@@ -138,7 +138,7 @@ async def test_download_failure_reported(tmp_path, monkeypatch):
 
     result = await browser_download(ctx, url="https://example.com/report.pdf")
 
-    assert "下载失败: server aborted" in result
+    assert "Download failed: server aborted" in result
 
 
 async def test_download_exceeds_max_size_removed(tmp_path, monkeypatch):
@@ -154,7 +154,7 @@ async def test_download_exceeds_max_size_removed(tmp_path, monkeypatch):
 
     result = await browser_download(ctx, url="https://example.com/big.bin", max_size_mb=1)
 
-    assert "超过大小上限 1MB" in result
+    assert "exceeds the 1MB size limit" in result
     assert not (tmp_path / ".scriptordb" / "outputs" / "big.bin").exists()
 
 

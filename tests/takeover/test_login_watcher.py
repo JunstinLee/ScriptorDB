@@ -10,6 +10,7 @@ from runtime.runner.events import (
     login_form_detected_event,
 )
 from browser.login_form import LoginField, LoginFormInfo
+from browser.login_state import _LOGIN_ACTION_JS, _PASSWORD_INPUT_JS
 from browser.login_watcher import LoginWatcher
 
 
@@ -33,6 +34,7 @@ class _FakePage:
         self._title = title
         self._info = info
         self._has_password = False
+        self._has_login_action = False
         self._init_scripts: list[str] = []
         self._exposed: dict[str, Any] = {}
         self._removed: list[str] = []
@@ -52,8 +54,10 @@ class _FakePage:
         return self._title
 
     async def evaluate(self, expression: str) -> Any:
-        if "input[type=password]" in expression:
+        if expression == _PASSWORD_INPUT_JS:
             return self._has_password
+        if expression == _LOGIN_ACTION_JS:
+            return self._has_login_action
         # 非指纹 JS：走真正的 extract_login_form 会失败，测试只驱动 LoginWatcher
         # 的门卫/去重逻辑，因此把这里视为提取失败路径。
         return None
@@ -61,6 +65,8 @@ class _FakePage:
     def set_login(self, info: LoginFormInfo, has_password: bool = True) -> None:
         self._info = info
         self._has_password = has_password
+        # 登录表单出现即带中文/英文提交按钮 → 门卫的表单登录语义信号
+        self._has_login_action = has_password
 
 
 def _record() -> dict[str, list]:
@@ -153,6 +159,22 @@ async def test_signature_change_reports_again(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_chinese_login_page_reports(monkeypatch):
+    """中文站点：标题只写机构名、按钮为中文，延迟弹出的登录表单也能上报。"""
+    page = _FakePage(
+        url="https://etax.guangdong.chinatax.gov.cn:8443/xxmh/html/index.html",
+        title="国家税务总局广东省税务局",
+    )
+    record = _record()
+    w = await _make_watcher(monkeypatch, page, record, info=_info())
+    page.set_login(_info())
+    page._exposed["__scriptordb_domChanged"]()
+    await _wait_for(lambda: len(record["forms"]) >= 1)
+    assert record["forms"][0]["is_login_page"] is True
+    await w.stop()
+
+
+@pytest.mark.asyncio
 async def test_non_login_page_no_report(monkeypatch):
     """无密码框且标题无登录关键词：突变不触发上报。"""
     page = _FakePage(url="https://example.com/dashboard", title="Dashboard")
@@ -200,7 +222,6 @@ def test_human_takeover_event_includes_login_form():
         reason="Login page detected",
         trigger="login",
         current_url="https://example.com/login",
-        screenshot_available=False,
         timestamp="t",
         login_form={"url": "https://example.com/login",
                     "is_login_page": True, "fields": [], "submit": None},
@@ -214,7 +235,6 @@ def test_human_takeover_event_includes_login_form():
         reason="x",
         trigger="mfa",
         current_url="",
-        screenshot_available=False,
         timestamp="t",
     )
     assert ev2["login_form"] is None

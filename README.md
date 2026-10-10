@@ -66,15 +66,33 @@ You review the pending tool call, choose to approve or deny (optionally editing 
 Paste a URL, and the agent fetches and analyzes the page content alongside your database. No copy-pasting, no switching tabs.
 
 - **URL + question in one prompt** — Type your question, paste a URL, and the agent crawls the page as Markdown, then answers using both the page content and your database context.
-- **Built on crawl4ai** — Pages are rendered and extracted to clean Markdown (up to 50K characters), preserving headings, tables, and text structure.
+- **Playwright-powered crawling** — Pages are rendered in headless Chromium and extracted to clean Markdown (up to 50K characters), preserving headings, tables, and text structure.
 
 ### Real Browser Automation & Human Takeover
 Beyond crawling, the agent can drive a real (visible) Playwright browser — navigate, click, fill forms, extract tables and links, manage cookies and login profiles — and answer questions about live pages.
 
 - **Visible browser with saved profiles** — Cookie sets and full login profiles (including multi-origin localStorage) are stored in your OS keyring and can be restored later.
-- **Interactive tooling** — The agent can navigate, click, type, scroll, screenshot, read page structure, and apply filters to JavaScript-driven tables.
+- **Interactive tooling** — The agent can navigate, click, type, scroll, read page structure, and apply filters to JavaScript-driven tables.
 - **Human takeover when it matters** — Captcha, MFA, OAuth logins, and antibot walls are detected automatically; the agent pauses and hands control to you, then resumes the same run with your actions injected once you hand control back.
-- **Live viewport** — The browser screen streams to the web UI over WebRTC (with a screenshot fallback), so you can watch every step.
+- **Live viewport** — The browser screen streams to the web UI over WebRTC, so you can watch every step.
+
+#### End-to-End Example — Automation Challenges Playground
+
+A real run against [Automation Challenges Playground](https://process-practice.dev/): the agent opens the site, enters the **Excel Forms** challenge, downloads the Excel file the site generates, reads its data, then fills and submits the form exactly as the page requires. Form fields can change position and identifier on every round, so the agent re-inspects the page each time instead of hard-coding selectors, and pauses for human takeover whenever a verification step needs a person. Only one completion is required per challenge. This test used the **DeepSeek V4.1 Flash** model throughout.
+
+| # | Step | What Happens | Notes |
+|---|------|--------------|-------|
+| 1 | Open the playground | Navigate to `https://process-practice.dev/` | Visible Playwright browser |
+| 2 | Enter Excel Forms | Pick the **Excel Forms** challenge | Difficulty selectable |
+| 3 | Download the Excel file | Grab the workbook the site generates | Saved to the workspace outputs directory |
+| 4 | Read the data | Parse rows and cells out of the downloaded file | Excel reader |
+| 5 | Fill the form | Map each value to the field the page asks for | Fields may shift position and identifier every round, so the page is re-inspected |
+| 6 | Submit | Submit the completed form | Completes the challenge once |
+
+| Difficulty | Tool calls to complete |
+|------------|------------------------|
+| Easy | 34 |
+| Medium | 70 |
 
 ### 🔍 Search Session History
 Session history is searchable so you can quickly find past questions and results across long-running conversations.
@@ -83,7 +101,7 @@ Session history is searchable so you can quickly find past questions and results
 Every run that changes data is grouped into an undo log. From the CLI or the web UI you can list those groups and revert the database to a previous state. Reverting replays the recorded undo statements in reverse order across the affected runs. Sessions persist per workspace (JSON under `<workspace>/.scriptordb/sessions/`), so you can close the app and pick up where you left off.
 
 ### 📁 Workspace Isolation Out Of The Box
-Every project lives in its own workspace — a self-contained bundle of database path, LLM provider, model, API key, and session history. Run five SQLite projects side by side and switch between them with one command. The agent only ever sees the active workspace's database, so nothing crosses the line.
+Every project lives in its own workspace — a self-contained bundle of database connection, session history, and file outputs. Run five SQLite projects side by side and switch between them with one command. The agent only ever sees the active workspace's database, so nothing crosses the line. LLM provider, model choice, and API keys are global settings, shared across all workspaces.
 
 ---
 
@@ -163,12 +181,12 @@ ScriptorDB/
 ## Roadmap
 
 - [x] Multi-provider LLM agent with SQLite tools
-- [x] Workspace-based config and key isolation
+- [x] Workspace-based config with per-workspace database and sessions
 - [x] CLI, FastAPI backend, and React frontend
 - [x] Session persistence per workspace
 - [x] Undo log for write operations
 - [x] MySQL support (connection pool + keyring credentials)
-- [x] Web crawling (crawl4ai) and document download
+- [x] Web crawling (Playwright) and document download
 - [x] Browser automation with human takeover and WebRTC viewport
 - [x] Searchable session history
 - [ ] Session expiration / cleanup (24h TTL planned)

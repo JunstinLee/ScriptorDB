@@ -169,3 +169,38 @@ FRAMEWORK_PROBES: list[dict] = [
 TABLE_SELECTORS: tuple[str, ...] = _GENERIC_TABLE_SELECTORS + tuple(
     p["root_marker"] for p in FRAMEWORK_PROBES
 )
+
+# 交互式筛选控件标记（通用 + 框架）：组件库把筛选语义放在自定义容器上，
+# 没有原生 <select>、placeholder 也不含"筛选"（如 TDesign/AntD 日期选择器）。
+# middleware_probe 用它把这类页面也认成「有交互式筛选 UI」。新增框架=追加一项。
+GENERIC_FILTER_WIDGET_SELECTORS = (
+    '[role="combobox"]',
+    '[role="listbox"]',
+    '[role="menu"]',
+    '[role="dialog"]',
+    '[role="searchbox"]',
+    "[aria-haspopup]",
+    "[aria-expanded]",
+    "[contenteditable='']",
+    '[contenteditable="true"]',
+    '[role="textbox"]',
+)
+
+FRAMEWORK_FILTER_WIDGET_SELECTORS = (
+    '[class*="picker"]',
+    '[class*="calendar"]',
+    '[class*="dropdown"]',
+    '[class*="popover"]',
+    ".t-popup",
+    ".t-select__dropdown",
+    ".t-date-picker__panel",
+    ".ant-picker-dropdown",
+    ".ant-select-dropdown",
+    ".el-popper",
+    ".el-select-dropdown",
+    ".el-picker-panel",
+)
+
+FILTER_WIDGET_SELECTORS: tuple[str, ...] = (
+    GENERIC_FILTER_WIDGET_SELECTORS + FRAMEWORK_FILTER_WIDGET_SELECTORS
+)

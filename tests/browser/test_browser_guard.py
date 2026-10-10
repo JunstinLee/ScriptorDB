@@ -7,7 +7,7 @@ import pytest
 from browser import get_manager
 from runtime.redact import register_password
 from tests.support.ctx import make_ctx
-from tools.browser import browser_evaluate, browser_fill, browser_query
+from tools.browser import browser_fill, browser_read
 
 pytestmark = pytest.mark.usefixtures("cleanup_browser")
 
@@ -22,7 +22,7 @@ def _page_mock():
 
 
 class TestBrowserQueryPasswordGuard:
-    """browser_query 读密码控件 value：返回占位，不读 DOM。"""
+    """browser_read 读密码控件 value：返回占位，不读 DOM。"""
 
     @pytest.mark.asyncio
     async def test_query_value_on_password_field_returns_placeholder(self, monkeypatch):
@@ -36,7 +36,7 @@ class TestBrowserQueryPasswordGuard:
         query_attr = AsyncMock(return_value=_PWD)
         monkeypatch.setattr(runtime_mod, "query_attr", query_attr)
         with patch.object(get_manager(), "_page", _page_mock()):
-            result = await browser_query(make_ctx(), "#password", attribute="value")
+            result = await browser_read(make_ctx(), "#password", attribute="value")
         assert result == "[redacted: password field]"
         query_attr.assert_not_awaited()
 
@@ -52,7 +52,7 @@ class TestBrowserQueryPasswordGuard:
         query_attr_all = AsyncMock(return_value=f"[0] {_PWD}")
         monkeypatch.setattr(runtime_mod, "query_attr_all", query_attr_all)
         with patch.object(get_manager(), "_page", _page_mock()):
-            result = await browser_query(
+            result = await browser_read(
                 make_ctx(), "input", attribute="value", all=True
             )
         assert result == "[redacted: password field]"
@@ -71,12 +71,12 @@ class TestBrowserQueryPasswordGuard:
         page = _page_mock()
         page.query_selector = AsyncMock(return_value=mock_element)
         with patch.object(get_manager(), "_page", page):
-            result = await browser_query(make_ctx(), "input", attribute="value")
+            result = await browser_read(make_ctx(), "input", attribute="value")
         assert "hello" in result
 
 
 class TestBrowserEvaluatePasswordGuard:
-    """browser_evaluate：脚本含系统密码拒绝执行；结果过脱敏。"""
+    """browser_read（js）：脚本含系统密码拒绝执行；结果过脱敏。"""
 
     @pytest.mark.asyncio
     async def test_evaluate_script_with_password_rejected(self, monkeypatch):
@@ -88,12 +88,12 @@ class TestBrowserEvaluatePasswordGuard:
         )
         page = _page_mock()
         with patch.object(get_manager(), "_page", page):
-            result = await browser_evaluate(
+            result = await browser_read(
                 make_ctx(),
-                f"document.querySelector('#password').value = '{_PWD}'",
+                js=f"document.querySelector('#password').value = '{_PWD}'",
             )
-        assert "拒绝" in result
-        assert "密码" in result
+        assert "Refused" in result
+        assert "password fields must not be read or written" in result
         page.evaluate.assert_not_awaited()
 
     @pytest.mark.asyncio
@@ -108,8 +108,8 @@ class TestBrowserEvaluatePasswordGuard:
         page = _page_mock()
         page.evaluate = AsyncMock(return_value=_PWD)
         with patch.object(get_manager(), "_page", page):
-            result = await browser_evaluate(
-                make_ctx(), "document.querySelector('#password').value"
+            result = await browser_read(
+                make_ctx(), js="document.querySelector('#password').value"
             )
         assert _PWD not in result
         assert "[redacted: password]" in result
@@ -125,7 +125,7 @@ class TestBrowserEvaluatePasswordGuard:
         page = _page_mock()
         page.evaluate = AsyncMock(return_value="42")
         with patch.object(get_manager(), "_page", page):
-            result = await browser_evaluate(make_ctx(), "1 + 1")
+            result = await browser_read(make_ctx(), js="1 + 1")
         assert "42" in result
         page.evaluate.assert_awaited_once()
 
@@ -149,5 +149,5 @@ class TestBrowserFillPasswordGuard:
         page.fill = AsyncMock()
         with patch.object(get_manager(), "_page", page):
             result = await browser_fill(make_ctx(), "#password", _PWD)
-        assert "已由系统自动填充" in result
+        assert "filled automatically by the system" in result
         page.fill.assert_not_awaited()

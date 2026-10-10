@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button, Input, Label } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { Eye, EyeOff } from "lucide-react";
 import {
   deleteApiKey,
@@ -17,6 +18,7 @@ interface ApiKeysTabProps {
 }
 
 export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabProps) {
+  const { t } = useTranslation();
   const [selectedProvider, setSelectedProvider] = useState<string>(
     settings.llm_provider,
   );
@@ -36,7 +38,7 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
 
   const handleSave = useCallback(async () => {
     if (!apiKey.trim()) {
-      setStatus({ kind: "error", message: "API key cannot be empty" });
+      setStatus({ kind: "error", message: t("settings.api_keys.empty") });
       return;
     }
     setStatus({ kind: "saving" });
@@ -46,7 +48,10 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
         api_key: apiKey.trim(),
       });
       if (!resp.ok) {
-        setStatus({ kind: "error", message: resp.error || "Save failed" });
+        setStatus({
+          kind: "error",
+          message: resp.error || t("settings.api_keys.save_failed"),
+        });
         return;
       }
       setApiKey("");
@@ -56,14 +61,14 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
     } catch (e) {
       setStatus({
         kind: "error",
-        message: e instanceof Error ? e.message : "Save failed",
+        message: e instanceof Error ? e.message : t("settings.api_keys.save_failed"),
       });
     }
-  }, [apiKey, onSettingsChange, selectedProvider]);
+  }, [apiKey, onSettingsChange, selectedProvider, t]);
 
   const handleTest = useCallback(async () => {
     if (!apiKey.trim()) {
-      setStatus({ kind: "error", message: "Enter an API key to test" });
+      setStatus({ kind: "error", message: t("settings.api_keys.enter_to_test") });
       return;
     }
     setStatus({ kind: "saving" });
@@ -73,32 +78,35 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
         api_key: apiKey.trim(),
       });
       if (resp.ok) {
-        setStatus({ kind: "tested", message: "API key is valid" });
+        setStatus({ kind: "tested", message: t("settings.api_keys.valid") });
       } else {
-        setStatus({ kind: "error", message: resp.error || "Test failed" });
+        setStatus({
+          kind: "error",
+          message: resp.error || t("settings.api_keys.test_failed"),
+        });
       }
     } catch (e) {
       setStatus({
         kind: "error",
-        message: e instanceof Error ? e.message : "Test failed",
+        message: e instanceof Error ? e.message : t("settings.api_keys.test_failed"),
       });
     }
-  }, [apiKey, selectedProvider]);
+  }, [apiKey, selectedProvider, t]);
 
   const handleDelete = useCallback(async () => {
     setStatus({ kind: "saving" });
     try {
       await deleteApiKey(selectedProvider);
-      setStatus({ kind: "saved", message: "API key removed" });
+      setStatus({ kind: "saved", message: t("settings.api_keys.removed") });
       const updated = await fetchSettings();
       onSettingsChange(updated);
     } catch (e) {
       setStatus({
         kind: "error",
-        message: e instanceof Error ? e.message : "Delete failed",
+        message: e instanceof Error ? e.message : t("settings.api_keys.delete_failed"),
       });
     }
-  }, [onSettingsChange, selectedProvider]);
+  }, [onSettingsChange, selectedProvider, t]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -114,12 +122,14 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
       />
       <p className="text-xs text-muted">
         {isConfigured
-          ? "API key is configured. Enter a new value to replace it."
-          : "No API key is currently set for this provider."}
+          ? t("settings.api_keys.configured")
+          : t("settings.api_keys.unset")}
       </p>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="apikeys-api-key" className="text-xs text-graphite">API Key</Label>
+        <Label htmlFor="apikeys-api-key" className="text-xs text-graphite">
+          {t("settings.api_keys.label")}
+        </Label>
         <div className="flex gap-2">
           <Input
             id="apikeys-api-key"
@@ -137,7 +147,9 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
           <Button
             variant="ghost"
             isIconOnly
-            aria-label={showKey ? "Hide key" : "Show key"}
+            aria-label={
+              showKey ? t("settings.api_keys.hide") : t("settings.api_keys.show")
+            }
             onPress={() => setShowKey((v) => !v)}
           >
             {showKey ? (
@@ -165,14 +177,16 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
           onPress={() => void handleSave()}
           isDisabled={status.kind === "saving" || !apiKey.trim()}
         >
-          {status.kind === "saving" ? "Saving…" : "Save"}
+          {status.kind === "saving"
+            ? t("settings.api_keys.saving")
+            : t("settings.api_keys.save")}
         </Button>
         <Button
           variant="secondary"
           onPress={() => void handleTest()}
           isDisabled={status.kind === "saving" || !apiKey.trim()}
         >
-          Test
+          {t("settings.api_keys.test")}
         </Button>
         {isConfigured && (
           <Button
@@ -180,7 +194,7 @@ export default function ApiKeysTab({ settings, onSettingsChange }: ApiKeysTabPro
             onPress={() => void handleDelete()}
             isDisabled={status.kind === "saving"}
           >
-            Remove stored key
+            {t("settings.api_keys.remove")}
           </Button>
         )}
       </div>

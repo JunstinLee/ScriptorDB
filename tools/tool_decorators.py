@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 from pydantic_ai import Tool
+from schemas import ToolErrorInfo, ToolResult
 
 from core.logging_setup import get_logger
 
@@ -45,28 +46,54 @@ def _wrap_browser_tool(
                 return await asyncio.to_thread(func, ctx, *args, **kwargs)
 
             async def run_with_timeout():
+                task = asyncio.create_task(call_original())
                 try:
-                    return await asyncio.wait_for(call_original(), timeout=timeout)
+                    return await asyncio.wait_for(task, timeout=timeout)
                 except asyncio.TimeoutError:
-                    return (
-                        f"失败: 工具执行超时（{timeout} 秒），操作未完成，"
-                        "请重试或改用其他方式。"
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+                    return ToolResult(
+                        success=False,
+                        error=ToolErrorInfo(
+                            category="execution_timeout",
+                            message=(
+                                f"Failed: tool execution timed out after {timeout} seconds; "
+                                "the operation did not complete. Retry or use another approach."
+                            ),
+                        ),
                     )
+
+            async def tracked(call):
+                # 工具执行期间置忙标志：LoginWatcher 据此让出同一 page 的连接。
+                from browser import get_manager
+
+                manager = get_manager()
+                manager.tool_started()
+                try:
+                    return await call()
+                finally:
+                    manager.tool_finished()
 
             enabled = bool(getattr(getattr(ctx, "deps", None), "browser_middleware_enabled", True))
             if not enabled:
-                return await run_with_timeout()
+                return await tracked(run_with_timeout)
             from runtime.tool_middleware import evaluate_call, execute_switch
 
-            decision = await evaluate_call(ctx, name)
+            decision = await evaluate_call(ctx, name, kwargs)
             if decision == "allow":
-                return await run_with_timeout()
-            return await execute_switch(ctx, name, kwargs, decision)
+                return await tracked(run_with_timeout)
+            return await tracked(lambda: execute_switch(ctx, name, kwargs, decision))
         except Exception as e:
             logger.exception("tool %s raised uncaught %s: %s", name, type(e).__name__, e)
-            return (
-                f"失败: 工具执行异常（{type(e).__name__}: {e}），"
-                "请重试或改用其他方式。"
+            return ToolResult(
+                success=False,
+                error=ToolErrorInfo(
+                    category="internal_error",
+                    message=(
+                        f"Failed: tool execution error ({type(e).__name__}: {e}). "
+                        "Retry or use another approach."
+                    ),
+                ),
             )
 
     return wrapped
@@ -82,6 +109,7 @@ class ToolDef:
         "requires_approval",
         "validator",
         "sequential",
+        "defer_loading",
     )
 
     def __init__(
@@ -95,6 +123,7 @@ class ToolDef:
         requires_approval: bool = False,
         validator: Callable[..., Any] | None = None,
         sequential: bool = False,
+        defer_loading: bool = False,
     ):
         self.func = func
         self.name = name or func.__name__
@@ -104,6 +133,7 @@ class ToolDef:
         self.requires_approval = requires_approval
         self.validator = validator
         self.sequential = sequential
+        self.defer_loading = defer_loading
 
     def to_tool(self) -> Tool:
         func = self.func
@@ -122,6 +152,7 @@ class ToolDef:
             requires_approval=self.requires_approval,
             args_validator=self.validator,
             sequential=self.sequential,
+            defer_loading=self.defer_loading,
             include_return_schema=True,
         )
 
@@ -142,6 +173,7 @@ def db_tool(
     requires_approval: bool = False,
     validator: Callable[..., Any] | None = None,
     sequential: bool = False,
+    defer_loading: bool = False,
 ):
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         _tool_defs.append(
@@ -154,6 +186,7 @@ def db_tool(
                 requires_approval=requires_approval,
                 validator=validator,
                 sequential=sequential,
+                defer_loading=defer_loading,
             )
         )
         return func

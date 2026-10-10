@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { MessageCircleQuestion } from "lucide-react";
 import type { LoginFlowStatus } from "../types";
 
@@ -14,6 +15,8 @@ export function OtpGuidanceNotice({
 }: {
   status: LoginFlowStatus | null;
 }) {
+  const { t } = useTranslation();
+
   if (!status || !status.manual_otp_guided) {
     return null;
   }
@@ -23,13 +26,12 @@ export function OtpGuidanceNotice({
         <MessageCircleQuestion className="mt-0.5 size-4 shrink-0 text-amber-500" />
         <div className="min-w-0">
           <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
-            Verification code required
+            {t("login.otp_title")}
           </p>
           <p className="mt-0.5 text-xs leading-relaxed text-amber-700/80 dark:text-amber-300/70">
-            Account and password were filled in automatically. Enter the
-            verification code in the Chrome window, then click{" "}
-            <span className="font-medium">Finish and resume agent</span> to
-            continue.
+            {t("login.otp_hint_prefix")}{" "}
+            <span className="font-medium">{t("takeover.finish")}</span>{" "}
+            {t("login.otp_hint_suffix")}
           </p>
         </div>
       </div>

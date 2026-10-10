@@ -114,7 +114,7 @@ def test_activate_workspace_swaps_session_store(workspace_env, client):
 
     store_b = _file_store()
     assert id(store_b) != id(store_a), (
-        "session_store 没有被替换：切换工作区后仍指向旧对象。"
+        "session_store was not replaced: it still points at the old object after switching workspaces."
     )
     assert str(ws_b_path) in str(store_b._storage_dir)
     assert sid_a not in store_b._sessions

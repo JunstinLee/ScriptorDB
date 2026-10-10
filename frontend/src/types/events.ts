@@ -89,7 +89,6 @@ export interface HumanTakeoverRequestEvent {
   reason: string;
   trigger: string;
   current_url: string;
-  screenshot_available: boolean;
   timestamp: string;
   login_form?: LoginFormPayload | null;
 }

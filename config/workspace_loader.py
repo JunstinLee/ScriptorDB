@@ -35,7 +35,7 @@ def _read_legacy_config() -> dict:
     if not LEGACY_CONFIG_FILE.exists():
         return {}
     try:
-        return json.loads(LEGACY_CONFIG_FILE.read_text())
+        return json.loads(LEGACY_CONFIG_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
 

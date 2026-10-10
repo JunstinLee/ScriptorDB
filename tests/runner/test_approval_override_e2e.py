@@ -20,7 +20,7 @@ async def test_override_args_reach_tool_via_deferred_results():
         if turns["n"] == 1:
             # 第一轮：模型调用 deferred 工具 → agent 拦截，run 以 DeferredToolRequests 结束
             return ModelResponse(parts=[
-                ToolCallPart(tool_name="greet", args={"name": "原值"}, tool_call_id="c1")
+                ToolCallPart(tool_name="greet", args={"name": "original value"}, tool_call_id="c1")
             ])
         return ModelResponse(parts=[TextPart(content="done")])
 
@@ -44,8 +44,8 @@ async def test_override_args_reach_tool_via_deferred_results():
         "继续",
         message_history=result.all_messages(),
         deferred_tool_results=DeferredToolResults(approvals={
-            "c1": ToolApproved(override_args={"name": "用户值"}),
+            "c1": ToolApproved(override_args={"name": "user value"}),
         }),
     )
     assert resumed.output == "done"
-    assert received == {"name": "用户值"}  # 覆盖参数生效，非原值
+    assert received == {"name": "user value"}  # 覆盖参数生效，非原值

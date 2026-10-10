@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from config.workspace_paths import GLOBAL_CONFIG_DIR
 
 _LOGGER_NAME = "scriptordb"
 _CONFIGURED = False
@@ -42,11 +43,11 @@ def configure_logging() -> None:
     stderr_handler.addFilter(_SuppressUnhandledRunEvent())
     logger.addHandler(stderr_handler)
 
-    logs_dir = Path(os.environ.get("SCRIPTORDB_LOG_DIR", "logs"))
+    logs_dir = Path(os.environ.get("SCRIPTORDB_LOG_DIR") or GLOBAL_CONFIG_DIR / "logs")
     logs_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path = logs_dir / f"run_{timestamp}.log"
-    file_handler = logging.FileHandler(str(log_path))
+    file_handler = logging.FileHandler(str(log_path), encoding="utf-8")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 

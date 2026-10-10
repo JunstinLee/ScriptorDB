@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Loader2, Check, X, ChevronRight } from "lucide-react";
 import type { BrowserState } from "../types";
 
@@ -16,6 +17,8 @@ interface BrowserContextCardProps {
 }
 
 export function BrowserContextCard({ state, loading, onViewInMain }: BrowserContextCardProps) {
+  const { t } = useTranslation();
+
   if (!state?.launched) return null;
 
   const recentActions = state.actions.slice(-3).reverse();
@@ -30,7 +33,7 @@ export function BrowserContextCard({ state, loading, onViewInMain }: BrowserCont
             <span className="size-2.5 rounded-full bg-success" />
           )}
           <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-            Browser Context
+            {t("browser.context_title")}
           </span>
         </div>
 
@@ -40,7 +43,7 @@ export function BrowserContextCard({ state, loading, onViewInMain }: BrowserCont
             {safeHostname(state.url)}
           </p>
         ) : (
-          <p className="mb-2 text-xs text-muted">Waiting for navigation...</p>
+          <p className="mb-2 text-xs text-muted">{t("browser.waiting_navigation")}</p>
         )}
 
         {recentActions.length > 0 && (
@@ -64,7 +67,7 @@ export function BrowserContextCard({ state, loading, onViewInMain }: BrowserCont
           onClick={onViewInMain}
           className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-[11px] text-accent hover:bg-accent/10 transition-colors"
         >
-          <span>View in main area</span>
+          <span>{t("browser.view_in_main")}</span>
           <ChevronRight className="size-3" />
         </button>
       </div>

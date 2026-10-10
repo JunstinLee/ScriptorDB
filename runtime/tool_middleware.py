@@ -1,257 +1,58 @@
+"""向后兼容 shim：实现已拆分到 :mod:`runtime.middleware` 包。
+
+- 判定：``runtime.middleware.registry.evaluate_call``（有序策略注册表）
+- 处置：``runtime.middleware.switch.execute_switch``
+- 状态：``runtime.middleware.state.STATE``
+- 策略：``runtime.middleware.policies.*``
+
+本模块只做 re-export，勿在此新增逻辑。
+"""
+
 from __future__ import annotations
 
-import json
-import threading
-from typing import Any
-
-from core.logging_setup import get_logger
-from runtime.middleware_probe import (
-    _browser_launched,
-    _current_page_url,
-    _is_document_discovery,
-    _page_has_filter_components,
-    _same_domain,
-    _target_url_from_prompt,
+from runtime.middleware import clear_run, evaluate_call, execute_switch, record_find
+from runtime.middleware.context import (
+    _content_revision,
+    _find_fingerprint,
+    _find_tool_func,
+    _is_browser_tool,
+    _manager,
+    _nav_revision,
+    _normalize_query_part,
+    _page_key,
+    _page_url,
+    _round_key,
+    _run_key,
 )
+from runtime.middleware.policies.find_repeat import _is_repeat_find
+from runtime.middleware.state import _MAX_ROUNDS, STATE
 
-logger = get_logger("tool_middleware")
+# 旧测试直接清空这些容器；它们与 STATE 内的字典同身份。
+_round_finds = STATE.finds
+_round_blocks = STATE.blocks
+_round_browser_used = STATE.browser_used
+_round_detect_used = STATE.detect_used
 
-_BLOCKED_TOOLS = {
-    "browser_query",
-    "browser_get_text",
-    "browser_evaluate",
-}
-
-_SWITCH_LABEL = (
-    "[Middleware] {tool_name} call intercepted (document-extraction task — low-level browser tools not suitable). "
-    "Automatically switched to {replacement} with args: {args}\n"
-    "The result is final data — use it directly. If it does not meet the request, explain why to the user, "
-    "or use browser_extract_links / crawl_webpage instead.\n\n{result}"
-)
-
-_REPEAT_LABEL = (
-    "[Middleware] {tool_name} has been intercepted multiple times this turn — do not call it again.\n"
-    "For web data, call browser_extract_links (supports document filtering / pagination / domain limits) or "
-    "crawl_webpage; if the result does not meet the request, explain why to the user."
-)
-
-_NO_PYTHON_LABEL = (
-    "[Middleware] python_sandbox_execute intercepted: browser/crawl tool results are already final data, "
-    "no Python processing needed. Answer directly from the results; for extra computation, explain the need to the user."
-)
-
-_NO_PYTHON_REPEAT_LABEL = (
-    "[Middleware] python_sandbox_execute intercepted repeatedly: answer directly from the final browser/crawl tool data, "
-    "no Python processing needed."
-)
-
-_EMPTY_RESULT_MARKERS = (
-    "no links found",
-    "no elements found",
-    "no items found",
-    "link extraction failed",
-    "crawl failed",
-    "no response",
-    "timed out",
-    "request timed out",
-)
-# Filtering tasks: when the page exposes filter components, low-level DOM
-# probing tools must not be used to construct filters — the detect/apply
-# pipeline (browser_detect_filters → browser_apply_filter → browser_download)
-# is the only sanctioned path.
-_FILTER_PROBE_TOOLS = {"browser_evaluate"}          # blocked whenever the page has filter components
-_FILTER_POST_DETECT_TOOLS = {"browser_query"}       # blocked once browser_detect_filters has run this round
-
-_FILTER_LABEL = (
-    "[Middleware] {tool_name} intercepted: the current page exposes filter components. "
-    "Filtering must go through the detect/apply pipeline: "
-    "browser_detect_filters → browser_apply_filter → browser_download. "
-    "Do not use browser_evaluate / browser_query to probe page structure to construct filters. "
-    "Call browser_detect_filters to obtain the Filter Schema; if the detected capabilities are "
-    "insufficient, re-run browser_detect_filters or tell the user the filter cannot be completed."
-)
-
-_FILTER_REPEAT_LABEL = (
-    "[Middleware] {tool_name} has been intercepted repeatedly this round — do not call it again. "
-    "Use the browser_detect_filters / browser_apply_filter pipeline, or tell the user the filter cannot be completed."
-)
-
-_lock = threading.Lock()
-_round_blocks: dict[str, dict[str, int]] = {}
-_round_browser_used: set[str] = set()
-_round_detect_used: set[str] = set()       # rounds where browser_detect_filters already ran
-
-_MAX_ROUNDS = 1000
-
-
-def _is_browser_tool(tool_name: str) -> bool:
-    return tool_name.startswith("browser_")
-
-
-def _round_key(ctx) -> str:
-    return getattr(ctx, "run_id", None) or "default-round"
-
-
-def _bump_round_block(round_id: str, tool_name: str) -> int:
-    global _round_blocks
-    with _lock:
-        if len(_round_blocks) > _MAX_ROUNDS:
-            _round_blocks = {}
-        counters = _round_blocks.setdefault(round_id, {})
-        counters[tool_name] = counters.get(tool_name, 0) + 1
-        return counters[tool_name]
-
-
-def _mark_browser_used(round_id: str) -> None:
-    with _lock:
-        if len(_round_browser_used) > _MAX_ROUNDS:
-            _round_browser_used.clear()
-        _round_browser_used.add(round_id)
-
-
-def _find_tool_func(name: str):
-    from tools.tool_decorators import get_all_tool_defs
-
-    for tool_def in get_all_tool_defs():
-        if tool_def.name == name:
-            return tool_def.func
-    return None
-
-
-def _label(tool_name: str, replacement: str, kwargs: dict, result: Any) -> str:
-    if isinstance(result, dict):
-        result = json.dumps(result, ensure_ascii=False)
-    return _SWITCH_LABEL.format(
-        tool_name=tool_name,
-        replacement=replacement,
-        args=json.dumps(kwargs, ensure_ascii=False),
-        result=result,
-    )
-
-
-def _result_is_empty(result: str | dict) -> bool:
-    if isinstance(result, dict):
-        return not result.get("rows") and not result.get("links")
-    low = result.lower()
-    return any(marker in low for marker in _EMPTY_RESULT_MARKERS)
-
-
-def _browser_extract_kwargs(tool_name: str, args: dict, current_url: str) -> dict:
-    """Synthesize params for the browser_extract_links switch.
-
-    Only session-derived, harmless params are synthesized (metadata + site
-    pagination). Task-constraint params (domain policy, document filter,
-    selectors) are inherited from the original call when present — never
-    hard-bound to the current page.
-    """
-    kwargs: dict = {"include_metadata": True, "max_pages": 5, "resolve_redirects": True}
-    if tool_name == "browser_extract_links":
-        inherit = ("selector", "wait_for_selector", "pagination_next_selector",
-                   "allowed_domains", "document_domains", "document_only")
-    else:
-        inherit = ()
-    for key in inherit:
-        if args.get(key):
-            kwargs[key] = args[key]
-    return kwargs
-
-
-async def evaluate_call(ctx, tool_name: str) -> str:
-    """Decide whether a tool call may execute.
-
-    Returns one of:
-    - "allow":      execute normally
-    - "switch":     block and auto-switch to a more appropriate tool
-    - "repeat":     block; same tool already blocked this round — do not run anything
-    - "no-python":  block; browser control task forbids python_sandbox_execute
-    - "filter-block"/"filter-repeat": block; page exposes filter components
-
-    Fails open: any uncertainty → "allow".
-    """
-    if ctx is None or getattr(ctx, "deps", None) is None:
-        return "allow"
-    round_id = _round_key(ctx)
-    if _is_browser_tool(tool_name):
-        _mark_browser_used(round_id)
-
-    if tool_name == "browser_detect_filters":
-        _round_detect_used.add(round_id)
-
-    # Pages exposing filter components: low-level probing tools must not be
-    # used to construct filters — the detect/apply pipeline is the only path.
-    if tool_name in _FILTER_PROBE_TOOLS or (
-        tool_name in _FILTER_POST_DETECT_TOOLS and round_id in _round_detect_used
-    ):
-        if await _page_has_filter_components():
-            count = _bump_round_block(round_id, tool_name)
-            if count >= 2:
-                return "filter-repeat"
-            return "filter-block"
-
-    if tool_name == "python_sandbox_execute":
-        if round_id in _round_browser_used or _browser_launched():
-            logger.info("tool middleware: blocking python_sandbox_execute — browser control active (round %s)", round_id)
-
-    if tool_name not in _BLOCKED_TOOLS:
-        return "allow"
-    if not _is_document_discovery(ctx):
-        return "allow"
-    if not (_target_url_from_prompt(ctx) or _current_page_url()):
-        return "allow"
-    count = _bump_round_block(round_id, tool_name)
-    logger.info("tool middleware: blocking %s (round block #%d) — document discovery detected", tool_name, count)
-    if count >= 2:
-        return "repeat"
-    return "switch"
-
-
-async def execute_switch(ctx, tool_name: str, args: dict, decision: str) -> str:
-    """Execute the middleware action for a blocked tool call."""
-    if decision == "no-python":
-        return _NO_PYTHON_LABEL
-    if decision == "no-python-repeat":
-        return _NO_PYTHON_REPEAT_LABEL
-    if decision == "filter-block":
-        return _FILTER_LABEL.format(tool_name=tool_name)
-    if decision == "filter-repeat":
-        return _FILTER_REPEAT_LABEL.format(tool_name=tool_name)
-
-    current = _current_page_url()
-    target = _target_url_from_prompt(ctx)
-
-    if current and (not target or _same_domain(current, target)):
-        replacement = "browser_extract_links"
-        kwargs = _browser_extract_kwargs(tool_name, args, current)
-    elif target:
-        replacement = "crawl_webpage"
-        kwargs = {
-            "url": target,
-            "max_pages": 5,
-        }
-    else:
-        return await _run_original(ctx, tool_name, args)
-
-    func = _find_tool_func(replacement)
-    if func is None:
-        return await _run_original(ctx, tool_name, args)
-
-    inner = await func(ctx, **kwargs)
-    if _result_is_empty(inner):
-        logger.info(
-            "tool middleware: switch result empty for %s (round %s) — falling back to original call",
-            tool_name,
-            _round_key(ctx),
-        )
-        original = await _run_original(ctx, tool_name, args)
-        return (
-            f"[Middleware] {tool_name} intercepted and switched to {replacement}, but the result was empty — "
-            f"fell back to the original call.\n\n{original}"
-        )
-    return _label(tool_name, replacement, kwargs, inner)
-
-
-async def _run_original(ctx, tool_name: str, args: dict) -> str:
-    func = _find_tool_func(tool_name)
-    if func is None:
-        return f"[Middleware] {tool_name} switch failed: neither the replacement nor the original tool is available"
-    return await func(ctx, **args)
+__all__ = [
+    "evaluate_call",
+    "execute_switch",
+    "record_find",
+    "clear_run",
+    "_is_repeat_find",
+    "_find_fingerprint",
+    "_normalize_query_part",
+    "_round_key",
+    "_run_key",
+    "_manager",
+    "_page_key",
+    "_page_url",
+    "_nav_revision",
+    "_content_revision",
+    "_is_browser_tool",
+    "_find_tool_func",
+    "_round_finds",
+    "_round_blocks",
+    "_round_browser_used",
+    "_round_detect_used",
+    "_MAX_ROUNDS",
+]

@@ -7,6 +7,7 @@ import Sidebar from "./Sidebar";
 import { BrowserWorkspace } from "./BrowserWorkspace";
 import AppDialogs from "./AppDialogs";
 import { useAppSettings } from "../hooks/useAppSettings";
+import { useApiKeyStatus } from "../hooks/useApiKeyStatus";
 import { useBrowserPanel } from "../hooks/useBrowserPanel";
 import { useChatStream } from "../hooks/useChatStream";
 import { useLoginAutofillState } from "../hooks/useLoginAutofillState";
@@ -55,6 +56,12 @@ export default function MainApp({
   const [undoConfirmGroupId, setUndoConfirmGroupId] = useState<number | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsChanged, setSettingsChanged] = useState(0);
+  const {
+    kind: apiKeyKind,
+    provider: apiKeyProvider,
+    error: apiKeyError,
+    refresh: refreshApiKeyStatus,
+  } = useApiKeyStatus(workspace?.id ?? null);
 
   const handleRunsLoaded = useCallback(
     (_sessionId: string, loadedRuns: Run[]) => {
@@ -125,7 +132,7 @@ export default function MainApp({
     setPickerOpen(true);
   }, [clearRuns]);
 
-  const { handleSend, handleApprovalSubmit, approvalRequest, filterSchema, loginFormInfo, loginFlowStatus, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
+  const { handleSend, handleApprovalSubmit, approvalRequest, loginFormInfo, loginFlowStatus, takeoverInfo, handleTakeoverComplete, handleTakeoverCancel, handleEnterHumanControl } = useChatStream({
     activeSessionId,
     addUserMessage,
     appendEvent,
@@ -180,6 +187,11 @@ export default function MainApp({
     setSettingsChanged((v) => v + 1);
     browserPanel.refreshBrowserEnabled();
   }, [browserPanel.refreshBrowserEnabled]);
+
+  const handleApiKeyResolved = useCallback(() => {
+    void refreshApiKeyStatus();
+    setSettingsChanged((v) => v + 1);
+  }, [refreshApiKeyStatus]);
 
   const handleHighlightRun = useCallback((runId: string) => {
     if (highlightTimeoutRef.current) {
@@ -309,7 +321,6 @@ export default function MainApp({
               cookiesLoading={browserPanel.cookiesLoading}
               onLoadProfile={browserPanel.handleLoadProfile}
               sessionId={activeSessionId ?? ""}
-              filterSchema={filterSchema}
               loginForm={loginFormInfo}
               loginFlowStatus={loginFlowStatus}
               credentialConfigured={loginAutofill.configured}
@@ -317,7 +328,6 @@ export default function MainApp({
               credentialUrl={loginAutofill.url}
               fieldCandidates={loginAutofill.fieldCandidates}
               onCredentialStatusChange={(v) => loginAutofill.setConfigured(v)}
-              onFiltersApplied={browserPanel.refreshBrowser}
               onCloseBrowser={() => {
                 void closeBrowser().then(() => browserPanel.refreshBrowser());
               }}
@@ -393,7 +403,6 @@ export default function MainApp({
         onUndoConfirmClose={() => setUndoConfirmGroupId(null)}
         onUndoConfirm={handleRevertConfirm}
         approvalRequest={approvalRequest}
-        filterSchema={filterSchema}
         onApprovalSubmit={handleApprovalSubmit}
         onSwitchWorkspace={handleSwitchWorkspace}
         onCreateWorkspace={onCreateWorkspace}
@@ -403,6 +412,10 @@ export default function MainApp({
         isPickerOpen={pickerOpen}
         onPickerClose={handleCloseWorkspacePicker}
         onOpenPicker={handleOpenWorkspacePicker}
+        apiKeyKind={apiKeyKind}
+        apiKeyProvider={apiKeyProvider}
+        apiKeyError={apiKeyError}
+        onApiKeyResolved={handleApiKeyResolved}
       />
     </div>
   );

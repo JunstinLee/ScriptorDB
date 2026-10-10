@@ -145,7 +145,6 @@ def human_takeover_request_event(
     reason: str,
     trigger: str,
     current_url: str,
-    screenshot_available: bool,
     timestamp: str,
     login_form: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -156,7 +155,6 @@ def human_takeover_request_event(
         "reason": reason,
         "trigger": trigger,
         "current_url": current_url,
-        "screenshot_available": screenshot_available,
         "timestamp": timestamp,
         "login_form": login_form,
     }

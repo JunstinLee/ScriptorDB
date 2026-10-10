@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Monitor } from "lucide-react";
 import type { TakeoverPhase } from "../hooks/useTakeoverState";
 
@@ -45,6 +46,7 @@ export function HumanTakeoverDrawer({
   onComplete,
   onShowWindow,
 }: HumanTakeoverDrawerProps) {
+  const { t } = useTranslation();
   const [resultText, setResultText] = useState("");
 
   if (phase === "resuming") {
@@ -52,7 +54,7 @@ export function HumanTakeoverDrawer({
       <div className="border-t border-grid bg-surface px-4 py-3">
         <div className="flex items-center gap-2 text-sm text-muted">
           <div className="size-4 animate-spin rounded-full border-2 border-accent border-t-transparent" />
-          Resuming agent...
+          {t("takeover.resuming")}
         </div>
       </div>
     );
@@ -69,8 +71,8 @@ export function HumanTakeoverDrawer({
             <div className="min-w-0">
               <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
                 {otpGuidance
-                  ? "Enter the verification code in the Chrome window"
-                  : "Agent paused — human action required"}
+                  ? t("takeover.otp_title")
+                  : t("takeover.paused_title")}
               </p>
               <p className="text-xs text-amber-600/80 dark:text-amber-300/70 truncate mt-0.5">
                 {reason}
@@ -89,13 +91,13 @@ export function HumanTakeoverDrawer({
               onClick={onCancel}
               className="rounded-lg border border-grid px-3 py-1.5 text-xs text-muted hover:bg-surface"
             >
-              Dismiss
+              {t("takeover.dismiss")}
             </button>
             <button
               onClick={onEnterControl}
               className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
             >
-              Take over
+              {t("takeover.take_over")}
             </button>
           </div>
         </div>
@@ -111,15 +113,15 @@ export function HumanTakeoverDrawer({
             <div className="size-2 rounded-full bg-blue-500" />
             <span className="text-sm font-semibold text-blue-700 dark:text-blue-400">
               {otpGuidance
-                ? "Chrome window opened — enter the verification code in it"
-                : "Chrome window opened — operate directly in it"}
+                ? t("takeover.otp_control_title")
+                : t("takeover.control_title")}
             </span>
           </div>
         </div>
 
         <div className="flex gap-4 text-xs text-muted mb-3">
           <span className="flex items-center gap-1">
-            <Monitor className="size-3" /> Read-only preview — operate in the real Chrome window
+            <Monitor className="size-3" /> {t("takeover.read_only_hint")}
           </span>
         </div>
 
@@ -128,7 +130,7 @@ export function HumanTakeoverDrawer({
             id="takeover-result"
             value={resultText}
             onChange={(e) => setResultText(e.target.value)}
-            placeholder="Describe what you did (optional)..."
+            placeholder={t("takeover.result_placeholder")}
             rows={2}
             className="w-full resize-none rounded-lg border border-grid bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted/60 focus:outline-none focus:ring-1 focus:ring-accent"
           />
@@ -137,20 +139,20 @@ export function HumanTakeoverDrawer({
               onClick={onShowWindow}
               className="rounded-lg border border-grid px-3 py-1.5 text-xs text-muted hover:bg-surface"
             >
-              Show Chrome window
+              {t("takeover.show_window")}
             </button>
             <div className="flex gap-2">
               <button
                 onClick={onCancel}
                 className="rounded-lg border border-grid px-4 py-1.5 text-xs text-muted hover:bg-surface"
               >
-                Cancel takeover
+                {t("takeover.cancel")}
               </button>
               <button
-                onClick={() => onComplete(resultText || "User completed the operation")}
+                onClick={() => onComplete(resultText || t("takeover.default_result"))}
                 className="rounded-lg bg-accent px-4 py-1.5 text-xs font-medium text-white hover:bg-accent/90"
               >
-                Finish and resume agent
+                {t("takeover.finish")}
               </button>
             </div>
           </div>

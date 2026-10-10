@@ -4,11 +4,16 @@ import json
 import time
 from pathlib import Path
 
+from config.secrets import SUPPORTED_PROVIDERS
+
 CACHE_TTL = 3600
 
 
 def _cache_path(provider: str) -> Path:
     from platformdirs import user_cache_dir
+
+    normalized_provider = provider.strip()
+    safe_provider = normalized_provider if normalized_provider in SUPPORTED_PROVIDERS else "default"
 
     old_path = Path.home() / ".cache" / "scriptordb"
     if old_path.exists():
@@ -16,7 +21,7 @@ def _cache_path(provider: str) -> Path:
     else:
         cache_dir = Path(user_cache_dir("scriptordb", ensure_exists=True))
     cache_dir.mkdir(parents=True, exist_ok=True)
-    return cache_dir / f"models_{provider}.json"
+    return cache_dir / f"models_{safe_provider}.json"
 
 
 def load_cache(provider: str) -> list[str] | None:
@@ -24,7 +29,7 @@ def load_cache(provider: str) -> list[str] | None:
     if not path.exists():
         return None
     try:
-        payload = json.loads(path.read_text())
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
     if time.time() - payload.get("ts", 0) > CACHE_TTL:
@@ -36,6 +41,6 @@ def load_cache(provider: str) -> list[str] | None:
 def save_cache(provider: str, models: list[str]) -> None:
     path = _cache_path(provider)
     try:
-        path.write_text(json.dumps({"ts": time.time(), "models": models}))
+        path.write_text(json.dumps({"ts": time.time(), "models": models}), encoding="utf-8")
     except OSError:
         pass

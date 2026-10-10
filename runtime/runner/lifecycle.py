@@ -171,7 +171,7 @@ async def run_agent_stream(
             # 取消（含被 pydantic-ai 包装后）：统一转为取消终态
             local_tracker.status = "cancelled"
             local_tracker.ended_at = utc_now_iso()
-            reason = "接管已取消"
+            reason = "Takeover cancelled"
             try:
                 from browser import get_manager
                 takeover = get_manager().takeover

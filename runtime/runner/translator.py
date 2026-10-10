@@ -40,12 +40,12 @@ logger = get_logger("agent_runner.translator")
 # 其余工具无系统密码入口，保持原样。
 _SENSITIVE_TEXT_FIELDS = {
     "browser_fill": "text",
-    "browser_evaluate": "js",
+    "browser_read": "js",
 }
 
 
 def _redact_clean_args(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
-    """返回 args 的脱敏副本（browser_fill.text / browser_evaluate.js 过 redact）。"""
+    """返回 args 的脱敏副本（browser_fill.text / browser_read.js 过 redact）。"""
     field = _SENSITIVE_TEXT_FIELDS.get(tool_name)
     if field is None or not isinstance(args.get(field), str):
         return args
@@ -117,8 +117,6 @@ class EventTranslator:
                 await self._handle_part_start(event)
             elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
                 await self._handle_text_delta(event.delta)
-            else:
-                logger.warning("unhandled run event type: %s", type(event).__name__)
 
     async def _handle_part_start(self, event: PartStartEvent) -> None:
         part = event.part
@@ -133,7 +131,7 @@ class EventTranslator:
     async def _handle_tool_call(
         self, ctx: RunContext[Any], event: FunctionToolCallEvent
     ) -> None:
-        # 敏感工具（browser_fill/browser_evaluate）参数可能携带系统密码：
+        # 敏感工具（browser_fill/browser_read）参数可能携带系统密码：
         # tracker 日志/SSE/tool_parts 只收脱敏副本；原始 part 不改动
         # （内存消息原样回放给模型）。
         part = event.part
@@ -155,7 +153,7 @@ class EventTranslator:
         await self._queue.put(trace_event(
             run_id=self._tracker.run_id,
             step=self.trace_step,
-            message=f"调用工具 {part.tool_name}",
+            message=f"Calling tool {part.tool_name}",
         ))
 
     async def _handle_tool_result(
@@ -223,7 +221,7 @@ class EventTranslator:
         await self._queue.put(trace_event(
             run_id=self._tracker.run_id,
             step=self.trace_step,
-            message=f"工具 {tool_name} 执行{'成功' if success else '失败'}: {output or error_code or ''}",
+            message=f"Tool {tool_name} {'succeeded' if success else 'failed'}: {output or error_code or ''}",
         ))
 
     async def _handle_text_delta(self, delta: TextPartDelta) -> None:

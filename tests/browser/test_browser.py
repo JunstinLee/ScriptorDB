@@ -8,9 +8,9 @@ import pytest
 from browser import get_manager
 from tests.support.ctx import make_ctx
 from tools.browser import (
-    browser_get_text,
     browser_launch,
     browser_navigate,
+    browser_read,
 )
 
 
@@ -80,7 +80,7 @@ class TestBrowserGetText:
     @pytest.mark.asyncio
     async def test_get_text_without_launch(self):
         with patch.object(get_manager(), "_page", None):
-            result = await browser_get_text(make_ctx())
+            result = await browser_read(make_ctx())
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
@@ -89,7 +89,7 @@ class TestBrowserGetText:
         mock_page.title.return_value = "Example Domain"
         mock_page.inner_text.return_value = "This domain is for use in documentation examples"
         with patch.object(get_manager(), "_page", mock_page):
-            result = await browser_get_text(make_ctx())
+            result = await browser_read(make_ctx())
             assert "# Example Domain" in result
             assert "documentation examples" in result
 

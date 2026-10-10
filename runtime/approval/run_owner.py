@@ -17,6 +17,7 @@ from pydantic_ai.messages import ModelMessage
 
 from core.logging_setup import get_logger
 from runtime.approval.run_registry import ActiveRun, get_run_registry
+from runtime.tool_middleware import clear_run
 from services.chat_service import persist_chat_run
 
 logger = get_logger("approval.run_owner")
@@ -76,3 +77,4 @@ async def execute_run(
         with suppress(asyncio.CancelledError):
             await slot.bus.close()
         registry.remove(slot.session_id, slot.run_id)
+        clear_run(slot.run_id)

@@ -189,12 +189,23 @@ except Exception as e:
     script_path.write_text(sandbox_code, encoding="utf-8")
 
     env: dict[str, str] = {
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "PATH": os.environ.get("PATH") or ("" if os.name == "nt" else "/usr/bin:/bin"),
         "HOME": str(work_dir),
         "TMPDIR": str(work_dir),
         "SCRIPTORDB_DB_URL": db_url,
         "PYTHONUNBUFFERED": "1",
     }
+    if os.name == "nt":
+        # Windows 的 CreateProcess/CRT 初始化要求 env 内必须有 SystemRoot，
+        # 否则 side-by-side assembly 无法加载；COMSPEC/PATHEXT 供子进程再起进程使用。
+        for key in ("SystemRoot", "windir", "COMSPEC", "PATHEXT"):
+            if key in os.environ:
+                env[key] = os.environ[key]
+        # 临时目录与用户目录仍指向沙箱工作目录，保持与 POSIX 相同的隔离语义：
+        # Windows 的 tempfile 会回落到 TEMP/TMP，expanduser 会优先读 USERPROFILE。
+        env["TEMP"] = str(work_dir)
+        env["TMP"] = str(work_dir)
+        env["USERPROFILE"] = str(work_dir)
     for key in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME"):
         if key in os.environ:
             env[key] = os.environ[key]

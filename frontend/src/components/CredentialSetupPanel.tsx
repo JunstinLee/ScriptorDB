@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { KeyRound, Save, Trash2 } from "lucide-react";
 import { saveCredentials, deleteCredentials } from "../api/loginCredentials";
 import type { CredentialStatus, ExtraCandidate, ExtraPlacement } from "../types";
@@ -30,6 +31,7 @@ export function CredentialSetupPanel({
   onSaved,
   onDeleted,
 }: CredentialSetupPanelProps) {
+  const { t } = useTranslation();
   const [mainUsername, setMainUsername] = useState(username);
   const [password, setPassword] = useState("");
   const [extraValue, setExtraValue] = useState("");
@@ -63,11 +65,11 @@ export function CredentialSetupPanel({
   const handleSave = async () => {
     setError("");
     if (!mainUsername.trim()) {
-      setError("Please fill in the account name");
+      setError(t("login.fill_account_required"));
       return;
     }
     if (!password) {
-      setError("Please fill in the password");
+      setError(t("login.fill_password_required"));
       return;
     }
     // 可选项：仅当页面检测到第三项且用户填写了值才随凭证保存（留空 = 不保存该槽位）。
@@ -97,7 +99,7 @@ export function CredentialSetupPanel({
       resetInputs();
       onSaved?.(status);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save credentials");
+      setError(e instanceof Error ? e.message : t("login.save_failed"));
     } finally {
       setSaving(false);
     }
@@ -111,7 +113,7 @@ export function CredentialSetupPanel({
       resetInputs();
       onDeleted?.(site);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete credentials");
+      setError(e instanceof Error ? e.message : t("login.delete_failed"));
     } finally {
       setSaving(false);
     }
@@ -123,7 +125,11 @@ export function CredentialSetupPanel({
       type="text"
       value={extraValue}
       onChange={(e) => setExtraValue(e.target.value)}
-      placeholder={extraHint ? `${extraHint} (optional)` : "Extra login info (optional)"}
+      placeholder={
+        extraHint
+          ? t("login.extra_hint_placeholder", { hint: extraHint })
+          : t("login.extra_placeholder")
+      }
       autoComplete="off"
       className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
     />
@@ -134,17 +140,17 @@ export function CredentialSetupPanel({
       <div className="mb-3 flex items-center gap-2">
         <KeyRound className="size-4 text-accent" />
         <p className="text-sm font-semibold text-foreground">
-          {configured ? "Reconfigure saved login info" : "Save login info for this site"}
+          {configured ? t("login.reconfigure_saved") : t("login.setup_title")}
         </p>
         {configured && (
           <button
             onClick={handleDelete}
             disabled={saving}
-            title="Delete saved login info"
+            title={t("login.delete_saved")}
             className="ml-auto inline-flex items-center gap-1 rounded-lg border border-grid px-2 py-1 text-[11px] text-muted hover:bg-danger/10 hover:text-danger"
           >
             <Trash2 className="size-3" />
-            Delete
+            {t("login.delete")}
           </button>
         )}
       </div>
@@ -159,7 +165,7 @@ export function CredentialSetupPanel({
           type="text"
           value={mainUsername}
           onChange={(e) => setMainUsername(e.target.value)}
-          placeholder="Account name"
+          placeholder={t("login.account_placeholder")}
           autoComplete="off"
           className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
         />
@@ -168,7 +174,7 @@ export function CredentialSetupPanel({
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Password"
+          placeholder={t("login.password_placeholder")}
           autoComplete="new-password"
           className="rounded-lg border border-grid bg-background px-3 py-2 text-sm text-foreground outline-none focus:border-accent"
         />
@@ -183,13 +189,13 @@ export function CredentialSetupPanel({
             className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-4 py-2 text-xs font-medium text-white hover:bg-accent/90 disabled:opacity-50"
           >
             <Save className="size-3.5" />
-            {configured ? "Update" : "Save"}
+            {configured ? t("login.update") : t("common.save")}
           </button>
         </div>
       </div>
 
       <p className="mt-3 text-[11px] leading-relaxed text-muted">
-        Saved to the system keychain. Plaintext is never stored in the browser.
+        {t("login.keychain_hint")}
       </p>
     </div>
   );

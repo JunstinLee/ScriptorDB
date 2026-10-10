@@ -10,6 +10,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PrismLight as SyntaxHighlighter } from "react-syntax-highlighter";
 import type { Element } from "hast";
+import { useTranslation } from "react-i18next";
 import { useTheme } from "../../hooks/useTheme";
 import PaginatedTable from "./PaginatedTable";
 import { useTablePagination } from "./tablePagination";
@@ -192,6 +193,7 @@ function CodeBlockWrapper({
   code: string;
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(async () => {
@@ -215,7 +217,7 @@ function CodeBlockWrapper({
           onClick={handleCopy}
           className="text-[11px] text-graphite hover:text-cobalt transition-colors"
         >
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("tool.copied") : t("tool.copy")}
         </button>
       </div>
       <div className="max-h-96 overflow-auto bg-paper dark:bg-[#1a1d24] p-3">

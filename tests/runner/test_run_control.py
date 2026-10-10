@@ -51,17 +51,17 @@ def test_extract_markers_empty_messages():
 @pytest.mark.parametrize(
     ("output", "messages", "expected", "kwargs"),
     [
-        ("结果共有 50 条，日期是 July 28, 2026。", [_MARKERS_MSG], True, {}),
-        ("提取到 50 条记录，Form 4。", [_MARKERS_MSG], True, {}),
-        ("来源 d18rn0p25nwr6d.cloudfront.net，共 50 条。", [_MARKERS_MSG], True, {}),
-        ("让我用 Python 来解析并格式化这些数据。", [_MARKERS_MSG], False, {}),
-        ("好的，我已经完成查询。", [_MARKERS_MSG], False, {}),
+        ("There are 50 records, dated July 28, 2026.", [_MARKERS_MSG], True, {}),
+        ("Extracted 50 records, Form 4.", [_MARKERS_MSG], True, {}),
+        ("Source d18rn0p25nwr6d.cloudfront.net, 50 records in total.", [_MARKERS_MSG], True, {}),
+        ("Let me use Python to parse and format this data.", [_MARKERS_MSG], False, {}),
+        ("OK, I have finished the query.", [_MARKERS_MSG], False, {}),
         ("", [_MARKERS_MSG], False, {}),
-        ("可以。", [_PLAIN_MSG], True, {}),
-        ("可以。", None, True, {}),
-        ("任意", [_MARKERS_MSG], True, {"partial_output": True}),
+        ("Sure.", [_PLAIN_MSG], True, {}),
+        ("Sure.", None, True, {}),
+        ("Anything", [_MARKERS_MSG], True, {"partial_output": True}),
         ({"not": "str"}, [_MARKERS_MSG], True, {}),
-        ("任何文本", [_MARKERS_MSG], True, {"retry": 1}),
+        ("Any text", [_MARKERS_MSG], True, {"retry": 1}),
     ],
 )
 def test_should_allow_end(output, messages, expected, kwargs):
@@ -92,12 +92,12 @@ async def test_run_rejects_narration_then_accepts_result():
         if len(calls) == 1:
             return ModelResponse(parts=[ToolCallPart(tool_name="get_data", args={})])
         if len(calls) == 2:
-            return ModelResponse(parts=[TextPart("让我用 Python 来解析这些数据。")])
-        return ModelResponse(parts=[TextPart("结果共有 50 条记录，Form 4。")])
+            return ModelResponse(parts=[TextPart("Let me use Python to parse this data.")])
+        return ModelResponse(parts=[TextPart("There are 50 records, Form 4.")])
 
     agent = _tool_agent(handler)
     result = await agent.run("抓取数据", deps=Settings(db_url="sqlite:///:memory:"))
-    assert result.output == "结果共有 50 条记录，Form 4。"
+    assert result.output == "There are 50 records, Form 4."
     assert len(calls) == 3
 
 
@@ -109,11 +109,11 @@ async def test_run_accepts_result_immediately():
         calls.append(1)
         if len(calls) == 1:
             return ModelResponse(parts=[ToolCallPart(tool_name="get_data", args={})])
-        return ModelResponse(parts=[TextPart("50 条记录，Form 4。")])
+        return ModelResponse(parts=[TextPart("50 records, Form 4.")])
 
     agent = _tool_agent(handler)
     result = await agent.run("抓取数据", deps=Settings(db_url="sqlite:///:memory:"))
-    assert result.output == "50 条记录，Form 4。"
+    assert result.output == "50 records, Form 4."
     assert len(calls) == 2
 
 
@@ -123,9 +123,9 @@ async def test_run_plain_qa_without_tools():
 
     def handler(messages, info):
         calls.append(1)
-        return ModelResponse(parts=[TextPart("好的。")])
+        return ModelResponse(parts=[TextPart("OK.")])
 
     agent = _tool_agent(handler)
     result = await agent.run("你好", deps=Settings(db_url="sqlite:///:memory:"))
-    assert result.output == "好的。"
+    assert result.output == "OK."
     assert len(calls) == 1

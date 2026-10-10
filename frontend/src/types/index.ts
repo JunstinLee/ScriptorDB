@@ -27,6 +27,8 @@ export type {
 export type {
   ActiveWorkspaceResponse,
   ApiKeyRequest,
+  ApiKeyStatus,
+  ApiKeyStatusKind,
   ApiKeyTestResponse,
   MySQLConfigRequest,
   MySQLConfigResponse,
@@ -53,7 +55,6 @@ export type {
   CookieInfo,
   CookiesResponse,
   InteractByCoordsRequest,
-  InteractRequest,
   InteractResponse,
   ProfilesResponse,
   SaveProfileRequest,
@@ -63,13 +64,6 @@ export type {
   TakeoverEnterControlRequest,
   ViewportSizeResponse,
 } from "./browser";
-
-export type {
-  FilterActionType,
-  FilterOverrideActions,
-  FilterSchema,
-  FilterSchemaItem,
-} from "./filters";
 
 export type {
   CredentialStatus,

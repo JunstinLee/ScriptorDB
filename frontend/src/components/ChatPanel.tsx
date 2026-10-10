@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import ChatInput from "./ChatInput";
 import ChatMessages from "./ChatMessages";
 import ModelProviderBar from "./ModelProviderBar";
@@ -39,6 +40,7 @@ export default function ChatPanel({
   onHighlightRun,
   onSelectionChange,
 }: ChatPanelProps) {
+  const { t } = useTranslation();
   const [attachments, setAttachments] = useState<string[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -81,12 +83,12 @@ export default function ChatPanel({
       const res = await uploadFile(file);
       setAttachments((prev) => [...prev, res.path]);
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Upload failed");
+      setUploadError(err instanceof Error ? err.message : t("chat.upload_failed"));
     } finally {
       setIsUploading(false);
       e.target.value = "";
     }
-  }, []);
+  }, [t]);
 
   const toggleCrawl = useCallback(() => {
     setCrawlMode((prev) => {
@@ -103,10 +105,10 @@ export default function ChatPanel({
     setGlobeMode(next);
     updateSettings({ browser_enabled: next })
       .then(() => {
-        toast.success(next ? "Browser control enabled" : "Browser control disabled");
+        toast.success(next ? t("chat.browser_enabled") : t("chat.browser_disabled"));
       })
       .catch(() => {});
-  }, [globeMode]);
+  }, [globeMode, t]);
 
   const handleUrlChange = useCallback((value: string) => {
     setCrawlUrl(value);

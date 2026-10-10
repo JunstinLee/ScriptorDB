@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { Label, Switch } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { updateSettings } from "../../api/client";
 import type { SettingsResponse } from "../../types";
 
@@ -20,6 +21,7 @@ export default function SessionsTab({
   showSchemaSql,
   setShowSchemaSql,
 }: SessionsTabProps) {
+  const { t } = useTranslation();
   const [toggling, setToggling] = useState(false);
 
   const handleToggleAutoRestore = useCallback(
@@ -41,11 +43,10 @@ export default function SessionsTab({
       <div className="flex items-center justify-between rounded-lg border border-grid bg-surface p-3">
         <div className="flex flex-col gap-0.5">
           <Label className="text-sm font-medium">
-            Auto-restore sessions on restart
+            {t("settings.sessions.auto_restore")}
           </Label>
           <p className="text-xs text-muted">
-            When enabled, the server re-loads previous sessions on startup and
-            this UI restores your last active session.
+            {t("settings.sessions.auto_restore_hint")}
           </p>
         </div>
         <Switch
@@ -62,11 +63,10 @@ export default function SessionsTab({
       <div className="flex items-center justify-between rounded-lg border border-grid bg-surface p-3">
         <div className="flex flex-col gap-0.5">
           <Label className="text-sm font-medium">
-            Show session ID on hover
+            {t("settings.sessions.show_id")}
           </Label>
           <p className="text-xs text-muted">
-            When enabled, hovering over a session name shows the underlying
-            session ID as a tooltip.
+            {t("settings.sessions.show_id_hint")}
           </p>
         </div>
         <Switch
@@ -82,11 +82,10 @@ export default function SessionsTab({
       <div className="flex items-center justify-between rounded-lg border border-grid bg-surface p-3">
         <div className="flex flex-col gap-0.5">
           <Label className="text-sm font-medium">
-            Show CREATE SQL in schema
+            {t("settings.sessions.show_sql")}
           </Label>
           <p className="text-xs text-muted">
-            When enabled, the CREATE TABLE SQL is displayed below the column
-            list in the schema sidebar.
+            {t("settings.sessions.show_sql_hint")}
           </p>
         </div>
         <Switch

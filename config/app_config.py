@@ -25,6 +25,7 @@ class AppConfig:
     auto_restore_sessions: bool = True
     browser_enabled: bool = False
     browser_middleware_enabled: bool = True
+    locale: str = ""
 
     # MySQL 连接参数（密码存系统密钥环，这里只存是否已设置）
     mysql_host: str = "127.0.0.1"
@@ -70,6 +71,7 @@ class AppConfig:
         self.auto_restore_sessions = True
         self.browser_enabled = False
         self.browser_middleware_enabled = True
+        self.locale = ""
         self.current_undo_group_id = None
         self.undo_manager = None
         self.mysql_host = "127.0.0.1"

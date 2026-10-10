@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from browser import get_manager
+from schemas import ToolResult
 from tests.support.ctx import make_ctx
 from tools.browser import (
     browser_click,
@@ -25,15 +26,15 @@ class TestBrowserWaitForSelector:
             assert "not launched" in result.lower()
 
     @pytest.mark.asyncio
-    async def test_wait_for_selector_visible(self):
+    async def test_wait_for_selector_default_attached(self):
         mock_page = AsyncMock()
         mock_page.wait_for_selector = AsyncMock()
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_wait_for_selector(make_ctx(), ".new-todo")
-            assert "visible" in result.lower()
+            assert "attached" in result.lower()
             assert ".new-todo" in result
             mock_page.wait_for_selector.assert_awaited_once_with(
-                ".new-todo", state="visible", timeout=10_000
+                ".new-todo", state="attached", timeout=10_000
             )
 
     @pytest.mark.asyncio
@@ -74,7 +75,7 @@ class TestBrowserClick:
             result = await browser_click(make_ctx(), ".button")
             assert "Clicked" in result
             assert ".button" in result
-            mock_page.click.assert_awaited_once_with(".button")
+            mock_page.click.assert_awaited_once_with(".button", timeout=12_000)
 
     @pytest.mark.asyncio
     async def test_click_element_not_found(self):
@@ -82,7 +83,11 @@ class TestBrowserClick:
         mock_page.click = AsyncMock(side_effect=Exception("Element not found"))
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_click(make_ctx(), ".missing")
-            assert "failed" in result.lower() or "element" in result.lower()
+        # 点击失败按契约返回 ToolResult（而非字符串）
+        assert isinstance(result, ToolResult)
+        assert result.success is False
+        message = (result.error.message or "").lower()
+        assert "failed" in message or "element" in message
 
 
 class TestBrowserFill:
@@ -96,12 +101,12 @@ class TestBrowserFill:
     async def test_fill_success(self):
         mock_page = AsyncMock()
         mock_page.fill = AsyncMock()
+        mock_page.query_selector.return_value.is_editable = AsyncMock(return_value=True)
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_fill(make_ctx(), "input", "hello world")
             assert "Filled" in result
             assert "input" in result
-            assert "hello world" in result
-            mock_page.fill.assert_awaited_once_with("input", "hello world")
+            mock_page.fill.assert_awaited_once_with("input", "hello world", timeout=12_000)
 
     @pytest.mark.asyncio
     async def test_fill_element_not_found(self):

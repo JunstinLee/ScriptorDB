@@ -41,33 +41,32 @@ async def _do_select(loc, target: str, value: str) -> str:
         elif value in texts:
             await loc.select_option(label=value)
         else:
-            return f"失败: select '{target}' 无匹配选项 '{value}'（可选: {texts[:10]}）"
+            return f"Failed: select '{target}' has no matching option '{value}' (available: {texts[:10]})"
     except Exception as e:
-        return f"失败: 设置 select '{target}' 出错: {e}"
-    return f"已设置 {target} = {value}"
+        return f"Failed: error setting select '{target}': {e}"
+    return f"Set {target} = {value}"
 
 
-async def _do_input(page, loc, target: str, value: str) -> str:
+async def _do_input(loc, target: str, value: str) -> str:
     try:
         await loc.fill(value)
-        await page.keyboard.press("Enter")
     except Exception as e:
-        return f"失败: 填写 '{target}' 出错: {e}"
-    return f"已填写 {target} = {value}"
+        return f"Failed: error filling '{target}': {e}"
+    return f"Filled {target} = {value}"
 
 
 async def _do_toggle(loc, target: str, value: str) -> str:
     try:
         checked = await loc.is_checked()
     except Exception:
-        return f"失败: 元素不可操作（非 checkbox/radio）: {target}"
+        return f"Failed: element is not actionable (not a checkbox/radio): {target}"
     want = str(value).lower() in ("true", "1", "on", "checked", "yes")
     try:
         if checked != want:
             await (loc.check() if want else loc.uncheck())
     except Exception as e:
-        return f"失败: 切换 '{target}' 出错: {e}"
-    return f"已{'勾选' if want else '取消勾选'} {target}"
+        return f"Failed: error toggling '{target}': {e}"
+    return f"{'Checked' if want else 'Unchecked'} {target}"
 
 
 async def _do_range(loc, target: str, value: str) -> str:
@@ -78,16 +77,16 @@ async def _do_range(loc, target: str, value: str) -> str:
             return true; }""",
         {"value": value},
     )
-    return f"已设置滑块 {target} = {value}" if ok else f"失败: 元素不可操作（非滑块）: {target}"
+    return f"Set slider {target} = {value}" if ok else f"Failed: element is not actionable (not a slider): {target}"
 
 
 async def _do_dates(page, loc, target: str, values_raw: str) -> str:
     try:
         values = json.loads(values_raw)
     except json.JSONDecodeError:
-        return "失败: values 不是合法 JSON"
+        return "Failed: values is not valid JSON"
     if not isinstance(values, list) or len(values) != 2:
-        return "失败: date_range 需要 values 提供两个值（JSON 数组）"
+        return "Failed: date_range requires values with two entries (JSON array)"
     second = await loc.evaluate(
         """(el) => {
             const sibs = Array.from(el.parentElement.querySelectorAll('input[type="date"], input[type="datetime-local"]'));
@@ -103,11 +102,11 @@ async def _do_dates(page, loc, target: str, values_raw: str) -> str:
         if second:
             await page.locator(second).fill(str(values[1]))
     except Exception as e:
-        return f"失败: 填写日期区间出错: {e}"
-    return f"已设置 {target} = {values[0]} ~ {values[1]}"
+        return f"Failed: error filling the date range: {e}"
+    return f"Set {target} = {values[0]} ~ {values[1]}"
 
 
-async def _click_submit(page, loc) -> str:
+async def _click_submit(page, loc, allow_enter: bool = False) -> str:
     btn_re = re.compile(_SUBMIT_LABEL_RE, re.IGNORECASE)
     try:
         form = loc.locator("xpath=ancestor::form[1]")
@@ -115,31 +114,34 @@ async def _click_submit(page, loc) -> str:
             btn = form.get_by_role("button", name=btn_re).first
             if await btn.count() > 0:
                 await btn.click()
-                return "已点击提交按钮"
+                return "Clicked the submit button"
         btn = page.get_by_role("button", name=btn_re).first
         if await btn.count() > 0:
             await btn.click()
-            return "已点击提交按钮"
+            return "Clicked the submit button"
+        if allow_enter:
+            await loc.press("Enter")
+            return "Submitted with Enter"
+        return ""
     except Exception as e:
-        return f"提示: 提交按钮点击失败（筛选可能已即时生效）: {e}"
-    return ""
+        return f"Hint: submit failed: {e}"
 
 
 async def execute_filter_action(page, action: str, target: str, value: str = "",
                                 values: str = "", submit: bool = True) -> str:
-    """执行单个筛选动作并等待结果稳定（browser_apply_filter 与面板直连共用）。失败以"失败:"开头。"""
+    """执行单个筛选动作并等待结果稳定（browser_apply_filter 与面板直连共用）。失败以"Failed:"开头。"""
     try:
         loc = await _resolve(page, target)
     except Exception as e:
-        return f"失败: 定位筛选器 '{target}' 出错: {e}"
+        return f"Failed: error locating filter '{target}': {e}"
     if await loc.count() == 0:
-        return f"失败: 未找到筛选器 '{target}'"
+        return f"Failed: filter '{target}' not found"
     lines = []
     try:
         if action == "select":
             lines.append(await _do_select(loc, target, value))
         elif action == "input":
-            lines.append(await _do_input(page, loc, target, value))
+            lines.append(await _do_input(loc, target, value))
         elif action == "toggle":
             lines.append(await _do_toggle(loc, target, value))
         elif action == "set_range":
@@ -147,12 +149,20 @@ async def execute_filter_action(page, action: str, target: str, value: str = "",
         elif action == "date_range":
             lines.append(await _do_dates(page, loc, target, values))
         else:
-            return f"失败: 未知动作 {action}（可选: {FILTER_ACTIONS}）"
+            return f"Failed: unknown action {action} (available: {FILTER_ACTIONS})"
+        if lines and is_filter_failure(lines[-1]):
+            return "\n".join(line for line in lines if line)
         if submit:
-            lines.append(await _click_submit(page, loc))
+            lines.append(await _click_submit(page, loc, allow_enter=action == "input"))
             await _settle_after_click(page)
+            if action == "input":
+                try:
+                    current_value = await loc.input_value()
+                    lines.append(f"Current value after submit: {current_value}")
+                except Exception:
+                    lines.append("Could not read the input value after submit")
     except Exception as e:
-        return f"失败: 执行筛选动作出错: {e}"
+        return f"Failed: error executing the filter action: {e}"
     return "\n".join(line for line in lines if line)
 
 
@@ -189,18 +199,18 @@ async def _execute_js_table_capability(page, target: str, value: str,
     except Exception as e:
         return f"failed: JS table filter execution error: {e}"
     await _settle_after_click(page)
-    detail = f"已设置 {target} = {value}" if kind == "set_filter" else f"已清除 {target} 筛选"
-    return f"{detail}（js_table_api）"
+    detail = f"Set {target} = {value}" if kind == "set_filter" else f"Cleared the {target} filter"
+    return f"{detail} (js_table_api)"
 
 
 @db_tool(name="browser_apply_filter", category="browser", timeout=30, sequential=True,
-         requires_approval=True, validator=validate_filter_apply_args)
+         requires_approval=False, validator=validate_filter_apply_args)
 async def browser_apply_filter(ctx: RunContext[Settings], action: str, target: str,
                                value: str = "", values: str = "", submit: bool = True,
                                mechanism: str = "dom_action",
                                capability: dict | None = None,
                                table: dict | None = None) -> str:
-    """在浏览器页面执行筛选动作（需用户确认后生效）。target 为 detect 返回的筛选器 name；date_range 用 values 提供起止值。
+    """在浏览器页面执行筛选动作。target 为 detect 返回的筛选器 name；date_range 用 values 提供起止值。
 
     mechanism 由 detect 返回条目的 mechanism 字段给出：dom_action / ui_event 走 DOM
     控件交互（execute_filter_action），js_table_api 走探测端构造的 capability 调用模板；

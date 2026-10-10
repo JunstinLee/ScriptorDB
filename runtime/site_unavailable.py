@@ -1,4 +1,4 @@
-"""站点级不可用检测:浏览器/爬取/下载工具结果命中网关错误、DNS 或连接失败时,
+"""站点级不可用检测:导航/爬取/下载类工具结果命中网关错误、DNS 或连接失败时,
 返回 detail,供 translator 中止流程。纯函数模块,零运行时依赖,便于单测。
 
 刻意不匹配的语义(站点在线,不中止):
@@ -10,20 +10,31 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from tools.tool_result import ToolResult
 
-# 仅对网络类工具的结果做检测;数据库/文件/图表等工具永不触发。
-_NETWORK_TOOL_PREFIXES = ("browser_", "crawl_", "download_")
+# 仅对发起网络请求的工具做检测;数据库/文件/图表等工具永不触发。
+_NETWORK_ACTION_TOOLS = frozenset({
+    "browser_navigate",
+    "browser_go_back",
+    "browser_go_forward",
+    "browser_download",
+    "crawl_webpage",
+    "download_file",
+})
 
 # 站点级不可用信号(子串匹配,大小写不敏感)。
 _GATEWAY_MARKERS = (
-    "502", "503", "504",          # HTTP 状态码(常伴随 Bad Gateway/Unavailable 文本)
     "bad gateway",
     "service unavailable",
     "gateway timeout",
 )
+
+# 状态码需带上下文,避免 JSON 字段值(如 bodyLen":502)被当成网关错误。
+_GATEWAY_CODE_RE = re.compile(r'(?<![":\w])(?:502|503|504)(?![\d.,}])')
+
 _DNS_MARKERS = (
     "err_name_not_resolved",
     "getaddrinfo failed",
@@ -86,9 +97,9 @@ def _summarize(text: str, marker: str) -> str:
 def detect_site_unavailable(tool_name: str, content: Any) -> str | None:
     """工具结果命中站点级不可用信号 → 返回 detail 摘要;否则返回 None。
 
-    tool_name 决定门控:仅 browser_*/crawl_*/download_* 工具参与检测。
+    tool_name 决定门控:仅导航/爬取/下载类工具参与检测。
     """
-    if not tool_name.startswith(_NETWORK_TOOL_PREFIXES):
+    if tool_name not in _NETWORK_ACTION_TOOLS:
         return None
     texts: list[str] = []
     _collect_texts(content, texts)
@@ -99,4 +110,7 @@ def detect_site_unavailable(tool_name: str, content: Any) -> str | None:
     for marker in _ALL_MARKERS:
         if marker in low:
             return _summarize(joined, marker)
+    match = _GATEWAY_CODE_RE.search(joined)
+    if match:
+        return _summarize(joined, match.group(0))
     return None

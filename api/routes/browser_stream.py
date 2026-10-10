@@ -69,10 +69,21 @@ class BrowserStreamConnection:
         self._page = None
         self.target_closed = False
 
+    async def _wait_for_page(self, manager, timeout: float = 5.0):
+        """浏览器未就绪时做有限次短等待（总时长有上限），仍未就绪返回 None。"""
+        deadline = time.monotonic() + timeout
+        while True:
+            page = manager.page()
+            if page:
+                return page
+            if time.monotonic() >= deadline:
+                return None
+            await asyncio.sleep(0.25)
+
     async def start(self):
         self.target_closed = False
         manager = get_manager()
-        page = manager.page()
+        page = await self._wait_for_page(manager)
         if not page:
             logger.warning("browser stream start skipped: browser page unavailable")
             return False

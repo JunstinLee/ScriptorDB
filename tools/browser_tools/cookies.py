@@ -9,7 +9,7 @@ from tools.tool_decorators import db_tool
 logger = get_logger("tools.browser.cookies")
 
 
-@db_tool(name="browser_get_cookies", category="browser", timeout=10, sequential=False)
+@db_tool(name="browser_get_cookies", category="browser", timeout=10, sequential=False, defer_loading=True)
 async def browser_get_cookies(ctx: RunContext[Settings]) -> str:
     from browser.context import get_cookies as _get
 
@@ -23,7 +23,7 @@ async def browser_get_cookies(ctx: RunContext[Settings]) -> str:
     return result
 
 
-@db_tool(name="browser_set_cookies", category="browser", timeout=15, sequential=True)
+@db_tool(name="browser_set_cookies", category="browser", timeout=15, sequential=True, defer_loading=True)
 async def browser_set_cookies(ctx: RunContext[Settings], cookies_json: str) -> str:
     from browser.context import set_cookies as _set
 
@@ -44,7 +44,7 @@ async def browser_set_cookies(ctx: RunContext[Settings], cookies_json: str) -> s
     return result
 
 
-@db_tool(name="browser_clear_cookies", category="browser", timeout=10, sequential=True)
+@db_tool(name="browser_clear_cookies", category="browser", timeout=10, sequential=True, defer_loading=True)
 async def browser_clear_cookies(ctx: RunContext[Settings]) -> str:
     from browser.context import clear_cookies as _clear
 

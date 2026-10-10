@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shlex
 from pathlib import Path
 
@@ -115,8 +116,7 @@ def _create_or_open_for(path: Path, registry: WorkspaceRegistry):
 
 
 def _interactive_create_workspace(registry: WorkspaceRegistry) -> None:
-    default = str(Path.cwd())
-    raw = typer.prompt("请输入工作区目录路径", default=default).strip()
+    raw = typer.prompt("请输入工作区目录路径").strip()
     rec = _create_or_open_for(Path(raw), registry)
     if rec is not None:
         _activate(rec.id, registry)
@@ -127,6 +127,21 @@ def _activate(workspace_id: str, registry: WorkspaceRegistry) -> None:
     load_for_workspace(config, workspace_id)
     registry.set_last_active(workspace_id)
     typer.echo(f"✅ 已激活: {config.workspace_name} ({config.workspace_id})\n")
+
+
+def _split_command(user_input: str) -> list[str]:
+    """拆分菜单输入为参数列表。
+
+    Windows 下关闭反斜杠转义：posix 模式会把 `C:\\Users\\me` 吃掉反斜杠变成
+    `C:Usersme`，导致路径类参数（workspace create / ask 里的文件路径）失效。
+    引号分组仍然保留，两种平台的引号行为一致。
+    """
+    if os.name != "nt":
+        return shlex.split(user_input)
+    lexer = shlex.shlex(user_input, posix=True)
+    lexer.whitespace_split = True
+    lexer.escape = ""
+    return list(lexer)
 
 
 def run_dispatcher():
@@ -157,7 +172,7 @@ def run_dispatcher():
             show_help()
             continue
 
-        parts = shlex.split(user_input)
+        parts = _split_command(user_input)
         cmd_name = parts[0]
         args = parts[1:]
 

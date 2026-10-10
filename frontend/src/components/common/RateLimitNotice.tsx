@@ -1,4 +1,5 @@
 import { Clock3 } from "lucide-react";
+import { t } from "../../i18n";
 
 interface RateLimitNoticeProps {
   message?: string;
@@ -18,14 +19,13 @@ export default function RateLimitNotice({
       <div className="flex items-start gap-2">
         <Clock3 className="h-4 w-4 text-amber shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <p className="text-sm font-medium text-amber">Rate limited (HTTP 429)</p>
+          <p className="text-sm font-medium text-amber">{t("error.rate_limit.title")}</p>
           <p className="text-sm text-amber/80">
-            {message ??
-              "Too many requests. Please try again shortly."}
+            {message ?? t("error.rate_limit.default_message")}
           </p>
           {modelName && (
             <p className="text-xs text-graphite/70">
-              Model: {modelName}
+              {t("error.rate_limit.model", { model: modelName })}
             </p>
           )}
         </div>

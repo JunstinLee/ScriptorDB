@@ -4,9 +4,9 @@ import pytest
 
 from tests.support.ctx import make_ctx
 from tools.browser import (
-    browser_get_text,
     browser_launch,
     browser_navigate,
+    browser_read,
 )
 
 pytestmark = [
@@ -25,7 +25,7 @@ class TestBrowserIntegration:
         result = await browser_navigate(make_ctx(), "http://example.com")
         assert "navigated to" in result.lower()
 
-        result = await browser_get_text(make_ctx())
+        result = await browser_read(make_ctx())
         assert "Example Domain" in result
         assert "use in documentation examples" in result.lower()
 

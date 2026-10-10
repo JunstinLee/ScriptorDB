@@ -1,4 +1,5 @@
 import { Button, Modal } from "@heroui/react";
+import { t } from "../../i18n";
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -20,7 +21,7 @@ export default function ConfirmDialog({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
       <Modal.Container size="sm">
-        <Modal.Dialog className="sm:max-w-[360px] bg-surface">
+        <Modal.Dialog className="sm:max-w-90 bg-surface">
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>{title}</Modal.Heading>
@@ -30,7 +31,7 @@ export default function ConfirmDialog({
           </Modal.Body>
           <Modal.Footer>
             <Button variant="secondary" onPress={onClose}>
-              Cancel
+              {t("common.cancel")}
             </Button>
             <Button
               onPress={() => {

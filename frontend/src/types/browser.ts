@@ -1,5 +1,3 @@
-import type { FilterActionType } from "./filters";
-
 /** 浏览器单次操作记录 */
 export interface BrowserAction {
   tool: string;
@@ -37,31 +35,12 @@ export interface BrowserState {
   launched: boolean;
   url: string | null;
   title: string | null;
-  screenshot_available: boolean;
   /** 任务结束后是否已调度自动关闭（倒计时中） */
   idle_close_active: boolean;
   /** 距自动关闭的剩余秒数（未调度时为 0） */
   idle_close_remaining: number;
   actions: BrowserAction[];
   history: BrowserHistoryEntry[];
-}
-
-export interface InteractRequest {
-  action:
-    | "click"
-    | "fill"
-    | "press_key"
-    | "scroll"
-    | "navigate"
-    | "go_back"
-    | "go_forward"
-    | FilterActionType;
-  selector?: string;
-  value?: string;
-  scroll_pixels?: number;
-  target?: string;
-  values?: string;
-  submit?: boolean;
 }
 
 export interface InteractByCoordsRequest {

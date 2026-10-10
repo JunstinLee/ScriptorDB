@@ -79,12 +79,12 @@ _TABULATOR_HTML = """<!doctype html><html><head><meta charset="utf-8">
 
 async def _wait_tabulator_rows(count: int) -> None:
     """轮询等待 Tabulator 渲染出 count 行（CDN 加载 + 初始化是异步的）。"""
-    from tools.browser import browser_evaluate
+    from tools.browser import browser_read
 
     for _ in range(40):
         try:
-            n = await browser_evaluate(
-                _ctx(), "document.querySelectorAll('.tabulator-row').length"
+            n = await browser_read(
+                _ctx(), js="document.querySelectorAll('.tabulator-row').length"
             )
             if int(n or 0) >= count:
                 return
@@ -123,9 +123,9 @@ class TestFiltersSlow:
     async def test_apply_select_and_submit(self, tmp_path):
         from tools.browser import (
             browser_apply_filter,
-            browser_evaluate,
             browser_launch,
             browser_navigate,
+            browser_read,
         )
 
         page_file = tmp_path / "filters.html"
@@ -135,9 +135,9 @@ class TestFiltersSlow:
 
         result = await browser_apply_filter(_ctx(), action="select",
                                             target="Status", value="Active", submit=True)
-        assert "已设置 Status = Active" in result
-        assert "已点击提交按钮" in result
-        out = await browser_evaluate(_ctx(), "document.getElementById('result').textContent")
+        assert "Set Status = Active" in result
+        assert "Clicked the submit button" in result
+        out = await browser_read(_ctx(), js="document.getElementById('result').textContent")
         assert "result:active:" in out  # 结果区已按筛选更新
 
     @pytest.mark.asyncio
@@ -172,8 +172,8 @@ class TestFiltersSlow:
 
         with patch.object(get_manager(), "record_element_failure") as rec:
             result = await browser_apply_filter(_ctx(), action="select",
-                                                target="不存在的筛选器", value="x", submit=False)
-        assert "失败" in result                     # 返回失败信息
+                                                target="missing_filter", value="x", submit=False)
+        assert "Failed" in result                   # 返回失败信息
         rec.assert_called_once()                   # 元素失败被记录（触发接管检测）
 
     @pytest.mark.asyncio
@@ -189,7 +189,7 @@ class TestFiltersSlow:
 
         result = await browser_detect_filters(_ctx())
         js = [f for f in result["filters"] if f.get("source") == "js_table"]
-        assert js, f"未识别 JS 表格筛选能力: {result}"
+        assert js, f"JS table filter capabilities were not detected: {result}"
         by_name = {f["name"]: f for f in js}
         entry = by_name.get("Gender")
         assert entry, list(by_name)
@@ -204,9 +204,9 @@ class TestFiltersSlow:
         from tools.browser import (
             browser_apply_filter,
             browser_detect_filters,
-            browser_evaluate,
             browser_launch,
             browser_navigate,
+            browser_read,
         )
 
         page_file = tmp_path / "tabulator.html"
@@ -223,11 +223,11 @@ class TestFiltersSlow:
                                          mechanism="js_table_api",
                                          capability=gender["capability"],
                                          table=gender["table"])
-        assert "已设置 Gender = female" in res
-        n = await browser_evaluate(_ctx(), "document.querySelectorAll('.tabulator-row').length")
+        assert "Set Gender = female" in res
+        n = await browser_read(_ctx(), js="document.querySelectorAll('.tabulator-row').length")
         assert int(n) == 2                     # 仅 female 两行（Mary May / Christine Lobowski）
-        state = await browser_evaluate(
+        state = await browser_read(
             _ctx(),
-            "JSON.stringify(Tabulator.findTable(document.querySelector('.tabulator'))[0].getFilters())",
+            js="JSON.stringify(Tabulator.findTable(document.querySelector('.tabulator'))[0].getFilters())",
         )
-        assert "female" in state                # 实例筛选状态已生效（browser_evaluate 返回 JSON 编码串）
+        assert "female" in state                # 实例筛选状态已生效（browser_read 的 js 返回 JSON 编码串）

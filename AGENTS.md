@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-ScriptorDB is a natural-language database agent: ask questions in plain English and the agent reads, queries, and writes your SQLite/MySQL database, imports CSV/Excel, generates matplotlib charts, runs a sandboxed Python subprocess, crawls web pages (crawl4ai), and drives a real (visible) Playwright browser — all behind human approval gates and a grouped undo system.
+ScriptorDB is a natural-language database agent: ask questions in plain English and the agent reads, queries, and writes your SQLite/MySQL database, imports CSV/Excel, generates matplotlib charts, runs a sandboxed Python subprocess, crawls web pages (Playwright), and drives a real (visible) Playwright browser — all behind human approval gates and a grouped undo system.
 
 Three surfaces share one workspace model and one config:
 
@@ -50,7 +50,8 @@ Layering: `config/` (workspace + provider state) → `agents/` (agent builder, c
 
 ```bash
 # Backend (uv; run from repo root — imports are top-level, no src package)
-uv sync                                  # install deps; uv.lock is the dependency source of truth
+uv sync --extra browser --extra crawl    # install deps; uv.lock is the dependency source of truth
+uv sync                                 # core only: no browser automation, no crawl tools
 uv run python main.py                    # no-arg → workspace selection menu + numbered text dispatcher
 uv run python main.py setup              # provider + API key wizard (requires workspace)
 uv run python main.py forget             # delete stored credentials (requires workspace)
@@ -74,7 +75,6 @@ cd frontend && npm run test              # vitest run
 
 # Dev diagnostics (plain scripts, not part of the test suite)
 uv run python scripts/browser_stream_diag.py [--frames N] [--timeout S]
-uv run python scripts/browser_viewport_diagnostic.py [--visual] [--trigger] [--timeout S]
 uv run python scripts/layout_diagnostic.py <url> [-d 30] [-i 200] [-n 20] [--headed]
 ```
 
@@ -92,7 +92,7 @@ uv run python scripts/layout_diagnostic.py <url> [-d 30] [-i 200] [-n 20] [--hea
 - **Naming:** snake_case modules; CLI = one `cmd_<name>.py` per subcommand; API routes `api/routes/<domain>.py` with `APIRouter(prefix=…, tags=…)`; services `<domain>_service.py`; test files `test_<area>.py` with `TestXxx` classes and `test_<behavior>` names (Chinese docstrings stating intent); frontend hooks `useXxx`, colocated `*.test.ts(x)`.
 - **Logging:** `core.logging_setup.get_logger(__name__)` everywhere (`scriptordb.<name>`, idempotent configure, stderr filter + file handler); env vars `SCRIPTORDB_LOG_LEVEL` (default INFO), `SCRIPTORDB_LOG_DIR` (default `logs`). `core/log_to_file.py` is imported only by `api/app.py`, so `serve` redirects stdout/stderr to `logs/run_<ts>.log` while plain CLI commands do not.
 - **Frontend:** no router (tabs + modals only), no state library — React context only for theme (`useTheme`), everything else custom hooks (`useReducer` for runs). All API calls go through `src/api/core.ts request<T>()` + the `src/api/client.ts` re-export hub. SSE whitelist lives in `src/api/stream.ts` (currently 16 event types) with the `StreamRunEvent` union in `src/types/index.ts` — extend **both** when adding an event. localStorage keys are `scriptordb:`-prefixed. Use the Tailwind v4 semantic tokens defined in `src/index.css` (`bg-background`, `text-foreground`, `border-grid`, `bg-surface`, `text-cobalt`/`text-accent`, `text-muted`, `text-graphite`, `text-danger`) — no raw hex in JSX. Lightweight en-only i18n via `t(key, params)` in `src/i18n/`. Debug `console.log` with bracketed tags (`[stream]`, `[useRuns]`, …) is an existing pattern — match it. Human takeover UI must never render detected login field details — `loginForm` is internal state for autofill/credential flows; do not add field lists or `ROLE_LABELS`-style display logic to `HumanTakeoverPanel`/`HumanTakeoverDrawer`, and keep `loginForm` out of the takeover drawer from `BrowserWorkspace`.
-- **Working conventions:** user-reported state (errors, failures, observations) is ground truth — act on it, don't re-run checks to confirm it. Never verify framework/library behavior by reading vendored source (`site-packages`, `node_modules`) — use docs or the web. Do not fix TypeScript/TSX type errors without explicit instruction. After changing backend code, prompt the user to restart the backend. Describe verification in plain language ("run it and see the result"), not jargon. Save plans/design docs in `DOCS/` (gitignored). PR descriptions follow `DOCS/PULL_REQUEST_GUIDELINES.md`: a short `Description` of the form `[类型] + [核心变更] + [目标/原因]`, plus a structured `Extended description` (Overview / Background / Changes / Design / Testing / Impact / Notes).
+- **Working conventions:** user-reported state (errors, failures, observations) is ground truth — act on it, don't re-run checks to confirm it. An explicit, unambiguous user instruction (especially deleting a named tool/feature/file) is executed directly — no impact analysis, no multi-file exploration, no test runs to "confirm"; at most one grep as a final reference check. Never verify framework/library behavior by reading vendored source (`site-packages`, `node_modules`) — use docs or the web. Do not fix TypeScript/TSX type errors without explicit instruction. After changing backend code, prompt the user to restart the backend. Describe verification in plain language ("run it and see the result"), not jargon. Do not close a response with a summary or one-line recap of what was just said — stop after the last substantive point. Save plans/design docs in `DOCS/` (gitignored). PR descriptions follow `DOCS/PULL_REQUEST_GUIDELINES.md`: a short `Description` of the form `[类型] + [核心变更] + [目标/原因]`, plus a structured `Extended description` (Overview / Background / Changes / Design / Testing / Impact / Notes).
 
 ## Important Files
 
@@ -109,7 +109,7 @@ uv run python scripts/layout_diagnostic.py <url> [-d 30] [-i 200] [-n 20] [--hea
 
 ## Runtime/Tooling Preferences
 
-- **Python ≥3.10 via `uv`** (`requires-python = ">=3.10"`; the maintained `.venv` is CPython 3.12). No console scripts and no build backend — launch with `uv run python main.py` from the repo root. `uv.lock` is the dependency source of truth; **`requirements.txt` is a stale partial `pip freeze` snapshot (missing 11 of the 18 direct deps) — never install from it.**
+- **Python ≥3.10 via `uv`** (`requires-python = ">=3.10"`; the maintained `.venv` is CPython 3.12). No console scripts and no build backend — launch with `uv run python main.py` from the repo root. `uv.lock` is the dependency source of truth; **`requirements.txt` is a stale partial `pip freeze` snapshot (missing most of the declared direct deps, and unaware of the `browser`/`crawl` extras) — never install from it.**
 - **No CI, no pre-commit, no Makefile, no Dockerfile, no `.python-version`, no `ruff`/`mypy`/`pyright` installed.** `pyrightconfig.json` (+ `[tool.pylance]`) only points IDE type-checking at `./.venv`.
 - **Two independent npm projects** (no workspaces, no `engines` pin). Root `package.json` holds only `concurrently` and orchestrates the two dev processes; `frontend/package.json` holds the app stack: Vite 8, React 19, TypeScript ~6.0, Tailwind CSS 4 (`@tailwindcss/vite`, no tailwind/postcss config files — CSS-first `@theme` in `src/index.css`), HeroUI v3, ESLint 10 flat config (`ts/tsx` only, `react-hooks/set-state-in-effect` off), Vitest 4 + jsdom + Testing Library. `frontend/tsconfig*.json` does **not** enable `strict`.
 - **Providers:** exactly four, all OpenAI-compatible — `openrouter` (`openrouter:` prefix) and `nim`/`together`/`deepseek` (`openai:` prefix via `OpenAIProvider(base_url=…)`); `SUPPORTED_PROVIDERS` in `config/secrets.py`, and the frontend chat popover list is duplicated in `frontend/src/constants.ts` (same 4 — keep in sync). Model selection: `resolve_model()` prefixes the provider, `fuzzy_match_model()` matches substrings; model lists cached at `~/.cache/scriptordb/models_<provider>.json` with 1 h TTL.
@@ -125,6 +125,7 @@ uv run python scripts/layout_diagnostic.py <url> [-d 30] [-i 200] [-n 20] [--hea
 - **Frontend (Vitest):** `cd frontend && npm run test` (`test:watch` / `test:ui` also exist). jsdom environment, setup `src/test/setup.ts` (jest-dom, ResizeObserver/matchMedia stubs, localStorage + theme-attr cleanup), include glob `src/**/*.test.{ts,tsx}`. ~22 colocated test files under `src/hooks/`, `src/api/`, `src/utils/`, `src/components/`.
 - **Acceptance by change type — do not run the whole suite as a blanket check:**
   - Logging statements / plain-text substitutions → import verification only (module imports cleanly), no tests.
+  - i18n text swaps (hardcoded string → `t("key")`) → **never read or open test files**; only confirm the key already exists in both `frontend/src/i18n/locales/en.json` and `zh.json`.
   - Other code changes → run only the relevant tests; if none exist, an import check + LSP diagnostics pass.
   - UI changes → verify against the running app (`npm run dev`), not unit tests.
   - No coverage tooling or targets are enforced anywhere; no CI runs tests.

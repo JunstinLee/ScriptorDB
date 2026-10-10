@@ -70,6 +70,7 @@ export interface SettingsResponse {
   default_models: Record<string, string>;
   auto_restore_sessions: boolean;
   browser_enabled: boolean;
+  locale: string;
   providers: ProviderInfo[];
   providers_with_keys: string[];
 }
@@ -80,6 +81,7 @@ export interface SettingsUpdateRequest {
   default_model_provider?: string;
   auto_restore_sessions?: boolean;
   browser_enabled?: boolean;
+  locale?: string;
 }
 
 export interface ApiKeyRequest {
@@ -90,4 +92,18 @@ export interface ApiKeyRequest {
 export interface ApiKeyTestResponse {
   ok: boolean;
   error: string | null;
+}
+
+export type ApiKeyStatusKind =
+  | "missing"
+  | "valid"
+  | "invalid"
+  | "unknown"
+  | "no_workspace";
+
+export interface ApiKeyStatus {
+  provider: string;
+  status: ApiKeyStatusKind;
+  error: string | null;
+  checked_at: string;
 }

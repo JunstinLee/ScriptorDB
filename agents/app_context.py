@@ -35,3 +35,8 @@ class AppContext:
         self._agent = resolve_agent(self.config, model, provider)
         self._agent_signature = signature
         return self._agent
+
+    def invalidate_agent(self) -> None:
+        """丢弃缓存 agent：API key 在构建时被烘焙进 provider，变更后必须重建。"""
+        self._agent = None
+        self._agent_signature = None

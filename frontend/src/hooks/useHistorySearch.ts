@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { t } from "../i18n";
 import { searchHistory } from "../api/client";
 import type {
   HistorySearchResponse,
@@ -55,7 +56,7 @@ export function useHistorySearch() {
         setTotal(resp.total);
       } catch (e) {
         if (latestRequestRef.current !== requestId) return;
-        setError(e instanceof Error ? e.message : "Failed to load history");
+        setError(e instanceof Error ? e.message : t("error.history_load_failed"));
       } finally {
         if (latestRequestRef.current === requestId) {
           setIsLoading(false);

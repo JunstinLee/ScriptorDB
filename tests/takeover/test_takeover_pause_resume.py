@@ -85,7 +85,7 @@ async def test_takeover_resume_wakes_same_run():
     assert paused
 
     # 用户完成接管：记录结果并 resume 唤醒 hook
-    mgr.takeover.complete("完成登录")
+    mgr.takeover.complete("Login completed")
     agent.release = True
     pause.resume_event.set()
 
@@ -96,8 +96,9 @@ async def test_takeover_resume_wakes_same_run():
     assert any(ev["type"] == "run_end" for ev in events)
     assert not agent.cancelled
     assert "".join(str(c) for c in agent.ctx.enqueued) == (
-        "系统站点凭证已自动填充至登录表单，请勿读取或重填密码字段，"
-        "直接继续后续流程。用户完成了人工操作: 完成登录"
+        "The site credentials were filled into the login form automatically. "
+        "Do not read or refill the password field; continue with the workflow. "
+        "The user completed the manual action: Login completed"
     )
 
 

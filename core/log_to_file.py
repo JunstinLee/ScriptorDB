@@ -5,13 +5,15 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-_LOGS_DIR = Path(os.environ.get("SCRIPTORDB_LOG_DIR", "logs"))
+from config.workspace_paths import GLOBAL_CONFIG_DIR
+
+_LOGS_DIR = Path(os.environ.get("SCRIPTORDB_LOG_DIR") or GLOBAL_CONFIG_DIR / "logs")
 _TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 _LOG_PATH = _LOGS_DIR / f"run_{_TIMESTAMP}.log"
 
 _LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
-_log_file = open(str(_LOG_PATH), "w", buffering=1)
+_log_file = open(str(_LOG_PATH), "w", buffering=1, encoding="utf-8")
 
 sys.stderr.write(f"[log_to_file] redirecting stdout+stderr to {_LOG_PATH}\n")
 sys.stderr.flush()

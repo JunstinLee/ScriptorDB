@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { Modal, Tabs } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import {
   Folder,
   Key,
+  Languages,
   MessageSquare,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -11,6 +13,7 @@ import type { SettingsResponse, WorkspaceDetail } from "../types";
 import AlertBanner from "./common/AlertBanner";
 import ApiKeysTab from "./settings/ApiKeysTab";
 import DefaultsTab from "./settings/DefaultsTab";
+import LanguageTab from "./settings/LanguageTab";
 import SessionsTab from "./settings/SessionsTab";
 import WorkspacesTab from "./settings/WorkspacesTab";
 
@@ -39,6 +42,7 @@ export default function SettingsModal({
   onWorkspaceChanged,
   onOpenWorkspacePicker,
 }: SettingsModalProps) {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<SettingsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +54,11 @@ export default function SettingsModal({
       const data = await fetchSettings();
       setSettings(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load settings");
+      setError(e instanceof Error ? e.message : t("settings.load_failed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (isOpen) void load();
@@ -63,45 +67,50 @@ export default function SettingsModal({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog className="sm:max-w-[640px] max-h-[85vh] min-w-[480px] min-h-[360px] bg-surface">
+        <Modal.Dialog className="sm:max-w-160 max-h-[85vh] min-w-120 min-h-90 bg-surface">
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
               <SettingsIcon className="size-5" />
             </Modal.Icon>
-            <Modal.Heading>Settings</Modal.Heading>
+            <Modal.Heading>{t("settings.title")}</Modal.Heading>
           </Modal.Header>
           <Modal.Body>
             {error && <AlertBanner variant="error" message={error} />}
             {loading || !settings ? (
               <div className="flex items-center justify-center py-12 text-sm text-muted">
-                Loading…
+                {t("settings.loading")}
               </div>
             ) : (
               <Tabs className="w-full" defaultSelectedKey="workspaces">
                 <Tabs.ListContainer>
                   <Tabs.List
-                    aria-label="Settings"
+                    aria-label={t("settings.title")}
                     className="w-fit *:h-9 *:w-fit *:px-3 *:text-[11px] *:font-semibold *:uppercase *:tracking-wider"
                   >
                     <Tabs.Tab id="workspaces">
                       <Folder className="mr-1.5 inline size-3.5 text-graphite" />
-                      Workspaces
+                      {t("settings.tab.workspaces")}
                       <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
                     <Tabs.Tab id="sessions">
                       <MessageSquare className="mr-1.5 inline size-3.5 text-graphite" />
-                      Sessions
+                      {t("settings.tab.sessions")}
+                      <Tabs.Indicator className="bg-cobalt" />
+                    </Tabs.Tab>
+                    <Tabs.Tab id="language">
+                      <Languages className="mr-1.5 inline size-3.5 text-graphite" />
+                      {t("settings.tab.language")}
                       <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
                     <Tabs.Tab id="apikeys">
                       <Key className="mr-1.5 inline size-3.5 text-graphite" />
-                      API Keys
+                      {t("settings.tab.api_keys")}
                       <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
                     <Tabs.Tab id="defaults">
                       <SettingsIcon className="mr-1.5 inline size-3.5 text-graphite" />
-                      Default Models
+                      {t("settings.tab.defaults")}
                       <Tabs.Indicator className="bg-cobalt" />
                     </Tabs.Tab>
                   </Tabs.List>
@@ -123,6 +132,12 @@ export default function SettingsModal({
                     setShowSessionIdHover={setShowSessionIdHover}
                     showSchemaSql={showSchemaSql}
                     setShowSchemaSql={setShowSchemaSql}
+                  />
+                </Tabs.Panel>
+                <Tabs.Panel className="pt-4" id="language">
+                  <LanguageTab
+                    settings={settings}
+                    onSettingsChange={setSettings}
                   />
                 </Tabs.Panel>
                 <Tabs.Panel className="pt-4" id="apikeys">

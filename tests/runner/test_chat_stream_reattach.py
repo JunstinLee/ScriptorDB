@@ -205,7 +205,7 @@ async def test_from_index_replays_incrementally(monkeypatch, store):
     agent.release = True
     await asyncio.wait_for(consumer, timeout=5.0)
 
-    assert rest, "增量重挂应收到游标之后的事件"
+    assert rest, "reattach should receive the events after the cursor"
     assert all(index >= cursor for index, _ in rest)
     assert rest[-1][1] == "run_end"
     assert "tool_result" not in [ev_type for _, ev_type in rest]

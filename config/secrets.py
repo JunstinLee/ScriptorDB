@@ -21,15 +21,19 @@ def _service(workspace_id: str | None) -> str:
     return LEGACY_SERVICE
 
 
+# API key 全局唯一；workspace_id 仅用于把旧的按工作区保存的 key 懒迁移过来。
 def get_api_key(provider: str, workspace_id: str | None = None) -> str | None:
-    value = keyring.get_password(_service(workspace_id), provider)
+    value = keyring.get_password(LEGACY_SERVICE, provider)
     if value is None and workspace_id is not None:
-        value = keyring.get_password(LEGACY_SERVICE, provider)
+        stale = keyring.get_password(_service(workspace_id), provider)
+        if stale is not None:
+            keyring.set_password(LEGACY_SERVICE, provider, stale)
+            value = stale
     return value
 
 
 def save_api_key(provider: str, key: str, workspace_id: str | None = None) -> None:
-    keyring.set_password(_service(workspace_id), provider, key)
+    keyring.set_password(LEGACY_SERVICE, provider, key)
 
 
 def _safe_delete(service: str, provider: str) -> None:
@@ -40,9 +44,9 @@ def _safe_delete(service: str, provider: str) -> None:
 
 
 def delete_api_key(provider: str, workspace_id: str | None = None) -> None:
-    _safe_delete(_service(workspace_id), provider)
+    _safe_delete(LEGACY_SERVICE, provider)
     if workspace_id is not None:
-        _safe_delete(LEGACY_SERVICE, provider)
+        _safe_delete(_service(workspace_id), provider)
 
 
 def has_api_key(provider: str, workspace_id: str | None = None) -> bool:

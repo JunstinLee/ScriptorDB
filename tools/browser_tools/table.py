@@ -268,7 +268,7 @@ async def browser_extract_table(
     return _format_result(rows, max_pages, max_rows)
 
 
-@db_tool(name="browser_extract_rows", category="browser", timeout=60, sequential=False)
+@db_tool(name="browser_extract_rows", category="browser", timeout=60, sequential=False, defer_loading=True)
 async def browser_extract_rows(
     ctx: RunContext[Settings],
     row_selector: str,

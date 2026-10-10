@@ -46,7 +46,7 @@ def repair_tool_message_pairs(messages: list[ModelMessage]) -> list[ModelMessage
                     ToolReturnPart(
                         tool_call_id=p.tool_call_id,
                         tool_name=p.tool_name,
-                        content="工具执行未完成（超时或中断），结果不可用。",
+                        content="Tool execution did not finish (timeout or interruption); the result is unavailable.",
                     )
                     for p in missing
                 ]))

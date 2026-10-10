@@ -93,7 +93,7 @@ async def cancel_takeover(body: TakeoverCancelRequest):
         )
     orchestrator = slot.orchestrator
 
-    result = orchestrator.cancel_takeover(body.run_id, "用户取消接管")
+    result = orchestrator.cancel_takeover(body.run_id, "User cancelled takeover")
     if not result.get("ok"):
         if result.get("error") == "run_mismatch":
             raise HTTPException(

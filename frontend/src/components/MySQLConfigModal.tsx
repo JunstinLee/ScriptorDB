@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button, Input, Label, ListBox, Modal, Select, Switch, toast } from "@heroui/react";
 import { Database, Server, CheckCircle2, AlertCircle, Eye, EyeOff } from "lucide-react";
 import { configureMySQL, resetMySQLConfig } from "../api/workspaces";
+import { t } from "../i18n";
 import type { MySQLConfigRequest, MySQLConfigResponse, WorkspaceDetail } from "../types";
 
 interface MySQLConfigModalProps {
@@ -92,14 +93,14 @@ export default function MySQLConfigModal({
                 port: Number(form.port) || DEFAULT_PORT,
               });
         if (!res.ok) {
-          setError(`${res.message || "Connection failed"}${res.error_code ? ` (${res.error_code})` : ""}`);
+          setError(`${res.message || t("database.connection_failed")}${res.error_code ? ` (${res.error_code})` : ""}`);
         } else {
           setResult(res);
-          toast.success(engine === "mysql" ? "Connected to MySQL" : "Switched to SQLite");
+          toast.success(engine === "mysql" ? t("database.toast_mysql") : t("database.toast_sqlite"));
           onConfigSaved?.();
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message.replace(/^HTTP \d+: /, "") : "Failed to save database configuration");
+        setError(err instanceof Error ? err.message.replace(/^HTTP \d+: /, "") : t("database.save_failed"));
       } finally {
         setBusy(false);
       }
@@ -110,18 +111,18 @@ export default function MySQLConfigModal({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="md" scroll="inside">
-        <Modal.Dialog className="sm:max-w-[520px] max-h-[85vh] min-h-[360px] bg-surface">
+        <Modal.Dialog className="sm:max-w-130 max-h-[85vh] min-h-90 bg-surface">
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
               <Database className="size-5" />
             </Modal.Icon>
-            <Modal.Heading>Database connection</Modal.Heading>
+            <Modal.Heading>{t("database.connection_title")}</Modal.Heading>
           </Modal.Header>
           <Modal.Body>
             <div className="flex flex-col gap-5">
               <div className="flex flex-col gap-1.5">
-                <Label id="engine-label" className="text-xs text-graphite">Database engine</Label>
+                <Label id="engine-label" className="text-xs text-graphite">{t("database.engine_label")}</Label>
                 <Select
                   aria-labelledby="engine-label"
                   value={engine}
@@ -139,11 +140,11 @@ export default function MySQLConfigModal({
                   </Select.Trigger>
                 <Select.Popover>
                   <ListBox>
-                    <ListBox.Item id="sqlite" textValue="SQLite">
-                      SQLite (local file)
+                    <ListBox.Item id="sqlite" textValue={t("database.engine_sqlite")}>
+                      {t("database.engine_sqlite")}
                     </ListBox.Item>
-                    <ListBox.Item id="mysql" textValue="MySQL">
-                      MySQL (remote server)
+                    <ListBox.Item id="mysql" textValue={t("database.engine_mysql")}>
+                      {t("database.engine_mysql")}
                     </ListBox.Item>
                   </ListBox>
                 </Select.Popover>
@@ -155,10 +156,10 @@ export default function MySQLConfigModal({
                   <div className="rounded-lg border border-grid bg-surface p-4">
                     <div className="flex items-center gap-2 text-sm font-medium text-ink">
                       <Database className="size-4 text-cobalt" />
-                      Local SQLite database
+                      {t("database.sqlite_title")}
                     </div>
                     <p className="mt-1 text-[11px] text-muted">
-                      Data is stored in the workspace folder. Your MySQL connection details are preserved and will be restored when you switch back to MySQL.
+                      {t("database.sqlite_hint")}
                     </p>
                     {workspace?.db_url && (
                       <code className="mt-3 block truncate text-[11px] font-mono text-graphite">
@@ -171,7 +172,7 @@ export default function MySQLConfigModal({
                     <div className="grid grid-cols-3 gap-3">
                       <div className="col-span-2 flex flex-col gap-1.5">
                         <Label htmlFor="mysql-host" className="text-xs text-graphite">
-                          Host
+                          {t("database.host")}
                         </Label>
                         <Input
                           id="mysql-host"
@@ -183,7 +184,7 @@ export default function MySQLConfigModal({
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <Label htmlFor="mysql-port" className="text-xs text-graphite">
-                          Port
+                          {t("database.port")}
                         </Label>
                         <Input
                           id="mysql-port"
@@ -199,7 +200,7 @@ export default function MySQLConfigModal({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col gap-1.5">
                         <Label htmlFor="mysql-user" className="text-xs text-graphite">
-                          User
+                          {t("database.user")}
                         </Label>
                         <Input
                           id="mysql-user"
@@ -211,7 +212,7 @@ export default function MySQLConfigModal({
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <Label htmlFor="mysql-db" className="text-xs text-graphite">
-                          Database
+                          {t("database.name_label")}
                         </Label>
                         <Input
                           id="mysql-db"
@@ -225,14 +226,14 @@ export default function MySQLConfigModal({
 
                     <div className="flex flex-col gap-1.5">
                       <Label htmlFor="mysql-password" className="text-xs text-graphite">
-                        Password
+                        {t("database.password")}
                       </Label>
                       <div className="relative">
                         <Input
                           id="mysql-password"
                           type={showPassword ? "text" : "password"}
                           value={form.password}
-                          placeholder={workspace?.mysql_password_set ? "•••••••• (leave blank to keep)" : ""}
+                          placeholder={workspace?.mysql_password_set ? t("database.password_keep_placeholder") : ""}
                           onChange={(e) => updateField("password", e.target.value)}
                           disabled={busy}
                           className="w-full pr-8"
@@ -247,14 +248,14 @@ export default function MySQLConfigModal({
                         </button>
                       </div>
                       <p className="text-[11px] text-muted">
-                        Stored in the system keyring. Never saved in workspace files.
+                        {t("database.keyring_hint")}
                       </p>
                     </div>
 
                     <div className="flex items-center justify-between rounded-md border border-grid px-3 py-2">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-xs font-medium text-ink">Test before saving</span>
-                        <span className="text-[11px] text-muted">Run a SELECT 1 check against the database first.</span>
+                        <span className="text-xs font-medium text-ink">{t("database.test_first")}</span>
+                        <span className="text-[11px] text-muted">{t("database.test_first_hint")}</span>
                       </div>
                       <Switch
                         isSelected={form.test_first ?? true}
@@ -274,7 +275,7 @@ export default function MySQLConfigModal({
                 <div className="flex items-start gap-2 rounded-lg border border-sage/30 bg-sage/10 p-3">
                   <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-sage" />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-ink">Connection successful</span>
+                    <span className="text-sm font-medium text-ink">{t("database.connected")}</span>
                     <span className="text-[11px] font-mono text-graphite">{result.db_url}</span>
                   </div>
                 </div>
@@ -284,7 +285,7 @@ export default function MySQLConfigModal({
                 <div className="flex items-start gap-2 rounded-lg border border-vermilion/30 bg-vermilion/10 p-3">
                   <AlertCircle className="mt-0.5 size-4 shrink-0 text-vermilion" />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium text-ink">Connection failed</span>
+                    <span className="text-sm font-medium text-ink">{t("database.connection_failed")}</span>
                     <span className="text-[11px] text-graphite">{error}</span>
                   </div>
                 </div>
@@ -299,7 +300,7 @@ export default function MySQLConfigModal({
               isDisabled={busy || !workspace || (engine === "mysql" && !form.db.trim())}
             >
               <Server className="mr-1.5 size-3.5" />
-              {busy ? "Saving…" : engine === "sqlite" ? "Use SQLite" : "Test & Save"}
+              {busy ? t("database.saving") : engine === "sqlite" ? t("database.use_sqlite") : t("database.test_and_save")}
             </Button>
           </Modal.Footer>
         </Modal.Dialog>

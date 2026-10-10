@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Modal } from "@heroui/react";
 import { Download, X } from "lucide-react";
 import { getImageUrl, downloadImage } from "../../api/files";
@@ -16,6 +17,8 @@ export default function ImageLightbox({
   isOpen,
   onClose,
 }: ImageLightboxProps) {
+  const { t } = useTranslation();
+
   useEffect(() => {
     if (!isOpen) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -44,16 +47,16 @@ export default function ImageLightbox({
               type="button"
               onClick={() => downloadImage(fileId, title || fileId)}
               className="flex items-center gap-1.5 rounded-md border border-grid bg-surface/95 px-3 py-1.5 text-xs text-foreground transition-colors hover:text-cobalt focus-cobalt"
-              aria-label="Download image"
+              aria-label={t("tool.image.download_aria")}
             >
               <Download className="h-3.5 w-3.5" />
-              <span>Download</span>
+              <span>{t("common.download")}</span>
             </button>
             <button
               type="button"
               onClick={onClose}
               className="rounded-md border border-grid bg-surface/95 p-1.5 text-foreground transition-colors hover:text-cobalt focus-cobalt"
-              aria-label="Close"
+              aria-label={t("common.close")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -61,7 +64,7 @@ export default function ImageLightbox({
 
           <img
             src={getImageUrl(fileId)}
-            alt={title || "Generated chart"}
+            alt={title || t("tool.image.chart_alt")}
             draggable={false}
             className="max-h-[80vh] max-w-[90vw] rounded-md border border-grid bg-surface object-contain shadow-2xl"
           />
