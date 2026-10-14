@@ -43,7 +43,10 @@ def _make_download(tmp_path: Path) -> tuple:
     async def _save_as(path):
         Path(path).write_bytes(PDF_CONTENT)
 
-    download = _SimpleNamespace(failure=lambda: None, suggested_filename="report.pdf", save_as=_save_as)
+    async def _failure():
+        return None
+
+    download = _SimpleNamespace(failure=_failure, suggested_filename="report.pdf", save_as=_save_as)
     page.expect_download.return_value = _FakeDownloadInfo(download)
     return page, download
 
@@ -127,10 +130,17 @@ async def test_download_succeeds_when_navigation_raises(tmp_path, monkeypatch):
 
 async def test_download_failure_reported(tmp_path, monkeypatch):
     page = _FakePage()
+
+    async def _failure():
+        return "server aborted"
+
+    async def _save_as(path):
+        Path(path).write_bytes(b"")
+
     download = _SimpleNamespace(
-        failure=lambda: "server aborted",
+        failure=_failure,
         suggested_filename="report.pdf",
-        save_as=lambda path: None,
+        save_as=_save_as,
     )
     page.expect_download.return_value = _FakeDownloadInfo(download)
     monkeypatch.setattr(get_manager(), "_page", page)
@@ -147,7 +157,10 @@ async def test_download_exceeds_max_size_removed(tmp_path, monkeypatch):
     async def _save_big(path):
         Path(path).write_bytes(b"x" * (1024 * 1024 + 10))  # > 1MB
 
-    download = _SimpleNamespace(failure=lambda: None, suggested_filename="big.bin", save_as=_save_big)
+    async def _failure():
+        return None
+
+    download = _SimpleNamespace(failure=_failure, suggested_filename="big.bin", save_as=_save_big)
     page.expect_download.return_value = _FakeDownloadInfo(download)
     monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)

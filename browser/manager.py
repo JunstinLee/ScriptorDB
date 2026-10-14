@@ -11,6 +11,7 @@ from pathlib import Path
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
 from browser.downloads import DownloadRecorder
+from browser.login_state import netloc_of
 from browser.refs import invalidate_all, invalidate_page
 from browser.tabs import TabManager
 from browser.takeover import HumanTakeoverManager, HumanTakeoverState, detect_human_needed, detect_timeout_trigger, detect_element_failure_trigger

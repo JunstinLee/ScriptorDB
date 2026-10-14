@@ -117,6 +117,12 @@ class EventTranslator:
                 await self._handle_part_start(event)
             elif isinstance(event, PartDeltaEvent) and isinstance(event.delta, TextPartDelta):
                 await self._handle_text_delta(event.delta)
+            else:
+                # 未识别事件不静默丢弃：warning 留痕（console 侧由
+                # core.logging_setup 的 filter 抑制逐 chunk 刷屏）。
+                logger.warning(
+                    "unhandled run event type %s", type(event).__name__,
+                )
 
     async def _handle_part_start(self, event: PartStartEvent) -> None:
         part = event.part

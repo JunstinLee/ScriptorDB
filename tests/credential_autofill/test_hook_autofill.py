@@ -1,6 +1,6 @@
 """Q1:保存凭证后 autofill 立即填充 —— hook 侧 watcher 填表候选接线。
 
-验证 `takeover_hook._ensure_watcher` 创建的 LoginWatcher:
+验证 `takeover_hook` 经 `LoginFormProbe.ensure_watcher` 创建的 LoginWatcher:
 - 发现登录页 → 触发填表候选 → 调 try_autofill 填表 → 推 login_flow_status;
 - 只填不唤醒:即使填好(configured+fill_ok),也不 set 挂起的 resume_event、
   不 complete takeover —— agent 保持挂起等用户点 Finish(既有接管语义)。
@@ -114,7 +114,7 @@ async def _wait_for(predicate, timeout: float = 3.0) -> None:
 
 
 async def _start_hook_watcher(monkeypatch, ctx, page, status) -> BrowserTakeoverHook:
-    """monkeypatch extract/autofill 后经 hook._ensure_watcher 起真 watcher。"""
+    """monkeypatch extract/autofill 后经 hook._probe.ensure_watcher 起真 watcher。"""
     import browser.login_form as login_form_mod
     import browser.autofill as autofill_mod
 
@@ -127,7 +127,7 @@ async def _start_hook_watcher(monkeypatch, ctx, page, status) -> BrowserTakeover
 
     monkeypatch.setattr(autofill_mod, "try_autofill", _fake_autofill)
     hook = BrowserTakeoverHook()
-    await hook._ensure_watcher(ctx, page)
+    await hook._probe.ensure_watcher(ctx, page)
     return hook
 
 

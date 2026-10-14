@@ -20,16 +20,10 @@ pytestmark = pytest.mark.usefixtures("cleanup_browser")
 class TestBrowserLaunch:
     @pytest.mark.asyncio
     async def test_launch_without_playwright_installed(self):
-        saved = {}
-        for key in list(sys.modules.keys()):
-            if key.startswith("playwright"):
-                saved[key] = sys.modules.pop(key)
-        try:
-            with patch("builtins.__import__", side_effect=ImportError("No module named 'playwright'")):
-                result = await browser_launch(make_ctx())
-                assert "not installed" in result.lower()
-        finally:
-            sys.modules.update(saved)
+        # sys.modules 置 None：import 该子模块即抛 ImportError（模拟未安装）。
+        with patch.dict(sys.modules, {"playwright.async_api": None}):
+            result = await browser_launch(make_ctx())
+            assert "not installed" in result.lower()
 
     @pytest.mark.asyncio
     async def test_launch_already_running(self):
@@ -73,7 +67,9 @@ class TestBrowserNavigate:
         with patch.object(get_manager(), "_page", mock_page):
             result = await browser_navigate(make_ctx(), "http://example.com")
             assert "navigated to" in result.lower()
-            mock_page.goto.assert_awaited_once_with("http://example.com", wait_until="domcontentloaded")
+            mock_page.goto.assert_awaited_once_with(
+                "http://example.com", wait_until="domcontentloaded", timeout=25_000
+            )
 
 
 class TestBrowserGetText:
