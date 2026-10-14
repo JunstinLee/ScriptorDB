@@ -7,7 +7,7 @@ from pydantic_ai.models.test import TestModel as PydanticTestModel
 
 from config.settings import Settings
 from tools.db_tools import get_schema, python_sandbox_execute, query_database
-from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
+from tools.data_tools import list_files, read_file, write_csv, write_file
 from tools.export_tools import export_excel
 from tools.tool_decorators import get_all_tool_defs
 from tools.viz_tools import plot_chart
@@ -22,7 +22,7 @@ def test_agent():
         deps_type=Settings,
         tools=[
             query_database, get_schema,
-            read_csv, write_csv,
+            write_csv,
             read_file, write_file,
             list_files, export_excel, plot_chart,
             python_sandbox_execute,
@@ -34,9 +34,9 @@ def test_agent():
 def test_agent_structure(test_agent):
     assert test_agent.model is not None
     tools_dict = test_agent._function_toolset.tools
-    assert len(tools_dict) == 10
+    assert len(tools_dict) == 9
     expected = {
-        "query_database", "get_schema", "read_csv", "read_file", "list_files",
+        "query_database", "get_schema", "read_file", "list_files",
         "write_csv", "write_file", "export_excel", "python_sandbox_execute", "plot_chart",
     }
     actual = set(tools_dict.keys())

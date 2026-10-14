@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from tools.pdf.service import extract_pdf
-from tools.pdf.tools import read_pdf
+from tools.pdf.tools import _read_pdf
 
 
 def _make_pdf(path: Path, title: str, lines: list[str]) -> Path:
@@ -66,7 +66,7 @@ class TestPdfService:
 class TestPdfTool:
     @pytest.mark.asyncio
     async def test_read_pdf_missing_file(self):
-        result = await read_pdf(_FakeCtx(), "/nonexistent/file.pdf")
+        result = await _read_pdf(_FakeCtx(), "/nonexistent/file.pdf")
         assert result.success is False
         assert result.error is not None
         assert result.error.category == "resource_not_found"
@@ -74,7 +74,7 @@ class TestPdfTool:
     @pytest.mark.asyncio
     async def test_read_pdf_returns_style_consistent(self, sample_pdf: Path):
         ctx = _FakeCtx()
-        result = await read_pdf(ctx, str(sample_pdf))
+        result = await _read_pdf(ctx, str(sample_pdf))
         assert result.success is True
         assert result.output.startswith("Read sample.pdf")
         assert "Hello PDF World" in result.data["text"]

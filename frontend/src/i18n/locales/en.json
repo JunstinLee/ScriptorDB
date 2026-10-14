@@ -15,7 +15,6 @@
       "created_csv": "Created CSV: {filename}",
       "created_file": "Created file: {filename}",
       "exported_excel": "Exported Excel: {filename}",
-      "read_csv": "Read CSV: {filename}",
       "read_file": "Read file: {filename}",
       "listed_directory": "Listed directory: {directory}",
       "queried_database": "Queried database",
