@@ -29,7 +29,6 @@ from tools.browser_tools.dom import (  # noqa: E402
     browser_find,
     browser_read,
 )
-from tools.browser_tools.download import browser_download  # noqa: E402
 from tools.browser_tools.filter_apply import browser_apply_filter  # noqa: E402
 from tools.browser_tools.filter_detect import browser_detect_filters  # noqa: E402
 from tools.browser_tools.links import browser_extract_links  # noqa: E402
@@ -49,7 +48,6 @@ __all__ = [
     "browser_clear_cookies",
     "browser_click",
     "browser_detect_filters",
-    "browser_download",
     "browser_extract_links",
     "browser_extract_table",
     "browser_fill",

@@ -20,7 +20,6 @@ _NETWORK_ACTION_TOOLS = frozenset({
     "browser_navigate",
     "browser_go_back",
     "browser_go_forward",
-    "browser_download",
     "crawl_webpage",
     "download_file",
 })

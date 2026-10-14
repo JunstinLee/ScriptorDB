@@ -1,7 +1,7 @@
 """筛选页拦截：不得用 browser_read 的 js / selector 探测页面结构来构造筛选器。
 
 页面暴露可交互筛选组件时，筛选必须走 detect/apply 管线
-（browser_detect_filters → browser_apply_filter → browser_download）。
+（browser_detect_filters → browser_apply_filter → download_file）。
 browser_read 携带 DOM 结构指纹的 js 脚本被归为「ui-probe」，纯计算 / 读原生
 浏览器状态的脚本由 allowlist 放行。
 """

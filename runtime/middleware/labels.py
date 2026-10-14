@@ -42,7 +42,7 @@ _EMPTY_RESULT_MARKERS = (
 _FILTER_LABEL = (
     "[Middleware] {tool_name} intercepted: the current page exposes filter components. "
     "Filtering must go through the detect/apply pipeline: "
-    "browser_detect_filters → browser_apply_filter → browser_download. "
+    "browser_detect_filters → browser_apply_filter → download_file. "
     "Do not use browser_read to probe page structure to construct filters. "
     "Call browser_detect_filters to obtain the Filter Schema; if the detected capabilities are "
     "insufficient, re-run browser_detect_filters or tell the user the filter cannot be completed."
