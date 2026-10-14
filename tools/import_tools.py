@@ -198,18 +198,41 @@ def _import_csv_to_db_impl(
         return _to_tool_error(e)
 
 
-@db_tool(name="import_csv_to_db", category="write", timeout=60, requires_approval=True, validator=validate_import_args)
-def import_csv_to_db(
+@db_tool(name="import_to_db", category="write", timeout=60, requires_approval=True, validator=validate_import_args)
+def import_to_db(
     ctx: RunContext[Settings],
     filepath: str,
     table_name: str,
+    sheet_name: str | int = 0,
+    header_row: int = 1,
     encoding: str = "utf-8",
     if_exists: str = "fail",
     batch_size: int = 100,
 ) -> ToolResult:
-    """Agent-visible entry point: imports a CSV file into the database."""
-    return _import_csv_to_db_impl(
-        ctx, filepath, table_name, encoding, if_exists, batch_size, None, None
+    """Agent-visible entry point: imports a CSV/TSV or Excel file into the database."""
+    ext = filepath.rsplit(".", 1)[-1].lower() if "." in filepath else ""
+    if ext in {"csv", "tsv"}:
+        return _import_csv_to_db_impl(
+            ctx, filepath, table_name, encoding, if_exists, batch_size, None, None
+        )
+    if ext in {"xlsx", "xls"}:
+        return _import_excel_to_db_impl(
+            ctx,
+            filepath,
+            table_name,
+            sheet_name,
+            header_row,
+            if_exists,
+            batch_size,
+            None,
+            None,
+        )
+    return ToolResult(
+        success=False,
+        error=ToolErrorInfo(
+            category="parameter_error",
+            message=f"Unsupported file extension: '{ext}' (expected .csv, .tsv, .xlsx, .xls)",
+        ),
     )
 
 
@@ -276,27 +299,3 @@ def _import_excel_to_db_impl(
         return _import_rows_to_db(ctx, table_name, headers, rows, if_exists, batch_size)
     except Exception as e:
         return _to_tool_error(e)
-
-
-@db_tool(name="import_excel_to_db", category="write", timeout=60, requires_approval=True, validator=validate_import_args)
-def import_excel_to_db(
-    ctx: RunContext[Settings],
-    filepath: str,
-    table_name: str,
-    sheet_name: str | int = 0,
-    header_row: int = 1,
-    if_exists: str = "fail",
-    batch_size: int = 100,
-) -> ToolResult:
-    """Agent-visible entry point: imports an Excel file into the database."""
-    return _import_excel_to_db_impl(
-        ctx,
-        filepath,
-        table_name,
-        sheet_name,
-        header_row,
-        if_exists,
-        batch_size,
-        None,
-        None,
-    )

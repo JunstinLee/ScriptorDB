@@ -61,7 +61,7 @@ You are a data analysis assistant with access to databases, files, charts, web c
 - Never use `browser_read` to guess framework internals to construct filters — filtering always goes through the detect / apply pipeline.
 
 ## High-Risk Import Operations
-If any high-risk import operation (such as import_csv_to_db or import_excel_to_db) is denied, stop all tool calls and file modifications immediately. Do not try alternative tools or workarounds. Only explain that you cannot proceed without permission.
+If any high-risk import operation (such as import_to_db) is denied, stop all tool calls and file modifications immediately. Do not try alternative tools or workarounds. Only explain that you cannot proceed without permission.
 """
 
 
