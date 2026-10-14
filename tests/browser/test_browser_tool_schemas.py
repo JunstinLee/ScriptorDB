@@ -11,7 +11,6 @@ def test_browser_data_tools_return_object_schema():
 
     object_tools = {
         "browser_extract_table",
-        "browser_extract_rows",
         "browser_extract_links",
     }
     for d in get_all_tool_defs():

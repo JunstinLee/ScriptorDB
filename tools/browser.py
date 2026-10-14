@@ -41,7 +41,7 @@ from tools.browser_tools.navigation import (  # noqa: E402
     browser_load_state,
     browser_navigate,
 )
-from tools.browser_tools.table import browser_extract_rows, browser_extract_table  # noqa: E402
+from tools.browser_tools.table import browser_extract_table  # noqa: E402
 from tools.browser_tools.tabs import browser_get_tabs, browser_switch_tab  # noqa: E402
 
 __all__ = [
@@ -51,7 +51,6 @@ __all__ = [
     "browser_detect_filters",
     "browser_download",
     "browser_extract_links",
-    "browser_extract_rows",
     "browser_extract_table",
     "browser_fill",
     "browser_fill_form",
