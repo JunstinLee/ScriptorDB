@@ -7,13 +7,10 @@ from pydantic_ai import RunContext
 from config.settings import Settings
 from tools.pdf.service import extract_pdf
 from tools.errors import _to_tool_error
-from tools.tool_decorators import db_tool
 from tools.tool_result import ToolErrorInfo, ToolResult
-from tools.validators import validate_file_path
 
 
-@db_tool(name="read_pdf", timeout=60, validator=validate_file_path)
-async def read_pdf(
+async def _read_pdf(
     ctx: RunContext[Settings],
     filepath: str,
     max_chars: int = 50000,

@@ -96,7 +96,7 @@ async def test_mixed_calls_carry_auto_results_in_pending(monkeypatch):
     monkeypatch.setattr("runtime.approval.policy.count_import_rows", lambda _p: 500)
     d = _deferred(
         ToolCallPart(
-            tool_name="import_csv_to_db",
+            tool_name="import_to_db",
             args={"filepath": "x.csv", "table_name": "t"},
             tool_call_id="c1",
         ),

@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-"""PDF tool cluster: tool entry (`read_pdf`), pypdf-backed extraction service.
+"""PDF cluster: pypdf-backed extraction service and the internal read branch.
 
-Implementation lives in `tools.pdf.tools` and `tools.pdf.service`. Importing
-this package registers the `read_pdf` tool.
+Implementation lives in `tools.pdf.tools` (`_read_pdf`, called by the unified
+`read_file`) and `tools.pdf.service` (`extract_pdf`).
 """
 
 from tools.pdf.service import MAX_TEXT_LENGTH, extract_pdf  # noqa: F401
-from tools.pdf.tools import read_pdf  # noqa: F401
 
-__all__ = ["MAX_TEXT_LENGTH", "extract_pdf", "read_pdf"]
+__all__ = ["MAX_TEXT_LENGTH", "extract_pdf"]

@@ -7,58 +7,58 @@ from pydantic_ai.models.test import TestModel as PydanticTestModel
 from pydantic_ai.usage import RunUsage
 
 from config.settings import Settings
-from tools.data_tools import list_files, read_csv, read_file, write_csv, write_file
+from tools.data_tools import list_files, read_file, write_csv, write_file
 
 from tests.support.ctx import make_ctx
 
 
 class TestReadCsv:
-    def test_read_csv_basic(self, tmp_path):
+    async def test_read_csv_basic(self, tmp_path):
         ctx = make_ctx()
         filepath = tmp_path / "test.csv"
         filepath.write_text("name,age\nAlice,30\nBob,25\n", encoding="utf-8")
 
-        result = read_csv(ctx, str(filepath))
+        result = await read_file(ctx, str(filepath))
         assert result.success
         assert result.data is not None
         assert result.data["columns"] == ["name", "age"]
         assert result.data["rows"] == 2
         assert len(result.data["preview"]) == 2
 
-    def test_read_csv_not_found(self):
+    async def test_read_csv_not_found(self):
         ctx = make_ctx()
-        result = read_csv(ctx, "/nonexistent/file.csv")
+        result = await read_file(ctx, "/nonexistent/file.csv")
         assert not result.success
         assert result.error is not None
         assert result.error.category == "resource_not_found"
 
-    def test_read_csv_empty(self, tmp_path):
+    async def test_read_csv_empty(self, tmp_path):
         ctx = make_ctx()
         filepath = tmp_path / "empty.csv"
         filepath.write_text("name,age\n", encoding="utf-8")
 
-        result = read_csv(ctx, str(filepath))
+        result = await read_file(ctx, str(filepath))
         assert result.success
         assert result.data is not None
         assert result.data["rows"] == 0
 
-    def test_read_csv_return_full(self, tmp_path):
+    async def test_read_csv_return_full(self, tmp_path):
         ctx = make_ctx()
         filepath = tmp_path / "full.csv"
         filepath.write_text("a,b\n1,2\n3,4\n5,6\n", encoding="utf-8")
 
-        result = read_csv(ctx, str(filepath), return_full=True)
+        result = await read_file(ctx, str(filepath), return_full=True)
         assert result.success
         assert result.data is not None
         assert result.data["data"] == [["1", "2"], ["3", "4"], ["5", "6"]]
         assert result.data["truncated"] is False
 
-    def test_read_csv_return_full_max_rows(self, tmp_path):
+    async def test_read_csv_return_full_max_rows(self, tmp_path):
         ctx = make_ctx()
         filepath = tmp_path / "full.csv"
         filepath.write_text("a,b\n1,2\n3,4\n5,6\n", encoding="utf-8")
 
-        result = read_csv(ctx, str(filepath), return_full=True, max_rows=2)
+        result = await read_file(ctx, str(filepath), return_full=True, max_rows=2)
         assert result.success
         assert result.data is not None
         assert len(result.data["data"]) == 2
@@ -84,41 +84,41 @@ class TestWriteCsv:
 
 
 class TestReadFile:
-    def test_read_text_file(self, tmp_path):
+    async def test_read_text_file(self, tmp_path):
         ctx = make_ctx()
         filepath = tmp_path / "hello.txt"
         filepath.write_text("Hello World", encoding="utf-8")
 
-        result = read_file(ctx, str(filepath))
+        result = await read_file(ctx, str(filepath))
         assert result.success
         assert result.data is not None
         assert result.data["content"] == "Hello World"
 
-    def test_read_json_file(self, tmp_path):
+    async def test_read_json_file(self, tmp_path):
         ctx = make_ctx()
         filepath = tmp_path / "config.json"
         data = {"key": "value", "num": 42}
         filepath.write_text(json.dumps(data), encoding="utf-8")
 
-        result = read_file(ctx, str(filepath))
+        result = await read_file(ctx, str(filepath))
         assert result.success
         assert result.data is not None
         assert result.data.get("parsed") is True
         assert result.data.get("json_keys") == ["key", "num"]
 
-    def test_read_file_not_found(self):
+    async def test_read_file_not_found(self):
         ctx = make_ctx()
-        result = read_file(ctx, "/nonexistent/file.txt")
+        result = await read_file(ctx, "/nonexistent/file.txt")
         assert not result.success
         assert result.error is not None
         assert result.error.category == "resource_not_found"
 
-    def test_read_file_truncated(self, tmp_path):
+    async def test_read_file_truncated(self, tmp_path):
         ctx = make_ctx()
         filepath = tmp_path / "large.txt"
         filepath.write_text("x" * 2000, encoding="utf-8")
 
-        result = read_file(ctx, str(filepath), max_size_kb=1)
+        result = await read_file(ctx, str(filepath), max_size_kb=1)
         assert result.success
         assert result.data is not None
         assert result.data["truncated"] is True

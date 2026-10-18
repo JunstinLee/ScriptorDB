@@ -113,7 +113,7 @@ def write_data(
         raise ModelRetry(
             "Batch data insertion detected. "
             "When importing bulk data from files (CSV, Excel), "
-            "use import_csv_to_db or import_excel_to_db instead of write_data."
+            "use import_to_db instead of write_data."
         )
 
     repo = DatabaseRepository(ctx.deps.db_url, ctx.deps.workspace_id or "")

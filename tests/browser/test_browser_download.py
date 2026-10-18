@@ -8,7 +8,7 @@ import pytest
 
 from browser import get_manager
 from tests.support.ctx import make_ctx
-from tools.browser import browser_download
+from tools.download.tools import download_file
 from tools.download import manifest as download_manifest
 
 pytestmark = pytest.mark.usefixtures("cleanup_browser")
@@ -58,19 +58,19 @@ def _workspace_ctx(tmp_path):
 
 
 async def test_missing_target_returns_usage():
-    result = await browser_download(make_ctx())
+    result = await download_file(make_ctx(), use_browser=True)
     assert "requires a url or a selector" in result
 
 
 async def test_browser_not_launched():
-    result = await browser_download(make_ctx(), url="https://example.com/file.pdf")
+    result = await download_file(make_ctx(), url="https://example.com/file.pdf", use_browser=True)
     assert "Browser not launched" in result
 
 
 async def test_no_workspace(tmp_path, monkeypatch):
     page, _ = _make_download(tmp_path)
     monkeypatch.setattr(get_manager(), "_page", page)
-    result = await browser_download(make_ctx(), url="https://example.com/file.pdf")
+    result = await download_file(make_ctx(), url="https://example.com/file.pdf", use_browser=True)
     assert "no active workspace" in result
 
 
@@ -79,7 +79,7 @@ async def test_download_success_by_url(tmp_path, monkeypatch):
     monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
-    result = await browser_download(ctx, url="https://example.com/report.pdf")
+    result = await download_file(ctx, url="https://example.com/report.pdf", use_browser=True)
 
     assert "Download successful" in result
     saved = tmp_path / ".scriptordb" / "outputs" / "report.pdf"
@@ -101,7 +101,7 @@ async def test_download_success_by_selector(tmp_path, monkeypatch):
     monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
-    result = await browser_download(ctx, selector="#download-btn")
+    result = await download_file(ctx, selector="#download-btn", use_browser=True)
 
     assert "Download successful" in result
     page.click.assert_awaited_once_with("#download-btn")
@@ -122,7 +122,7 @@ async def test_download_succeeds_when_navigation_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
-    result = await browser_download(ctx, url="https://example.com/report.pdf")
+    result = await download_file(ctx, url="https://example.com/report.pdf", use_browser=True)
 
     assert "Download successful" in result
     assert (tmp_path / ".scriptordb" / "outputs" / "report.pdf").exists()
@@ -146,7 +146,7 @@ async def test_download_failure_reported(tmp_path, monkeypatch):
     monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
-    result = await browser_download(ctx, url="https://example.com/report.pdf")
+    result = await download_file(ctx, url="https://example.com/report.pdf", use_browser=True)
 
     assert "Download failed: server aborted" in result
 
@@ -165,7 +165,7 @@ async def test_download_exceeds_max_size_removed(tmp_path, monkeypatch):
     monkeypatch.setattr(get_manager(), "_page", page)
     ctx = _workspace_ctx(tmp_path)
 
-    result = await browser_download(ctx, url="https://example.com/big.bin", max_size_mb=1)
+    result = await download_file(ctx, url="https://example.com/big.bin", max_size_mb=1, use_browser=True)
 
     assert "exceeds the 1MB size limit" in result
     assert not (tmp_path / ".scriptordb" / "outputs" / "big.bin").exists()

@@ -200,6 +200,8 @@ def _empty_result(max_pages: int = 1) -> dict:
 @db_tool(name="browser_extract_table", category="browser", timeout=60, sequential=False)
 async def browser_extract_table(
     ctx: RunContext[Settings],
+    row_selector: str = "",
+    fields: str = "",
     wait_for_selector: str = "",
     pagination_next_selector: str = "",
     max_pages: int = 1,
@@ -207,20 +209,34 @@ async def browser_extract_table(
     max_rows: int = 500,
     min_text: int = 30,
     link_pattern: str = "",
+    require_date_token: bool = False,
 ) -> dict:
-    """Extract structured rows from the rendered page, auto-discovering the rows (final JSON result).
+    """Extract structured rows from the rendered page (final JSON result).
 
-    The tool locates the row containers itself: each document link is walked up to its
-    first ancestor whose text is long enough and contains a date, then each row returns
-    {text: the row's innerText, links: document hrefs inside the row}. Blank rows are
-    filtered out before the result is reported. No CSS selectors or flags are needed —
-    the tool decides, not you.
+    By default the tool auto-discovers the row containers itself: each document link is
+    walked up to its first ancestor whose text is long enough and contains a date, then
+    each row returns {text: the row's innerText, links: document hrefs inside the row}.
+    Blank rows are filtered out before the result is reported. No CSS selectors or flags
+    are needed — the tool decides, not you.
+
+    For unusual page structures where the auto-derived rows are missing or wrong, pass an
+    explicit `row_selector` (plus an optional `fields` mapping) to control the row
+    containers and the per-row fields directly.
 
     The result is the final, directly presentable data (total/pages/truncated/rows).
     The returned rows are already cleaned and structured — no further parsing,
     transformation, or computation is needed; answer the user based on them directly.
 
     Parameters:
+    - row_selector: CSS selector for each row container. Leave empty (or "auto") to
+      auto-discover rows; when set, extraction uses the explicit path and rows shorter
+      than `min_text` are grown upward to their parent container;
+    - fields: JSON field mapping, consumed only on the explicit path, format:
+        {"date": {"selector": ".date"}, "pdf": {"selector": "a[href$='.pdf']", "attribute": "href"}}
+      attribute values: text (default), href (resolved to absolute URL), or any HTML attribute name;
+      "all": true collects all matches for that field as an array. When left empty, each row
+      returns {text: the row's innerText, links: document hrefs inside the row};
+    - require_date_token: explicit path only — require a date token in each row (default off);
     - wait_for_selector: wait for this CSS selector before extracting (dynamically rendered pages);
     - pagination_next_selector: the "next page" selector of the site pager (auto-detects when
       left empty); with max_pages>1 it clicks through pages and merges rows from all pages;
@@ -238,18 +254,32 @@ async def browser_extract_table(
         return {"error": blocked}
 
     pattern = link_pattern.strip() or _DEFAULT_LINK_PATTERN
+    explicit = bool(row_selector.strip()) and row_selector.strip().lower() != "auto"
+    action = "extract_rows" if explicit else "extract_table"
+
+    if explicit:
+        parsed_fields = _parse_fields(fields)
+        if parsed_fields is None:
+            return {"error": "Invalid fields: expected a non-empty JSON object like {\"date\": {\"selector\": \".date\"}, \"pdf\": {\"selector\": \"a[href$='.pdf']\", \"attribute\": \"href\"}}"}
+    else:
+        parsed_fields = _DEFAULT_FIELDS
+
     try:
         if wait_for_selector:
             await page_obj.wait_for_selector(wait_for_selector, timeout=10000)
 
-        probe = await _extract_rows_from_page(
-            page_obj, "auto", _DEFAULT_FIELDS, max(min_text, 0), pattern, True
-        )
-        require_date = bool(probe)
+        if explicit:
+            require_date = bool(require_date_token)
+        else:
+            probe = await _extract_rows_from_page(
+                page_obj, "auto", _DEFAULT_FIELDS, max(min_text, 0), pattern, True
+            )
+            require_date = bool(probe)
+
         rows = await _extract_rows_across_site_pages(
             page_obj,
-            "auto",
-            _DEFAULT_FIELDS,
+            row_selector.strip() if explicit else "auto",
+            parsed_fields,
             pagination_next_selector,
             max(max_pages, 1),
             max(page_settle_ms, 0),
@@ -258,79 +288,12 @@ async def browser_extract_table(
             require_date,
         )
     except Exception as e:
-        manager.record_action("extract_table", f"error: {e}", success=False)
-        return {"error": f"Table extraction failed: {e}"}
+        manager.record_action(action, f"error: {e}", success=False)
+        failure = "Row extraction failed" if explicit else "Table extraction failed"
+        return {"error": f"{failure}: {e}"}
 
     rows = _filter_blank_rows(rows)
-    manager.record_action("extract_table", f"{len(rows)} rows")
-    if not rows:
-        return _empty_result(max_pages)
-    return _format_result(rows, max_pages, max_rows)
-
-
-@db_tool(name="browser_extract_rows", category="browser", timeout=60, sequential=False, defer_loading=True)
-async def browser_extract_rows(
-    ctx: RunContext[Settings],
-    row_selector: str,
-    fields: str = "",
-    wait_for_selector: str = "",
-    pagination_next_selector: str = "",
-    max_pages: int = 1,
-    page_settle_ms: int = 800,
-    max_rows: int = 500,
-    min_text: int = 30,
-    link_pattern: str = "",
-    require_date_token: bool = False,
-) -> dict:
-    """Extract structured rows using an explicit CSS row selector and field mapping (advanced).
-
-    Use this only when `browser_extract_table` returns no or wrong rows for an unusual
-    page structure. Returns the final JSON data (total/pages/truncated/rows); the returned
-    rows are already cleaned and structured — no further parsing, transformation, or
-    computation is needed.
-
-    Parameters:
-    - row_selector: CSS selector for each row container (required). Rows shorter than
-      `min_text` are automatically grown upward to their parent container;
-    - fields: JSON field mapping, format:
-        {"date": {"selector": ".date"}, "pdf": {"selector": "a[href$='.pdf']", "attribute": "href"}}
-      attribute values: text (default), href (resolved to absolute URL), or any HTML attribute name;
-      "all": true collects all matches for that field as an array.
-      When left empty, each row returns {text: the row's innerText, links: document hrefs inside the row}.
-    - wait_for_selector / pagination_next_selector / page_settle_ms / max_rows / min_text /
-      link_pattern / require_date_token: same meaning as in `browser_extract_table`.
-    """
-    manager, page_obj = _require_browser()
-    if page_obj is None:
-        return {"error": "Browser not launched. Please call browser_launch first."}
-    if blocked := _check_blocked(manager):
-        return {"error": blocked}
-
-    parsed_fields = _parse_fields(fields)
-    if parsed_fields is None:
-        return {"error": "Invalid fields: expected a non-empty JSON object like {\"date\": {\"selector\": \".date\"}, \"pdf\": {\"selector\": \"a[href$='.pdf']\", \"attribute\": \"href\"}}"}
-
-    pattern = link_pattern.strip() or _DEFAULT_LINK_PATTERN
-    try:
-        if wait_for_selector:
-            await page_obj.wait_for_selector(wait_for_selector, timeout=10000)
-        rows = await _extract_rows_across_site_pages(
-            page_obj,
-            row_selector.strip(),
-            parsed_fields,
-            pagination_next_selector,
-            max(max_pages, 1),
-            max(page_settle_ms, 0),
-            max(min_text, 0),
-            pattern,
-            bool(require_date_token),
-        )
-    except Exception as e:
-        manager.record_action("extract_rows", f"error: {e}", success=False)
-        return {"error": f"Row extraction failed: {e}"}
-
-    rows = _filter_blank_rows(rows)
-    manager.record_action("extract_rows", f"{len(rows)} rows")
+    manager.record_action(action, f"{len(rows)} rows")
     if not rows:
         return _empty_result(max_pages)
     return _format_result(rows, max_pages, max_rows)

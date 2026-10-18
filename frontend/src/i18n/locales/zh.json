@@ -15,7 +15,6 @@
       "created_csv": "已创建 CSV：{filename}",
       "created_file": "已创建文件：{filename}",
       "exported_excel": "已导出 Excel：{filename}",
-      "read_csv": "已读取 CSV：{filename}",
       "read_file": "已读取文件：{filename}",
       "listed_directory": "已列出目录：{directory}",
       "queried_database": "已查询数据库",

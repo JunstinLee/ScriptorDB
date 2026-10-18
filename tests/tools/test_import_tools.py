@@ -7,8 +7,7 @@ from database.repository import DatabaseRepository
 from tools.import_tools import (
     _import_csv_to_db_impl,
     _import_excel_to_db_impl,
-    import_csv_to_db,
-    import_excel_to_db,
+    import_to_db,
 )
 
 from tests.support.ctx import make_ctx, write_xlsx
@@ -39,7 +38,7 @@ class TestImportCsvToDb:
         filepath = tmp_path / "data.csv"
         filepath.write_text("name,age\nAlice,30\nBob,25\n", encoding="utf-8")
 
-        result = import_csv_to_db(ctx, str(filepath), "csv_basic")
+        result = import_to_db(ctx, str(filepath), "csv_basic")
         assert result.success
         assert result.data is not None
         assert result.data["rows_imported"] == 2
@@ -54,7 +53,7 @@ class TestImportCsvToDb:
         lines = ["name,age"] + [f"User{i},{i}" for i in range(5)]
         filepath.write_text("\n".join(lines), encoding="utf-8")
 
-        result = import_csv_to_db(ctx, str(filepath), "csv_batches", batch_size=2)
+        result = import_to_db(ctx, str(filepath), "csv_batches", batch_size=2)
         assert result.success
         assert result.data is not None
         assert result.data["rows_imported"] == 5
@@ -67,11 +66,11 @@ class TestImportCsvToDb:
         filepath = tmp_path / "data.csv"
         filepath.write_text("name,age\nAlice,30\n", encoding="utf-8")
 
-        result1 = import_csv_to_db(ctx, str(filepath), "csv_replace", if_exists="replace")
+        result1 = import_to_db(ctx, str(filepath), "csv_replace", if_exists="replace")
         assert result1.success
 
         filepath.write_text("name,age\nBob,25\n", encoding="utf-8")
-        result2 = import_csv_to_db(ctx, str(filepath), "csv_replace", if_exists="replace")
+        result2 = import_to_db(ctx, str(filepath), "csv_replace", if_exists="replace")
         assert result2.success
 
         columns, rows = _query_data_columns(ctx.deps.db_url, "csv_replace")
@@ -105,7 +104,7 @@ class TestImportCsvToDb:
 
     def test_import_csv_file_not_found(self):
         ctx = make_ctx()
-        result = import_csv_to_db(ctx, "/nonexistent/data.csv", "missing")
+        result = import_to_db(ctx, "/nonexistent/data.csv", "missing")
         assert not result.success
         assert result.error is not None
         assert result.error.category == "resource_not_found"
@@ -117,7 +116,7 @@ class TestImportExcelToDb:
         filepath = tmp_path / "data.xlsx"
         write_xlsx(filepath, "People", [["name", "age"], ["Alice", 30], ["Bob", 25]])
 
-        result = import_excel_to_db(ctx, str(filepath), "excel_basic")
+        result = import_to_db(ctx, str(filepath), "excel_basic")
         assert result.success
         assert result.data is not None
         assert result.data["rows_imported"] == 2
@@ -161,6 +160,6 @@ class TestImportExcelToDb:
         filepath = tmp_path / "data.xlsx"
         write_xlsx(filepath, "People", [["a"], [1]])
 
-        result = import_excel_to_db(ctx, str(filepath), "excel_missing", sheet_name="Missing")
+        result = import_to_db(ctx, str(filepath), "excel_missing", sheet_name="Missing")
         assert not result.success
         assert result.error is not None

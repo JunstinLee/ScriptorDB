@@ -28,8 +28,7 @@ LOW_RISK_WRITE_TOOLS = frozenset({
 })
 
 HIGH_RISK_IMPORT_TOOLS = frozenset({
-    "import_csv_to_db",
-    "import_excel_to_db",
+    "import_to_db",
 })
 
 HUMAN_APPROVAL_TOOLS = frozenset()
