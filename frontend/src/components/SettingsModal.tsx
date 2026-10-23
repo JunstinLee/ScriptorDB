@@ -67,56 +67,57 @@ export default function SettingsModal({
   return (
     <Modal.Backdrop isOpen={isOpen} onOpenChange={onOpenChange}>
       <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog className="sm:max-w-160 max-h-[85vh] min-w-120 min-h-90 bg-surface">
+        <Modal.Dialog className="h-120 w-full max-h-[85vh] bg-surface sm:w-187.5 sm:max-w-187.5">
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
-              <SettingsIcon className="size-5" />
-            </Modal.Icon>
-            <Modal.Heading>{t("settings.title")}</Modal.Heading>
+            <Modal.Heading className="pl-3">{t("settings.title")}</Modal.Heading>
           </Modal.Header>
           <Modal.Body>
             {error && <AlertBanner variant="error" message={error} />}
             {loading || !settings ? (
-              <div className="flex items-center justify-center py-12 text-sm text-muted">
+              <div className="flex h-full items-center justify-center text-sm text-muted">
                 {t("settings.loading")}
               </div>
             ) : (
-              <Tabs className="w-full" defaultSelectedKey="workspaces">
-                <Tabs.ListContainer>
+              <Tabs
+                orientation="vertical"
+                className="h-full w-full"
+                defaultSelectedKey="workspaces"
+              >
+                <Tabs.ListContainer className="h-full w-37.5 shrink-0 bg-surface">
                   <Tabs.List
                     aria-label={t("settings.title")}
-                    className="w-fit *:h-9 *:w-fit *:px-3 *:text-[11px] *:font-semibold *:uppercase *:tracking-wider"
+                    className="w-full bg-surface *:h-9 *:w-full *:justify-start *:px-3 *:text-start *:text-[11px] *:font-semibold *:uppercase *:tracking-wider *:text-graphite *:data-[selected=true]:text-foreground"
                   >
                     <Tabs.Tab id="workspaces">
                       <Folder className="mr-1.5 inline size-3.5 text-graphite" />
                       {t("settings.tab.workspaces")}
-                      <Tabs.Indicator className="bg-cobalt" />
+                      <Tabs.Indicator className="bg-foreground/5" />
                     </Tabs.Tab>
                     <Tabs.Tab id="sessions">
                       <MessageSquare className="mr-1.5 inline size-3.5 text-graphite" />
                       {t("settings.tab.sessions")}
-                      <Tabs.Indicator className="bg-cobalt" />
+                      <Tabs.Indicator className="bg-foreground/5" />
                     </Tabs.Tab>
                     <Tabs.Tab id="language">
                       <Languages className="mr-1.5 inline size-3.5 text-graphite" />
                       {t("settings.tab.language")}
-                      <Tabs.Indicator className="bg-cobalt" />
+                      <Tabs.Indicator className="bg-foreground/5" />
                     </Tabs.Tab>
                     <Tabs.Tab id="apikeys">
                       <Key className="mr-1.5 inline size-3.5 text-graphite" />
                       {t("settings.tab.api_keys")}
-                      <Tabs.Indicator className="bg-cobalt" />
+                      <Tabs.Indicator className="bg-foreground/5" />
                     </Tabs.Tab>
                     <Tabs.Tab id="defaults">
                       <SettingsIcon className="mr-1.5 inline size-3.5 text-graphite" />
                       {t("settings.tab.defaults")}
-                      <Tabs.Indicator className="bg-cobalt" />
+                      <Tabs.Indicator className="bg-foreground/5" />
                     </Tabs.Tab>
                   </Tabs.List>
                 </Tabs.ListContainer>
 
-                <Tabs.Panel className="pt-4" id="workspaces">
+                <Tabs.Panel className="min-w-0 flex-1 overflow-y-auto" id="workspaces">
                   <WorkspacesTab
                     activeWorkspace={activeWorkspace}
                     workspacesCount={workspacesCount}
@@ -124,7 +125,7 @@ export default function SettingsModal({
                     onWorkspaceChanged={onWorkspaceChanged}
                   />
                 </Tabs.Panel>
-                <Tabs.Panel className="pt-4" id="sessions">
+                <Tabs.Panel className="min-w-0 flex-1 overflow-y-auto" id="sessions">
                   <SessionsTab
                     settings={settings}
                     onSettingsChange={setSettings}
@@ -134,19 +135,19 @@ export default function SettingsModal({
                     setShowSchemaSql={setShowSchemaSql}
                   />
                 </Tabs.Panel>
-                <Tabs.Panel className="pt-4" id="language">
+                <Tabs.Panel className="min-w-0 flex-1 overflow-y-auto" id="language">
                   <LanguageTab
                     settings={settings}
                     onSettingsChange={setSettings}
                   />
                 </Tabs.Panel>
-                <Tabs.Panel className="pt-4" id="apikeys">
+                <Tabs.Panel className="min-w-0 flex-1 overflow-y-auto" id="apikeys">
                   <ApiKeysTab
                     settings={settings}
                     onSettingsChange={setSettings}
                   />
                 </Tabs.Panel>
-                <Tabs.Panel className="pt-4" id="defaults">
+                <Tabs.Panel className="min-w-0 flex-1 overflow-y-auto" id="defaults">
                   <DefaultsTab
                     settings={settings}
                     onSettingsChange={setSettings}
