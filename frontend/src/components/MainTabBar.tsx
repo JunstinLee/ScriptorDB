@@ -1,4 +1,3 @@
-import { Monitor, MessageSquare } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface MainTabBarProps {
@@ -24,7 +23,6 @@ export default function MainTabBar({
             : "border-transparent text-muted hover:text-foreground"
         }`}
       >
-        <MessageSquare className="size-3.5" />
         {t("app.tab.chat")}
       </button>
 
@@ -36,7 +34,6 @@ export default function MainTabBar({
             : "border-transparent text-muted hover:text-foreground"
         }`}
       >
-        <Monitor className="size-3.5" />
         {t("app.tab.browser")}
         {browserLoading && (
           <span className="ml-0.5 size-1.5 rounded-full bg-accent" />

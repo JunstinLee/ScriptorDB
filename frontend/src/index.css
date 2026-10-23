@@ -156,6 +156,12 @@ body,
     transition: none;
   }
 
+  /* 状态提示的脉动/跳动属于氛围动效：系统要求减弱时停下来，文案仍在 */
+  .animate-pulse,
+  .animate-bounce {
+    animation: none;
+  }
+
   .message-enter {
     opacity: 1;
     transform: none;

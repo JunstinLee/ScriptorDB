@@ -1,34 +1,24 @@
-import { Spinner } from "@heroui/react";
-import { useTranslation } from "react-i18next";
-import { Search, Loader2 } from "lucide-react";
 import type { Run } from "../types";
 import MarkdownRenderer from "./common/MarkdownRenderer";
 import ImageArtifact from "./common/ImageArtifact";
 import RateLimitNotice from "./common/RateLimitNotice";
+import RunStatus from "./common/RunStatus";
 
 interface RunContainerProps {
   run: Run;
 }
 
 export default function RunContainer({ run }: RunContainerProps) {
-  const { t } = useTranslation();
   const isRunning = run.status === "running";
-  const hasRunningTool = run.tool_invocations.some(
-    (inv) => inv.status === "running",
-  );
-  const hasRunningCrawl = run.tool_invocations.some(
-    (inv) => inv.status === "running" && inv.tool_name === "crawl_webpage",
-  );
-  const hasRunningOtherTool = run.tool_invocations.some(
-    (inv) => inv.status === "running" && inv.tool_name !== "crawl_webpage",
-  );
+  const runningTools = run.tool_invocations.filter((inv) => inv.status === "running");
+  const hasRunningCrawl = runningTools.some((inv) => inv.tool_name === "crawl_webpage");
+  const firstRunningTool = runningTools.find((inv) => inv.tool_name !== "crawl_webpage");
 
   console.log(
-    "[RunContainer] run_id=%s status=%s isRunning=%s hasRunningTool=%s tools=%s",
+    "[RunContainer] run_id=%s status=%s isRunning=%s tools=%s",
     run.run_id,
     run.status,
     isRunning,
-    hasRunningTool,
     run.tool_invocations
       .map((inv) => inv.call_id + ":" + inv.status + ":" + inv.tool_name)
       .join(", "),
@@ -83,31 +73,10 @@ export default function RunContainer({ run }: RunContainerProps) {
 
       {isRunning && (
         <div className="px-4 py-3">
-          <div className="flex items-center gap-2 text-sm text-graphite">
-            {hasRunningCrawl ? (
-              <>
-                <Search className="h-4 w-4 text-cobalt animate-pulse" />
-                <span>{t("chat.fetching_web_page")}</span>
-              </>
-            ) : hasRunningOtherTool ? (
-              <>
-                <Loader2
-                  className="h-4 w-4 text-cobalt animate-spin"
-                  aria-label={t("chat.calling_tools_aria")}
-                />
-                <span>{t("chat.calling_tools")}</span>
-              </>
-            ) : (
-              <>
-                <Spinner
-                  size="sm"
-                  className="text-cobalt"
-                  aria-label={t("chat.working_aria")}
-                />
-                <span>{t("chat.assistant_working")}</span>
-              </>
-            )}
-          </div>
+          <RunStatus
+            variant={hasRunningCrawl ? "crawl" : firstRunningTool ? "tools" : "thinking"}
+            toolName={firstRunningTool?.tool_name}
+          />
         </div>
       )}
     </div>

@@ -4,6 +4,7 @@ import { Search, Sparkles, Undo2, User, Wrench } from "lucide-react";
 import type { ChatMessage, Run, UndoGroup } from "../types";
 import RunContainer from "./RunContainer";
 import MarkdownRenderer from "./common/MarkdownRenderer";
+import RunStatus from "./common/RunStatus";
 
 interface ChatMessagesProps {
   messages: ChatMessage[];
@@ -13,6 +14,19 @@ interface ChatMessagesProps {
   onRevertToHere: (groupId: number) => void;
   onHighlightRun: (runId: string) => void;
 }
+
+type Role = "user" | "assistant";
+
+/**
+ * 一次渲染里可能出现的块。先摊平成列表再渲染，
+ * 角色标签就能按「上一条是不是同一角色」决定是否出现，不用在 JSX 里记状态。
+ */
+type ChatEntry =
+  | { kind: "user"; key: string; role: "user"; message: ChatMessage }
+  | { kind: "run"; key: string; role: "assistant"; run: Run }
+  | { kind: "text"; key: string; role: "assistant"; message: ChatMessage }
+  | { kind: "pending"; key: string; role: "assistant"; run: Run }
+  | { kind: "status"; key: string; role: "assistant" };
 
 export default function ChatMessages({
   messages,
@@ -31,28 +45,74 @@ export default function ChatMessages({
 
   if (messages.length === 0 && runs.length === 0) return null;
 
-  let runIndex = 0;
-
   const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
   const crawlNotCompleted = !runs.some((run) =>
     run.tool_invocations.some(
-      (t) => t.tool_name === "crawl_webpage" && (t.status === "success" || t.status === "error"),
+      (inv) =>
+        inv.tool_name === "crawl_webpage" &&
+        (inv.status === "success" || inv.status === "error"),
     ),
   );
   const isCrawling = lastUserMsg?.crawl_url != null && crawlNotCompleted;
 
+  const entries: ChatEntry[] = [];
+  let runIndex = 0;
+
+  messages.forEach((msg, i) => {
+    if (msg.role === "user") {
+      entries.push({ kind: "user", key: `msg-${i}`, role: "user", message: msg });
+      return;
+    }
+    const run = runs[runIndex++];
+    if (run) {
+      entries.push({ kind: "run", key: `run-${run.run_id}`, role: "assistant", run });
+    } else {
+      entries.push({ kind: "text", key: `msg-${i}`, role: "assistant", message: msg });
+    }
+  });
+
+  if (isLoading) {
+    runs.slice(runIndex).forEach((run) => {
+      entries.push({
+        kind: "pending",
+        key: `pending-${run.run_id}`,
+        role: "assistant",
+        run,
+      });
+    });
+    if (!runs.some((r) => r.status === "running")) {
+      entries.push({ kind: "status", key: "status", role: "assistant" });
+    }
+  }
+
+  // 角色标签只在角色切换时出现一次，而不是每个块都重复
+  const rows = entries.map((entry, idx) => ({
+    entry,
+    showRoleLabel: idx === 0 || entries[idx - 1].role !== entry.role,
+  }));
+
+  const roleLabel = (role: Role) => {
+    const Icon = role === "user" ? User : Sparkles;
+    return (
+      <div className="flex items-center gap-1.5 text-graphite">
+        <Icon className="h-3 w-3" />
+        <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
+          {role === "user" ? t("chat.role.you") : t("chat.role.assistant")}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div className="px-4 py-4 space-y-4">
-      {messages.map((msg, i) => {
-        if (msg.role === "user") {
+      {rows.map(({ entry, showRoleLabel }) => {
+        const label = showRoleLabel ? roleLabel(entry.role) : null;
+
+        if (entry.kind === "user") {
+          const msg = entry.message;
           return (
-            <div key={`msg-${i}`} className="flex flex-col gap-1.5 message-enter">
-              <div className="flex items-center gap-1.5 text-graphite">
-                <User className="h-3 w-3" />
-                <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-                  {t("chat.role.you")}
-                </span>
-              </div>
+            <div key={entry.key} className="flex flex-col gap-1.5 message-enter">
+              {label}
               <div className="border-l-[3px] border-l-amber bg-amber/8 px-3 py-2 space-y-2">
                 {msg.attachments && msg.attachments.length > 0 && (
                   <div className="flex flex-wrap gap-2">
@@ -86,129 +146,72 @@ export default function ChatMessages({
           );
         }
 
-        const run = runs[runIndex++];
-        if (run) {
-          const undoGroup = undoGroups.find(
-            (g) => g.run_id === run.run_id && g.status === "completed",
-          );
+        if (entry.kind === "run" || entry.kind === "pending") {
+          const run = entry.run;
+          const undoGroup =
+            entry.kind === "run"
+              ? undoGroups.find(
+                  (g) => g.run_id === run.run_id && g.status === "completed",
+                )
+              : undefined;
           return (
-            <div key={`run-${run.run_id}`} className="flex flex-col gap-1.5 message-enter">
-              <div className="flex items-center gap-1.5 text-graphite">
-                <Sparkles className="h-3 w-3" />
-                <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-                  {t("chat.role.assistant")}
-                </span>
-              </div>
-              <div className="rounded-lg border border-grid bg-surface overflow-hidden transform-gpu">
+            <div key={entry.key} className="flex flex-col gap-1.5 message-enter">
+              {label}
+              <div className="rounded-lg border border-grid bg-surface overflow-hidden">
                 <RunContainer run={run} />
               </div>
-              <div className="flex justify-end gap-1">
-                <button
-                  type="button"
-                  onClick={() => onHighlightRun(run.run_id)}
-                  disabled={run.tool_invocations.length === 0}
-                  title={
-                    run.tool_invocations.length === 0
-                      ? t("chat.no_tools_to_highlight")
-                      : t("chat.highlight_in_tool_panel")
-                  }
-                  className="rounded-md p-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-graphite disabled:hover:bg-transparent"
-                >
-                  <Wrench className="h-3.5 w-3.5" />
-                </button>
-                {undoGroup ? (
+              {entry.kind === "run" && (
+                <div className="flex justify-end gap-1">
                   <button
                     type="button"
-                    onClick={() => onRevertToHere(undoGroup.id)}
-                    title={t("chat.undo")}
-                    className="rounded-md px-1.5 py-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors flex items-center gap-1"
+                    onClick={() => onHighlightRun(run.run_id)}
+                    disabled={run.tool_invocations.length === 0}
+                    title={
+                      run.tool_invocations.length === 0
+                        ? t("chat.no_tools_to_highlight")
+                        : t("chat.highlight_in_tool_panel")
+                    }
+                    className="rounded-md p-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:text-graphite disabled:hover:bg-transparent"
                   >
-                    <Undo2 className="h-3.5 w-3.5" />
-                    <span className="text-[11px]">{t("chat.undo")}</span>
+                    <Wrench className="h-3.5 w-3.5" />
                   </button>
-                ) : null}
+                  {undoGroup ? (
+                    <button
+                      type="button"
+                      onClick={() => onRevertToHere(undoGroup.id)}
+                      title={t("chat.undo")}
+                      className="rounded-md px-1.5 py-1 text-graphite hover:text-cobalt hover:bg-cobalt/8 transition-colors flex items-center gap-1"
+                    >
+                      <Undo2 className="h-3.5 w-3.5" />
+                      <span className="text-[11px]">{t("chat.undo")}</span>
+                    </button>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          );
+        }
+
+        if (entry.kind === "text") {
+          return (
+            <div key={entry.key} className="flex flex-col gap-1.5 message-enter">
+              {label}
+              <div className="rounded-lg border border-grid bg-surface px-4 py-3">
+                <MarkdownRenderer content={entry.message.content} />
               </div>
             </div>
           );
         }
 
         return (
-          <div key={`msg-${i}`} className="flex flex-col gap-1.5 message-enter">
-            <div className="flex items-center gap-1.5 text-graphite">
-              <Sparkles className="h-3 w-3" />
-              <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-                {t("chat.role.assistant")}
-              </span>
-            </div>
+          <div key={entry.key} className="flex flex-col gap-1.5">
+            {label}
             <div className="rounded-lg border border-grid bg-surface px-4 py-3">
-              <MarkdownRenderer content={msg.content} />
+              <RunStatus variant={isCrawling ? "crawl" : "thinking"} />
             </div>
           </div>
         );
       })}
-
-      {isLoading &&
-        runs.length > runIndex &&
-        runs.slice(runIndex).map((run) => (
-          <div key={`pending-${run.run_id}`} className="flex flex-col gap-1.5 message-enter">
-            <div className="flex items-center gap-1.5 text-graphite">
-              <Sparkles className="h-3 w-3" />
-              <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-                {t("chat.role.assistant")}
-              </span>
-            </div>
-            <div className="rounded-lg border border-grid bg-surface overflow-hidden">
-              <RunContainer run={run} />
-            </div>
-          </div>
-        ))}
-
-      {isLoading && isCrawling && !runs.some(r => r.status === "running") && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5 text-graphite">
-            <Sparkles className="h-3 w-3" />
-            <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-              {t("chat.role.assistant")}
-            </span>
-          </div>
-          <div className="rounded-lg border border-grid bg-surface px-4 py-3">
-            <div className="flex items-center gap-2 text-sm text-graphite">
-              <Search className="h-4 w-4 text-cobalt animate-pulse" />
-              <span>{t("chat.fetching_web_page")}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {isLoading && !isCrawling && !runs.some(r => r.status === "running") && (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-1.5 text-graphite">
-            <Sparkles className="h-3 w-3" />
-            <span className="text-[11px] font-medium uppercase tracking-[0.08em]">
-              {t("chat.role.assistant")}
-            </span>
-          </div>
-          <div className="rounded-lg border border-grid bg-surface px-4 py-3">
-            <div className="flex items-center gap-2 text-sm text-graphite">
-              <span>{t("chat.assistant_working")}</span>
-              <span className="flex gap-0.5">
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
-                  style={{ animationDelay: "0ms" }}
-                />
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
-                  style={{ animationDelay: "150ms" }}
-                />
-                <span
-                  className="inline-block h-1.5 w-1.5 rounded-full bg-cobalt animate-bounce"
-                  style={{ animationDelay: "300ms" }}
-                />
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div ref={bottomRef} />
     </div>

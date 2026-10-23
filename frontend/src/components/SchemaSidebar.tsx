@@ -9,6 +9,9 @@ import ToolsPanel from "./ToolsPanel";
 import BrowserProfilePanel from "./BrowserProfilePanel";
 import CookieViewer from "./CookieViewer";
 
+const RAIL_BUTTON =
+  "rounded-lg p-1.5 text-muted transition-colors hover:bg-default/50 hover:text-foreground";
+
 interface SchemaSidebarProps {
   tables: SchemaTable[];
   schemaLoading: boolean;
@@ -78,16 +81,49 @@ export default function SchemaSidebar({
     [],
   );
 
+  const expandToTab = useCallback((tab: string) => {
+    setSelectedTab(tab);
+    setCollapsed(false);
+  }, []);
+
   if (effectiveCollapsed) {
     return (
-      <aside className="flex w-14 shrink-0 flex-col items-center gap-3 border-l py-3">
+      <aside className="flex w-14 shrink-0 flex-col items-center gap-1 border-l py-3">
         <button
-          className="rounded-lg p-1.5 hover:bg-default/50 text-muted hover:text-foreground transition-colors"
+          className={RAIL_BUTTON}
           onClick={toggleCollapse}
           aria-label={t("schema.expand_aria")}
+          title={t("schema.expand_aria")}
         >
           <PanelRightOpen className="h-4 w-4" />
         </button>
+        <div className="my-1 h-px w-6 bg-grid" aria-hidden />
+        <button
+          className={RAIL_BUTTON}
+          onClick={() => expandToTab("schema")}
+          aria-label={t("schema.tab.schema")}
+          title={t("schema.tab.schema")}
+        >
+          <Database className="h-4 w-4" />
+        </button>
+        <button
+          className={RAIL_BUTTON}
+          onClick={() => expandToTab("tools")}
+          aria-label={t("schema.tab.tools")}
+          title={t("schema.tab.tools")}
+        >
+          <Wrench className="h-4 w-4" />
+        </button>
+        {browserEnabled && (
+          <button
+            className={RAIL_BUTTON}
+            onClick={() => expandToTab("profiles")}
+            aria-label={t("schema.tab.profiles")}
+            title={t("schema.tab.profiles")}
+          >
+            <Globe className="h-4 w-4" />
+          </button>
+        )}
       </aside>
     );
   }
@@ -143,33 +179,32 @@ export default function SchemaSidebar({
       <div className="flex flex-1 flex-col overflow-y-auto py-2">
         {effectiveSelectedTab === "schema" ? (
           <div className="flex flex-1 flex-col gap-2 min-h-0">
-            <div className="flex items-center gap-1 px-3">
-              <button
-                type="button"
-                onClick={() => setSchemaView("map")}
-                className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-                  schemaView === "map"
-                    ? "bg-cobalt/10 text-cobalt"
-                    : "text-muted hover:text-ink hover:bg-default/50"
-                }`}
-                aria-pressed={schemaView === "map"}
+            <div className="flex items-center px-3">
+              <Tabs
+                selectedKey={schemaView}
+                onSelectionChange={(key: Key) =>
+                  setSchemaView(String(key) === "list" ? "list" : "map")
+                }
+                className="w-auto"
               >
-                <Map className="size-3" />
-                {t("schema.view.map")}
-              </button>
-              <button
-                type="button"
-                onClick={() => setSchemaView("list")}
-                className={`flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold uppercase tracking-wider transition-colors ${
-                  schemaView === "list"
-                    ? "bg-cobalt/10 text-cobalt"
-                    : "text-muted hover:text-ink hover:bg-default/50"
-                }`}
-                aria-pressed={schemaView === "list"}
-              >
-                <List className="size-3" />
-                {t("schema.view.list")}
-              </button>
+                <Tabs.ListContainer>
+                  <Tabs.List
+                    aria-label={t("schema.view_aria")}
+                    className="gap-0 *:h-7 *:w-fit *:px-2 *:text-[11px] *:font-semibold *:uppercase *:tracking-wider"
+                  >
+                    <Tabs.Tab id="map">
+                      <Map className="mr-1 inline size-3 text-graphite" />
+                      {t("schema.view.map")}
+                      <Tabs.Indicator className="bg-cobalt" />
+                    </Tabs.Tab>
+                    <Tabs.Tab id="list">
+                      <List className="mr-1 inline size-3 text-graphite" />
+                      {t("schema.view.list")}
+                      <Tabs.Indicator className="bg-cobalt" />
+                    </Tabs.Tab>
+                  </Tabs.List>
+                </Tabs.ListContainer>
+              </Tabs>
             </div>
 
             {schemaView === "map" ? (

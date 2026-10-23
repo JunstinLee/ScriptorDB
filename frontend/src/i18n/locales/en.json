@@ -319,9 +319,10 @@
       "map": "Map",
       "list": "List"
     },
+    "view_aria": "Schema view",
     "tabs_aria": "Sidebar tabs",
     "expand_aria": "Expand schema sidebar",
-    "no_session": "No session selected",
+    "no_session": "No session open. Start one from the sidebar to ask about your data.",
     "loading": "Loading...",
     "empty": "No tables found. Add a table or import data to see the schema map.",
     "more": "+{count} more…",
