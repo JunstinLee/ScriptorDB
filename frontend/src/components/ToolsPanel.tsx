@@ -56,7 +56,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   for (const name of writes) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.file")}
         </span>
       ),
@@ -66,7 +66,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (charts > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.chart")}
         </span>
       ),
@@ -79,7 +79,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (queries > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.query")}
         </span>
       ),
@@ -92,7 +92,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (pythons > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.python")}
         </span>
       ),
@@ -105,7 +105,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (dbCreates > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.ddl")}
         </span>
       ),
@@ -118,7 +118,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (dbWrites > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.db")}
         </span>
       ),
@@ -285,9 +285,9 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
 
   if (runsWithTools.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted">
-        <Wrench className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-sm">{t("tool.empty")}</p>
+      <div className="flex flex-col gap-1 py-6">
+        <p className="text-[13px] text-foreground">{t("tool.empty")}</p>
+        <p className="text-[11px] text-muted">{t("tool.empty_hint")}</p>
       </div>
     );
   }
@@ -310,25 +310,25 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
           <div
             key={run.run_id}
             data-run-id={run.run_id}
-            className={`rounded-lg border border-grid overflow-hidden ${
+            className={`rounded-lg border border-default overflow-hidden ${
               run.run_id === highlightedRunId ? "run-highlight" : ""
             }`}
           >
             <button
               type="button"
               onClick={() => toggleRound(runNumber)}
-              className="flex items-center gap-2 w-full px-3 py-2 bg-default/30 border-b border-grid text-left hover:bg-default/50 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 bg-default/30 border-b border-default text-left hover:bg-default/50 transition-colors"
             >
               {isRoundCollapsed ? (
                 <ChevronRight className="h-3 w-3 text-muted shrink-0" />
               ) : (
                 <ChevronDown className="h-3 w-3 text-muted shrink-0" />
               )}
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted shrink-0 font-mono">
+              <span className="font-mono text-[11px] font-semibold text-muted shrink-0">
                 {t("tool.run_label", { count: runNumber })}
               </span>
               {isRoundCollapsed && (
-                <span className="text-xs text-graphite truncate">
+                <span className="text-[11px] text-muted truncate">
                   · {collapsedSummary}
                 </span>
               )}
@@ -351,7 +351,7 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
                     <ChevronDown className="h-3 w-3 text-muted shrink-0" />
                   )}
                   <Wrench className="h-3 w-3 text-muted shrink-0" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                  <span className="text-[11px] font-semibold text-muted">
                     {t("tool.invocations", {
                       count: run.tool_invocations.length,
                     })}
@@ -364,7 +364,7 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
                       : "tool-expand-open"
                   }`}
                 >
-                  <div className="flex flex-col gap-1.5 mt-1.5">
+                  <div className="flex flex-col divide-y divide-default mt-1.5">
                     {run.tool_invocations.map((inv) => (
                       <ToolInvocation key={inv.call_id} invocation={inv} />
                     ))}

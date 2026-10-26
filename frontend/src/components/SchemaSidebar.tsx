@@ -97,7 +97,7 @@ export default function SchemaSidebar({
         >
           <PanelRightOpen className="h-4 w-4" />
         </button>
-        <div className="my-1 h-px w-6 bg-grid" aria-hidden />
+        <div className="my-1 h-px w-6 bg-default" aria-hidden />
         <button
           className={RAIL_BUTTON}
           onClick={() => expandToTab("schema")}
@@ -134,7 +134,7 @@ export default function SchemaSidebar({
       onMouseEnter={() => setSidebarHovered(true)}
       onMouseLeave={() => setSidebarHovered(false)}
     >
-      <div className="flex items-center gap-2 border-b border-grid px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-default px-3 py-2">
         <Tabs
           selectedKey={effectiveSelectedTab}
           onSelectionChange={(key: Key) => setSelectedTab(String(key))}
@@ -146,20 +146,20 @@ export default function SchemaSidebar({
               className="gap-0 *:h-8 *:w-fit *:px-2.5 *:text-[11px] *:font-semibold *:uppercase *:tracking-wider"
             >
               <Tabs.Tab id="schema">
-                <Database className="mr-1.5 inline size-3.5 text-graphite" />
+                <Database className="mr-1.5 inline size-3.5 text-muted" />
                 {t("schema.tab.schema")}
-                <Tabs.Indicator className="bg-cobalt" />
+                <Tabs.Indicator className="bg-accent" />
               </Tabs.Tab>
               <Tabs.Tab id="tools">
-                <Wrench className="mr-1.5 inline size-3.5 text-graphite" />
+                <Wrench className="mr-1.5 inline size-3.5 text-muted" />
                 {t("schema.tab.tools")}
-                <Tabs.Indicator className="bg-cobalt" />
+                <Tabs.Indicator className="bg-accent" />
               </Tabs.Tab>
               {browserEnabled && (
                 <Tabs.Tab id="profiles">
-                  <Globe className="mr-1.5 inline size-3.5 text-graphite" />
+                  <Globe className="mr-1.5 inline size-3.5 text-muted" />
                   {t("schema.tab.profiles")}
-                  <Tabs.Indicator className="bg-cobalt" />
+                  <Tabs.Indicator className="bg-accent" />
                 </Tabs.Tab>
               )}
             </Tabs.List>
@@ -193,14 +193,14 @@ export default function SchemaSidebar({
                     className="gap-0 *:h-7 *:w-fit *:px-2 *:text-[11px] *:font-semibold *:uppercase *:tracking-wider"
                   >
                     <Tabs.Tab id="map">
-                      <Map className="mr-1 inline size-3 text-graphite" />
+                      <Map className="mr-1 inline size-3 text-muted" />
                       {t("schema.view.map")}
-                      <Tabs.Indicator className="bg-cobalt" />
+                      <Tabs.Indicator className="bg-accent" />
                     </Tabs.Tab>
                     <Tabs.Tab id="list">
-                      <List className="mr-1 inline size-3 text-graphite" />
+                      <List className="mr-1 inline size-3 text-muted" />
                       {t("schema.view.list")}
-                      <Tabs.Indicator className="bg-cobalt" />
+                      <Tabs.Indicator className="bg-accent" />
                     </Tabs.Tab>
                   </Tabs.List>
                 </Tabs.ListContainer>
@@ -224,17 +224,17 @@ export default function SchemaSidebar({
             )}
           </div>
         ) : effectiveSelectedTab === "tools" ? (
-          <div className="px-2">
+          <div className="px-3">
             {!activeSessionId ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted">
-                <p className="text-sm">{t("schema.no_session")}</p>
-              </div>
+              <p className="py-6 text-[13px] leading-relaxed text-muted">
+                {t("schema.no_session")}
+              </p>
             ) : (
               <ToolsPanel runs={runs} highlightedRunId={highlightedRunId} sidebarHovered={sidebarHovered} browserState={browserState} browserLoading={browserLoading} onViewBrowser={onViewBrowser} />
             )}
           </div>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 px-3">
             <BrowserProfilePanel
               profiles={profiles ?? []}
               loading={profilesLoading ?? false}

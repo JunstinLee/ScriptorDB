@@ -24,15 +24,15 @@ export function BrowserContextCard({ state, loading, onViewInMain }: BrowserCont
   const recentActions = state.actions.slice(-3).reverse();
 
   return (
-    <div className="border-b border-grid px-3 py-3">
-      <div className="rounded-lg border border-grid bg-surface p-3">
+    <div className="border-b border-default py-3">
+      <div className="rounded-lg bg-surface p-3">
         <div className="mb-2 flex items-center gap-2">
           {loading ? (
             <Loader2 className="size-2.5 animate-spin text-accent" />
           ) : (
             <span className="size-2.5 rounded-full bg-success" />
           )}
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+          <span className="text-[11px] font-semibold text-muted">
             {t("browser.context_title")}
           </span>
         </div>
@@ -43,7 +43,7 @@ export function BrowserContextCard({ state, loading, onViewInMain }: BrowserCont
             {safeHostname(state.url)}
           </p>
         ) : (
-          <p className="mb-2 text-xs text-muted">{t("browser.waiting_navigation")}</p>
+          <p className="mb-2 text-[11px] text-muted">{t("browser.waiting_navigation")}</p>
         )}
 
         {recentActions.length > 0 && (

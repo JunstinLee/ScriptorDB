@@ -47,11 +47,11 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
   }, [errorId]);
 
   return (
-    <div className="border border-grid rounded-md overflow-hidden">
+    <div className="overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-default/30 transition-colors"
+        className="flex items-center gap-2 w-full px-1 py-2 text-left hover:bg-default/30 transition-colors"
       >
         {status === "running" && (
           <Spinner
@@ -62,45 +62,27 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
         )}
         {status === "success" && (
           <Check
-            className="h-3.5 w-3.5 text-sage"
+            className="h-3.5 w-3.5 text-success"
             aria-label={t("tool.status.success")}
           />
         )}
         {status === "error" && (
           <X
-            className="h-3.5 w-3.5 text-vermilion"
+            className="h-3.5 w-3.5 text-danger"
             aria-label={t("tool.status.error")}
           />
         )}
 
-        <code className="text-xs font-medium text-foreground font-mono">
+        <code className="text-[13px] font-medium text-foreground font-mono">
           {tool_name}
         </code>
 
         {duration_ms != null && (
-          <span className="flex items-center gap-1 text-xs text-muted">
+          <span className="flex items-center gap-1 text-[11px] text-muted">
             <Clock className="h-3 w-3" />
             {formatDuration(duration_ms)}
           </span>
         )}
-
-        <Chip
-          size="sm"
-          variant="soft"
-          color={
-            status === "success"
-              ? "success"
-              : status === "error"
-                ? "danger"
-                : "warning"
-          }
-        >
-          {status === "running"
-            ? t("tool.status.running")
-            : status === "success"
-              ? t("tool.status.success")
-              : t("tool.status.error")}
-        </Chip>
 
         <ChevronDown
           className={`h-3.5 w-3.5 text-muted ml-auto transition-transform ${
@@ -119,7 +101,7 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
         }`}
       >
         {(output || error_code) && (
-          <div className="border-t border-grid px-3 py-2">
+          <div className="border-t border-default px-1 py-2">
             {error_code && (
               <div className="mb-1 flex items-center gap-1.5">
                 <Chip size="sm" color="danger" variant="soft">
@@ -133,7 +115,7 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
                     title={t("tool.copy_error_id")}
                     >
                     {copied ? (
-                      <Check className="h-3 w-3 text-sage" />
+                      <Check className="h-3 w-3 text-success" />
                     ) : (
                       <Copy className="h-3 w-3" />
                     )}
@@ -142,7 +124,7 @@ export default function ToolInvocation({ invocation }: ToolInvocationProps) {
                 )}
               </div>
             )}
-            <pre className="text-xs text-muted whitespace-pre-wrap wrap-break-word max-h-48 overflow-y-auto font-mono">
+            <pre className="text-[11px] text-muted whitespace-pre-wrap wrap-break-word max-h-48 overflow-y-auto font-mono">
               {output || t("tool.no_output")}
             </pre>
           </div>

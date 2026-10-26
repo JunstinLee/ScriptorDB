@@ -62,10 +62,17 @@ export default function SchemaViewer({
   return (
     <div className="flex flex-col gap-1">
       {loading && (
-        <p className="px-2 py-2 text-xs text-muted">{t("schema.loading")}</p>
+        <div className="flex flex-col gap-2 px-3 py-2" aria-hidden>
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-3 w-2/3 rounded bg-default/40" />
+          ))}
+        </div>
       )}
       {!loading && tables.length === 0 && (
-        <p className="px-2 py-2 text-xs text-muted">{t("schema.empty")}</p>
+        <div className="flex flex-col gap-1 px-3 py-3">
+          <p className="text-[13px] text-foreground">{t("schema.empty")}</p>
+          <p className="text-[11px] text-muted">{t("schema.empty_hint")}</p>
+        </div>
       )}
       {!loading &&
         tables.length > 0 &&
@@ -76,8 +83,8 @@ export default function SchemaViewer({
             <div
               key={table.name}
               ref={isSelected ? selectedRowRef : undefined}
-              className={`border-b border-grid last:border-0 ${
-                isSelected ? "bg-cobalt/5" : ""
+              className={`border-b border-default last:border-0 ${
+                isSelected ? "bg-accent/5" : ""
               }`}
             >
               <button
@@ -85,11 +92,11 @@ export default function SchemaViewer({
                 onClick={() => handleClick(table.name)}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-default/30 transition-colors"
               >
-                <code className="truncate text-xs font-semibold">
+                <code className="truncate font-mono text-[13px] font-semibold">
                   {table.name}
                 </code>
                 <ChevronDown
-                  className={`h-3 w-3 text-graphite shrink-0 transition-transform ${
+                  className={`h-3 w-3 text-muted shrink-0 transition-transform ${
                     isExpanded ? "rotate-180" : ""
                   }`}
                 />
