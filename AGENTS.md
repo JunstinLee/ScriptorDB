@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+## Hard Rule: No Reading Without an Explicit Request
+
+Unless explicitly authorized by the user, the agent MUST NOT read or access the source code of any third-party packages, libraries, frameworks, or dependencies, regardless of their location in the repository or filesystem. This prohibition applies to all access methods and paths, including indirect access through search tools or scripts. If accessing dependency source code is necessary to complete the task, stop and ask the user for explicit authorization.
+
 ## Project Overview
 
 ScriptorDB is a natural-language database agent: ask questions in plain English and the agent reads, queries, and writes your SQLite/MySQL database, imports CSV/Excel, generates matplotlib charts, runs a sandboxed Python subprocess, crawls web pages (Playwright), and drives a real (visible) Playwright browser — all behind human approval gates and a grouped undo system.
