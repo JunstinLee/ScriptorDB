@@ -130,7 +130,7 @@ export default function SchemaSidebar({
 
   return (
     <aside
-      className="flex w-[360px] shrink-0 flex-col border-l"
+      className="flex w-90 shrink-0 flex-col border-l"
       onMouseEnter={() => setSidebarHovered(true)}
       onMouseLeave={() => setSidebarHovered(false)}
     >
@@ -148,18 +148,18 @@ export default function SchemaSidebar({
               <Tabs.Tab id="schema">
                 <Database className="mr-1.5 inline size-3.5 text-muted" />
                 {t("schema.tab.schema")}
-                <Tabs.Indicator className="bg-accent" />
+                <Tabs.Indicator className="bg-foreground/5" />
               </Tabs.Tab>
               <Tabs.Tab id="tools">
                 <Wrench className="mr-1.5 inline size-3.5 text-muted" />
                 {t("schema.tab.tools")}
-                <Tabs.Indicator className="bg-accent" />
+                <Tabs.Indicator className="bg-foreground/5" />
               </Tabs.Tab>
               {browserEnabled && (
                 <Tabs.Tab id="profiles">
                   <Globe className="mr-1.5 inline size-3.5 text-muted" />
                   {t("schema.tab.profiles")}
-                  <Tabs.Indicator className="bg-accent" />
+                  <Tabs.Indicator className="bg-foreground/5" />
                 </Tabs.Tab>
               )}
             </Tabs.List>
@@ -195,12 +195,12 @@ export default function SchemaSidebar({
                     <Tabs.Tab id="map">
                       <Map className="mr-1 inline size-3 text-muted" />
                       {t("schema.view.map")}
-                      <Tabs.Indicator className="bg-accent" />
+                      <Tabs.Indicator className="bg-foreground/5" />
                     </Tabs.Tab>
                     <Tabs.Tab id="list">
                       <List className="mr-1 inline size-3 text-muted" />
                       {t("schema.view.list")}
-                      <Tabs.Indicator className="bg-accent" />
+                      <Tabs.Indicator className="bg-foreground/5" />
                     </Tabs.Tab>
                   </Tabs.List>
                 </Tabs.ListContainer>

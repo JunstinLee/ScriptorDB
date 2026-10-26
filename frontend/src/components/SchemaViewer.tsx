@@ -84,7 +84,7 @@ export default function SchemaViewer({
               key={table.name}
               ref={isSelected ? selectedRowRef : undefined}
               className={`border-b border-default last:border-0 ${
-                isSelected ? "bg-accent/5" : ""
+                isSelected ? "bg-surface" : ""
               }`}
             >
               <button
