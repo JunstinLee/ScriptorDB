@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { PanelRightClose, PanelRightOpen, Database, Wrench, List, Map, Globe } from "lucide-react";
+import { PanelRightClose, PanelRightOpen, Database, Wrench, Globe } from "lucide-react";
 import type { BrowserState, Run, SchemaTable, BrowserProfileItem, CookieInfo } from "../types";
-import SchemaMap from "./SchemaMap";
 import SchemaViewer from "./SchemaViewer";
 import ToolsPanel from "./ToolsPanel";
 import BrowserProfilePanel from "./BrowserProfilePanel";
@@ -68,7 +67,6 @@ export default function SchemaSidebar({
     () => window.matchMedia("(max-width: 1100px)").matches,
   );
   const [selectedTab, setSelectedTab] = useState<TabId>("schema");
-  const [schemaView, setSchemaView] = useState<"map" | "list">("map");
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -108,13 +106,9 @@ export default function SchemaSidebar({
     setCollapsed((prev) => !prev);
   }, []);
 
-  const handleTableClick = useCallback(
-    (name: string) => {
-      setSelectedTable(name);
-      setSchemaView("list");
-    },
-    [],
-  );
+  const handleTableClick = useCallback((name: string) => {
+    setSelectedTable(name);
+  }, []);
 
   const expandToTab = useCallback((tab: TabId) => {
     setSelectedTab(tab);
@@ -229,55 +223,19 @@ export default function SchemaSidebar({
       <div className="flex flex-1 flex-col overflow-y-auto py-2">
         {activeTab === "schema" ? (
           <div className="flex flex-1 flex-col gap-2 min-h-0">
-            <div className="flex items-center justify-between px-3">
+            <div className="flex items-center px-3">
               <span className="text-[11px] font-semibold text-muted">
                 {t("schema.tables_count", { count: tables.length })}
               </span>
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  aria-label={t("schema.view.map")}
-                  aria-pressed={schemaView === "map"}
-                  onClick={() => setSchemaView("map")}
-                  className={`rounded-md p-1 transition-colors focus-cobalt ${
-                    schemaView === "map"
-                      ? "bg-accent/10 text-accent"
-                      : "text-muted hover:bg-default/50 hover:text-foreground"
-                  }`}
-                >
-                  <Map className="size-3.5" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={t("schema.view.list")}
-                  aria-pressed={schemaView === "list"}
-                  onClick={() => setSchemaView("list")}
-                  className={`rounded-md p-1 transition-colors focus-cobalt ${
-                    schemaView === "list"
-                      ? "bg-accent/10 text-accent"
-                      : "text-muted hover:bg-default/50 hover:text-foreground"
-                  }`}
-                >
-                  <List className="size-3.5" />
-                </button>
-              </div>
             </div>
 
-            {schemaView === "map" ? (
-              <SchemaMap
-                tables={tables}
-                selectedTable={selectedTable}
-                onTableClick={handleTableClick}
-              />
-            ) : (
-              <SchemaViewer
-                tables={tables}
-                loading={schemaLoading}
-                showSql={showSchemaSql}
-                selectedTable={selectedTable}
-                onTableClick={handleTableClick}
-              />
-            )}
+            <SchemaViewer
+              tables={tables}
+              loading={schemaLoading}
+              showSql={showSchemaSql}
+              selectedTable={selectedTable}
+              onTableClick={handleTableClick}
+            />
           </div>
         ) : activeTab === "tools" ? (
           <div className="px-3">

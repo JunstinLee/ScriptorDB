@@ -90,6 +90,8 @@ export default function SchemaViewer({
               <button
                 type="button"
                 onClick={() => handleClick(table.name)}
+                aria-expanded={isExpanded}
+                aria-current={isSelected ? "true" : undefined}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-default/30 transition-colors"
               >
                 <code className="truncate font-mono text-[13px] font-semibold">
@@ -102,7 +104,10 @@ export default function SchemaViewer({
                 />
               </button>
               {isExpanded && (
-                <div className="flex flex-col gap-2 px-3 pb-3">
+                <div
+                  className="flex flex-col gap-2 px-3 pb-3"
+                  onClick={() => onTableClick?.(table.name)}
+                >
                   <SchemaColumnList columns={table.columns} />
                   {showSql && (
                     <pre className="overflow-x-auto rounded-md bg-default/30 p-2 text-xs text-muted mt-1">
