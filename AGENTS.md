@@ -4,6 +4,16 @@
 
 Unless explicitly authorized by the user, the agent MUST NOT read or access the source code of any third-party packages, libraries, frameworks, or dependencies, regardless of their location in the repository or filesystem. This prohibition applies to all access methods and paths, including indirect access through search tools or scripts. If accessing dependency source code is necessary to complete the task, stop and ask the user for explicit authorization.
 
+## Hard Rule: User-Defined Scope Boundaries Are Absolute
+
+Any boundary the user sets for a turn — which files may be read, which documents may be reopened, which checks may be run, what must not be investigated — is a binding contract to be followed 100%, not a suggestion and not an input to the agent's own judgment of relevance. Crossing it is a hard failure of the task, even when the extra access looks harmless, cheap, or obviously useful.
+
+- Do not widen scope on internal reasoning such as "this is relevant", "small", "needed for context", "worth verifying", or "just to be safe". Anything outside the boundary is not read, opened, grepped, listed, or probed.
+- A second read of a question already answered, or re-reading anything the user declared out of scope, is still a violation. Repetition and redundancy do not make it acceptable.
+- If the task genuinely cannot proceed without touching something outside the boundary, stop and ask before touching it — one short question, never a silent exception.
+- When the boundary itself is genuinely ambiguous, take the narrowest reading, finish the in-scope work, and state the assumption in the deliverable. Never expand first and explain later.
+- A boundary stated in the user's own words counts as set by the user. "No peripheral investigation", "that part is done, don't verify it", "don't read plan-01" are all absolute instructions, not hints.
+
 ## Project Overview
 
 ScriptorDB is a natural-language database agent: ask questions in plain English and the agent reads, queries, and writes your SQLite/MySQL database, imports CSV/Excel, generates matplotlib charts, runs a sandboxed Python subprocess, crawls web pages (Playwright), and drives a real (visible) Playwright browser — all behind human approval gates and a grouped undo system.
