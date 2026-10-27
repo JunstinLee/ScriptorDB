@@ -139,13 +139,12 @@ function getCollapsedSummary(t: TFunction, invocations: TI[]): string {
 interface ToolsPanelProps {
   runs: Run[];
   highlightedRunId: string | null;
-  sidebarHovered: boolean;
   browserState: BrowserState | null;
   browserLoading: boolean;
   onViewBrowser: () => void;
 }
 
-export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, browserState, browserLoading, onViewBrowser }: ToolsPanelProps) {
+export default function ToolsPanel({ runs, highlightedRunId, browserState, browserLoading, onViewBrowser }: ToolsPanelProps) {
   const { t } = useTranslation();
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
@@ -175,14 +174,12 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
 
   const runsRef = useRef(runs);
   const runsWithToolsRef = useRef(runsWithTools);
-  const highlightedRunIdRef = useRef(highlightedRunId);
 
   // ref 同步放到 effect 中，避免渲染期间更新 ref（react-hooks/refs）
   useEffect(() => {
     runsRef.current = runs;
     runsWithToolsRef.current = runsWithTools;
-    highlightedRunIdRef.current = highlightedRunId;
-  }, [runs, runsWithTools, highlightedRunId]);
+  }, [runs, runsWithTools]);
 
   const toggleRound = (roundIndex: number) => {
     setCollapsedRounds((prev) => {
@@ -202,47 +199,21 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
     });
   };
 
-  // 会话切换（run 集合完全变化）时重置折叠状态
+  // run 集合变化时同步折叠状态：
+  // 会话切换（完全换掉）全部展开；出现新一轮时只设定一次默认态（旧轮次折叠、最新一轮展开），
+  // 之后尊重用户的手动操作，面板不再自己变形
   useEffect(() => {
     const ids = runsWithTools.map((r) => r.run_id);
     const prev = prevRunIdsRef.current;
     if (ids.length > 0 && !ids.some((id) => prev.includes(id))) {
       setCollapsedRounds(new Set());
       setCollapsedTools(new Set());
+    } else if (ids.length > prev.length) {
+      setCollapsedRounds(new Set(ids.slice(0, -1).map((_, i) => i + 1)));
+      setCollapsedTools(new Set());
     }
     prevRunIdsRef.current = ids;
   }, [runsWithTools]);
-
-  // 鼠标不在侧边栏区域 5 秒后自动折叠：
-  // 旧轮次折叠、最新一轮保持展开；单轮超过 10 个工具的工具列表折叠
-  useEffect(() => {
-    if (sidebarHovered) return;
-    const timer = setTimeout(() => {
-      const list = runsWithToolsRef.current;
-      const highlighted = highlightedRunIdRef.current;
-      setCollapsedRounds((prev) => {
-        const next = new Set(prev);
-        list.forEach((run, i) => {
-          if (run.run_id === highlighted) return;
-          const runNumber = i + 1;
-          if (i === list.length - 1) next.delete(runNumber);
-          else next.add(runNumber);
-        });
-        return next;
-      });
-      setCollapsedTools((prev) => {
-        const next = new Set(prev);
-        list.forEach((run, i) => {
-          if (run.run_id === highlighted) return;
-          const runNumber = i + 1;
-          if (run.tool_invocations.length > 10) next.add(runNumber);
-          else next.delete(runNumber);
-        });
-        return next;
-      });
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [sidebarHovered]);
 
   useEffect(() => {
     if (!highlightedRunId) return;
