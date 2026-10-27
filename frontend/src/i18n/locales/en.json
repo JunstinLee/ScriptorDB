@@ -318,20 +318,13 @@
       "tools": "Tools",
       "profiles": "Profiles"
     },
-    "view": {
-      "map": "Map",
-      "list": "List"
-    },
-    "view_aria": "Schema view",
     "tabs_aria": "Sidebar tabs",
     "tables_count_one": "{count} table",
     "tables_count_other": "{count} tables",
     "expand_aria": "Expand schema sidebar",
     "no_session": "No session open. Start one from the sidebar to ask about your data.",
     "empty": "No tables read yet.",
-    "empty_hint": "Connect a database in settings and the tables appear here.",
-    "more": "+{count} more…",
-    "table_aria": "Table {name}"
+    "empty_hint": "Connect a database in settings and the tables appear here."
   },
   "history": {
     "placeholder": "Search history...",

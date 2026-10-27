@@ -316,19 +316,12 @@
       "tools": "工具",
       "profiles": "配置"
     },
-    "view": {
-      "map": "关系图",
-      "list": "列表"
-    },
-    "view_aria": "表结构视图",
     "tabs_aria": "侧边栏标签页",
     "tables_count_other": "{count} 张表",
     "expand_aria": "展开表结构侧栏",
     "no_session": "还没有会话。在左侧点「新建会话」开始提问。",
     "empty": "还没有读到任何表",
-    "empty_hint": "在设置里连上数据库后，这里会自动出现",
-    "more": "还有 {count} 张…",
-    "table_aria": "表 {name}"
+    "empty_hint": "在设置里连上数据库后，这里会自动出现"
   },
   "history": {
     "placeholder": "搜索历史…",
