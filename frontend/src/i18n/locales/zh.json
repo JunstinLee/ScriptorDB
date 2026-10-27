@@ -225,7 +225,8 @@
     "tab": {
       "chat": "对话",
       "browser": "浏览器"
-    }
+    },
+    "tabs_aria": "主视图标签页"
   },
   "sidebar": {
     "search_history": "搜索历史",
@@ -321,6 +322,7 @@
     },
     "view_aria": "表结构视图",
     "tabs_aria": "侧边栏标签页",
+    "tables_count_other": "{count} 张表",
     "expand_aria": "展开表结构侧栏",
     "no_session": "还没有会话。在左侧点「新建会话」开始提问。",
     "empty": "还没有读到任何表",
