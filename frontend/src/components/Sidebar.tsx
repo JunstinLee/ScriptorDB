@@ -8,7 +8,6 @@ import {
   MessageSquarePlus,
   PanelLeftClose,
   PanelLeftOpen,
-  Plus,
   Search,
   Settings as SettingsIcon,
 } from "lucide-react";
@@ -32,7 +31,6 @@ interface SidebarProps {
   switchingWorkspace: boolean;
   onSwitchWorkspace: (id: string) => void;
   onOpenWorkspacePicker: () => void;
-  onRequestNewWorkspace: () => void;
   onDatabaseConfigured?: () => void;
 }
 
@@ -49,7 +47,6 @@ export default function Sidebar({
   switchingWorkspace,
   onSwitchWorkspace,
   onOpenWorkspacePicker,
-  onRequestNewWorkspace,
   onDatabaseConfigured,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -179,19 +176,6 @@ export default function Sidebar({
             style={{ width: `${popoverWidth}px`, maxWidth: `${popoverWidth}px` }}
           >
             <Popover.Dialog className="p-1">
-              <div className="px-2 py-1.5 text-xs text-muted">
-                {t("workspace.current")}
-              </div>
-              <div className="rounded-md border-l-[3px] border-l-cobalt bg-surface px-3 py-2">
-                <div className="truncate text-sm font-medium">
-                  {activeWorkspace?.name ?? t("workspace.none")}
-                </div>
-                <WorkspacePath
-                  path={activeWorkspace?.path}
-                  className="text-xs text-muted font-mono"
-                />
-              </div>
-
               {workspaces.filter((w) => w.id !== activeWorkspace?.id).length > 0 && (
                 <>
                   <div className="mt-2 px-2 py-1.5 text-xs text-muted">
@@ -222,13 +206,6 @@ export default function Sidebar({
               )}
 
               <div className="mt-2 flex flex-col gap-0.5 border-t border-grid pt-2">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface"
-                  onClick={onRequestNewWorkspace}
-                >
-                  <Plus className="size-3.5" /> {t("workspace.new")}
-                </button>
                 <button
                   type="button"
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-surface"
@@ -277,7 +254,6 @@ export default function Sidebar({
 
       {/* Divider with collapse button — at the end of the workspace area */}
       <div className="flex items-center justify-end gap-1 border-b border-grid px-3 py-1">
-        <span className="flex-1" />
         <button
           type="button"
           className="rounded-md p-1 text-graphite transition-colors hover:bg-default/50 hover:text-ink focus:outline-2 focus:outline-offset-2 focus:outline-cobalt"

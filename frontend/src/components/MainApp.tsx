@@ -271,7 +271,6 @@ export default function MainApp({
         switchingWorkspace={switchingWorkspace}
         onSwitchWorkspace={handleSwitchWorkspace}
         onOpenWorkspacePicker={handleOpenWorkspacePicker}
-        onRequestNewWorkspace={handleOpenWorkspacePicker}
         onDatabaseConfigured={handleDatabaseConfigured}
       />
 

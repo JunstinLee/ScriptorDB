@@ -4,12 +4,14 @@ interface SchemaColumnListProps {
   columns: SchemaColumn[];
 }
 
-function ColumnTag({ label }: { label: string }) {
-  return (
-    <span className="inline-flex items-center rounded bg-default-200/60 px-1 py-px text-[10px] font-medium leading-none text-default-500">
-      {label}
-    </span>
-  );
+function columnFlags(col: SchemaColumn): string {
+  return [
+    col.pk ? "pk" : null,
+    col.notnull && !col.pk ? "nn" : null,
+    col.autoincrement ? "ai" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export default function SchemaColumnList({ columns }: SchemaColumnListProps) {
@@ -19,22 +21,25 @@ export default function SchemaColumnList({ columns }: SchemaColumnListProps) {
 
   return (
     <div className="flex flex-col gap-0.5 px-1">
-      {columns.map((col) => (
-        <div
-          key={col.name}
-          className="flex items-center gap-2 py-0.5 text-xs"
-        >
-          <code className="shrink-0 font-mono text-foreground">
-            {col.name}
-          </code>
-          <span className="shrink-0 text-default-400">{col.type}</span>
-          <span className="ml-auto flex items-center gap-1">
-            {col.pk && <ColumnTag label="PK" />}
-            {col.notnull && !col.pk && <ColumnTag label="NN" />}
-            {col.autoincrement && <ColumnTag label="AI" />}
-          </span>
-        </div>
-      ))}
+      {columns.map((col) => {
+        const flags = columnFlags(col);
+        return (
+          <div
+            key={col.name}
+            className="flex items-center gap-2 py-0.5 text-[11px]"
+          >
+            <code className="shrink-0 font-mono text-foreground">
+              {col.name}
+            </code>
+            <span className="shrink-0 font-mono text-muted">{col.type}</span>
+            {flags && (
+              <span className="ml-auto shrink-0 font-mono text-[10px] leading-none text-muted">
+                {flags}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -72,21 +72,7 @@ body,
   animation: message-enter 250ms ease-out forwards;
 }
 
-/* 2. Schema map node stagger */
-@keyframes schema-node-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.schema-node-in {
-  animation: schema-node-in 300ms ease-out forwards;
-}
-
-/* 3. Run highlight — amber flash on left border */
+/* 2. Run highlight — amber flash on left border */
 @keyframes highlight-fade {
   0% {
     box-shadow: inset 3px 0 0 0 var(--amber);
@@ -100,7 +86,7 @@ body,
   animation: highlight-fade 800ms ease-out forwards;
 }
 
-/* 4. Tool invocation expand/collapse */
+/* 3. Tool invocation expand/collapse */
 .tool-expand {
   display: grid;
   grid-template-rows: 0fr;
@@ -123,7 +109,7 @@ body,
   overflow: hidden;
 }
 
-/* 5. Popover entrance */
+/* 4. Popover entrance */
 @keyframes popover-in {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -142,7 +128,6 @@ body,
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   .message-enter,
-  .schema-node-in,
   .run-highlight,
   .popover-animate {
     animation: none;
@@ -156,12 +141,14 @@ body,
     transition: none;
   }
 
+  /* 状态提示的脉动/跳动属于氛围动效：系统要求减弱时停下来，文案仍在 */
+  .animate-pulse,
+  .animate-bounce {
+    animation: none;
+  }
+
   .message-enter {
     opacity: 1;
     transform: none;
-  }
-
-  .schema-node-in {
-    opacity: 1;
   }
 }

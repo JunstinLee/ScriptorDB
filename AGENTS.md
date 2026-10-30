@@ -1,5 +1,24 @@
 # Repository Guidelines
 
+## Hard Rule: No Reading Without an Explicit Request
+
+Unless explicitly authorized by the user, the agent MUST NOT read or access the source code of any third-party packages, libraries, frameworks, or dependencies, regardless of their location in the repository or filesystem. This prohibition applies to all access methods and paths, including indirect access through search tools or scripts. If accessing dependency source code is necessary to complete the task, stop and ask the user for explicit authorization.
+
+## Hard Rule: User-Defined Scope Boundaries Are Absolute
+
+The boundary the user sets for a turn — which files may be read, which documents may be reopened, which checks may be run, what must not be investigated — is absolute. Follow it 100%; never widen it by your own judgment of relevance. Out of scope means not read, not opened, not grepped, not listed. If the task truly cannot proceed without crossing it, ask first with one short question.
+
+## Hard Rule: Investigation Discipline (Recorded Incident)
+
+These clauses codify concrete violations from a real session and extend the two hard rules above. Each one is absolute: "it is needed to answer", "it is the feature under discussion", "it is cheap", "it is just to verify", or "the user said read the relevant files" never bend them. Breaking any clause is a hard failure of the turn, not a tradeoff.
+
+- **A dependency is never readable, even when it is the feature under discussion.** Anything under `node_modules/`, `site-packages/`, `~/.dsh/profiles/*/node_modules/`, or a vendored directory is dependency source — including installed DSH plugins (e.g. `dshmarket`, `dsh-permission-rules`). The plugin/market/tool being debugged is NOT an exception: never open its `src/`, `lib/`, or bundled JS to explain behavior. Use its README/public docs, user-facing UI, logs, or the observable runtime. Never inspect the harness app bundle (`app.asar`, `.app/Contents`) or dump binary strings to explain harness behavior.
+- **"Read the relevant files" is not authorization.** A request to read related files (e.g. 阅读相关文件) covers only the workspace files the task names or plainly implies. It never authorizes dependency source, app bundles, or protected directories. If the material needed is only there, stop and ask one short question first.
+- **A denial is final across every tool.** When a tool refuses a path ("protected location", sandbox denial, workspace boundary), do not retry that access through another tool (`read`/`grep`/`glob`), a different path spelling, a symlink, a script, or an indirect route. The refusal defines a boundary: report it and ask.
+- **Do not reproduce a user-reported failure.** A user-reported error/failure is ground truth; never re-run the failing request to confirm it, and never walk from a reproduced symptom into implementation source. If diagnosis truly needs one runtime observation, make it a single read-only probe, then stop.
+- **A successful operation is authoritative.** After a write/edit/command returns success, never confirm it with a re-read, `git diff`, `git status`, or a re-run. The tool result and the refreshed file contents ARE the verification; an extra probe is a violation, not diligence.
+- **Stop at sufficiency.** Once the observed evidence explains the failure at the level the user asked, stop. Do not chase secondary internals (why a component chose a mode, which exact code path produced it); state the remaining uncertainty as one caveat in the answer. "Worth verifying", "to be complete", and "just to be sure" are not reasons to continue — every extra read after the answer is available is a violation, not thoroughness.
+
 ## Project Overview
 
 ScriptorDB is a natural-language database agent: ask questions in plain English and the agent reads, queries, and writes your SQLite/MySQL database, imports CSV/Excel, generates matplotlib charts, runs a sandboxed Python subprocess, crawls web pages (Playwright), and drives a real (visible) Playwright browser — all behind human approval gates and a grouped undo system.

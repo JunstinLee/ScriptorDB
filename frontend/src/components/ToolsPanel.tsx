@@ -56,7 +56,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   for (const name of writes) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.file")}
         </span>
       ),
@@ -66,7 +66,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (charts > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.chart")}
         </span>
       ),
@@ -79,7 +79,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (queries > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.query")}
         </span>
       ),
@@ -92,7 +92,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (pythons > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.python")}
         </span>
       ),
@@ -105,7 +105,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (dbCreates > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.ddl")}
         </span>
       ),
@@ -118,7 +118,7 @@ function getOperations(t: TFunction, invocations: TI[]): OperationItem[] {
   if (dbWrites > 0) {
     ops.push({
       icon: (
-        <span className="text-[10px] font-mono text-graphite">
+        <span className="font-mono text-[11px] text-muted">
           {t("tool.tag.db")}
         </span>
       ),
@@ -139,13 +139,12 @@ function getCollapsedSummary(t: TFunction, invocations: TI[]): string {
 interface ToolsPanelProps {
   runs: Run[];
   highlightedRunId: string | null;
-  sidebarHovered: boolean;
   browserState: BrowserState | null;
   browserLoading: boolean;
   onViewBrowser: () => void;
 }
 
-export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, browserState, browserLoading, onViewBrowser }: ToolsPanelProps) {
+export default function ToolsPanel({ runs, highlightedRunId, browserState, browserLoading, onViewBrowser }: ToolsPanelProps) {
   const { t } = useTranslation();
   const [collapsedRounds, setCollapsedRounds] = useState<Set<number>>(
     new Set(),
@@ -175,14 +174,12 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
 
   const runsRef = useRef(runs);
   const runsWithToolsRef = useRef(runsWithTools);
-  const highlightedRunIdRef = useRef(highlightedRunId);
 
   // ref 同步放到 effect 中，避免渲染期间更新 ref（react-hooks/refs）
   useEffect(() => {
     runsRef.current = runs;
     runsWithToolsRef.current = runsWithTools;
-    highlightedRunIdRef.current = highlightedRunId;
-  }, [runs, runsWithTools, highlightedRunId]);
+  }, [runs, runsWithTools]);
 
   const toggleRound = (roundIndex: number) => {
     setCollapsedRounds((prev) => {
@@ -202,47 +199,21 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
     });
   };
 
-  // 会话切换（run 集合完全变化）时重置折叠状态
+  // run 集合变化时同步折叠状态：
+  // 会话切换（完全换掉）全部展开；出现新一轮时只设定一次默认态（旧轮次折叠、最新一轮展开），
+  // 之后尊重用户的手动操作，面板不再自己变形
   useEffect(() => {
     const ids = runsWithTools.map((r) => r.run_id);
     const prev = prevRunIdsRef.current;
     if (ids.length > 0 && !ids.some((id) => prev.includes(id))) {
       setCollapsedRounds(new Set());
       setCollapsedTools(new Set());
+    } else if (ids.length > prev.length) {
+      setCollapsedRounds(new Set(ids.slice(0, -1).map((_, i) => i + 1)));
+      setCollapsedTools(new Set());
     }
     prevRunIdsRef.current = ids;
   }, [runsWithTools]);
-
-  // 鼠标不在侧边栏区域 5 秒后自动折叠：
-  // 旧轮次折叠、最新一轮保持展开；单轮超过 10 个工具的工具列表折叠
-  useEffect(() => {
-    if (sidebarHovered) return;
-    const timer = setTimeout(() => {
-      const list = runsWithToolsRef.current;
-      const highlighted = highlightedRunIdRef.current;
-      setCollapsedRounds((prev) => {
-        const next = new Set(prev);
-        list.forEach((run, i) => {
-          if (run.run_id === highlighted) return;
-          const runNumber = i + 1;
-          if (i === list.length - 1) next.delete(runNumber);
-          else next.add(runNumber);
-        });
-        return next;
-      });
-      setCollapsedTools((prev) => {
-        const next = new Set(prev);
-        list.forEach((run, i) => {
-          if (run.run_id === highlighted) return;
-          const runNumber = i + 1;
-          if (run.tool_invocations.length > 10) next.add(runNumber);
-          else next.delete(runNumber);
-        });
-        return next;
-      });
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [sidebarHovered]);
 
   useEffect(() => {
     if (!highlightedRunId) return;
@@ -285,9 +256,9 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
 
   if (runsWithTools.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-muted">
-        <Wrench className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-sm">{t("tool.empty")}</p>
+      <div className="flex flex-col gap-1 py-6">
+        <p className="text-[13px] text-foreground">{t("tool.empty")}</p>
+        <p className="text-[11px] text-muted">{t("tool.empty_hint")}</p>
       </div>
     );
   }
@@ -310,25 +281,25 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
           <div
             key={run.run_id}
             data-run-id={run.run_id}
-            className={`rounded-lg border border-grid overflow-hidden ${
+            className={`rounded-lg border border-default overflow-hidden ${
               run.run_id === highlightedRunId ? "run-highlight" : ""
             }`}
           >
             <button
               type="button"
               onClick={() => toggleRound(runNumber)}
-              className="flex items-center gap-2 w-full px-3 py-2 bg-default/30 border-b border-grid text-left hover:bg-default/50 transition-colors"
+              className="flex items-center gap-2 w-full px-3 py-2 bg-default/30 border-b border-default text-left hover:bg-default/50 transition-colors"
             >
               {isRoundCollapsed ? (
                 <ChevronRight className="h-3 w-3 text-muted shrink-0" />
               ) : (
                 <ChevronDown className="h-3 w-3 text-muted shrink-0" />
               )}
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted shrink-0 font-mono">
+              <span className="font-mono text-[11px] font-semibold text-muted shrink-0">
                 {t("tool.run_label", { count: runNumber })}
               </span>
               {isRoundCollapsed && (
-                <span className="text-xs text-graphite truncate">
+                <span className="text-[11px] text-muted truncate">
                   · {collapsedSummary}
                 </span>
               )}
@@ -351,7 +322,7 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
                     <ChevronDown className="h-3 w-3 text-muted shrink-0" />
                   )}
                   <Wrench className="h-3 w-3 text-muted shrink-0" />
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                  <span className="text-[11px] font-semibold text-muted">
                     {t("tool.invocations", {
                       count: run.tool_invocations.length,
                     })}
@@ -364,7 +335,7 @@ export default function ToolsPanel({ runs, highlightedRunId, sidebarHovered, bro
                       : "tool-expand-open"
                   }`}
                 >
-                  <div className="flex flex-col gap-1.5 mt-1.5">
+                  <div className="flex flex-col divide-y divide-default mt-1.5">
                     {run.tool_invocations.map((inv) => (
                       <ToolInvocation key={inv.call_id} invocation={inv} />
                     ))}

@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { Button, Input, Label, Modal } from "@heroui/react";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import type {
   WorkspaceCreateRequest,
   WorkspaceDetail,
@@ -149,15 +149,13 @@ export default function WorkspacePicker({
         <Modal.Dialog className="sm:max-w-160 max-h-[85vh] bg-surface">
           {isClosable && <Modal.CloseTrigger />}
           <Modal.Header>
-            <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
-              <RefreshCw className="size-5" />
-            </Modal.Icon>
             <Modal.Heading>{t("workspace.title")}</Modal.Heading>
           </Modal.Header>
           <Modal.Body>
-            <p className="text-xs text-muted -mt-2">
-              {t("workspace.subtitle")}
-            </p>
+            <div className="flex flex-col gap-3">
+              <p className="text-xs text-muted">
+                {t("workspace.subtitle")}
+              </p>
 
             {(localError || error) && (
               <AlertBanner
@@ -337,6 +335,7 @@ export default function WorkspacePicker({
                 </Button>
               </div>
             </form>
+            </div>
           </Modal.Body>
         </Modal.Dialog>
       </Modal.Container>
