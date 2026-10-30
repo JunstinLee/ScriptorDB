@@ -6,13 +6,18 @@ Unless explicitly authorized by the user, the agent MUST NOT read or access the 
 
 ## Hard Rule: User-Defined Scope Boundaries Are Absolute
 
-Any boundary the user sets for a turn — which files may be read, which documents may be reopened, which checks may be run, what must not be investigated — is a binding contract to be followed 100%, not a suggestion and not an input to the agent's own judgment of relevance. Crossing it is a hard failure of the task, even when the extra access looks harmless, cheap, or obviously useful.
+The boundary the user sets for a turn — which files may be read, which documents may be reopened, which checks may be run, what must not be investigated — is absolute. Follow it 100%; never widen it by your own judgment of relevance. Out of scope means not read, not opened, not grepped, not listed. If the task truly cannot proceed without crossing it, ask first with one short question.
 
-- Do not widen scope on internal reasoning such as "this is relevant", "small", "needed for context", "worth verifying", or "just to be safe". Anything outside the boundary is not read, opened, grepped, listed, or probed.
-- A second read of a question already answered, or re-reading anything the user declared out of scope, is still a violation. Repetition and redundancy do not make it acceptable.
-- If the task genuinely cannot proceed without touching something outside the boundary, stop and ask before touching it — one short question, never a silent exception.
-- When the boundary itself is genuinely ambiguous, take the narrowest reading, finish the in-scope work, and state the assumption in the deliverable. Never expand first and explain later.
-- A boundary stated in the user's own words counts as set by the user. "No peripheral investigation", "that part is done, don't verify it", "don't read plan-01" are all absolute instructions, not hints.
+## Hard Rule: Investigation Discipline (Recorded Incident)
+
+These clauses codify concrete violations from a real session and extend the two hard rules above. Each one is absolute: "it is needed to answer", "it is the feature under discussion", "it is cheap", "it is just to verify", or "the user said read the relevant files" never bend them. Breaking any clause is a hard failure of the turn, not a tradeoff.
+
+- **A dependency is never readable, even when it is the feature under discussion.** Anything under `node_modules/`, `site-packages/`, `~/.dsh/profiles/*/node_modules/`, or a vendored directory is dependency source — including installed DSH plugins (e.g. `dshmarket`, `dsh-permission-rules`). The plugin/market/tool being debugged is NOT an exception: never open its `src/`, `lib/`, or bundled JS to explain behavior. Use its README/public docs, user-facing UI, logs, or the observable runtime. Never inspect the harness app bundle (`app.asar`, `.app/Contents`) or dump binary strings to explain harness behavior.
+- **"Read the relevant files" is not authorization.** A request to read related files (e.g. 阅读相关文件) covers only the workspace files the task names or plainly implies. It never authorizes dependency source, app bundles, or protected directories. If the material needed is only there, stop and ask one short question first.
+- **A denial is final across every tool.** When a tool refuses a path ("protected location", sandbox denial, workspace boundary), do not retry that access through another tool (`read`/`grep`/`glob`), a different path spelling, a symlink, a script, or an indirect route. The refusal defines a boundary: report it and ask.
+- **Do not reproduce a user-reported failure.** A user-reported error/failure is ground truth; never re-run the failing request to confirm it, and never walk from a reproduced symptom into implementation source. If diagnosis truly needs one runtime observation, make it a single read-only probe, then stop.
+- **A successful operation is authoritative.** After a write/edit/command returns success, never confirm it with a re-read, `git diff`, `git status`, or a re-run. The tool result and the refreshed file contents ARE the verification; an extra probe is a violation, not diligence.
+- **Stop at sufficiency.** Once the observed evidence explains the failure at the level the user asked, stop. Do not chase secondary internals (why a component chose a mode, which exact code path produced it); state the remaining uncertainty as one caveat in the answer. "Worth verifying", "to be complete", and "just to be sure" are not reasons to continue — every extra read after the answer is available is a violation, not thoroughness.
 
 ## Project Overview
 
